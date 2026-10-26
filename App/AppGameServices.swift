@@ -23,7 +23,6 @@ import GameHanafuda
 import GameSpider
 import GameShiritori
 import GameFifteen
-import GameRoulette
 import GameFruits
 import GameColorRelay
 import GameAnzan
@@ -39,6 +38,7 @@ import GameTsunagi
 import GameDiceCombo
 import GameHanoi
 import GameYonmoku
+import GameCatPuzzle
 
 /// アプリ本体が組み立てる GameServices の実体。
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
@@ -246,13 +246,12 @@ enum AppEnvironment {
     }
 
     /// ハブに並べるゲーム群。新ゲームはここに 1 行追加するだけ。
-    /// 並び順 = 新規インストール時の既定表示順。2026-09-23〜09-25 の GA4 実績から出したスコア順
-    /// （プレイ時間 50%・プレイ回数 25%・プレイ人数 25%。各指標を収録20本の中での順位パーセンタイルに
-    /// 直して重み付け）を基本に、会長の手動配置として チャリンコおじさん を 3位、四人打ち麻雀 を 4位、
-    /// カードしりとり を 9位、15パズル を最後に置いている（#1014・会長決裁 2026-09-25）。
-    /// 腰痛おじさんパズル・ぱっと暗算 はブラックジャックの直後に手動配置している（#2460・会長決裁
-    /// 2026-10-18。10/10〜10/16 の GA4 でプレイ人数が下位のゲームより多いのに登録順末尾近くにあったため）。
-    /// ナンプレを上位に置く方針（国内の検索需要が最大級・#355 会長決裁 2026-08-31）はスコア順でも満たしている。
+    /// 並び順 = 新規インストール時の既定表示順。もとは 2026-09-23〜09-25 の GA4 実績から出したスコア順
+    /// （プレイ時間 50%・プレイ回数 25%・プレイ人数 25%）を基本に手動配置を加えたものだったが（#1014・#2460）、
+    /// 2026-10-26 の会長決裁（GA4 の 10/22〜26 のプレイ人数・1 人あたりの回数を踏まえた見直し）で
+    /// いろリレー・サイコロ役づくりを上位へ、チャリンコおじさんと腰痛おじさんパズルを入れ替えるなど
+    /// 大きく組み直した。以下の登録順が現在の決裁（各ゲームの手動配置の理由は個別コメントを参照）。
+    /// ナンプレを上位に置く方針（国内の検索需要が最大級・#355 会長決裁 2026-08-31）はこの並びでも満たしている。
     /// 既にアプリを使っている人の並びには影響しない（`GameSettings` はユーザーの並び替えを
     /// 優先し、ここは「まだ並び替えたことがない人」の初期値だけを決める）。
     static let registry = GameRegistry([
@@ -262,31 +261,49 @@ enum AppEnvironment {
         // 来るよう登録順の先頭に置く（#2572・会長指示 2026-10-20）。保存済みの並びを持つ端末は
         // `GameSettings` が一度だけ先頭へ移す。
         HomerunModule(),
-        PokerModule(),
+        // いろリレー（#1320）。企画倉庫から v1.1.13 でハブに公開（#2384）。会長決裁（2026-10-26・GA4 の
+        // 10/22〜26 のプレイ人数・1 人あたりの回数で見直し）で上位へ移動。倉庫へ戻す判断が出たら、
+        // この 1 行をコメントアウトし、`web/app/lib/games.ts` とレコメンドの候補表
+        // （`RecommendationPolicy.candidateTable` の `colorrelay` の行と、他のゲームの候補に入れた分）も戻すこと。
+        ColorRelayModule(),
         SolitaireModule(),
-        RunnerModule(),
+        PokerModule(),
+        // サイコロ役づくり（#1752）。企画倉庫から v1.1.13 でハブに公開（#2384）。会長決裁（2026-10-26・GA4 の
+        // 10/22〜26 のプレイ人数・1 人あたりの回数で見直し）で上位へ移動。倉庫へ戻す判断が出たら、
+        // この 1 行をコメントアウトし、`web/app/lib/games.ts` とレコメンドの候補表
+        // （`RecommendationPolicy.candidateTable` の `dicecombo` の行と、他のゲームの候補に入れた分）も戻すこと。
+        DiceComboModule(),
         MahjongModule(),
-        SudokuModule(),
         OthelloModule(),
-        Game2048Module(),
-        ShogiModule(),
-        ShiritoriModule(),
-        DaifugoModule(),
+        SudokuModule(),
         GomokuModule(),
-        MinesweeperModule(),
-        SpiderModule(),
-        BlackjackModule(),
         // おじさんの荷物運びパズル（#1016）。v1.1.11 でハブに公開（#1904）。倉庫へ戻す判断が出たら、
         // 上の倉庫ゲームと同じくこの 1 行をコメントアウトし、`web/app/lib/games.ts` からも外す。
         // レコメンドの候補表（`RecommendationPolicy.candidateTable`）の `ojisanpuzzle` の行と、柵越えおじさんの
         // 第3候補（#1904 で 2048 から差し替え）も戻すこと（`RecommendationTests` が登録の無い ID を検出する）。
-        // ブラックジャックの直後に手動配置（#2460・会長決裁 2026-10-18。GA4 でプレイ人数が下位のゲームより
-        // 多いのに登録順末尾近くにあったため、スコア順の例外としてここへ上げる）。
+        // 五目並べの直後に手動配置（会長決裁 2026-10-26・GA4 の 10/22〜26 のプレイ人数・1 人あたりの回数で
+        // 見直し。以前の #2460「ブラックジャックの直後」から、チャリンコおじさんと入れ替える形で移動）。
         OjisanPuzzleModule(),
+        // おじさんの盆栽（#1319。もとは くっつきフルーツ）。企画倉庫から v1.1.13 でハブに公開（#2384）。
+        // 会長決裁（2026-10-26・GA4 の 10/22〜26 のプレイ人数・1 人あたりの回数で見直し）で上位へ移動。
+        // 倉庫へ戻す判断が出たら、この 1 行をコメントアウトし、`web/app/lib/games.ts` とレコメンドの候補表
+        // （`RecommendationPolicy.candidateTable` の `fruits` の行と、他のゲームの候補に入れた分）も戻すこと。
+        FruitsModule(),
+        Game2048Module(),
+        ShogiModule(),
+        ShiritoriModule(),
+        DaifugoModule(),
+        MinesweeperModule(),
+        SpiderModule(),
+        BlackjackModule(),
+        // チャリンコおじさん。腰痛おじさんパズルがいた「ブラックジャックの直後」の位置と入れ替え
+        // （会長決裁 2026-10-26・GA4 の 10/22〜26 のプレイ人数・1 人あたりの回数で見直し）。
+        RunnerModule(),
         // ぱっと暗算（#1321・企画倉庫から v1.1.11 でハブに公開 #1825）。倉庫へ戻す判断が出たら、
         // この 1 行をコメントアウトし、`web/app/lib/games.ts` とレコメンドの候補表
         // （`RecommendationPolicy.candidateTable` の `anzan` の行と、他のゲームの候補に入れた分）も戻すこと。
-        // おじさんの荷物運びパズルと同じ理由で #2460 の手動配置（2026-10-18）。
+        // チャリンコおじさんの直後に手動配置（会長決裁 2026-10-26・GA4 の 10/22〜26 のプレイ人数・
+        // 1 人あたりの回数で見直し。以前は荷物運びパズルと同じ理由で #2460 の手動配置だった）。
         AnzanModule(),
         MahjongSolitaireModule(),
         HanafudaModule(),
@@ -305,10 +322,6 @@ enum AppEnvironment {
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // カテゴリー（`"mancala": .board`）は #2385 で先に入れてある。
         // MancalaModule(),
-        // スピード（企画倉庫・#1323）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
-        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
-        // カテゴリー（`"speed": .cards`）は #2385 で先に入れてある。
-        // SpeedModule(),
         // 明かり消しパズル（企画倉庫・#1883）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // カテゴリー（`"akarikeshi": .puzzleOther`）は #2385 で先に入れてある。
@@ -321,40 +334,33 @@ enum AppEnvironment {
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // カテゴリーのチップ（`"hanoi": .puzzleOther`）は #2385 で先に入れてある。
         // HanoiModule(),
-        // いろリレー（#1320）・おじさんの盆栽（#1319。もとは くっつきフルーツ）・
-        // サイコロ役づくり（#1752）。企画倉庫から v1.1.13 でハブに公開（#2384）。倉庫へ戻す判断が出たら、
-        // その 1 行をコメントアウトし、`web/app/lib/games.ts` とレコメンドの候補表
-        // （`RecommendationPolicy.candidateTable` のその行と、他のゲームの候補に入れた分）も戻すこと。
-        ColorRelayModule(),
-        // ルーレット（#1318）は v1.1.13 審査で疑似ギャンブルとして却下（2026-10-19）。個人アカウントでは配信不可。
-        // 企画倉庫に戻し、ハブには並べない（他の倉庫ゲームと同じコメントアウト方式。`#if DEBUG` では分岐しない）。
-        // カテゴリー（`"roulette": .cards`）とタイル画像は倉庫ゲームとして残してある。
-        // RouletteModule(),
-        FruitsModule(),
-        DiceComboModule(),
-        // ババ抜き（企画倉庫・#1577）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
-        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
-        // カテゴリー（`"oldmaid": .cards`）は #2385 で先に入れてある。
-        // OldMaidModule(),
-        // ハーツ（企画倉庫・#1884）。上の倉庫ゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
-        // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
-        // カテゴリー（`.cards`）は #2385 で先に入れてある。
-        // HeartsModule(),
         // 四目並べ（企画倉庫・#1738）。倉庫の他のゲームと同じ扱いで、出荷する版が決まるまでハブには並べない。
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // カテゴリーのチップ（`"yonmoku": .board`）は #2385 で先に入れてある。
         // YonmokuModule(),
+        // おじさんちのねこさがし（#2250）。企画倉庫から v1.1.14 でハブに公開（会長決裁 2026-10-22）。
+        // 新着の間は `NewGames.currentVersionIDs` で表示の先頭に固定されるので、登録順は倉庫にあった位置のまま。
+        // 倉庫へ戻す判断が出たら、この 1 行をコメントアウトし、`web/app/lib/games.ts` からも外す。
+        CatPuzzleModule(),
+        // スピード（#1323）・ババ抜き（#1577）・ハーツ（#1884）。企画倉庫から v1.1.14 でハブに公開（会長決裁 2026-10-22）。
+        // 新着の間は `NewGames.currentVersionIDs` で表示の先頭に固定される。新着の中の並びは登録順なので、
+        // おじさんちのねこさがしの後ろに置いて「ねこさがし → スピード → ババ抜き → ハーツ」の順にしている。
+        // 倉庫へ戻す判断が出たら、その 1 行をコメントアウトし、`web/app/lib/games.ts` とレコメンドの候補表
+        // （`RecommendationPolicy.candidateTable` のその行と、他のゲームの候補に入れた分）も戻すこと。
+        SpeedModule(),
+        OldMaidModule(),
+        HeartsModule(),
     ], categories: [
         // ハブのカテゴリーのチップ（#1831）。新ゲームを足したらここにも 1 行。載せ忘れは「パズル・その他」に入る。
         // 企画倉庫のゲーム（上の登録がコメントアウト中のものも含む）も、出荷前からここに行を用意しておく
         // （#2385。倉庫から出す版でこの表を直し忘れて「パズル・その他」に落ちた反省）。
         // `HubCategoryTests` が、ここに載っている ID とゲームモジュール全部（登録・倉庫問わず）の対応を確かめる。
-        "homerun": .ojisan, "ojisanpuzzle": .ojisan, "runner": .ojisan, "fruits": .ojisan,
+        "homerun": .ojisan, "ojisanpuzzle": .ojisan, "runner": .ojisan, "fruits": .ojisan, "catpuzzle": .ojisan,
         "shogi": .board, "chess": .board, "othello": .board, "gomoku": .board, "go": .board,
         "yonmoku": .board, "backgammon": .board, "mancala": .board,
         "poker": .cards, "solitaire": .cards, "daifugo": .cards, "spider": .cards,
         "blackjack": .cards, "concentration": .cards, "freecell": .cards,
-        "speed": .cards, "oldmaid": .cards, "hearts": .cards, "roulette": .cards, "colorrelay": .cards,
+        "speed": .cards, "oldmaid": .cards, "hearts": .cards, "colorrelay": .cards,
         "mahjong4": .mahjongHanafuda, "mahjong": .mahjongHanafuda, "hanafuda": .mahjongHanafuda,
         "sudoku": .puzzleOther, "2048": .puzzleOther, "shiritori": .puzzleOther, "minesweeper": .puzzleOther,
         "blocks": .puzzleOther, "fifteen": .puzzleOther, "anzan": .puzzleOther,

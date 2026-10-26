@@ -48,6 +48,11 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public private(set) var lastCPUMoveKey: AITurnKey?
     /// `lastCPUMoveKey` の手がパスだったか（#2280）。
     public private(set) var lastCPUPassed = false
+    /// パスが成立するたびに増える通し番号（#2797。囲碁 `passEventID` と同じ）。View は値が変わったことで
+    /// 「パス」の札を出す。人間のパスも CPU のパスも数える。永続化せず、0 へも戻さない。
+    public private(set) var passEventID: Int = 0
+    /// 出したままの「パス」の札を畳む契機（待った・新規対局・投了。囲碁 `passBannerDismissID` と同じ）。
+    public private(set) var passBannerDismissID: Int = 0
     public private(set) var undoUsed: Bool
     /// 新規対局のたびに増える通し番号（CPU 起動トリガー用。永続化しない）。
     public private(set) var gameSerial: Int = 0
@@ -103,6 +108,16 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     /// 勝敗そのものは加算前の石数で決まる（`resolveWinner`）ため、この値は表示だけに使う。
     public var blackScore: Int { blackCount + (winner == .black ? emptyCellBonus : 0) }
     public var whiteScore: Int { whiteCount + (winner == .white ? emptyCellBonus : 0) }
+    /// 終局で勝者に加算される空きマスの数（#2813）。結果カードがこの数だけ 1 マスずつ数え上げる。
+    /// 加算が無い終局（盤が埋まった・引き分け・投了）は 0。
+    public var bonusCellCount: Int { winner == nil ? 0 : emptyCellBonus }
+    /// 空きマスを `revealed` マスぶんだけ勝者へ加算した途中経過のスコア（#2813）。
+    /// `revealed` が `bonusCellCount` 以上なら `blackScore` / `whiteScore` と一致する。
+    public func score(revealingBonus revealed: Int) -> (black: Int, white: Int) {
+        let shown = min(max(revealed, 0), bonusCellCount)
+        return (blackCount + (winner == .black ? shown : 0),
+                whiteCount + (winner == .white ? shown : 0))
+    }
     /// 勝者に加算する空きマス数。引き分け（`winner == nil`）では上の2つが参照しないので 0 になる。
     ///
     /// 投了で終わった対局は連盟ルールの対象外なので加算しない（打ち切りであって「双方が打てなくなった」
@@ -196,6 +211,8 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
 
     public func confirmPass() {
         guard mustPass, !gameOver else { return }
+        // 石が動かない操作なので、触覚が押せた手応え（囲碁・大富豪のパスと同じ・#2540）。
+        services?.feedback.impact(.light)
         // パスは石を動かさないので「待った」の巻き戻し地点にはしない（#414）。
         // ここで積むと、CPU のパス直後に「待った」を押したとき**パスの直前の局面**へ戻り、
         // CPU が再びパスして同じ局面に戻る往復になる（履歴も減らないので永久に自分の手を戻せない）。
@@ -204,6 +221,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         hintPoint    = nil
         currentStone = currentStone.opponent
         turnID      += 1
+        passEventID += 1
         checkTermination()
         notifyTermination()
         persist()
@@ -222,6 +240,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         isDraw       = false
         undoUsed     = true
         turnID      += 1
+        passBannerDismissID += 1
         // 決着・パスの有無は**戻した盤面から導出し直す**（#414）。無条件に false へ倒すと、
         // 打てる手が無い局面へ戻ったときに誰も着手できず、投了か新規対局しか手が無くなる。
         checkTermination()
@@ -241,10 +260,11 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
 
     public func resign() {
         guard !gameOver else { return }
+        passBannerDismissID += 1
         winner = humanSide.opponent
         hintPoint = nil
         services?.feedback.notify(.error)
-        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: hints.winLossScore)
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: hints.winLossScore(gameID: gameID, aiLevel: aiLevel))
         persist()
     }
 
@@ -373,6 +393,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         flippedCells   = []
         mustPass       = false
         turnID         = 0
+        passBannerDismissID += 1
         undoUsed       = false
         undoHistory    = []
         // ヒントは 1 局ごとに戻す（#2011）。前の局の印も残さない。
@@ -459,7 +480,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         checkTermination()
         // 着手の手応えは自分が指したときだけ。CPU の着手では鳴らさない。
         if !notifyTermination(), mover == humanSide {
-            services?.feedback.impact(.medium)
+            services?.feedback.impact(.board(.othelloDisc))
         }
         persist()
     }
@@ -477,7 +498,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         recordResult = services?.gameDidFinish(
             gameID: gameID,
             outcome: reviewOutcome,
-            score: hints.winLossScore,
+            score: hints.winLossScore(gameID: gameID, aiLevel: aiLevel),
             isReviewHighlight: CPUStrength.isReviewWorthy(level: aiLevel)
         )
         return true

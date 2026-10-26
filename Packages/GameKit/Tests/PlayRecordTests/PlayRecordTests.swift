@@ -206,6 +206,38 @@ struct PlayRecordApplyTests {
         #expect(second.record.bestStreak == 2)
         #expect(second.update.streak)
     }
+
+    @Test("順位は累計して平均にする。順位の無い決着・不正値は平均から外す（#2606）")
+    func placeAverage() {
+        func play(_ outcome: GameOutcome, place: Int?, to previous: PlayRecord?) -> PlayRecord {
+            PlayRecord.applying(outcome: outcome, score: GameScore(metric: .winLoss, place: place), to: previous).record
+        }
+        var record = play(.win, place: 1, to: nil)
+        record = play(.draw, place: 2, to: record)
+        record = play(.draw, place: nil, to: record)   // 旧版相当: 順位なし
+        record = play(.draw, place: 0, to: record)     // 不正値
+        record = play(.loss, place: 4, to: record)
+        #expect(record.plays == 5)
+        #expect(record.placeCount == 3)
+        #expect(record.averagePlace == 7.0 / 3.0)
+        #expect(PlayRecord().averagePlace == nil)
+    }
+
+    @Test("旧データ（順位の鍵が無い JSON）は落ちずに読め、平均は出ない。区分をまとめると累計も足される（#2606）")
+    func placeLegacyDecodeAndMerge() throws {
+        let legacy = try JSONEncoder().encode(PlayRecord(plays: 2, wins: 1, losses: 1))
+        var object = try #require(try JSONSerialization.jsonObject(with: legacy) as? [String: Any])
+        object.removeValue(forKey: "placeTotal")
+        object.removeValue(forKey: "placeCount")
+        let decoded = try JSONDecoder().decode(PlayRecord.self, from: JSONSerialization.data(withJSONObject: object))
+        #expect(decoded.averagePlace == nil)
+
+        let old = PlayRecord(plays: 2, placeTotal: 3, placeCount: 2)
+        let newer = PlayRecord(plays: 1, placeTotal: 4, placeCount: 1)
+        let merged = old.merged(into: newer)
+        #expect(merged.placeTotal == 7 && merged.placeCount == 3)
+        #expect(decoded.merged(into: newer).placeCount == 1)
+    }
 }
 
 // MARK: - 表示の整形
@@ -233,6 +265,97 @@ struct RecordFormatTests {
     func hubLineEmpty() {
         #expect(RecordFormat.hubLine([]) == nil)
         #expect(RecordFormat.hubLine([PlayRecord()]) == nil)
+    }
+
+    @Test("カードしりとり: 勝ちに秒数を載せると最速が残り、負けでは更新されない。行には勝敗の後ろに最速が付く（#2609）")
+    func winLossBestSecondsLines() {
+        var r = PlayRecord.applying(outcome: .win, score: GameScore(metric: .winLoss, seconds: 42), to: nil)
+        #expect(r.record.bestSeconds == 42 && r.update.seconds)
+        r = PlayRecord.applying(outcome: .win, score: GameScore(metric: .winLoss, seconds: 50), to: r.record)
+        #expect(r.record.bestSeconds == 42 && !r.update.seconds)
+        r = PlayRecord.applying(outcome: .loss, score: GameScore(metric: .winLoss, seconds: 5), to: r.record)
+        #expect(r.record.bestSeconds == 42 && !r.update.seconds)
+        #expect(RecordFormat.resultLine(r.record, language: .japanese) == "通算 2勝1敗・最速42秒・最高2連勝")
+        #expect(RecordFormat.hubLine([r.record], language: .japanese) == "2勝1敗・最速42秒")
+        #expect(RecordFormat.hubLine([r.record], language: .english) == "2W 1L · Fastest: 42 s")
+    }
+
+    @Test("大富豪・いろリレー: 2 位と最下位で終えると記録の行が変わる。順位が無ければ従来の表記のまま（#2606）")
+    func averagePlaceLines() {
+        func record(_ places: [Int], key: String = "daifugo") -> PlayRecord {
+            var r: PlayRecord?
+            for place in places {
+                let outcome: GameOutcome = place == 1 ? .win : (place == 4 ? .loss : .draw)
+                r = PlayRecord.applying(outcome: outcome, score: GameScore(metric: .winLoss, place: place), to: r).record
+            }
+            r?.recordKey = key
+            return r!
+        }
+        let second = record([2])
+        let last = record([4])
+        #expect(RecordFormat.resultLine(second, language: .japanese) == "通算 0勝0敗1分・平均2.0位")
+        #expect(RecordFormat.resultLine(last, language: .japanese) == "通算 0勝1敗・平均4.0位")
+        let mixed = record([1, 2, 2, 3])
+        #expect(RecordFormat.hubLine([mixed], language: .japanese) == "1勝0敗3分・平均2.0位")
+        #expect(RecordFormat.hubLine([mixed], language: .english) == "1W 0L 3D · Avg. place 2.0")
+        // 順位の無い記録（旧データ）は従来どおり。
+        let legacy = PlayRecord(plays: 2, wins: 1, losses: 1)
+        #expect(RecordFormat.hubLine([legacy], language: .japanese) == "1勝1敗")
+        // 旧データと新データが混ざったら、順位のある回だけで平均する。
+        var withLegacy = legacy
+        withLegacy.placeTotal = 3
+        withLegacy.placeCount = 1
+        #expect(RecordFormat.resultLine(withLegacy, language: .japanese) == "通算 1勝1敗・平均3.0位")
+    }
+
+    @Test("大富豪の記録だけ、リザルトに「大富豪n回」が出る。0 回・他のゲーム・ハブの行では出さない（#2867）")
+    func daifugoTycoonCountLine() {
+        func record(_ places: [Int], key: String) -> PlayRecord {
+            var r: PlayRecord?
+            for place in places {
+                let outcome: GameOutcome = place == 1 ? .win : (place == 4 ? .loss : .draw)
+                r = PlayRecord.applying(outcome: outcome, score: GameScore(metric: .winLoss, place: place), to: r).record
+            }
+            r?.recordKey = key
+            return r!
+        }
+        let tycoon = record([1, 2, 1], key: "daifugo")
+        #expect(RecordFormat.resultLine(tycoon, language: .japanese) == "通算 2勝0敗1分・平均1.3位・大富豪2回")
+        #expect(RecordFormat.resultLine(tycoon, language: .english) == "Overall 2W 0L 1D · Avg. place 1.3 · Tycoon 2 times")
+        #expect(RecordFormat.hubLine([tycoon], language: .japanese) == "2勝0敗1分・平均1.3位")
+        let once = record([1], key: "daifugo#strong")
+        #expect(RecordFormat.resultLine(once, language: .japanese) == "通算 1勝0敗・平均1.0位・大富豪1回")
+        #expect(RecordFormat.resultLine(once, language: .english)?.hasSuffix("Tycoon 1 time") == true)
+        #expect(RecordFormat.resultLine(record([2], key: "daifugo"), language: .japanese) == "通算 0勝0敗1分・平均2.0位")
+        #expect(RecordFormat.resultLine(record([1], key: "colorrelay"), language: .japanese) == "通算 1勝0敗・平均1.0位")
+    }
+
+    @Test("ブラックジャックの最高連勝は highestValue に残り、ハブとリザルトに「最高 n 連勝」で出る。0 連勝・他のゲームでは出さない（#2591）")
+    func blackjackBestStreakLines() {
+        var record = PlayRecord.applying(
+            outcome: .win, score: GameScore(metric: .points, points: 40, highestValue: 5, variant: "match10"), to: nil
+        ).record
+        record.recordKey = "blackjack#match10"
+        #expect(RecordFormat.resultLine(record, language: .japanese) == "自己ベスト 40（最高5連勝）")
+        #expect(RecordFormat.hubLine([record], gameID: "blackjack", language: .japanese) == "ベスト 40・最高5連勝")
+        #expect(RecordFormat.hubLine([record], gameID: "blackjack", language: .english) == "Best 40 · Best streak 5")
+
+        let none = PlayRecord.applying(
+            outcome: .loss, score: GameScore(metric: .points, points: 10, highestValue: 0, variant: "match10"), to: nil
+        )
+        var zero = none.record
+        zero.recordKey = "blackjack#match10"
+        #expect(none.update.highestValue == false, "連勝 0 の初回は『更新』と言わない")
+        #expect(RecordFormat.resultLine(zero, language: .japanese) == "自己ベスト 10")
+        #expect(RecordFormat.hubLine([zero], gameID: "blackjack", language: .japanese) == "ベスト 10")
+
+        // 2048 の最大タイルなど、他のゲームの表記は変えない。
+        var other = PlayRecord.applying(
+            outcome: .loss, score: GameScore(metric: .points, points: 900, highestValue: 128), to: nil
+        ).record
+        other.recordKey = "2048"
+        #expect(RecordFormat.resultLine(other, language: .japanese) == "自己ベスト 900（最大 128）")
+        #expect(RecordFormat.hubLine([other], gameID: "2048", language: .japanese) == "ベスト 900")
     }
 
     @Test("ハブの1行: スコア・タイム・手数・勝敗")
@@ -357,6 +480,32 @@ struct RecordFormatTests {
         #expect(RecordFormat.resultLine(notCleared) == "クリア記録なし（1回挑戦）")
     }
 
+    @Test("最短タイム指標の1行に最少手数と連勝を添える（#2597）")
+    func shortestTimeLineShowsMovesAndStreak() {
+        // 初回クリア（1連勝）では連勝を出さない。手数が無いゲームは従来の文言のまま。
+        let first = PlayRecord(metric: .shortestTime, plays: 1, wins: 1, bestStreak: 1, bestSeconds: 83)
+        #expect(RecordFormat.resultLine(first) == "最短タイム 1:23・1回クリア")
+        #expect(RecordFormat.hubLine([first]) == "最短 1:23")
+
+        // 手数を渡しているゲームは最少手数、2連勝以上なら最高連勝が付く。
+        let full = PlayRecord(metric: .shortestTime, plays: 3, wins: 3, bestStreak: 3, bestSeconds: 83, fewestMoves: 120)
+        #expect(RecordFormat.resultLine(full) == "最短タイム 1:23・3回クリア・最少 120手・最高3連勝")
+        #expect(RecordFormat.hubLine([full]) == "最短 1:23・最高3連勝")
+        #expect(RecordFormat.shareMessage(title: "ソリティア", record: full)
+            == "あそびばの「ソリティア」で記録更新！\n最短タイム 1:23・3回クリア・最少 120手・最高3連勝")
+
+        // 手数だけ（連勝は1）。
+        let movesOnly = PlayRecord(metric: .shortestTime, plays: 1, wins: 1, bestStreak: 1, bestSeconds: 83, fewestMoves: 9)
+        #expect(RecordFormat.resultLine(movesOnly) == "最短タイム 1:23・1回クリア・最少 9手")
+
+        // 未クリアは従来どおり。
+        #expect(RecordFormat.resultLine(PlayRecord(metric: .shortestTime, plays: 2, bestStreak: 0)) == "クリア記録なし（2回挑戦）")
+
+        // 区分つきのハブ行は1行に収めるため変えない。
+        let labeled = PlayRecord(metric: .shortestTime, variantLabel: "初級", plays: 2, wins: 2, bestStreak: 2, bestSeconds: 45)
+        #expect(RecordFormat.hubLine([labeled]) == "最短 0:45（初級）")
+    }
+
     @Test("共有の文言は記録を前面に出し、リザルトの1行と同じ表記を使う（#1043）")
     func shareMessages() {
         let points = PlayRecord.applying(
@@ -402,6 +551,21 @@ struct PlayRecordStorageTests {
         #expect(reopened.record(gameID: "minesweeper", variant: "9x9-10")?.bestSeconds == 42)
         #expect(reopened.summaryLine(gameID: "2048") == "ベスト 8,888")
         #expect(reopened.summaryLine(gameID: "minesweeper") == "最短 0:42（初級）")
+    }
+
+    @Test("連敗数（#2614）は再起動をまたいで残り、コンティニューで取り消した負けは数えない")
+    func lossStreakPersistsAndCancelLossRewinds() {
+        let (log, defaults, name) = makeLog(suite: "lossStreak")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        for _ in 0..<3 { log.recordResult(gameID: "shogi", outcome: .loss, score: GameScore()) }
+        #expect(PlayLog(defaults: defaults).record(gameID: "shogi")?.lossStreak == 3)
+
+        log.cancelLoss(gameID: "shogi")
+        #expect(log.record(gameID: "shogi")?.lossStreak == 2)
+        log.cancelLoss(gameID: "shogi")
+        log.cancelLoss(gameID: "shogi")
+        #expect(log.record(gameID: "shogi")?.currentLossStreak == nil)
     }
 
     @Test("難易度ごとに別々の記録として保存される")
@@ -1094,11 +1258,15 @@ struct GameRecordingTests {
         model.newGame(humanSide: .black, level: .easy)
         model.resign()
         #expect(model.recordResult != nil)
-        #expect(log.record(gameID: "go")?.losses == 1)
-        #expect(log.summaryLine(gameID: "go") == "0勝1敗")
+        // 強さ別の記録（#2617）。「かんたん」は区分に分かれ、区分なし（ふつう）の行には混ざらない。
+        #expect(log.record(gameID: "go", variant: "easy")?.losses == 1)
+        #expect(log.record(gameID: "go") == nil)
 
-        model.newGame(humanSide: .black, level: .easy)
+        model.newGame(humanSide: .black, level: .normal)
         #expect(model.recordResult == nil)
+        model.resign()
+        #expect(log.record(gameID: "go")?.losses == 1)
+        #expect(log.summaryLine(gameID: "go") == "0勝2敗", "ゲーム行は強さをまたいで合算する")
     }
 
     @Test("神経衰弱: 対戦ものなので手数ではなく勝敗を記録する")

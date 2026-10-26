@@ -84,6 +84,13 @@ enum BlackjackMotion {
     static let outcomeBadge: Animation = .easeIn(duration: outcomeBadgeDuration)
         .delay(holeCardFlipDuration)
 
+    // MARK: - 「次へ」の待ち（#2701）
+
+    /// 結果に入ってから「次の回へ／結果を見る」「もう一度」を押せるようになるまでの長さ（秒）。
+    ///
+    /// 伏せカードのめくり → 勝敗バッジの出現が終わるまで。連打で勝敗を見ないまま次へ進まないようにする。
+    static var nextButtonLockDuration: TimeInterval { holeCardFlipDuration + outcomeBadgeDuration }
+
     // MARK: - ディーラーの引き（#667）
 
     /// ディーラーが次の1枚を引くまでの間（秒）。

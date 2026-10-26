@@ -1044,13 +1044,13 @@
         }
       }
     },
-    "次のゲーム" : {
+    "もう一回" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Next Game"
+            "value" : "Play Again"
           }
         }
       }
@@ -1184,6 +1184,237 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Deal (%lld left)"
+          }
+        }
+      }
+    },
+    "同じ配札でやり直す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replay This Deal"
+          }
+        }
+      }
+    },
+    "同じ配札で" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Same Deal"
+          }
+        }
+      }
+    },
+    "スパイダーのはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spider: first steps"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "同じスートの札を、K から A まで 13 枚つなげます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Link 13 cards of one suit from K down to A."
+          }
+        }
+      }
+    },
+    "つながった 13 枚は、自動で取り除かれます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A finished set of 13 is removed automatically."
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What you do on your turn"
+          }
+        }
+      }
+    },
+    "動かす札をタップして選びます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a card to pick it up."
+          }
+        }
+      }
+    },
+    "置きたい列をタップします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Then tap the column where you want it."
+          }
+        }
+      }
+    },
+    "1 つ小さい札なら、スートは問わず置けます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A card one rank lower can go on top, whatever its suit."
+          }
+        }
+      }
+    },
+    "空いた列には、どの札でも置けます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Any card can go on an empty column."
+          }
+        }
+      }
+    },
+    "まとめて動かせるのは、同じスートで数が順に並んだ札だけです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can move several cards at once only if they are the same suit and in descending order."
+          }
+        }
+      }
+    },
+    "スートがちがう札がまざっていたら、1 枚ずつ動かします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the suits are mixed, move the cards one at a time."
+          }
+        }
+      }
+    },
+    "動かせる手がなくなったら、左上の山札をタップします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When you run out of moves, tap the stock at the top left."
+          }
+        }
+      }
+    },
+    "各列に、1 枚ずつ配られます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One card is dealt onto each column."
+          }
+        }
+      }
+    },
+    "空いた列があるあいだは、配れません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You cannot deal while any column is empty."
+          }
+        }
+      }
+    },
+    "勝ち負けの決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How you win"
+          }
+        }
+      }
+    },
+    "%lld 組すべて取り除いたら、クリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove all %lld sets to clear the game."
+          }
+        }
+      }
+    },
+    "「新規ゲーム」で、使うスートの数を選べます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In New Game, choose how many suits to play with."
+          }
+        }
+      }
+    },
+    "スートが多いほど、むずかしくなります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The more suits, the harder it gets."
+          }
+        }
+      }
+    },
+    "%lld スート" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld suit(s)"
           }
         }
       }

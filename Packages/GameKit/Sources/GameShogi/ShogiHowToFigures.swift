@@ -11,15 +11,15 @@ enum ShogiHowToFigures {
         { AnyView(MateFigure()) },
     ]
 
-    private static let cell: CGFloat = 30
+    static let cell: CGFloat = 30
 
-    private static func koma(_ type: PieceType, mine: Bool = true, promoted: Bool = false) -> some View {
+    static func koma(_ type: PieceType, mine: Bool = true, promoted: Bool = false) -> some View {
         KomaView(piece: Piece(type: type, color: mine ? .black : .white, promoted: promoted),
                  size: cell, pointsUp: mine)
     }
 
     /// 駒をタップ → 動けるマスが光る → 移動。
-    private struct SelectMoveFigure: View {
+    struct SelectMoveFigure: View {
         private let moves: Set<[Int]> = [[0, 1], [0, 2], [0, 3], [1, 1], [1, 3], [2, 2]]
 
         var body: some View {
@@ -40,7 +40,7 @@ enum ShogiHowToFigures {
     }
 
     /// 相手の駒があるマスへ動くと取れて、持ち駒になる。
-    private struct CaptureFigure: View {
+    struct CaptureFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 14) { index in
                 VStack(spacing: 4) {
@@ -73,7 +73,7 @@ enum ShogiHowToFigures {
     }
 
     /// 相手陣（奥から 3 段）に入ると成れる。
-    private struct PromoteFigure: View {
+    struct PromoteFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 14) { index in
                 VStack(spacing: 4) {
@@ -94,7 +94,7 @@ enum ShogiHowToFigures {
     }
 
     /// 頭金の詰み: 王将の逃げ場がなく、金も取れない。
-    private struct MateFigure: View {
+    struct MateFigure: View {
         var body: some View {
             VStack(spacing: 4) {
                 RuleMiniBoard(rows: 3, cols: 3, cell: cell, style: .shogi) { row, col in

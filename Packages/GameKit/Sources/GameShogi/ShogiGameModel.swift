@@ -33,6 +33,9 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     public var sente: PlayerKind
     public var gote: PlayerKind
     public var aiLevel: Int
+    /// 定跡の選び方を 1 局ごとに変える種（#2800）。新規対局ごとに引き直す。保存はしない
+    /// （続きから再開した対局は、その時点から別の定跡筋を選んでよい。手は常に定跡の合法手）。
+    private var bookSeed = UInt64.random(in: .min ... .max)
     public private(set) var undoUsed: Bool
     public private(set) var resigned: Bool
     /// この局のヒントの残り（#1118）。回数と順位表の扱いは Core の `BoardHintBudget` が持つ。
@@ -278,6 +281,12 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         }
     }
 
+    /// ヒントが「持ち駒を打つ手」のとき、その駒の種類（持ち駒の欄の印と、打つ先の薄い駒の影に使う・#2768）。
+    public var hintDropType: PieceType? {
+        if case let .drop(type, _) = hintMove { return type }
+        return nil
+    }
+
     /// 王手されている側の玉のマス（表示局面基準）。王手でなければ nil。
     ///
     /// 状態として持たず**局面から毎回導く**（#377）。こうしておくと、検討ナビで戻った局面でも
@@ -440,6 +449,9 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     /// 合法手を適用する（AI もここを通る）。
     public func apply(_ move: Move) {
         let mover = position.sideToMove
+        // 駒を取る手かは盤を動かす前にしか分からない（取ったときは指す音より少し重い音・#2767）。
+        let isCapture: Bool
+        if case let .board(_, to, _) = move { isCapture = position.squares[to] != nil } else { isCapture = false }
         position.make(move)
         moves.append(move)
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
@@ -447,7 +459,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         services?.gameDidProgress(gameID: gameID)
         clearSelection()
         // 盤が動いたらヒントの印は用済み（#1118）。示した手を指したかどうかは問わない。
-        hintMove = nil
+        hintMove = nil; hintIsMate = false
         legalMovesCache = position.legalMoves()
         reviewPly = moves.count
         if legalMovesCache.isEmpty {
@@ -488,7 +500,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             services?.feedback.notify(.warning)
         } else if mover == humanSide {
             // 着手の手応えは自分が指したときだけ。CPU の着手では鳴らさない。
-            services?.feedback.impact(.medium)
+            services?.feedback.impact(.board(isCapture ? .shogiCapture : .shogiPiece))
         }
         persist()
     }
@@ -520,7 +532,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         resigned = false
         // ヒントは 1 局ごとに 3 回へ戻す（#1118）。前の局の印も残さない。
         hints.reset()
-        hintMove = nil
+        hintMove = nil; hintIsMate = false; showsHintHopeless = false
         recordResult = nil
         // 通し番号（`checkEventID`）は 0 に戻さない。View は「値が変わったこと」で
         // 文字を出すため、対局をまたいで単調に増やしておかないと巻き戻しが合図として拾われる。
@@ -532,6 +544,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         self.aiLevel = aiLevel
         startedAt = startedAtFallback()
         gameSerial += 1
+        bookSeed = UInt64.random(in: .min ... .max)
         // 前対局の思考が走っていても、新しい対局の CPU を起動できるようにする（#145）。
         // 旧タスクは gameSerial が変わったことを見て着手もフラグ操作も行わない。
         isThinking = false
@@ -585,10 +598,11 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // 開始時の `aiTurnKey` と一致する場合だけ着手する（#531 で共通化）。
         await withAITurnGuard(key: \.aiTurnKey, thinking: \.isThinking) {
             let level = aiLevel
+            let seed = bookSeed
             let sfen = position.toSFEN()
             await thinkingGate?()
             return await Task.detached(priority: .userInitiated) {
-                await SimpleMinimaxEngine(level: level).bestMove(sfen: sfen)
+                await SimpleMinimaxEngine(level: level, seed: seed).bestMove(sfen: sfen)
             }.value
         } commit: { usi in
             // 計算中に状況が変わっていないか確認してから着手。
@@ -603,10 +617,16 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
 
     /// ヒントで示している最善手。着手・待った・新規対局・投了で消える（局面が変われば印は嘘になる）。
     /// **永続化しない** — 中断データに残すのは使った回数だけで、印は開き直したら出し直す。
-    public private(set) var hintMove: Move?
+    public internal(set) var hintMove: Move?
     /// ヒントの読みの最中か。CPU の思考（`isThinking`）とは別に持つ
     /// （同じ旗にすると、ヒントを読んでいるあいだ盤が「CPU思考中…」と名乗る）。
     public private(set) var isHintThinking: Bool = false
+
+    /// 示している手が「詰ます手」か（#2779。読み上げが「詰みがあります」と添える）。`hintMove` と同じ寿命。
+    public internal(set) var hintIsMate = false
+    /// 「この局面は詰みを逃れる手がありません」の知らせを出しているか（#2779）。回数は減らさない。
+    public var showsHintHopeless = false
+    public func dismissHintHopeless() { showsHintHopeless = false }
 
     /// 残り回数（`BoardControlBarHint` が読む）。
     public var hintsRemaining: Int { hints.remaining }
@@ -643,24 +663,32 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             await thinkingGate?()
             return await Task.detached(priority: .userInitiated) {
                 // ヒントは対局中の CPU の強さに関わらず常に最強で読む（`BoardHintBudget.engineLevel`）。
-                await SimpleMinimaxEngine.hint().bestMove(sfen: sfen)
+                // 先に詰みを探し、詰ます手・詰みを避ける手を選ぶ（#2779）。
+                SimpleMinimaxEngine.hint().hintAnswer(sfen: sfen)
             }.value
-        } commit: { usi in
+        } commit: { answer in
             // `canUseHint` は読みの旗が立ったままなのでここでは使えない。前提を個別に確かめ直す。
             // 成り選択中（`pendingPromotion`）を外せないのが要点（PR #1184 の指摘）。読みの最中でも
             // 成・不成は選べてしまい、そのとき `aiTurnKey` はまだ変わらないのでキーの照合では弾けない。
             // 弾かずに通すと、直後の `apply` が印を消すので「回数だけ減ってヒントが出ない」になる。
             guard phase == .playing, !gameOver, !isAITurn, pendingPromotion == nil,
-                  !hints.isExhausted,
-                  let usi, let move = Move.fromUSI(usi), legalMovesCache.contains(move),
-                  hints.consume() else { return }
-            startPlayIfPending()
-            services?.gameDidUseHint(gameID: gameID)
-            hintMove = move
-            services?.feedback.impact(.light)
-            // 残り回数は中断データに持ち回る（再開でヒントが 3 回に戻らないように）。
-            persist()
+                  hints.hasFreeRemaining, let answer else { return }
+            // 受けが無い局面は知らせるだけ。回数は減らさない（#2779）。
+            guard let move = answer.move else { showsHintHopeless = true; return }
+            guard legalMovesCache.contains(move), hints.consume() else { return }
+            showHint(move, isMate: answer.isMate)
         }
+    }
+
+    /// 読み終えた手を盤に示す（回数の消費は呼び出し側）。
+    private func showHint(_ move: Move, isMate: Bool) {
+        startPlayIfPending()
+        services?.gameDidUseHint(gameID: gameID)
+        hintMove = move
+        hintIsMate = isMate
+        services?.feedback.impact(.light)
+        // 残り回数は中断データに持ち回る（再開でヒントが 3 回に戻らないように）。
+        persist()
     }
 
     /// 無料枠を使い切った後、広告を見て 1 回ぶん追加する（会長決裁 2026-09-27・#1500）。
@@ -669,6 +697,15 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     /// 視聴のあいだに指す・待った・新規対局が入ったら、読みには進まず `.unavailable` を返す。
     public func requestAdHint() async -> RewardedModelOutcome {
         guard canUseHint, needsAdForHint else { return .unavailable }
+        // 受けが無い局面では広告を流さない（#2779）。詰み探索は短いので、広告の前に確かめる。
+        let sfenBeforeAd = position.toSFEN()
+        if await Task.detached(priority: .userInitiated, operation: {
+            SimpleMinimaxEngine.hint().hasNoDefense(sfen: sfenBeforeAd)
+        }).value {
+            guard canUseHint, position.toSFEN() == sfenBeforeAd else { return .unavailable }
+            showsHintHopeless = true
+            return .granted
+        }
         let turn = aiTurnKey
         // 画面の世代（#653）。広告のロード中にハブへ戻られたら、このモデルは捨てられている。
         let generationBeforeAd = services?.screenGeneration.current
@@ -681,18 +718,15 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             let sfen = position.toSFEN()
             await thinkingGate?()
             return await Task.detached(priority: .userInitiated) {
-                await SimpleMinimaxEngine.hint().bestMove(sfen: sfen)
+                SimpleMinimaxEngine.hint().hintAnswer(sfen: sfen)
             }.value
-        } commit: { usi in
+        } commit: { answer in
             guard phase == .playing, !gameOver, !isAITurn, pendingPromotion == nil,
-                  !hints.isExhausted,
-                  let usi, let move = Move.fromUSI(usi), legalMovesCache.contains(move),
-                  hints.consumeAd() else { return }
-            startPlayIfPending()
-            services?.gameDidUseHint(gameID: gameID)
-            hintMove = move
-            services?.feedback.impact(.light)
-            persist()
+                  !hints.isExhausted, let answer else { return }
+            // 広告の前の確認が間に合わず、広告のあとに受けが無いと分かったとき（回数は減らさない・#2779）。
+            guard let move = answer.move else { showsHintHopeless = true; outcome = .granted; return }
+            guard legalMovesCache.contains(move), hints.consumeAd() else { return }
+            showHint(move, isMate: answer.isMate)
             outcome = .granted
         }
         return outcome
@@ -704,7 +738,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         phase = .review
         reviewPly = min(max(ply, 0), moves.count)
         // 盤に出ている局面が変わるので、ヒントの印は残さない（#1118）。
-        hintMove = nil
+        hintMove = nil; hintIsMate = false
         clearSelection()
         persist()
     }
@@ -734,7 +768,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // 投了で盤の意味が変わるので、出したままの王手の札も一緒に片付ける（#519）。
         checkBannerDismissID += 1
         // ヒントの印も同じ理由で片付ける（#1118）。
-        hintMove = nil
+        hintMove = nil; hintIsMate = false
         resigned = true
         gameOver = true
         services?.feedback.notify(.error)
@@ -775,7 +809,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // 盤が 2 手ぶん戻ると王手も消えるので、出したままの札を残さない（#519）。
         checkBannerDismissID += 1
         // ヒントの印も 2 手前の盤には合わないので消す（#1118。回数は戻さない）。
-        hintMove = nil
+        hintMove = nil; hintIsMate = false
         moves.removeLast(2)
         position = positionAt(ply: moves.count)
         legalMovesCache = position.legalMoves()

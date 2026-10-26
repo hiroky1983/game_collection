@@ -100,13 +100,27 @@ public final class FreeCellModel {
     /// テスト専用: 読みが終わった直後（結果を取り込む前）に呼ぶ。読みの最中に盤が動いた状況を決定的に作る。
     var hintSearchDidFinishForTesting: (() -> Void)?
     /// 読み・広告経路・回数の消費の流れ（盤の版番号・読みの Task は Core が持つ・#2125）。
-    private let hintReader = BoardHintReader<FreeCellHintResult>()
+    /// 前に示した勝ち筋の続き（#2602）。盤をキーに引くので、違う手を指せば自然に外れて解き直す。
+    private var hintTrail: FreeCellHintTrail?
+
+    private let hintReader = BoardHintReader<FreeCellHintAnswer>()
 
     private var moves: [FreeCellMove] = []
     /// 「ここから組札へ送るだけで勝ち切れる」手順。無ければ nil。
     private var autoFinishPlan: [FreeCellMove]?
+    /// 「自動で上がる」で、まだ適用していない手（#2706）。空でなければ自動で上がっている最中。
+    private var autoFinishQueue: [FreeCellMove] = []
+    private var autoFinishInterval: Duration = .zero
+    /// 「自動で上がる」を始めるたびに増える通し番号。View の `.task(id:)` の鍵。
+    public private(set) var autoFinishRun: Int = 0
+    /// 自動で上がっている最中か。この間は盤への入力を受け付けない。
+    public var isAutoFinishing: Bool { !autoFinishQueue.isEmpty }
     /// 計時の動かし方・止め方（#1857）。経過秒は実経過時間で求める（#1751）。
     private let stopwatch = GameStopwatch(persistInterval: FreeCellModel.persistInterval)
+    /// 直前にタップした札と時刻（ダブルタップの判定用・#2598）。
+    private var lastCardTap: (selection: FreeCellSelection, at: ContinuousClock.Instant)?
+    /// この間隔に同じ札を 2 回タップしたらダブルタップ（組札へ直接送る）。仮置きの値で、会長 QA で調整する。
+    static let doubleTapInterval: Duration = .milliseconds(350)
     /// 現在時刻の取り出し口（テストが時間を進めるために差し替える）。
     var clockNow: ElapsedClock.Now {
         get { stopwatch.now }
@@ -216,7 +230,8 @@ public final class FreeCellModel {
 
     /// フリーセルの 1 枠をタップ。札があれば持ち上げ / 空いていれば置く。
     public func tapCell(_ cell: Int) {
-        guard phase == .playing, board.cells.indices.contains(cell) else { return }
+        guard phase == .playing, !isAutoFinishing, board.cells.indices.contains(cell) else { return }
+        if board.cells[cell] != nil, registerCardTap(.cell(cell)), sendToFoundation(.cell(cell)) { return }
         if selection == .cell(cell) { return deselect() }
 
         if let selection, board.cells[cell] == nil {
@@ -233,7 +248,7 @@ public final class FreeCellModel {
 
     /// 組札をタップ。選択中の札を送る。
     public func tapFoundation(_ suit: PlayingCardSuit) {
-        guard phase == .playing else { return }
+        guard phase == .playing, !isAutoFinishing else { return }
         guard let selection, let move = foundationMove(from: selection), board.isLegal(move) else {
             return reject()
         }
@@ -246,7 +261,13 @@ public final class FreeCellModel {
     ///
     /// - Parameter cardIndex: 列の中の添字。省略時は一番上の 1 枚（列全体の受け皿としての扱い）。
     public func tapPile(_ pile: Int, cardIndex: Int? = nil) {
-        guard phase == .playing, board.tableau.indices.contains(pile) else { return }
+        guard phase == .playing, !isAutoFinishing, board.tableau.indices.contains(pile) else { return }
+
+        if !board.tableau[pile].isEmpty {
+            let top = cardIndex ?? (board.tableau[pile].count - 1)
+            let target = FreeCellSelection.tableau(pile: pile, cardIndex: top)
+            if registerCardTap(target), sendToFoundation(target) { return }
+        }
 
         if let selection {
             if case .tableau(let from, let index) = selection, from == pile {
@@ -269,6 +290,8 @@ public final class FreeCellModel {
 
     public func deselect() {
         selection = nil
+        // ドラッグの落とし先は deselect → 合成タップで処理される。ダブルタップと取り違えない（#2598）。
+        lastCardTap = nil
         services?.feedback.impact(.rigid)
     }
 
@@ -282,7 +305,7 @@ public final class FreeCellModel {
     /// 1 手戻す。**1 局につき無料 `FreeCellUndoBudget.free` 回まで**（使い切ったら `grantUndos()` で補充）。
     @discardableResult
     public func undo() -> Bool {
-        guard canUndo, hasUndoCredit else {
+        guard canUndo, hasUndoCredit, !isAutoFinishing else {
             reject()
             return false
         }
@@ -365,24 +388,27 @@ public final class FreeCellModel {
         await hintReader.requestAd(hintContext, readDidFinish: readDidFinish)
     }
 
-    private var hintContext: BoardHintReader<FreeCellHintResult>.Context {
+    private var hintContext: BoardHintReader<FreeCellHintAnswer>.Context {
         .init(
             services: services, gameID: gameID, canUse: canUseHint, needsAd: needsAdForHint, isPlaying: phase == .playing,
-            cachedAnswer: { nil },
+            // 前に示した筋の続きに着いていれば、解き直さずその続きを示す（待たせない・往復しない）。
+            cachedAnswer: { [self] in hintTrail?.answer(at: board) },
             makeSearch: { [self] in
                 let board = self.board
-                return { FreeCellHint.find(in: board, isCancelled: { Task.isCancelled }) }
+                return { FreeCellHint.findPlan(in: board, isCancelled: { Task.isCancelled }) }
             },
             searchDidFinish: { [self] in hintSearchDidFinishForTesting?() },
-            verdict: { [self] result in
-                switch result {
+            verdict: { [self] answer in
+                switch answer.result {
                 case .hopeless: return .hopeless
                 case .move(let move): return board.isLegal(move) ? .legal : .illegal
                 }
             },
-            show: { [self] result in
-                guard case .move(let move) = result else { return }
+            show: { [self] answer in
+                guard case .move(let move) = answer.result else { return }
                 hintMove = move
+                // 続きを控える。示した手を指した後の盤を覚えておき、そこに着いたら先頭から使う。
+                hintTrail = FreeCellHintTrail.after(answer, from: board)
             },
             persist: { [self] in persist() },
             consumeFree: { [self] in hints.consume() },
@@ -392,18 +418,57 @@ public final class FreeCellModel {
 
     // MARK: - 自動で上がる
 
-    /// 組札へ送る手だけで勝ち切れるなら、まとめて送って決着させる。
+    /// 組札へ送る手だけで勝ち切れるなら、1 手ずつ順に送って決着させる（#2706）。
+    ///
+    /// ここでは手順を控えて `autoFinishRun` を進めるだけ。実際に 1 手ずつ適用するのは
+    /// View の `.task(id: autoFinishRun)` が `advanceAutoFinish()` を呼び続ける形（待ち時間は戻り値で返す）。
     @discardableResult
     public func autoFinish() -> Bool {
-        guard phase == .playing, let plan = autoFinishPlan else { return false }
-        for move in plan {
-            board.apply(move)
-            moves.append(move)
+        guard phase == .playing, !isAutoFinishing, let plan = autoFinishPlan else { return false }
+        autoFinishQueue = plan
+        autoFinishInterval = AutoFinishPacing.interval(moveCount: plan.count)
+        autoFinishRun += 1
+        selection = nil
+        return true
+    }
+
+    /// 控えた手順を 1 手適用し、次の手までの待ち時間を返す。最後の 1 手で決着させて nil を返す。
+    /// 取り消された（新規ゲーム）・手順が空なら nil。
+    /// Reduce Motion が ON のときも待ちを飛ばすだけで、手は同じ順に適用する。
+    public func advanceAutoFinish() -> Duration? {
+        guard phase == .playing, !autoFinishQueue.isEmpty else {
+            autoFinishQueue = []
+            return nil
+        }
+        let move = autoFinishQueue.removeFirst()
+        board.apply(move)
+        moves.append(move)
+        guard autoFinishQueue.isEmpty else {
+            services?.feedback.impact(.card(.place))
+            return Motion.isReduceMotionEnabled ? .zero : autoFinishInterval
         }
         selection = nil
         refreshDerivedState()
         finish()
-        return true
+        return nil
+    }
+
+    /// `advanceAutoFinish()` の run 指定版。**task の持ち主の run が今の run と違えば何もしない**
+    /// （取り消された古い task が、次の「自動で上がる」の手順を巻き込まないため）。
+    public func advanceAutoFinish(for run: Int) -> Duration? {
+        guard run == autoFinishRun else { return nil }
+        return advanceAutoFinish()
+    }
+
+    /// `finishAutoFinishNow()` の run 指定版。
+    public func finishAutoFinishNow(for run: Int) {
+        guard run == autoFinishRun else { return }
+        finishAutoFinishNow()
+    }
+
+    /// 控えた手順を待たずに最後まで適用する（画面を離れたとき・テスト用）。
+    public func finishAutoFinishNow() {
+        while advanceAutoFinish() != nil {}
     }
 
     // MARK: - 新規配札
@@ -414,16 +479,29 @@ public final class FreeCellModel {
     /// 判定の境目は「新規ゲームの確認ダイアログを出すか」と同じ `canUndo` に揃えてある
     /// （＝ユーザーが「今の盤面が失われます」と読んだ操作だけが記録に乗る）。ソリティア #397 と同じ。
     public func newGame() {
+        deal(sameDeal: false)
+    }
+
+    /// 今と同じ配札を最初から配り直す（#2603）。記録の扱いは `newGame` と同じ。
+    public func restartSameDeal() {
+        deal(sameDeal: true)
+    }
+
+    private func deal(sameDeal: Bool) {
         syncElapsed()   // 止める・確定する前に、直近の秒の境目からの端数も実経過時間で取り込む（#1751）
         if phase == .playing, canUndo {
             recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
         }
         // 直前の配札は除く（#914）。
-        dealNumber = Self.pickSeed(excluding: dealNumber)
+        if !sameDeal {
+            dealNumber = Self.pickSeed(excluding: dealNumber)
+        }
+        autoFinishQueue = []
         moves = []
         undosRemaining = FreeCellUndoBudget.free
         hints.reset()
         hintReader.reset()
+        hintTrail = nil
         board = Self.replay(moves, seed: dealNumber).board
         phase = .playing
         selection = nil
@@ -435,7 +513,7 @@ public final class FreeCellModel {
         // 画面は開いたままなので計時を入れ直す（View の `.task` は初回表示のときしか走らない）。
         stopwatch.stop()
         startTimer()
-        services?.feedback.impact(.medium)
+        services?.feedback.impact(.card(.shuffle))
         services?.snapshots.clear(for: gameID)
         services?.gameDidRestart(gameID: gameID)
     }
@@ -477,6 +555,24 @@ public final class FreeCellModel {
         }
     }
 
+    /// 札のタップを控え、直前に同じ札をタップしてから `doubleTapInterval` 以内ならダブルタップとして true を返す。
+    ///
+    /// 1 回目のタップは今までどおり選択に使うので、シングルタップの反応は遅らせない。
+    private func registerCardTap(_ target: FreeCellSelection) -> Bool {
+        let now = clockNow()
+        defer { lastCardTap = (target, now) }
+        guard let last = lastCardTap, last.selection == target else { return false }
+        return now - last.at <= Self.doubleTapInterval
+    }
+
+    /// 札を選択なしで組札へ送る。送れなければ何もせず false（拒否の演出も出さない）。
+    private func sendToFoundation(_ target: FreeCellSelection) -> Bool {
+        guard let move = foundationMove(from: target), board.isLegal(move) else { return false }
+        lastCardTap = nil
+        perform(move)
+        return true
+    }
+
     private func foundationMove(from selection: FreeCellSelection) -> FreeCellMove? {
         switch selection {
         case .cell(let cell):
@@ -499,6 +595,7 @@ public final class FreeCellModel {
     }
 
     private func perform(_ move: FreeCellMove) {
+        lastCardTap = nil
         guard board.apply(move) else { return reject() }
         moves.append(move)
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
@@ -506,7 +603,7 @@ public final class FreeCellModel {
         // （`canUndo` は `undo()` で false に戻る）。全部戻して配り直しても遊んだ事実は消えない。
         services?.gameDidProgress(gameID: gameID)
         selection = nil
-        services?.feedback.impact(.medium)
+        services?.feedback.impact(.card(.place))
         refreshDerivedState()
 
         if board.isWon {

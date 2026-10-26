@@ -19,4 +19,11 @@ public struct PokerModule: GameModule {
         guard let snap = snapshots.load(PokerSnapshot.self, for: id) else { return false }
         return snap.format == PokerSnapshot.currentFormat && snap.phase != .idle
     }
+
+    /// 10 回勝負の何回目か（#2870）。単発戦は出さない。
+    public func resumeProgress(in snapshots: SnapshotStore) -> String? {
+        guard let snap = snapshots.load(PokerSnapshot.self, for: id),
+              (snap.sessionFormat ?? .tenRounds) == .tenRounds else { return nil }
+        return tr("%1$lld/%2$lld回目", min(max(snap.round, 1), PokerModel.roundsPerSession), PokerModel.roundsPerSession)
+    }
 }

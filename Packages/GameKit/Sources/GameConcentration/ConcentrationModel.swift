@@ -18,6 +18,8 @@ struct ConcentrationSnapshot: Codable {
     /// この局で使ったヒントの回数（#2026）。再開で回数が戻らないよう保存する。鍵を持たない旧い中断データは 0 として読む。
     /// 盤の上の印は保存しない。
     let hintsUsed: Int?
+    /// CPU の記憶（#2543）。再開で消えると離れて戻るだけで CPU を弱くできる。鍵を持たない旧い中断データは記憶なしとして読む。
+    let cpuMemory: ConcentrationCPUMemory?
 }
 
 /// ヒントの回数（会長決裁 2026-10-11・#2026）。1 ゲーム 無料 1 回、使い切ったら広告 1 本で +1、広告は最大 3 回。
@@ -188,7 +190,10 @@ public final class ConcentrationModel {
             // なので数える（数えないと、続く終局が「開始していない」として捨てられる。#212）。
             isFreshStart = !restoreFrom(snap)
         } else {
-            setupGame(pairCount: .medium, cpuLevel: .normal)
+            // 中断データが無いときの初期値は最後に選んだ条件（#2611）。初回は 12 ペア・ふつう。
+            let last = services?.playLog?.lastStart(ConcentrationStartChoice.self, gameID: "concentration")
+            setupGame(pairCount: last.flatMap { ConcentrationPairCount(rawValue: $0.pairCount) } ?? .medium,
+                      cpuLevel: last.flatMap { ConcentrationCPULevel(rawValue: $0.cpuLevel) } ?? .normal)
             isFreshStart = true
         }
         // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
@@ -254,6 +259,7 @@ public final class ConcentrationModel {
 
     public func newGame(pairCount: ConcentrationPairCount, cpuLevel: ConcentrationCPULevel) {
         setupGame(pairCount: pairCount, cpuLevel: cpuLevel)
+        services?.playLog?.saveLastStart(ConcentrationStartChoice(pairCount: pairCount.rawValue, cpuLevel: cpuLevel.rawValue), gameID: gameID)
         services?.gameDidRestart(gameID: gameID, level: .aiStrength(cpuLevel.rawValue))
     }
 
@@ -297,13 +303,13 @@ public final class ConcentrationModel {
         // sleep の直後とループ先頭でキャンセルを見る（#725。大富豪 #287 と同形）。
         while currentPlayer == .cpu && !isGameOver {
             guard !Task.isCancelled else { isThinking = false; return }
-            try? await Task.sleep(nanoseconds: 600_000_000)
+            try? await Task.sleep(nanoseconds: 450_000_000)
             guard !Task.isCancelled, currentPlayer == .cpu, !isGameOver else { isThinking = false; return }
 
             let first = ai.chooseCard(cards: cards, firstFlipped: nil)
             flipCard(index: first)
 
-            try? await Task.sleep(nanoseconds: 700_000_000)
+            try? await Task.sleep(nanoseconds: 500_000_000)
             guard !Task.isCancelled, currentPlayer == .cpu, !isGameOver else { isThinking = false; return }
 
             let second = ai.chooseCard(cards: cards, firstFlipped: first)
@@ -321,14 +327,76 @@ public final class ConcentrationModel {
 
             if isGameOver { isThinking = false; return }
 
-            try? await Task.sleep(nanoseconds: 500_000_000)
+            try? await Task.sleep(nanoseconds: 350_000_000)
         }
 
         isThinking = false
     }
 
+    #if DEBUG
+    /// 撮影・動作確認用（Release には残らない）。`-concentrationScenario <name>` で局面を差し替える。
+    /// 記録・中断データには書かない（決着の記録を汚さない）。
+    ///
+    /// - `mid`: あなたの番。4 組が取られていて（あなた 3・CPU 1）、1 枚目をめくった途中
+    /// - `result`: 全部の札が取られた決着（あなた 7・CPU 5 で、あなたの勝ち。枚数は 12 ペアのとき）
+    public func applyDebugScenario(_ name: String) {
+        // 知らない名前では盤を差し替えない（打ち間違いで進行中の局を壊さない）。
+        guard ["mid", "result"].contains(name) else { return }
+        isDebugScenario = true
+        cancelAutoClear()
+        let pairs = pairCount.rawValue
+        let symbols = Array(ConcentrationFigure.allCases.prefix(pairs).map(\.rawValue))
+        // 並びを固定する（撮るたびに同じ盤になるように）: 1 組目の 2 枚は離して置く。
+        let order = symbols + symbols.reversed()
+        cards = order.enumerated().map { ConcentrationCard(id: $0.offset, symbol: $0.element) }
+        firstFlippedIndex = nil
+        lastMatchedIndices = []
+        mismatchedIndices = []
+        currentPlayer = .human
+        switch name {
+        case "mid":
+            let taken = Set(symbols.prefix(4))
+            for i in cards.indices where taken.contains(cards[i].symbol) {
+                cards[i].isFaceUp = true
+                cards[i].isMatched = true
+            }
+            playerScore = 3
+            cpuScore = 1
+            let first = symbols.count - 1
+            cards[first].isFaceUp = true
+            firstFlippedIndex = first
+        case "result":
+            for i in cards.indices {
+                cards[i].isFaceUp = true
+                cards[i].isMatched = true
+            }
+            cpuScore = pairs / 2 - 1
+            playerScore = pairs - cpuScore
+            isGameOver = true
+        default:
+            break
+        }
+        turnID += 1
+    }
+
+    /// 撮影用の局面を差し替えたあとの局か（新規ゲームで外れる）。この局は中断データ・記録・解析に書かない。
+    private var isDebugScenario = false
+    #endif
+
+    /// 中断データ・記録・解析に書いてよい局か。撮影用の局面（DEBUG）の局だけ false。
+    private var writesRecords: Bool {
+        #if DEBUG
+        return !isDebugScenario
+        #else
+        return true
+        #endif
+    }
+
     private func setupGame(pairCount: ConcentrationPairCount, cpuLevel: ConcentrationCPULevel) {
         cancelAutoClear()
+        #if DEBUG
+        isDebugScenario = false
+        #endif
         gameSerial += 1
         self.pairCount = pairCount
         self.cpuLevel = cpuLevel
@@ -372,6 +440,9 @@ public final class ConcentrationModel {
             used: snap.hintsUsed ?? 0,
             freeLimit: ConcentrationHintPolicy.freeCount, adLimit: ConcentrationHintPolicy.adRefillMax
         )
+        if let saved = snap.cpuMemory {
+            ai.restore(saved, symbols: setting.symbols, isMatched: snap.isMatched)
+        }
         hintTarget = nil
         isThinking = false
         firstFlippedIndex = nil
@@ -485,7 +556,7 @@ public final class ConcentrationModel {
         // （1ターンで2枚めくるため、鳴らすと触れていない間に連続で振動してしまう）。
         let isHumanMove = currentPlayer == .human
         // 札がめくれた = 捨てたら途中離脱として数える盤面（#500）。
-        services?.gameDidProgress(gameID: gameID)
+        if writesRecords { services?.gameDidProgress(gameID: gameID) }
         cards[index].isFaceUp = true
         hintTarget = nil
         ai.observe(index: index, symbol: cards[index].symbol)
@@ -503,12 +574,12 @@ public final class ConcentrationModel {
             } else {
                 lastMatchedIndices = []
                 mismatchedIndices = [first, index]
-                if isHumanMove { services?.feedback.impact(.light) }
+                if isHumanMove { services?.feedback.impact(.card(.flip)) }
             }
         } else {
             firstFlippedIndex = index
             lastMatchedIndices = []
-            if isHumanMove { services?.feedback.impact(.light) }
+            if isHumanMove { services?.feedback.impact(.card(.flip)) }
         }
     }
 
@@ -520,13 +591,23 @@ public final class ConcentrationModel {
             } else {
                 services?.feedback.notify(winner == .human ? .success : .error)
             }
-            recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss))
+            guard writesRecords else { return }
+            recordResult = services?.gameDidFinish(gameID: gameID, outcome: reviewOutcome, score: recordScore)
             services?.snapshots.clear(for: gameID)
         }
     }
 
+    /// 決着で記録に渡す点。CPU の強さ別に区分を分ける（「ふつう」は区分なし・#2608）。
+    var recordScore: GameScore {
+        guard let variant = cpuLevel.recordVariantKey else { return GameScore(metric: .winLoss) }
+        return GameScore(
+            metric: .winLoss, variant: variant,
+            variantLabel: RecordVariantLabels.stored(gameID: gameID, variant: variant)
+        )
+    }
+
     private func persist() {
-        guard !isGameOver else { return }
+        guard !isGameOver, writesRecords else { return }
         let snap = ConcentrationSnapshot(
             symbols: cards.map(\.symbol),
             isFaceUp: cards.map(\.isFaceUp),
@@ -538,8 +619,15 @@ public final class ConcentrationModel {
             cpuLevel: cpuLevel.rawValue,
             mattaUsed: mattaUsed,
             mismatchedIndices: mismatchedIndices,
-            hintsUsed: hints.used
+            hintsUsed: hints.used,
+            cpuMemory: ai.persistedMemory
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
+}
+
+/// 最後に選んだ開始条件（#2611）。中断データとは別に残り、終局しても消えない。
+struct ConcentrationStartChoice: Codable {
+    var pairCount: Int
+    var cpuLevel: Int
 }

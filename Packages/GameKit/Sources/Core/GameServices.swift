@@ -11,7 +11,7 @@
 ///
 /// 進めるのは `GameServices.gameDidLeave(gameID:)` の 1 か所だけ（ハブの `onChange(of: path)`
 /// が唯一の発火点）。照合は `RewardedRescue` と、広告を自分で抱えている Model
-/// （麻雀・ブラックジャック・ポーカー・ルーレット・将棋・チェス・五目並べのヒント・#1500）が行う。
+/// （麻雀・ブラックジャック・ポーカー・将棋・チェス・五目並べのヒント・#1500）が行う。
 @MainActor
 public final class GameScreenGeneration {
     public private(set) var current = 0
@@ -294,8 +294,8 @@ public struct GameServices {
     /// 決着ではない（`gameDidFinish` は呼ばない）。解析が原因を覚えておき、そのプレイの
     /// `game_end` に「最後のミスの原因」（`cause`）として載せる。イベントの種類は増やさない。
     @MainActor
-    public func gameDidMiss(gameID: String, cause: AnalyticsEndCause) {
-        analytics?.recordMissCause(gameID: gameID, cause: cause)
+    public func gameDidMiss(gameID: String, cause: AnalyticsEndCause, progressPercent: Int? = nil) {
+        analytics?.recordMissCause(gameID: gameID, cause: cause, progressPercent: progressPercent)
     }
 
     /// ゲームが決着したときに各 Model から呼ぶ唯一の入口。

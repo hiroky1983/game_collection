@@ -42,7 +42,7 @@ struct GoPassFeedbackTests {
         model.applyMoveForTesting(.pass)          // CPU（白）のパス
 
         #expect(model.passEventID == before + 1, "相手がパスしたことが分からないと終局へ進めない")
-        #expect(spy.impacts == [.medium], "CPU の手では触覚を鳴らさない")
+        #expect(spy.impacts == [.board(.goStone)], "CPU の手では触覚を鳴らさない")
     }
 
     @Test("終局になる 2 回目のパスでは、軽い触覚を終局の合図に重ねない")

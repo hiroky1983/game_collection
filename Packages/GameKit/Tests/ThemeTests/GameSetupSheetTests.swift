@@ -53,6 +53,7 @@ struct GameSetupSheetSourceTests {
         ("GameSudoku/SudokuView.swift", ".solo"),
         ("GameAnzan/AnzanView.swift", ".solo"),
         ("GameAkariKeshi/AkariKeshiView.swift", ".solo"),
+        ("GameCatPuzzle/CatPuzzleView.swift", ".solo"),
         ("GameSpider/SpiderView.swift", ".solo"),
         ("GameRunner/RunnerStartSheet.swift", ".solo"),
         ("GameMahjong/MahjongStartSheet.swift", ".versus"),
@@ -61,6 +62,8 @@ struct GameSetupSheetSourceTests {
         ("GameMahjongSolitaire/MahjongSolitaireSetupSheet.swift", ".solo"),
         ("GameOjisanPuzzle/OjisanPuzzleSetupSheet.swift", ".solo"),
         ("GameHearts/HeartsView.swift", ".versus"),
+        ("GameDaifugo/DaifugoView.swift", ".versus"),
+        ("GameColorRelay/ColorRelayView.swift", ".versus"),
     ]
 
     /// 題名・開始文言・並べ方を各ゲームが引数で持ち直さないこと（#1415）。

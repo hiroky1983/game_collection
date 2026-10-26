@@ -18,11 +18,34 @@ struct HandResultTests {
         #expect(result(delta: nil).chipText == nil, "増減が取れないときは行ごと出さない")
     }
 
+    @Test("増減の単位を点にすると「点」で出る（#2702）")
+    func pointsText() {
+        func points(_ delta: Int?) -> HandResult {
+            HandResult(kind: .win, headline: "", reason: "", chipDelta: delta, unit: .points, spokenResult: "勝ちです")
+        }
+        #expect(points(3).chipText == "+3点")
+        #expect(points(-2).chipText == "−2点")
+        #expect(points(0).chipText == "±0点")
+        #expect(points(nil).chipText == nil)
+        #expect(points(3).spokenText == "勝ちです。3点入りました")
+    }
+
     @Test("読み上げは勝敗・理由・増減の順")
     func spokenText() {
         #expect(result(delta: 40).spokenText == "勝ちです。ツーペア 対 ワンペア。チップが40枚増えました")
         #expect(result(delta: -20).spokenText == "勝ちです。ツーペア 対 ワンペア。チップが20枚減りました")
         #expect(result(delta: 0).spokenText.hasSuffix("チップの増減はありません"))
         #expect(result(delta: nil).spokenText == "勝ちです。ツーペア 対 ワンペア")
+    }
+
+    @Test("強調は勝ちのときだけ有効（#2593）")
+    func emphasisOnlyForWin() {
+        func make(_ kind: HandResult.Kind) -> HandResult {
+            HandResult(kind: kind, headline: "", reason: "", chipDelta: nil, spokenResult: "", isEmphasized: true)
+        }
+        #expect(make(.win).isEmphasized)
+        #expect(!make(.lose).isEmphasized)
+        #expect(!make(.draw).isEmphasized)
+        #expect(!result(delta: 1).isEmphasized, "既定は強調しない")
     }
 }

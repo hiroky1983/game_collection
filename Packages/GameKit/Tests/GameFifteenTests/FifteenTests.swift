@@ -221,3 +221,32 @@ struct FifteenModelTests {
         #expect(FifteenAccessibility.cellLabel(index: 15, value: 0) == "4行4列、空き")
     }
 }
+
+/// #2615: プレイ中のヘッダーに出す自己ベスト手数。
+@Suite("15パズル プレイ中の自己ベスト（#2615）")
+@MainActor
+struct FifteenLiveBestTests {
+    private func makeServices(suite: String, fewest: Int?) -> GameServices {
+        let name = "asobiba.fifteenlivebest.tests.\(suite)"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        let log = PlayLog(defaults: defaults)
+        if let fewest {
+            _ = log.recordResult(gameID: "fifteen", outcome: .win,
+                                 score: GameScore(metric: .fewestMoves, moves: fewest))
+        }
+        return GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), playLog: log)
+    }
+
+    @Test("記録が無ければ出さない")
+    func hiddenWithoutRecord() {
+        let model = FifteenModel(services: makeServices(suite: "none", fewest: nil), seed: 1)
+        #expect(model.savedBestMoves == nil)
+    }
+
+    @Test("保存済みの最少手数を出す")
+    func showsSavedFewestMoves() {
+        let model = FifteenModel(services: makeServices(suite: "saved", fewest: 80), seed: 1)
+        #expect(model.savedBestMoves == 80)
+    }
+}

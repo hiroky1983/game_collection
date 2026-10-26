@@ -90,12 +90,20 @@ struct RecordsView: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(summary.progressText)
 
-            HStack(spacing: 8) {
-                statTile(title: tr("遊んだ種類"), value: "\(summary.playedCount)/\(summary.gameCount)")
-                statTile(title: tr("通算勝利"), value: RecordFormat.number(summary.totalWins))
-                statTile(title: tr("最高連勝"), value: RecordFormat.number(summary.bestStreak))
-                // 日をまたぐ連続（#1625）。勝敗の連勝とは別物。0 日のときも 0 で出す（タイルの数は固定）。
-                statTile(title: tr("連続日数"), value: tr("%@日", RecordFormat.number(playLog?.playStreak() ?? 0)))
+            // 6 枚を 3 枚ずつ 2 段に折る（タイルの数は固定。SE でも 1 枚あたり幅が足りる）。
+            VStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    statTile(title: tr("遊んだ種類"), value: "\(summary.playedCount)/\(summary.gameCount)")
+                    statTile(title: tr("通算勝利"), value: RecordFormat.number(summary.totalWins))
+                    statTile(title: tr("最高連勝"), value: RecordFormat.number(summary.bestStreak))
+                }
+                HStack(spacing: 8) {
+                    statTile(title: tr("総プレイ回数"), value: tr("%@回", RecordFormat.number(playLog?.totalFinishes ?? 0)))
+                    // `playDays` は直近 366 日ぶんだけ保存している（上限を超えた古い日は数えない）。
+                    statTile(title: tr("遊んだ日数"), value: tr("%@日", RecordFormat.number(playLog?.playDays.count ?? 0)))
+                    // 日をまたぐ連続（#1625）。勝敗の連勝とは別物。0 日のときも 0 で出す（タイルの数は固定）。
+                    statTile(title: tr("連続日数"), value: tr("%@日", RecordFormat.number(playLog?.playStreak() ?? 0)))
+                }
             }
         }
         .padding(.vertical, 4)
@@ -151,7 +159,9 @@ struct RecordsView: View {
     }
 
     private func gameRowContent(_ row: RecordsSummary.Row, module: GameModule, index: Int) -> some View {
-        HStack(spacing: 12) {
+        // 最後に遊んだ日（#2871）。開くたびに今の日付で数え直す（保存しない）。
+        let lastPlayedText = row.lastPlayedText(now: Date())
+        return HStack(spacing: 12) {
             // 差し色は設定シートと同じく並びの位置で引く。
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Theme.Fill.palette[index % Theme.Fill.palette.count].gradient)
@@ -174,6 +184,13 @@ struct RecordsView: View {
                     .foregroundStyle(Theme.inkSub)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
+                if let lastPlayedText {
+                    Text(verbatim: lastPlayedText)
+                        .themeCaption(12)
+                        .foregroundStyle(Theme.inkSub)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
                 if !row.milestones.isEmpty {
                     HStack(spacing: 4) {
                         ForEach(row.milestones, id: \.self) { milestone in
@@ -209,6 +226,6 @@ struct RecordsView: View {
         .contentShape(Rectangle())
         // 行をばらばらに読ませず、ゲーム名から 1 行ずつ読ませる（受け入れ条件）。
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(row.accessibilityLabel)
+        .accessibilityLabel(row.accessibilityLabel(lastPlayedText: lastPlayedText))
     }
 }

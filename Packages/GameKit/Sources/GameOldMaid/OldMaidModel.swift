@@ -159,7 +159,7 @@ public final class OldMaidModel: AITurnGuarded {
         isUntouchedDeal = true
         phase = .playing
 
-        services?.feedback.impact(.medium)   // 札が配られた
+        services?.feedback.impact(.card(.shuffle))   // 札が切られて配られた
         // 1 ゲーム = 1 プレイ。中断からの復元は init が状態を戻すだけでここを通らないので数えない（#158）。
         services?.gameDidRestart(gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel))
         // 配っただけで決着・あなたが抜けた（ペアだけで手札が尽きた）ときは、そのまま決着まで進める。
@@ -192,7 +192,7 @@ public final class OldMaidModel: AITurnGuarded {
             if transfer.card.isJoker {
                 services?.feedback.notify(.warning)   // ジョーカーを引いてしまった
             } else {
-                services?.feedback.impact(transfer.paired ? .medium : .light)
+                services?.feedback.impact(transfer.paired ? .card(.place) : .card(.deal))
             }
         }
         settleIfHumanOut()
@@ -204,7 +204,7 @@ public final class OldMaidModel: AITurnGuarded {
         guard canShuffle, var next = game else { return }
         next.shuffleHand(of: Self.humanIndex, using: &generator)
         game = next
-        services?.feedback.impact(.light)
+        services?.feedback.impact(.card(.shuffle))
         persist()
     }
 
@@ -257,6 +257,18 @@ public final class OldMaidModel: AITurnGuarded {
         persist()
     }
 
+    /// 決着で記録に渡す点。**「ふつう」は区分なし**（それまでの記録をそのまま引き継ぐ）で、
+    /// それ以外の強さは強さ別の区分に分ける（大富豪と同じ作法・#2604、#2716）。
+    var recordScore: GameScore {
+        let strength = CPUStrength.strength(for: aiLevel)
+        guard strength != .standard else { return GameScore(metric: .winLoss) }
+        let variant = strength.recordVariantKey
+        return GameScore(
+            metric: .winLoss, variant: variant,
+            variantLabel: RecordVariantLabels.stored(gameID: gameID, variant: variant)
+        )
+    }
+
     private func concludeGame() {
         guard phase == .playing else { return }
         selectedID = nil
@@ -267,7 +279,7 @@ public final class OldMaidModel: AITurnGuarded {
         case .draw: services?.feedback.notify(.warning)
         }
         recordResult = services?.gameDidFinish(
-            gameID: gameID, outcome: reviewOutcome, score: GameScore(metric: .winLoss),
+            gameID: gameID, outcome: reviewOutcome, score: recordScore,
             // 「入門」「かんたん」に勝っても評価を頼むほどの手応えとは言えない（#1471）。
             isReviewHighlight: CPUStrength.isReviewWorthy(level: aiLevel)
         )
@@ -336,6 +348,14 @@ public final class OldMaidModel: AITurnGuarded {
             ], currentPlayer: Self.humanIndex, level: .normal))
             selectedID = card(.hearts, 4).id
             drawSelected()
+        case "crowded":
+            // 縦の短い画面の確認用: あなたの手札 14 枚（ジョーカー込み）と、引く相手の伏せ札 13 枚（2 段）。
+            configureForTesting(scenario([
+                (1...13).map { card(.spades, $0) } + [OldMaidCard.joker],
+                (1...13).map { card(.hearts, $0) },
+                [card(.clubs, 1), card(.clubs, 2)],
+                [card(.diamonds, 1), card(.diamonds, 2)],
+            ], currentPlayer: Self.humanIndex, level: .normal))
         default:
             break
         }

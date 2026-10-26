@@ -78,6 +78,21 @@ struct SolitaireModelTests {
         #expect(!model.canUndo)
     }
 
+    @Test("restartSameDeal は同じ配札を最初から配り直し、手数・戻す回数を初期化する（#2603）")
+    func restartSameDealReplaysFromStart() {
+        let (services, _) = makeServices()
+        let model = SolitaireModel(services: services, seed: fixedSeed)
+        let initial = model.board
+        model.tapStock()
+        #expect(model.canUndo)
+        model.restartSameDeal()
+        #expect(model.board == initial)
+        #expect(model.moveCount == 0)
+        #expect(!model.canUndo)
+        #expect(model.undosRemaining == SolitaireUndoBudget.free)
+        #expect(model.phase == .playing)
+    }
+
     @Test("札をタップして選び、置き先をタップすると動く")
     func selectThenPlace() {
         let (services, _) = makeServices()
@@ -296,6 +311,23 @@ struct SolitaireAutoFinishTests {
         }
         #expect(board.isWon)
         #expect(plan.allSatisfy { $0 != .draw }, "この盤面に山札は無いのでめくる手は出ない")
+    }
+
+    @Test("「自動で上がる」は 1 手ずつ進み、最後の 1 手で決着する（#2706）")
+    func autoFinishAdvancesOneMoveAtATime() {
+        let model = SolitaireModel(services: nil, seed: 1)
+        model.replaceBoardForTesting(almostWonBoard())
+        #expect(model.autoFinish())
+        #expect(model.isAutoFinishing)
+        #expect(model.phase == .playing)
+        model.tapStock()
+        #expect(model.selection == nil, "最中の入力は無視する")
+        var steps = 0
+        while model.advanceAutoFinish() != nil { steps += 1 }
+        #expect(steps >= 1)
+        #expect(model.phase == .won)
+        #expect(model.board.isWon)
+        #expect(!model.isAutoFinishing)
     }
 
     @Test("山札に沈んだ札も、めくりだけで届くなら手順に含める")
@@ -689,5 +721,17 @@ struct SolitaireRuleSheetTests {
         #expect(text.contains("1局につき\(SolitaireUndoBudget.free)回まで無料"))
         #expect(text.contains("広告を見ると\(SolitaireUndoBudget.refill)回ぶん補充"))
         #expect(text.contains("クリアできることを確かめて"))
+    }
+}
+
+@Suite("ソリティアの「操作」説明")
+struct SolitaireOperationRuleTests {
+
+    @Test("ドラッグ・2回タップ・自動で上がるを書いている（#2710）")
+    func operationMentionsDragDoubleTapAndAutoFinish() throws {
+        let operation = try #require(SolitaireRuleSheet.rules.first { $0.0 == tr("操作") }).1
+        #expect(operation.contains("ドラッグ"))
+        #expect(operation.contains("2回タップ"))
+        #expect(operation.contains("自動で上がる"))
     }
 }

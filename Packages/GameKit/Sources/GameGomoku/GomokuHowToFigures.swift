@@ -27,7 +27,7 @@ enum GomokuHowToFigures {
     ]
 
     /// 交互に石を置く。
-    private struct PlaceFigure: View {
+    struct PlaceFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 14) { index in
                 VStack(spacing: 4) {
@@ -47,7 +47,7 @@ enum GomokuHowToFigures {
     }
 
     /// たて・よこ・ななめに 5 つ。
-    private struct FiveFigure: View {
+    struct FiveFigure: View {
         var body: some View {
             HStack(spacing: 10) {
                 line(tr("よこ")) { row, col in row == 2 }
@@ -67,7 +67,7 @@ enum GomokuHowToFigures {
     }
 
     /// 4 つ並んだら、あいている端を止める。
-    private struct BlockFigure: View {
+    struct BlockFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 14) { index in
                 VStack(spacing: 4) {
@@ -88,7 +88,7 @@ enum GomokuHowToFigures {
     }
 
     /// 三三: 1 手で「あと 1 つで 3 つ並ぶ列」が 2 本できる場所は、黒は打てない。
-    private struct DoubleThreeFigure: View {
+    struct DoubleThreeFigure: View {
         var body: some View {
             VStack(spacing: 4) {
                 RuleMiniBoard(rows: 7, cols: 7, cell: 18, style: .lines) { row, col in

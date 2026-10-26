@@ -28,7 +28,8 @@ struct RecordFormatLocalizationTests {
                                 wins: wins, losses: plays / 3, draws: plays % 4 == 0 ? 0 : plays % 4,
                                 currentStreak: wins % 4, bestStreak: wins,
                                 bestPoints: value, highestValue: value.map { $0 * 2 },
-                                bestSeconds: value, fewestMoves: value
+                                // 勝敗型の最速秒数（#2609）は #2168 の後に足した表記なので、凍結した旧表記との比較には載せない。
+                                bestSeconds: metric == .winLoss ? nil : value, fewestMoves: value
                             ))
                         }
                     }
@@ -99,6 +100,10 @@ struct RecordFormatLocalizationTests {
         #expect(result(PlayRecord(metric: .points, plays: 1, bestPoints: 500)) == "Personal best 500")
         #expect(result(PlayRecord(metric: .shortestTime, plays: 1, wins: 1, bestSeconds: 83)) == "Best time 1:23 · 1 clear")
         #expect(result(PlayRecord(metric: .shortestTime, plays: 9, wins: 4, bestSeconds: 3_725)) == "Best time 1:02:05 · 4 clears")
+        #expect(result(PlayRecord(metric: .shortestTime, plays: 3, wins: 3, bestStreak: 3, bestSeconds: 83, fewestMoves: 120))
+                == "Best time 1:23 · 3 clears · Fewest moves 120 · Best streak 3")
+        #expect(RecordFormat.hubLine([PlayRecord(metric: .shortestTime, plays: 3, wins: 3, bestStreak: 3, bestSeconds: 83)], language: .english)
+                == "Best 1:23 · Best streak 3")
         #expect(result(PlayRecord(metric: .shortestTime, plays: 1)) == "Not cleared yet (1 try)")
         #expect(result(PlayRecord(metric: .shortestTime, plays: 3)) == "Not cleared yet (3 tries)")
         #expect(result(PlayRecord(metric: .fewestMoves, plays: 1, wins: 1, fewestMoves: 24)) == "Fewest moves: 24")
@@ -262,7 +267,9 @@ private enum LegacyJapaneseRecordFormat {
             guard let best = played.compactMap({ r in r.bestSeconds.map { ($0, r.variantLabel) } })
                 .min(by: { $0.0 < $1.0 }) else { return nil }
             let label = best.1.map { "（\($0)）" } ?? ""
-            return "最短 \(RecordFormat.time(best.0))\(label)"
+            // #2597: 区分なしのときだけ最高連勝（2 連勝以上）を添える。
+            let streak = label.isEmpty ? (played.map(\.bestStreak).max() ?? 0) : 0
+            return "最短 \(RecordFormat.time(best.0))\(label)" + (streak >= 2 ? "・最高\(streak)連勝" : "")
         case .points:
             if let base = played.first(where: { $0.variantLabel == nil }), let points = base.bestPoints {
                 if gameID == "runner" { return runnerStageLine(clearedStage: points) }
@@ -304,7 +311,10 @@ private enum LegacyJapaneseRecordFormat {
             guard let best = record.bestSeconds else {
                 return "クリア記録なし（\(record.plays)回挑戦）"
             }
+            // #2597: 手数があれば最少手数、2 連勝以上なら最高連勝を添える。
             return "最短タイム \(RecordFormat.time(best))・\(record.wins)回クリア"
+                + (record.fewestMoves.map { "・最少 \(RecordFormat.number($0))手" } ?? "")
+                + (record.bestStreak >= 2 ? "・最高\(record.bestStreak)連勝" : "")
         case .points:
             guard let best = record.bestPoints else { return nil }
             if let highest = record.highestValue {

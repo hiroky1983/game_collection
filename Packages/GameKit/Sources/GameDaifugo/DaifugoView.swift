@@ -5,12 +5,18 @@ public struct DaifugoView: View {
     @State private var model: DaifugoModel
     private let services: GameServices
     @State private var showResignConfirm = false
+    /// 右上の新規で開く開始シート（CPU の強さ・しばりを選ぶ・#2604・#2605）。
+    @State private var showNewGame = false
+    /// 対局中に開ける強さの順・特別ルールの早見表（#2788）。
+    @State private var showReference = false
     /// 大貧民の献上を広告で免除する救済（#1048）。
     @State private var waiveRescue = RewardedRescue()
     /// ボタンから起こす CPU の手番。画面を離れたら止める（#1380。`.task` と違いボタンの Task は自動で止まらない）。
     @State private var cpuTask: Task<Void, Never>?
-    /// 画面の広さ（#458）。場の空き枠を札と同じ倍率で拡大するために読む。
+    /// 画面の広さ（#458）。広い画面（iPad）では札の拡大に上限を掛けるのに読む。
     @Environment(\.adaptiveLayout) private var layout
+    /// Reduce Motion のときは革命・8切りの弾みを出さない（#2713）。
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(services: GameServices) {
         self.services = services
@@ -18,36 +24,86 @@ public struct DaifugoView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 8) {
-            statusBar
-            cpuRow
-            // 決着後は場も手札も空になるので、代わりに階級のリザルトを出す。
-            //
-            // 縦の余りは `Spacer` ではなく**場 / リザルトのカード自身**に吸わせる（#193）。
-            // `Spacer` に吸わせると、その分がまるごと背景色の空白として残る（iPhone 17 Pro 実測で
-            // 場と手札の間に 131pt、リザルトの下に 174pt）。カード側を伸ばせば同じ余りが「広い場」
-            // 「大きなリザルト」になり、背景の空白は 0pt になる。
-            if model.phase == .result {
-                resultCard
-                    .transition(.opacity)
-            } else {
-                fieldArea
-                    .transition(.opacity)
-                handArea
-                    .transition(.opacity)
+        // レイアウトパターン A（全画面・会長決裁 2026-10-19・#2431 → #2531）: フェルトを画面全体に敷き、ヘッダーは 1 行
+        // （戻る・大富豪・ゲーム数と手番の札・？）、バナーは画面最下部。場と手札は白い札をやめてフェルトに直に置き、
+        // 手札は 7 列のまま列幅いっぱいまで札を大きくする（SE で 47pt・iPhone 17 で 51pt。札そのものが初めて 44pt を超える）。
+        // 以前の「ヘッダー下の帯 + 白い札の積み重ね」は SE で使える高さを 17〜30pt 超えていた（#2455）が、A では収まる
+        // （`DaifugoLayoutA.estimatedMinimumHeight` を `DaifugoLayoutTests` が SE の高さと突き合わせる）。
+        GeometryReader { geometry in
+            let metrics = DaifugoLayoutA.metrics(screenWidth: geometry.size.width, elementScale: layout.elementScale)
+            VStack(spacing: DaifugoLayoutA.spacing) {
+                cpuRow(metrics)
+                // 決着後は場も手札も空になるので、代わりに階級のリザルトを出す。
+                //
+                // 縦の余りは `Spacer` ではなく**場 / リザルトのカード自身**に吸わせる（#193）。
+                // `Spacer` に吸わせると、その分がまるごとフェルトの空白として残る。
+                if model.phase == .result {
+                    resultCard
+                        .transition(.opacity)
+                } else {
+                    fieldArea(metrics)
+                        .transition(.opacity)
+                    handArea(metrics)
+                        .transition(.opacity)
+                }
+                HowToPlayHint(.daifugo, playLog: services.playLog)
+                actionArea
+                RecommendationSlot(services: services, isFinished: model.phase == .result)
             }
-            HowToPlayHint(.daifugo, playLog: services.playLog)
-            actionArea
-            RecommendationSlot(services: services, isFinished: model.phase == .result)
-            BannerSlot(ads: services.ads)
+            // 局面 → リザルトの差し替えは、上の `transition` を効かせるために**入れ替わる側ではなく
+            // 残り続ける親**へ置く（枝の中に置くと消える側と一緒に修飾子も消えて効かない）（#195）。
+            .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
+            // 左右 8pt（全画面の枠の値）。上下はヘッダーの余白 4 とバナーの帯の余白 8 に 4 を足す。
+            .padding(.horizontal, DaifugoLayoutA.sideInset)
+            .padding(.vertical, DaifugoLayoutA.verticalInset)
+            // 縦の余りを場だけが吸うと手札・操作欄が下端に張り付いて見えるので、下に少し余白を足して全体を上へ寄せる。
+            .padding(.bottom, DaifugoLayoutA.bottomLift(contentHeight: geometry.size.height,
+                                                        screenWidth: geometry.size.width))
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
+            // 交換の帯は盤の高さを変えないよう重ねで出す（#2607・#2493 の再発防止）。
+            .overlay { exchangeBanner }
         }
-        // 局面 → リザルトの差し替えは、上の `transition` を効かせるために**入れ替わる側ではなく
-        // 残り続ける親**へ置く（枝の中に置くと消える側と一緒に修飾子も消えて効かない）（#195）。
-        .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
-        .padding(Theme.pad)
-        .gameChrome(title: daifugoGameName(), review: services.review)
+        // ゲーム数・革命中・手番は、ヘッダー下の帯（`GameStatusBar`）ではなくヘッダーの行の札に置く（A の「1 行のヘッダー」）。
+        .gameChrome(title: daifugoGameName(), review: services.review, fullScreen: .felt, ads: services.ads,
+                    reference: GameChromeReference(tr("カードの強さとルール")) { showReference = true },
+                    newGame: GameChromeNewGame(.match, isDisabled: waiveRescue.isWatching) {
+                        showNewGame = true
+                    }) {
+            statusChips
+        }
+        // 早見表を開いているあいだは CPU の手番を止め、閉じたら続きを回す（読んでいるあいだに場が進まないように）。
+        .sheet(isPresented: $showReference) {
+            NavigationStack {
+                DaifugoReferenceSheet(ruleSet: model.ruleSet)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(tr("閉じる")) { showReference = false }.fontWeight(.semibold)
+                        }
+                    }
+            }
+        }
+        .onChange(of: showReference) { _, isOpen in
+            if isOpen { cpuTask?.cancel() } else { runCPU() }
+        }
+        // 開始シートにも図で見る遊び方の入口があるので、開いているあいだは手番を止める（#2824）。
+        .onChange(of: showNewGame) { _, isOpen in
+            if isOpen { cpuTask?.cancel() } else { runCPU() }
+        }
+        // 右上の新規で開く開始シート（CPU の強さを選ぶ・#2604）。途中の局を捨てる確認はシートの開始ボタンが兼ねる。
+        .sheet(isPresented: $showNewGame) {
+            DaifugoNewGameSheet(
+                aiLevel: model.aiLevel, ruleSet: model.preferredRuleSet, discardsProgress: model.hasProgressToLose
+            ) { level, ruleSet in
+                showNewGame = false
+                model.choosePreferredRuleSet(ruleSet)
+                model.startGame(aiLevel: level)
+                runCPU()
+            } onCancel: { showNewGame = false }
+        }
         // 革命・8切り・階級まで含む細かいルールは3行に収まらないので「くわしいルール」へ送る（#118）。
-        .howToPlay(HowToPlayGuide.daifugo.illustrated(DaifugoHowToFigures.items)) { DaifugoRuleSheet() }
+        // 図で見る遊び方（#2824）は「？」の中から開くので、開いているあいだは CPU の手番を止め、閉じたら続きを回す。
+        .howToPlay(HowToPlayGuide.daifugo.illustrated(DaifugoHowToFigures.items).onboarding(DaifugoOnboarding.guide),
+                   onPresent: { cpuTask?.cancel() }, onDismiss: { runCPU() }) { DaifugoRuleSheet() }
         .dialogs { anchor in
             anchor.confirmationDialog(tr("投了しますか？"), isPresented: $showResignConfirm, titleVisibility: .visible) {
                 Button(tr("投了する"), role: .destructive) { model.resign() }
@@ -71,10 +127,56 @@ public struct DaifugoView: View {
             // 開幕の全画面モーダルは廃止したので、盤を見せたまま既定値で配り始める（#192）。
             // 中断から戻ったときは init が `.playing` まで復元しているので配り直さない。
             if model.phase == .idle { model.startGame() }
+            #if DEBUG
+            // 撮影用（#2788）: 早見表だけを開く。
+            if ProcessInfo.processInfo.arguments.contains("-daifugoReference") { showReference = true }
+            #endif
             // 中断から戻ったときに CPU の手番が止まったままにならないようにする。
-            await model.runCPUTurnsIfNeeded()
+            // 早見表で止められるよう、操作の後と同じ cpuTask で回す（#2788）。
+            runCPU()
         }
         .onDisappear { cpuTask?.cancel() }
+    }
+
+    /// 配った直後の交換の帯（#2607）。数秒で消える・タップで閉じる。VoiceOver には出た時点で読み上げる。
+    @ViewBuilder
+    private var exchangeBanner: some View {
+        Group {
+            if let notice = model.exchangeNotice {
+                let lines = DaifugoAccessibility.exchangeLines(
+                    notice, partnerName: model.playerName(notice.partner), spoken: false)
+                Button { model.dismissExchangeNotice() } label: {
+                    VStack(spacing: 2) {
+                        ForEach(lines, id: \.self) { line in
+                            Text(verbatim: line)
+                                .themeCaption(13, weight: .bold, maxScale: 1.5)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.5)
+                        }
+                    }
+                    .foregroundStyle(Theme.onAccent)
+                    .padding(.horizontal, 16).padding(.vertical, 10)
+                    .frame(minHeight: 44)
+                    .background(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous).fill(Theme.Fill.teal))
+                    .overlay(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                        .strokeBorder(Theme.ink.opacity(0.85), lineWidth: 2))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 24)
+                .accessibilityLabel(DaifugoAccessibility.exchangeLines(
+                    notice, partnerName: model.playerName(notice.partner), spoken: true).joined(separator: tr("。")))
+                .accessibilityHint(tr("タップで閉じます"))
+                .transition(.opacity)
+            }
+        }
+        .gameAnimation(.easeInOut(duration: 0.2), value: model.exchangeNotice)
+        .task(id: model.exchangeNoticeRun) {
+            guard let notice = model.exchangeNotice else { return }
+            AccessibilityNotification.Announcement(DaifugoAccessibility.exchangeLines(
+                notice, partnerName: model.playerName(notice.partner), spoken: true).joined(separator: tr("。"))).post()
+            try? await Task.sleep(for: .seconds(5))
+            if !Task.isCancelled { model.dismissExchangeNotice() }
+        }
     }
 
     private func runCPU() {
@@ -82,22 +184,60 @@ public struct DaifugoView: View {
         cpuTask = Task { await model.runCPUTurnsIfNeeded() }
     }
 
-    // MARK: - ステータス
+    // MARK: - ステータス（ヘッダーの行の札）
 
-    private var statusBar: some View {
-        GameStatusBar {
-            Label(tr("%lldゲーム目", max(model.gameNumber, 1)), systemImage: "number")
-                .themeBody(13)
-                .foregroundStyle(Theme.inkSub)
-            if model.isRevolution {
-                Text(tr("革命中"))
-                    .scaledFont(12, weight: .black, design: .rounded)
-                    .foregroundStyle(Theme.onAccent)
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(Capsule().fill(Theme.Fill.coral))
+    /// ゲーム数・革命中・手番。ヘッダーの残りの幅に収まらないとき（英語の iPhone SE など）はゲーム数を落とす。
+    /// 文字色（白）は全画面の枠が配る。手番の札（`TurnBadge`）は対戦ゲーム共通の色（#1419）。
+    private var statusChips: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                gameCountLabel
+                bindBadge
+                revolutionBadge
+                turnChip
             }
-        } trailing: {
+            HStack(spacing: 8) {
+                bindBadge
+                revolutionBadge
+                turnChip
+            }
+        }
+    }
+
+    private var gameCountLabel: some View {
+        Label(tr("%lldゲーム目", max(model.gameNumber, 1)), systemImage: "number")
+            .themeBody(13, maxScale: Self.seatTextMaxScale)
+    }
+
+    /// 手番の札。席に名前を出さない（アイコンで見分ける）ので、CPU の番ならその席のアイコンを添えてどの席か分かるようにする。
+    private var turnChip: some View {
+        HStack(spacing: 4) {
+            if model.phase == .playing, !model.isPlayerTurn {
+                OpponentSeatIcon(index: model.currentPlayer, diameter: layout.scaled(22))
+            }
             TurnBadge(turnLabel, kind: turnKind)
+        }
+    }
+
+    /// しばり中の札（#2605）。スートの印を添え、VoiceOver には「しばり中、♠のカードだけ出せます」を読ませる。
+    @ViewBuilder private var bindBadge: some View {
+        if !model.bindSuits.isEmpty {
+            Text(tr("しばり %@", DaifugoRules.bindLabel(model.bindSuits)))
+                .scaledFont(12, weight: .black, design: .rounded)
+                .foregroundStyle(Theme.onAccent)
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(Capsule().fill(Theme.Fill.coral))
+                .accessibilityLabel(DaifugoAccessibility.bindLabel(model.bindSuits))
+        }
+    }
+
+    @ViewBuilder private var revolutionBadge: some View {
+        if model.isRevolution {
+            Text(tr("革命中"))
+                .scaledFont(12, weight: .black, design: .rounded)
+                .foregroundStyle(Theme.onAccent)
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(Capsule().fill(Theme.Fill.coral))
         }
     }
 
@@ -118,10 +258,12 @@ public struct DaifugoView: View {
 
     // MARK: - CPU
 
-    private var cpuRow: some View {
-        HStack(spacing: 8) {
+    /// CPU 3 人の席。見せ方はいろリレーと同じ共通部品（`OpponentSeat`・#2531。会長「CPU のディテールとかいろリレーの感じに寄せれない？」）:
+    /// 色と記号の丸いアイコン・手番の黄色い輪・裏向きのトランプの束・残り枚数・直前の手の吹き出し。
+    private func cpuRow(_ metrics: DaifugoLayoutA.Metrics) -> some View {
+        HStack(alignment: .top, spacing: 8) {
             ForEach(1..<DaifugoModel.playerCount, id: \.self) { index in
-                cpuCard(index)
+                cpuSeat(index, metrics)
             }
         }
     }
@@ -130,59 +272,56 @@ public struct DaifugoView: View {
     /// 際限なく拡大すると席が押し合う。上限を超える分は `minimumScaleFactor` で縮めて 1 行に収める。
     private static let seatTextMaxScale: CGFloat = 1.6
 
-    private func cpuCard(_ index: Int) -> some View {
-        VStack(spacing: 4) {
-            HStack(spacing: 4) {
-                Image(systemName: "cpu")
-                    .themeCaption(12, maxScale: Self.seatTextMaxScale)
-                    .foregroundStyle(model.currentPlayer == index && model.phase == .playing ? Theme.coralText : Theme.inkSub)
-                Text(model.playerName(index))
-                    .themeCaption(12, maxScale: Self.seatTextMaxScale)
-                    .foregroundStyle(Theme.ink)
-                    .lineLimit(1).minimumScaleFactor(0.6)
+    private func cpuSeat(_ index: Int, _ metrics: DaifugoLayoutA.Metrics) -> some View {
+        let isTurn = model.currentPlayer == index && model.phase == .playing
+        let remaining = model.hands[index].count
+        let action = model.lastActions[index].isEmpty ? "" : model.actionLabel(index)
+        let back = metrics.seatCardMetrics
+        return OpponentSeat(
+            index: index, diameter: metrics.seatDiameter, isCurrent: isTurn, cardCount: remaining, lastAction: action,
+            // 手番は輪の色でしか示さないので、席を 1 まとまりにして「〜の番」まで読ませる（#2495）。
+            accessibilityLabel: DaifugoAccessibility.seatLabel(
+                name: model.playerName(index), remaining: remaining, action: action, isTurn: isTurn)
+        ) {
+            OpponentCardFan(count: remaining, cardWidth: back.width, cardHeight: back.height) {
+                // トランプの裏（藍の面 + 白い内枠 + スート印）。外形と面は共通基盤（#397）。
+                ZStack {
+                    PlayingCardSurface(faceUp: false, cornerRadius: back.cornerRadius, shadowRadius: 1)
+                    PlayingCardBack(metrics: back)
+                }
             }
-            Text(tr("残り%lld枚", model.hands[index].count))
-                .themeCaption(11, weight: .semibold, maxScale: Self.seatTextMaxScale)
-                .foregroundStyle(Theme.inkSub)
-                .lineLimit(1).minimumScaleFactor(0.6)
-            Text(model.lastActions[index].isEmpty ? " " : model.actionLabel(index))
-                .themeCaption(10, maxScale: Self.seatTextMaxScale)
-                .foregroundStyle(Theme.onAccent)
-                .lineLimit(1).minimumScaleFactor(0.6)
-                .padding(.horizontal, 6).padding(.vertical, 3)
-                .frame(maxWidth: .infinity)
-                .background(Capsule().fill(model.lastActions[index].isEmpty ? Color.clear : Theme.Fill.purple))
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 10).padding(.horizontal, 6)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     // MARK: - 場
 
-    private var fieldArea: some View {
+    /// 場。白い札は使わずフェルトに直に置く。縦の余りはここが吸う（#193）。
+    private func fieldArea(_ metrics: DaifugoLayoutA.Metrics) -> some View {
         VStack(spacing: 6) {
             fieldHeader
             HStack(spacing: 6) {
                 if model.field.isEmpty {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(Theme.inkSub.opacity(0.3), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
-                        // 場の札（`.large` = 56×78）と同じ枠。札が広い画面で拡大するので
-                        // ここも一緒に拡大しないと、札が出た瞬間に場の高さが跳ねる（#458）。
-                        .frame(width: layout.scaled(56), height: layout.scaled(78))
+                    // 場の札と同じ枠の空き枠（破線の色は卓の上の色・`cardTableInk`）。札が出た瞬間に場の高さが跳ねないよう同じ寸法。
+                    CardSlot(metrics: metrics.fieldCard)
                         .transition(.opacity)
                 } else {
                     ForEach(model.field) { card in
-                        DaifugoCardView(card: card, size: .large)
+                        DaifugoCardView(card: card, metrics: metrics.fieldCard)
                             .transition(.scale.combined(with: .opacity))
                     }
                 }
             }
         }
-        // 縦の余りをここで吸い、場と手札の間に背景の空白を残さない（#193）。
+        // 革命の切り替わり・8切りの瞬間だけ場を 1.15 倍→1.0 倍に弾ませる。自分が起こしたときは一段大きく（#2713）。
+        // Reduce Motion ではトリガーを止めて弾ませない。
+        .keyframeAnimator(initialValue: 1.0, trigger: reduceMotion ? nil : model.fieldImpact) { content, scale in
+            content.scaleEffect(scale)
+        } keyframes: { _ in
+            let peak = model.fieldImpact?.byHuman == true ? 1.25 : 1.15
+            CubicKeyframe(peak, duration: 0.12)
+            SpringKeyframe(1.0, duration: 0.25, spring: .bouncy)
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.vertical, 22)
-        .popCard(corner: Theme.cornerSmall)
         // 誰が出しても場は同じ経路（`field` の差し替え）で更新されるので、CPU の手も人間の手も
         // ここ1箇所で演出できる。見出しの「場は流れています」も同じ変化で切り替わる（#195）。
         .gameAnimation(.easeInOut(duration: 0.18), value: model.field)
@@ -204,8 +343,13 @@ public struct DaifugoView: View {
         if let ownerName = fieldOwnerName {
             let isHuman = model.fieldOwner == DaifugoModel.humanIndex
             HStack(spacing: 4) {
-                Image(systemName: isHuman ? "person.fill" : "cpu")
-                    .themeCaption(10, maxScale: Self.seatTextMaxScale)
+                // 席に名前を出さないので、出し手は席と同じアイコンで示す（どの相手を越えるべきか読める・#193）。
+                if isHuman {
+                    Image(systemName: "person.fill")
+                        .themeCaption(10, maxScale: Self.seatTextMaxScale)
+                } else if let owner = model.fieldOwner {
+                    OpponentSeatIcon(index: owner, diameter: layout.scaled(16))
+                }
                 Text(isHuman ? tr("あなたが出した") : tr("%@が出した", ownerName))
                     .themeCaption(11, maxScale: Self.seatTextMaxScale)
                     .lineLimit(1).minimumScaleFactor(0.7)
@@ -214,28 +358,33 @@ public struct DaifugoView: View {
             .padding(.horizontal, 10).padding(.vertical, 4)
             .background(Capsule().fill(isHuman ? Theme.Fill.teal : Theme.Fill.purple))
         } else {
-            Text(model.field.isEmpty ? tr("場は流れています（好きな組を出せます）") : tr("場"))
-                .themeCaption(11, weight: .semibold, maxScale: Self.seatTextMaxScale)
-                .foregroundStyle(Theme.inkSub)
-                .lineLimit(1).minimumScaleFactor(0.6)
+            // フェルトの上の地の文は卓の上の文字色（白系）で出す。
+            CardTableInkReader { ink in
+                Text(model.field.isEmpty ? tr("場は流れています（好きな組を出せます）") : tr("場"))
+                    .themeCaption(11, weight: .semibold, maxScale: Self.seatTextMaxScale)
+                    .foregroundStyle(ink.labelSub)
+                    .lineLimit(1).minimumScaleFactor(0.6)
+            }
         }
     }
 
     // MARK: - 手札
 
-    private var handArea: some View {
+    private func handArea(_ metrics: DaifugoLayoutA.Metrics) -> some View {
         // 1枚ごとに引くと合法手の探索が手札の枚数ぶん走るので、ここで1回だけ求める（#190）。
         let handHint = model.handHint
         return VStack(spacing: 6) {
-            HStack {
-                Text(tr("あなた（残り%lld枚）", model.playerHand.count))
-                    .themeBody(13)
-                    .foregroundStyle(Theme.ink)
-                Spacer()
-                if !model.lastActions[DaifugoModel.humanIndex].isEmpty {
-                    Text(model.actionLabel(DaifugoModel.humanIndex))
-                        .scaledFont(11, weight: .bold, design: .rounded)
-                        .foregroundStyle(Theme.tealText)
+            CardTableInkReader { ink in
+                HStack {
+                    Text(tr("あなた（残り%lld枚）", model.playerHand.count))
+                        .themeBody(13, maxScale: Self.seatTextMaxScale)
+                        .foregroundStyle(ink.label)
+                    Spacer()
+                    if !model.lastActions[DaifugoModel.humanIndex].isEmpty {
+                        Text(model.actionLabel(DaifugoModel.humanIndex))
+                            .scaledFont(11, weight: .bold, design: .rounded)
+                            .foregroundStyle(ink.label)
+                    }
                 }
             }
             LazyVGrid(
@@ -245,14 +394,13 @@ public struct DaifugoView: View {
                 ),
                 spacing: DaifugoHandLayout.rowSpacing
             ) {
-                ForEach(model.playerHand) { card in
+                ForEach(model.displayHand) { card in
                     let isSelected = model.selected.contains(card.id)
                     let hint = handHint?.state(for: card.id) ?? .none
-                    DaifugoCardView(card: card, size: .small, selected: isSelected, hint: hint)
+                    DaifugoCardView(card: card, metrics: metrics.handCard, selected: isSelected, hint: hint)
                         .offset(y: isSelected ? -6 : 0)
                         .gameAnimation(.spring(response: 0.2), value: isSelected)
-                        // 見えるカードは 42pt のまま、タップ判定だけを列いっぱいに広げて
-                        // 44pt 以上にする（#195）。`offset` は判定の位置に影響しない。
+                        // 札は列幅 − 4pt。タップ判定は列いっぱい（44pt 以上・#195）。`offset` は判定の位置に影響しない。
                         .frame(maxWidth: .infinity, minHeight: DaifugoHandLayout.minimumTapTarget)
                         .contentShape(Rectangle())
                         .onTapGesture { model.toggleSelection(card) }
@@ -272,31 +420,31 @@ public struct DaifugoView: View {
                 }
             }
             // 出した札が手札から消える／交換で増える変化を演出する（#195）。
-            .gameAnimation(.easeInOut(duration: 0.18), value: model.playerHand)
+            .gameAnimation(.easeInOut(duration: 0.18), value: model.displayHand)
             hintLine(handHint)
         }
-        .padding(.horizontal, DaifugoHandLayout.horizontalPadding).padding(.vertical, 12)
-        .popCard(corner: Theme.cornerSmall)
     }
 
-    /// 手札の下に出す1行の案内（#190）。
+    /// 手札の下に出す1行の案内（#190）。フェルトの上なので赤系ではなく卓の上の文字色（白系）で出す。
     /// 出せない組を選んでいればその理由を、選んでいなければ「1枚も出せない」ときだけ助言を出す。
     @ViewBuilder
     private func hintLine(_ handHint: DaifugoHandHint?) -> some View {
         let message = model.selectionIssue
             ?? (handHint?.playable.isEmpty == true ? tr("出せる組がありません。パスしてください") : nil)
         if let message {
-            HStack(spacing: 4) {
-                Image(systemName: "info.circle.fill")
-                    .scaledFont(11, weight: .bold)
-                Text(message)
-                    // 受け入れ条件どおり1行に収める。文字を拡大しても高さが跳ねないよう縮めて入れる（#189）。
-                    .scaledFont(11, weight: .bold, design: .rounded)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.6)
+            CardTableInkReader { ink in
+                HStack(spacing: 4) {
+                    Image(systemName: "info.circle.fill")
+                        .scaledFont(11, weight: .bold)
+                    Text(message)
+                        // 受け入れ条件どおり1行に収める。文字を拡大しても高さが跳ねないよう縮めて入れる（#189）。
+                        .scaledFont(11, weight: .bold, design: .rounded)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                }
+                .foregroundStyle(ink.label)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .foregroundStyle(Theme.coralText)
-            .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .combine)
         }
     }
@@ -318,7 +466,8 @@ public struct DaifugoView: View {
             .popCard(corner: Theme.cornerSmall)
         case .playing:
             HStack(spacing: 12) {
-                actionButton(tr("パス"), role: .skip, disabled: !model.canPass) {
+                // 出せる手が無いときは押してほしいボタンとして主役の色にする（#2693）。
+                actionButton(tr("パス"), role: model.mustPass ? .primary : .skip, disabled: !model.canPass) {
                     model.pass()
                     runCPU()
                 }
@@ -329,17 +478,14 @@ public struct DaifugoView: View {
                 // 投了は盤下の「⋯」メニューに入れる（#1418・会長決裁 #1011 D1）。ヘッダー右は
                 // 役・？・新規の並びに固定するため文字の「投了」は置けない。中断すると次回は必ず
                 // 「続きから」に戻るので、局面を降りる導線としてここに残す（#194）。
-                Menu {
-                    Button(tr("投了"), role: .destructive) { showResignConfirm = true }
-                        .disabled(!model.canResign)
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .scaledFont(17, weight: .semibold)
-                        .frame(width: 44)
-                        .padding(.vertical, 8)
-                        .contentShape(Rectangle())
-                }
-                .accessibilityLabel(tr("その他の操作"))
+                // 行の高さを増やさないよう、行ごと置く `GameOverflowBar` ではなく中身の `GameControlMenu`
+                // （丸 44×44pt・全ゲーム共通の見た目）を並びの中に置く（#2494・#2455 の SE の高さを保つ）。
+                GameControlMenu(items: [
+                    GameControlMenuItem(
+                        id: "resign", title: tr("投了"), systemImage: "flag.fill",
+                        isDestructive: true, isEnabled: model.canResign
+                    ) { showResignConfirm = true }
+                ])
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
@@ -349,7 +495,7 @@ public struct DaifugoView: View {
                     waiveExchangeButton
                 }
                 // 視聴中に次のゲームを始めると、見終えた広告が局ガードで弾かれて見損になる（#911 と同型）。
-                actionButton(tr("次のゲーム"), role: .primary, disabled: waiveRescue.isWatching) {
+                actionButton(tr("もう一回"), role: .primary, disabled: waiveRescue.isWatching) {
                     model.startGame()
                     runCPU()
                 }
@@ -432,6 +578,10 @@ public struct DaifugoView: View {
                             .frame(width: 58)
                             .padding(.vertical, 3)
                             .background(Capsule().fill(place == 0 ? Theme.Fill.yellow : Theme.fillMuted))
+                        // 卓では席をアイコンで見分けているので、順位にも同じアイコンを添える（いろリレー #2369 と同じ）。
+                        if player != DaifugoModel.humanIndex {
+                            OpponentSeatIcon(index: player, diameter: layout.scaled(24))
+                        }
                         Text(model.playerName(player))
                             .scaledFont(13, weight: .bold, design: .rounded)
                             .foregroundStyle(player == DaifugoModel.humanIndex ? Theme.coralText : Theme.ink)
@@ -455,7 +605,7 @@ public struct DaifugoView: View {
                 .foregroundStyle(Theme.inkSub)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        // 縦の余りをここで吸い、リザルトの下に背景の空白を残さない（#193）。
+        // 縦の余りをここで吸い、リザルトの下にフェルトの空白を残さない（#193）。
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, 14).padding(.vertical, 12)
         .popCard(corner: Theme.cornerSmall)
@@ -483,14 +633,93 @@ public struct DaifugoView: View {
     }
 }
 
+// MARK: - 全画面（A）の寸法
+
+/// レイアウトパターン A での大富豪の寸法（#2531・モック `docs/design/layout-patterns-2111/daifugo/`）。
+/// View を組まずに札の大きさ・SE での収まりをテストできるよう純関数にする（`DaifugoLayoutTests`）。
+///
+/// 手札は 7 列のまま、**札を列幅いっぱい（列幅 − 4pt）まで大きくする**。札の寸法は `PlayingCardMetrics.compact`（42×60）を
+/// 相似拡大したもので、場の札（`.medium` 56×78）も同じ倍率。広い画面（iPad）では列幅がそのまま札になると大きすぎるので、
+/// 倍率に上限（`maxCardScale` × `elementScale`）を掛ける。
+enum DaifugoLayoutA {
+    /// 画面の左右の余白（全画面の枠の値）。
+    static let sideInset: CGFloat = FullScreenGameLayoutMetrics.sideInset
+    /// 中身の上下の余白（ヘッダーの余白 4 / バナーの帯の余白 8 に足す分）。SE で初回のミニガイド・案内・出し手の
+    /// カプセルが同時に出ても収まるよう詰めてある（`estimatedMinimumHeight`）。
+    static let verticalInset: CGFloat = 2
+    /// 段のあいだの間隔。SE で出し手のカプセル・ミニガイド・案内が同時に出ても収まる値（8 だと 1.5pt 超える）。
+    static let spacing: CGFloat = 6
+    /// 手札の列のあいだに残す隙間（札の幅 = 列幅 − これ）。
+    static let handGap: CGFloat = 4
+    /// 札の拡大率の上限（狭い画面の倍率。iPad ではさらに `elementScale` 倍）。iPhone 17 Pro Max（440pt）で約 1.33 なので届かない。
+    static let maxCardScale: CGFloat = 1.5
+    /// 席のアイコンを小さい段に切り替える画面の幅（いろリレーと同じ）。
+    static let compactBreakpoint: CGFloat = 390
+
+    struct Metrics: Equatable {
+        /// 手札の札。
+        let handCard: PlayingCardMetrics
+        /// 場の札。
+        let fieldCard: PlayingCardMetrics
+        /// CPU の席のアイコンの直径。
+        let seatDiameter: CGFloat
+        /// CPU の席の裏向きの札。
+        let seatCardMetrics: PlayingCardMetrics
+    }
+
+    /// 手札 1 列の幅（＝タップ判定の幅）。
+    static func columnWidth(screenWidth: CGFloat) -> CGFloat {
+        max(0, screenWidth - sideInset * 2) / CGFloat(DaifugoHandLayout.columns)
+    }
+
+    /// 手札の札の拡大率（`PlayingCardMetrics.compact` に掛ける）。
+    static func cardScale(screenWidth: CGFloat, elementScale: CGFloat = 1) -> CGFloat {
+        let fit = (columnWidth(screenWidth: screenWidth) - handGap) / PlayingCardMetrics.compact.width
+        return max(0, min(fit, maxCardScale * elementScale))
+    }
+
+    static func metrics(screenWidth: CGFloat, elementScale: CGFloat = 1) -> Metrics {
+        let scale = cardScale(screenWidth: screenWidth, elementScale: elementScale)
+        let compact = screenWidth < compactBreakpoint
+        let seatCardWidth = OpponentSeatStyle.cardWidth(compact: compact) * elementScale
+        return Metrics(
+            handCard: PlayingCardMetrics.compact.scaled(by: scale),
+            fieldCard: PlayingCardMetrics.medium.scaled(by: scale),
+            seatDiameter: OpponentSeatStyle.iconDiameter(compact: compact) * elementScale,
+            seatCardMetrics: PlayingCardMetrics.compact.scaled(by: seatCardWidth / PlayingCardMetrics.compact.width)
+        )
+    }
+
+    /// 初回のミニガイドと手札の下の案内が両方出ているときの、中身に要る高さの見積もり（手札 14 枚 = 2 段・場に出し手のカプセル）。
+    /// 席（アイコン + 束 + 枚数の札 18 + 吹き出し 20）+ 場（出し手のカプセル 21 + 6 + 札）+ 手札（見出し 16 + 6 + 2 段 + 6 + 案内 14）+
+    /// ミニガイド 22 + 操作の段 60 + 間隔 + 上下の余白。`DaifugoLayoutTests` が SE の使える高さと突き合わせる（#2455 の再発防止）。
+    static func estimatedMinimumHeight(screenWidth: CGFloat) -> CGFloat {
+        let m = metrics(screenWidth: screenWidth)
+        let seat = m.seatDiameter + OpponentSeatStyle.spacing * 3 + m.seatCardMetrics.height + 18 + 20
+        let field = 21 + 6 + m.fieldCard.height
+        let hand = 16 + 6 + m.handCard.height * 2 + DaifugoHandLayout.rowSpacing + 6 + 14
+        let rows: [CGFloat] = [seat, field, hand, 22, 60]
+        return rows.reduce(0, +) + spacing * CGFloat(rows.count - 1) + verticalInset * 2
+    }
+
+    /// 手札・操作欄を下端から持ち上げる量の上限（会長 QA 2026-10-22「気持ち要素を上に」・#2531）。
+    static let maxBottomLift: CGFloat = 24
+
+    /// 手札・操作欄を下端から持ち上げる量。中身の下に足す余白で、縦の余りを吸う場が同じだけ縮むので、
+    /// 場・手札・操作欄がそろって少し上へ寄る。控えめな量（上限 `maxBottomLift`）にとどめ、
+    /// 縦の余り（使える高さ − 最低限の高さ）の半分を超えない（SE で手札や操作欄が下にはみ出さない）。
+    static func bottomLift(contentHeight: CGFloat, screenWidth: CGFloat) -> CGFloat {
+        let slack = contentHeight - estimatedMinimumHeight(screenWidth: screenWidth)
+        return min(maxBottomLift, max(0, slack / 2))
+    }
+}
+
 // MARK: - 手札グリッドの寸法
 
-/// 手札グリッドの寸法（#195）。
+/// 手札グリッドの寸法（#195 → #2531）。
 ///
-/// 見た目のカード幅は 42pt（`DaifugoCardView.Size.small`）のままで、**タップ判定だけ**を
-/// 列いっぱいに広げて 44pt 以上にする。列は `GridItem(.flexible())` なので実効幅は画面幅で決まり、
-/// 列間隔 4pt のままでは最小構成の端末で 44pt を割っていた。間隔を 0 にして幅を列へ回し、
-/// 見た目の隙間は「列幅 − カード幅」で従来とほぼ同じに保つ。
+/// 列は `GridItem(.flexible())` の 7 列で、実効幅は画面幅で決まる。札は列幅 − 4pt（`DaifugoLayoutA`）、
+/// タップ判定は列いっぱい。間隔を 0 にして幅を列へ回し、見た目の隙間は「列幅 − カード幅」= 4pt。
 ///
 /// 実効幅の計算をここに置いてビュー側からも参照するのは、寸法を変えたときに
 /// `DaifugoHandLayoutTests` の検証と実装がずれないようにするため。
@@ -498,40 +727,29 @@ enum DaifugoHandLayout {
     static let columns = 7
     static let columnSpacing: CGFloat = 0
     static let rowSpacing: CGFloat = 6
-    /// 手札カード（`popCard`）の内側の左右余白。
-    static let horizontalPadding: CGFloat = 12
     /// Apple HIG の最小タップ標的。
     static let minimumTapTarget: CGFloat = 44
 
-    /// 画面幅 `screenWidth` のときの、手札1枚あたりのタップ判定の幅。
-    /// 画面外周の `Theme.pad` と手札カードの内側余白を引いた残りを列数で割る。
+    /// 画面幅 `screenWidth` のときの、手札1枚あたりのタップ判定の幅（= 列幅）。
     static func tapWidth(screenWidth: CGFloat) -> CGFloat {
-        let available = screenWidth - Theme.pad * 2 - horizontalPadding * 2
-        return (available - columnSpacing * CGFloat(columns - 1)) / CGFloat(columns)
+        DaifugoLayoutA.columnWidth(screenWidth: screenWidth)
+    }
+
+    /// 画面幅 `screenWidth` のときの、手札の札の見た目の幅。
+    static func cardWidth(screenWidth: CGFloat) -> CGFloat {
+        DaifugoLayoutA.metrics(screenWidth: screenWidth).handCard.width
     }
 }
 
 // MARK: - Card View
 
 struct DaifugoCardView: View {
-    enum Size {
-        case small, large
-        /// 寸法はトランプ共通基盤（#397）の定義を使う。small = 42×60、large = 56×78。
-        var metrics: PlayingCardMetrics { self == .small ? .compact : .medium }
-
-        // 手札レイアウト（#190 のタップ判定）が参照する寸法。共通基盤の値をそのまま返す。
-        var width: CGFloat { metrics.width }
-        var height: CGFloat { metrics.height }
-    }
-
     let card: DaifugoCard
-    var size: Size = .small
+    /// 寸法。手札・場ともに `DaifugoLayoutA.metrics` が画面幅から決める（#2531。以前は 42×60 / 56×78 の固定）。
+    let metrics: PlayingCardMetrics
     var selected: Bool = false
     /// 出せる / 出せないの区別（#190）。`.none` なら素の見た目のまま。
     var hint: DaifugoCardHint = .none
-    /// 画面の広さ（#458）。手札の**列幅**は `.flexible()` なので iPad で勝手に広がるのに、
-    /// 札の絵柄だけ 42pt 固定で取り残され、列のあいだの隙間だけが開いていた。
-    @Environment(\.adaptiveLayout) private var layout
 
     /// 出せない札は色に頼らず**明度**でも落として区別する（色覚特性の影響を受けないため）。
     private var isDimmed: Bool { hint == .unplayable && !selected }
@@ -546,9 +764,6 @@ struct DaifugoCardView: View {
         if selected { return 2 }
         return hint == .playable ? 1.5 : 0.5
     }
-
-    /// 広い画面向けに相似拡大した寸法（#458）。狭い画面では `size.metrics` と同じ値になる。
-    private var metrics: PlayingCardMetrics { size.metrics.scaled(by: layout.elementScale) }
 
     var body: some View {
         ZStack {
@@ -565,7 +780,8 @@ struct DaifugoCardView: View {
             PlayingCardFace(figure: card.figure, metrics: metrics)
         }
         .frame(width: metrics.width, height: metrics.height)
-        .opacity(isDimmed ? 0.4 : 1)
+        // フェルトの上なので、不透明度を落とす（緑に濁る）のではなく白を重ねて沈める（#2531）。
+        .tableDimmed(isDimmed, cornerRadius: metrics.cornerRadius)
     }
 }
 
@@ -582,6 +798,7 @@ struct DaifugoRuleSheet: View {
             (tr("出し方"), tr("場が空なら好きな組（1枚・ペア・3枚…）を出せます。場に組があるときは同じ枚数で、より強い組だけ出せます")),
             (tr("革命"), tr("同じ数字を4枚以上まとめて出すと革命。カードの強さが上下逆になります（もう一度出すと元に戻ります）")),
             (tr("8切り"), tr("8 を含む組を出すと場が流れ、そのまま続けて出せます")),
+            (tr("しばり（任意）"), tr("新規ゲームの開始シートでオンにできます。同じスートが2回続くと、場が流れるまでそのスートの札（とジョーカー）しか出せません")),
             (tr("反則上がり"), tr("最後の1手が 2・8・ジョーカーだと反則。上がっても大貧民に落ちます")),
             (tr("階級とカード交換"), tr("上がった順に 大富豪・富豪・貧民・大貧民。次のゲームは 大貧民→大富豪 に強い2枚、大富豪→大貧民 に弱い2枚（富豪と貧民は1枚ずつ）を渡します")),
         ]
@@ -589,5 +806,53 @@ struct DaifugoRuleSheet: View {
 
     var body: some View {
         RuleListSheet(rules: rules)
+    }
+}
+
+// MARK: - New Game Sheet
+
+/// 右上の新規で開く開始シート（CPU の強さ・#2604、しばり・#2605）。強さは他の CPU 戦と同じ部品（`CPUStrengthPicker`）を使う。
+/// しばりは既定オフで、選んだ値は次のゲームにも引き継ぐ。
+struct DaifugoNewGameSheet: View {
+    @State private var level: Int
+    @State private var ruleSet: DaifugoRuleSet
+    let discardsProgress: Bool
+    let onStart: (Int, DaifugoRuleSet) -> Void
+    let onCancel: () -> Void
+
+    init(aiLevel: Int, ruleSet: DaifugoRuleSet, discardsProgress: Bool,
+         onStart: @escaping (Int, DaifugoRuleSet) -> Void, onCancel: @escaping () -> Void) {
+        _level = State(initialValue: aiLevel)
+        _ruleSet = State(initialValue: ruleSet)
+        self.discardsProgress = discardsProgress
+        self.onStart = onStart
+        self.onCancel = onCancel
+    }
+
+    var body: some View {
+        GameSetupSheet(
+            kind: .versus,
+            discardsProgress: discardsProgress,
+            onboarding: DaifugoOnboarding.guide,
+            onStart: { onStart(level, ruleSet) }, onCancel: onCancel
+        ) {
+            GameSetupSection(tr("CPUの強さ")) {
+                // 説明は `DaifugoRules.cpuPlay` の中身と一致させる（#416）。
+                CPUStrengthPicker(level: $level, details: [
+                    tr("出せる手からでたらめに選ぶ"), tr("ときどき最善でない手を選ぶ"),
+                    tr("出せる最弱の手を選ぶ"), tr("強い札を温存し、革命も狙う"),
+                ])
+            }
+            GameSetupSection(tr("しばり")) {
+                HStack(spacing: 12) {
+                    GameSetupChooser(title: tr("なし"), subtitle: tr("ふつうのルール"),
+                                     selected: !ruleSet.isBindEnabled, accent: Theme.fillMuted,
+                                     onAccent: .white) { ruleSet.isBindEnabled = false }
+                    GameSetupChooser(title: tr("あり"), subtitle: tr("同じ柄が2回続くとその柄だけ"),
+                                     selected: ruleSet.isBindEnabled, accent: Theme.fillStrong,
+                                     onAccent: .white) { ruleSet.isBindEnabled = true }
+                }
+            }
+        }
     }
 }

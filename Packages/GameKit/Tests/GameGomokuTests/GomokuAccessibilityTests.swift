@@ -37,3 +37,22 @@ struct GomokuCPUMoveAnnouncementTests {
         #expect(model.lastCPUMoveKey != model.aiTurnKey)
     }
 }
+
+/// 結果カードの補足行（#2799）。
+@Suite("五目並べ: 結果カードの補足行")
+struct GomokuResultCardDetailsTests {
+    @Test("五連で終わったときは手数と決め手を 1 始まりの行列で出す")
+    func win() {
+        let line = (0..<5).map { GomokuPoint(row: 7, col: $0) }
+        let details = GomokuAccessibility.resultCardDetails(
+            moveCount: 21, winningLine: line, lastMove: (row: 7, col: 4))
+        #expect(details == ["21手", "決め手 8行5列"])
+    }
+
+    @Test("五連でなければ（投了・引き分け）手数だけ出す")
+    func noWinningLine() {
+        let details = GomokuAccessibility.resultCardDetails(
+            moveCount: 225, winningLine: nil, lastMove: (row: 0, col: 0))
+        #expect(details == ["225手"])
+    }
+}

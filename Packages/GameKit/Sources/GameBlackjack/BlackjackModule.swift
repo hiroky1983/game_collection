@@ -19,4 +19,13 @@ public struct BlackjackModule: GameModule {
         guard let snap = snapshots.load(BlackjackSnapshot.self, for: id) else { return false }
         return !snap.hands.isEmpty
     }
+
+    /// 10 回勝負の何回目か（#2870）。結果を出している回はその回（`BlackjackModel.currentRound` と同じ数え方）。単発戦は出さない。
+    public func resumeProgress(in snapshots: SnapshotStore) -> String? {
+        guard let snap = snapshots.load(BlackjackSnapshot.self, for: id) else { return nil }
+        let format = snap.format ?? .tenRounds
+        guard format == .tenRounds else { return nil }
+        let round = snap.phase == .result ? snap.completedRounds : snap.completedRounds + 1
+        return tr("%1$lld/%2$lld回目", min(max(round, 1), format.rounds), format.rounds)
+    }
 }

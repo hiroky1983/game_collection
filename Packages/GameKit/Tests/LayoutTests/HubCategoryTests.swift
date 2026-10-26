@@ -44,7 +44,7 @@ struct HubCategoryTests {
     @Test("チップに出すのは、表示中のゲームが 1 本以上入るカテゴリーだけ")
     func populatedOnly() {
         let r = registry()
-        #expect(r.populatedCategories(among: ["a", "b", "c", "d"]) == [.board, .cards, .puzzleOther])
+        #expect(r.populatedCategories(among: ["a", "b", "c", "d"]) == [.cards, .board, .puzzleOther])
         #expect(r.populatedCategories(among: ["b"]) == [.board])
         #expect(r.populatedCategories(among: []).isEmpty)
     }
@@ -181,6 +181,20 @@ struct HubCategoryTests {
         #expect(source.contains(#"if isEvent { parts.append(tr("イベント開催中")) }"#), "読み上げに無い")
     }
 
+    @Test("一度も遊んでいないゲームのタイルに「未プレイ」を出し、NEW・イベント・続きからのどれも無いときだけ・読み上げにも載せる（#2849）")
+    func unplayedBadge() throws {
+        let source = try SourceScan.appSources()
+        #expect(source.contains("isUnplayed = services.playLog.map { !$0.hasPlayed(gameID: module.id) } ?? false"))
+        #expect(source.contains("isUnplayed: isUnplayed,"))
+        let start = try #require(source.range(of: "private var badge: some View {"))
+        let end = try #require(source.range(of: "\n    }\n", range: start.upperBound..<source.endIndex))
+        let badge = String(source[start.lowerBound..<end.upperBound])
+        let resume = try #require(badge.range(of: #"badgeCapsule(tr("続きから"))"#))
+        let unplayed = try #require(badge.range(of: #"badgeCapsule(tr("未プレイ"))"#))
+        #expect(resume.lowerBound < unplayed.lowerBound, "未プレイは最も優先度が低い")
+        #expect(source.contains(#"if isUnplayed { parts.append(tr("未プレイ")) }"#), "読み上げに無い")
+    }
+
     @Test("柵越えおじさんのタイルは「残り n 回」の印を「イベント開催中」と両方出し、狭ければ 2 段・読み上げにも載せる（#2572）")
     func homerunCountBadge() throws {
         let source = try SourceScan.appSources()
@@ -193,7 +207,7 @@ struct HubCategoryTests {
         let badges = String(source[start.lowerBound..<end.upperBound])
         #expect(badges.contains("ViewThatFits(in: .horizontal)"))
         #expect(SourceScan.matchCount(of: "countBadge\\(count\\)", in: badges) == 2, "1 段・2 段の両方に回数の印")
-        #expect(SourceScan.matchCount(of: "\n\\s+badge\n", in: badges) == 3, "1 段・2 段・回数なしの全部に文字の印")
+        #expect(SourceScan.matchCount(of: "\n\\s+badgeWithProgress\n", in: badges) == 3, "1 段・2 段・回数なしの全部に文字の印")
         // 読み上げは「残り n 回」（`HomerunHubCount.labelText`）。
         #expect(source.contains("if let count { parts.append(count.labelText()) }"), "読み上げに無い")
         // 初期値のほか、ゲームから戻ったとき・前面に戻ったとき・0:00 を越えたときに読み直す（#2208）。

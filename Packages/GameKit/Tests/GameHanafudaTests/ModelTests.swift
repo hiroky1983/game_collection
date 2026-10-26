@@ -251,6 +251,46 @@ struct HanafudaModelTests {
 
     // MARK: こいこい
 
+    @Test("試合累計のこいこい回数は、局をまたいでも人間の宣言回数と一致する（#2803）")
+    func matchKoiKoiCountSpansRounds() {
+        var declared = 0
+        var rounds = 0
+        for seed in UInt64(1)..<40 {
+            let model = started(seed: seed, options: HanafudaOptions(rounds: 3))
+            declared = 0
+            rounds = 0
+            for _ in 0..<2000 {
+                if model.phase == .matchResult || model.phase == .idle { break }
+                if model.phase == .koiKoiPrompt {
+                    if model.canStop && declared % 2 == 1 { model.declareStop() }
+                    else if model.deck.count > 0, model.humanHand.count >= 1 {
+                        model.declareKoiKoi(); declared += 1
+                    } else { model.declareStop() }
+                    continue
+                }
+                if model.phase == .roundResult { rounds += 1; model.advanceAfterRound(); continue }
+                if let selection = model.selection {
+                    model.chooseFieldCard(selection.candidates[0])
+                } else if model.turn == .human {
+                    guard let card = model.humanHand.first(where: { model.canPlay($0) }) else { break }
+                    model.play(card)
+                } else {
+                    model.stepCPU()
+                }
+                #expect(model.humanMatchKoiKoiCount == declared)
+            }
+            if declared >= 1 && rounds >= 1 {
+                #expect(model.humanMatchKoiKoiCount == declared)
+                // 新しい試合では 0 に戻る。
+                model.restartMatch()
+                #expect(model.humanMatchKoiKoiCount == 0)
+                #expect(model.cpuMatchKoiKoiCount == 0)
+                return
+            }
+        }
+        Issue.record("局をまたぐこいこいが一度も起きなかった（declared=\(declared) rounds=\(rounds)）")
+    }
+
     @Test("こいこいを宣言すると局が続き、宣言時の文数を超えるまであがれない")
     func koiKoiContinuesAndLocksStopping() {
         var found = false

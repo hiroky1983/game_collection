@@ -99,6 +99,31 @@ public enum AnalyticsEndCause: String, Equatable, Sendable, CaseIterable {
     case sink
 }
 
+/// `game_end` の `exit`。**途中離脱（quit）の直前に何が起きていたか**（#2848）。
+///
+/// ステージ制のミスは決着ではなく、ミスしたあと「もう一度」を押さずに画面を離れたプレイは `quit` で出る。
+/// 走行中に離れた quit と分けて読めるよう、離脱時点で**直前のミスがまだ挽回されていない**プレイにだけ載せる。
+public enum AnalyticsExit: String, Equatable, Sendable, CaseIterable {
+    /// ミスした直後に、走り直さずやめた。
+    case afterMiss = "after_miss"
+}
+
+/// `game_end` に載せる、そのプレイ中のミスのまとめ（#2848）。ミスのたびにはイベントを出さない。
+public struct AnalyticsMissSummary: Equatable, Sendable {
+    /// そのプレイでのミスの回数（1 以上。ミスの無いプレイは `nil` で鍵ごと送らない）。
+    public let count: Int
+    /// 最後にミスした地点。面の長さに対する進行率（%）を 5 刻みに切り捨てた 0〜100。
+    public let lastAtPercent: Int?
+    /// 離脱の直前の状態。`quit` で、直前のミスが挽回されていないときだけ。
+    public let exit: AnalyticsExit?
+
+    public init(count: Int, lastAtPercent: Int?, exit: AnalyticsExit?) {
+        self.count = max(1, count)
+        self.lastAtPercent = lastAtPercent.map { min(100, max(0, $0 / 5 * 5)) }
+        self.exit = exit
+    }
+}
+
 /// `game_start` の `level`。難易度・段階を**ゲーム横断で読める語彙**へ正規化する（#500）。
 ///
 /// ゲームごとの呼び名（「やさしい」「初級」「弱」「レベル 0」…）をそのまま送ると、
@@ -196,6 +221,9 @@ public enum AnalyticsMode: String, Equatable, Sendable, CaseIterable {
     case bishopPlayer = "bishop_player"
     /// 将棋の角落ちで、CPU が駒を落とす。
     case bishopCPU = "bishop_cpu"
+    /// ポーカー・ブラックジャックの単発戦（#2860）。1 回の勝負が 1 回きりなので `game_start` が機械的に増える。
+    /// 10 回勝負は従来どおり `mode` を持たない。
+    case singleRound = "single_round"
 }
 
 /// `game_start` / `game_end` の `credit`。1 回のプレイが**どの回数枠を消費したか**（#1685）。
@@ -294,8 +322,11 @@ public enum AnalyticsEvent: Equatable, Sendable {
     case gameEnd(
         gameID: String, result: AnalyticsResult, durationSec: Int,
         mode: AnalyticsMode? = nil, cause: AnalyticsEndCause? = nil, hintsUsed: Int = 0,
-        credit: AnalyticsCredit? = nil, level: AnalyticsLevel? = nil
+        credit: AnalyticsCredit? = nil, level: AnalyticsLevel? = nil, misses: AnalyticsMissSummary? = nil
     )
+    /// 面をクリアしたあと、次の面へ進まず（もう一度も押さず）画面を離れた（#2848）。パラメータは `game_id` / `level`。
+    /// 面を進めるゲーム（`level` が `stage-N`）のクリア（win）の直後に離れたときだけ、離れた 1 回につき 1 回。
+    case clearExit(gameID: String, level: AnalyticsLevel)
     /// リワード広告の**視聴完了**。パラメータは `game_id` / `purpose` のみ（#500）。
     case rewardAd(gameID: String, purpose: RewardPurpose)
     /// リワード広告の**要求**（タップ）。視聴できたかどうかに関係なく1回出る（#659）。
@@ -325,6 +356,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
         switch self {
         case .gameStart:     return "game_start"
         case .gameEnd:       return "game_end"
+        case .clearExit:     return "clear_exit"
         case .rewardAd:      return "reward_ad"
         case .rewardRequest: return "reward_request"
         case .gameOpen:      return "game_open"
@@ -351,7 +383,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
                 if let days = engagement.daysSinceLastPlay { parameters["days_since_last_play"] = .int(days) }
             }
             return parameters
-        case let .gameEnd(gameID, result, durationSec, mode, cause, hintsUsed, credit, level):
+        case let .gameEnd(gameID, result, durationSec, mode, cause, hintsUsed, credit, level, misses):
             var parameters: [String: AnalyticsValue] = [
                 "game_id": .string(gameID),
                 // `AnalyticsResult` は win / loss / draw / quit の4値に閉じた enum。
@@ -368,7 +400,15 @@ public enum AnalyticsEvent: Equatable, Sendable {
             if let credit { parameters["credit"] = .string(credit.rawValue) }
             // 開始時に `level` を付けたプレイだけ（`game_start` と同じ値・同じ鍵。#1888）。
             if let level { parameters["level"] = .string(level.parameterValue) }
+            // ミスしたプレイだけ（回数・最後の地点・離脱の直前の状態。#2848）。
+            if let misses {
+                parameters["miss_count"] = .int(misses.count)
+                if let at = misses.lastAtPercent { parameters["miss_at"] = .int(at) }
+                if let exit = misses.exit { parameters["exit"] = .string(exit.rawValue) }
+            }
             return parameters
+        case let .clearExit(gameID, level):
+            return ["game_id": .string(gameID), "level": .string(level.parameterValue)]
         case let .rewardAd(gameID, purpose), let .rewardRequest(gameID, purpose):
             return [
                 "game_id": .string(gameID),
@@ -484,6 +524,13 @@ public final class GameAnalytics {
     /// 進行中のプレイで最後にミスした原因（#796）。終わりの `game_end` に `cause` として載せる。
     /// プレイを始め直すと消える。ミスしていないプレイは鍵が無い。
     private var causes: [String: AnalyticsEndCause] = [:]
+    /// 進行中のプレイのミスの回数・最後の地点（#2848）。終わりの `game_end` に載せる。プレイを始め直すと消える。
+    private var missCounts: [String: Int] = [:]
+    private var missPercents: [String: Int] = [:]
+    /// 直前のミスがまだ挽回されていない（走り直していない）プレイ。`quit` の `exit` の元。
+    private var unresolvedMisses: Set<String> = []
+    /// 決着したプレイの結果（#2848）。決着後の画面を離れたときの `clear_exit` の判定に使う。
+    private var finishedResults: [String: AnalyticsResult] = [:]
     /// 進行中のプレイの `duration_sec` の元になる、計時済みの秒数（#1373）。
     /// 積むのは「アプリが前面 かつ 休憩中でない」区間だけ。
     private var activeSeconds: [String: TimeInterval] = [:]
@@ -553,6 +600,8 @@ public final class GameAnalytics {
     ///   「戻す」で初期配置まで巻き戻してから捨てた場合も離脱として数える。遊んだ時間は実際に
     ///   使われており、`duration_sec` と対応の取れない `game_start` を作らないほうが集計が読める。
     public func recordProgress(gameID: String) {
+        // 走り直した = 直前のミスは挽回された（#2848）。
+        unresolvedMisses.remove(gameID)
         guard case let .inFlight(startedAt, didProgress, canResume, hintsUsed) = plays[gameID], !didProgress
         else { return }
         plays[gameID] = .inFlight(
@@ -593,9 +642,12 @@ public final class GameAnalytics {
     /// 覚えておいて、終わりの `game_end` に「最後のミスの原因」として載せる。何度ミスしても
     /// 最後の 1 つで上書きするだけなので、リトライを繰り返しても送信は増えない。
     /// 進行中のプレイが無ければ何もしない（中断からの再開など、開始を数えていないプレイ）。
-    public func recordMissCause(gameID: String, cause: AnalyticsEndCause) {
+    public func recordMissCause(gameID: String, cause: AnalyticsEndCause, progressPercent: Int? = nil) {
         guard case .inFlight = plays[gameID] else { return }
         causes[gameID] = cause
+        missCounts[gameID, default: 0] += 1
+        missPercents[gameID] = progressPercent
+        unresolvedMisses.insert(gameID)
     }
 
     /// 終局したときに呼ぶ。進行中のプレイが無いときは**何も送らない**
@@ -604,6 +656,7 @@ public final class GameAnalytics {
     public func finishPlay(gameID: String, outcome: GameOutcome) {
         guard case let .inFlight(startedAt, _, _, hintsUsed) = plays[gameID] else { return }
         plays[gameID] = .finished
+        finishedResults[gameID] = AnalyticsResult(outcome)
         sendEnd(gameID: gameID, result: AnalyticsResult(outcome), startedAt: startedAt, hintsUsed: hintsUsed)
     }
 
@@ -668,6 +721,7 @@ public final class GameAnalytics {
     /// 送信済みの `game_start` とだけ対応が付く（= 集計側では「始めたのに終わっていない」ぶんに入る）。
     public func discardPlayState() {
         plays.removeAll()
+        finishedResults.removeAll()
         activeSeconds.removeAll()
         countingSince.removeAll()
         resting.removeAll()
@@ -784,6 +838,11 @@ public final class GameAnalytics {
     ///   中断データが残らない = 盤面を捨てたときだけ `quit` を送る。
     public func leaveGame(gameID: String, isResumable: Bool) {
         if case .finished = plays[gameID] {
+            // クリアした面の画面を、次へも「もう一度」も押さずに離れた（#2848）。
+            if finishedResults[gameID] == .win, let level = levels[gameID], case .stage = level {
+                service.log(.clearExit(gameID: gameID, level: level))
+            }
+            finishedResults[gameID] = nil
             plays[gameID] = nil
             clearClock(gameID: gameID)
             return
@@ -816,10 +875,16 @@ public final class GameAnalytics {
         resting.remove(gameID)
         forgetRest(gameID: gameID)
         let seconds = min(Self.maxDurationSeconds, max(0, Int(activeSeconds[gameID] ?? 0)))
+        let misses = missCounts[gameID].map {
+            AnalyticsMissSummary(
+                count: $0, lastAtPercent: missPercents[gameID],
+                exit: result == .quit && unresolvedMisses.contains(gameID) ? .afterMiss : nil
+            )
+        }
         service.log(.gameEnd(
             gameID: gameID, result: result, durationSec: seconds,
             mode: modes[gameID], cause: causes[gameID], hintsUsed: hintsUsed, credit: credits[gameID],
-            level: levels[gameID]
+            level: levels[gameID], misses: misses
         ))
     }
 
@@ -833,6 +898,10 @@ public final class GameAnalytics {
         resumeClock(gameID: gameID)
         // 前のプレイの死因を次のプレイへ持ち越さない。
         causes[gameID] = nil
+        missCounts[gameID] = nil
+        missPercents[gameID] = nil
+        unresolvedMisses.remove(gameID)
+        finishedResults[gameID] = nil
         service.log(.gameStart(
             gameID: gameID, level: level, mode: mode, engagement: engagement(gameID, startedAt), credit: credit
         ))

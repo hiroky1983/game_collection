@@ -56,33 +56,37 @@ public struct FreeCellView: View {
 
     public var body: some View {
         // 左右の余白は部品ごとに付ける。盤だけは `boardSideInset`（4pt）まで詰めて札の幅に回し、
-        // 帯・ヒント・ボタン・バナーは従来どおり `Theme.pad`（16pt）。
+        // 帯・ヒント・ボタンは全画面の枠の左右の余白（8pt）。
         VStack(spacing: 8) {
             statusBar
-                .padding(.horizontal, Theme.pad)
-            // 盤は卓の上に置く（#1501）。札の大きさは卓の内側の幅から決まる。
+                .padding(.horizontal, FullScreenGameLayoutMetrics.sideInset)
+            // レイアウトパターン A（全画面・#2531）: 卓のフェルトは全画面の枠が画面全体に敷くので、盤に `.cardTable()`
+            // （木枠付きの卓）は付けない。札の大きさは盤の幅から決まるので、木枠の分だけ大きくなる。
+            // 札が帯に張り付いて見えないよう、卓の中の上の余白（`cardTopInset`・ソリティア系で共通）は残す。
             board
-                .cardTable(topInset: CardTableStyle.cardTopInset)
+                .padding(.top, CardTableStyle.cardTopInset)
                 // クリアは盤に重ねる共通のカードで示す（#1755）。
                 .gameClearCard(isPresented: model.phase == .won,
                                details: [tr("%1$lld手 / タイム %2$@", model.moveCount, RecordFormat.time(model.elapsedSeconds))])
                 .padding(.horizontal, FreeCellMetrics.boardSideInset)
                 .layoutPriority(1)
             controlArea
-                .padding(.horizontal, Theme.pad)
+                .padding(.horizontal, FullScreenGameLayoutMetrics.sideInset)
             HowToPlayHint(.freecell, playLog: services.playLog)
-                .padding(.horizontal, Theme.pad)
-            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
+                .padding(.horizontal, FullScreenGameLayoutMetrics.sideInset)
+            // 余りの高さは「⋯」の行とバナーの帯のあいだに置く（盤→「⋯」→余白→広告・#1485）。
             Spacer(minLength: 0)
-            BannerSlot(ads: services.ads)
-                .padding(.horizontal, Theme.pad)
         }
-        .padding(.vertical, Theme.pad)
-        .gameChrome(title: tr("フリーセル"), review: services.review,
+        // 上下はヘッダーの余白 4 とバナーの帯の余白 8 に足す分。
+        .padding(.vertical, 4)
+        // レイアウトパターン A（全画面・会長決裁 2026-10-19・#2428 → #2531）: フェルトを画面全体に敷き、ヘッダーは 1 行
+        // （戻る・フリーセル・？・＋）、バナーは画面最下部。手数・配札・時計はモックの A 案どおりヘッダーの下に
+        // 低い 1 行の札で残す。
+        .gameChrome(title: tr("フリーセル"), review: services.review, fullScreen: .felt, ads: services.ads,
                     newGame: GameChromeNewGame(.solo) {
                         startNewGame()
                     })
-        .howToPlay(HowToPlayGuide.freecell.illustrated(FreeCellHowToFigures.items)) { FreeCellRuleSheet() }
+        .howToPlay(HowToPlayGuide.freecell.illustrated(FreeCellHowToFigures.items).onboarding(FreeCellOnboarding.guide)) { FreeCellRuleSheet() }
         .dialogs { anchor in
             anchor.confirmationDialog(tr("新しい配札にしますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
                 Button(tr("終了して新規ゲーム"), role: .destructive) { model.newGame() }
@@ -129,6 +133,17 @@ public struct FreeCellView: View {
             AccessibilityNotification.Announcement(
                 FreeCellAccessibility.hintLabel(move: move, board: model.board)
             ).post()
+        }
+        // 「自動で上がる」は 1 手ずつ順に送る（#2706）。画面を離れて止められたら残りを一気に片付けて、
+        // 「入力が止まったまま」の盤を残さない。
+        .task(id: model.autoFinishRun) {
+            let run = model.autoFinishRun
+            while let wait = model.advanceAutoFinish(for: run) {
+                do { try await Task.sleep(for: wait) } catch {
+                    model.finishAutoFinishNow(for: run)
+                    return
+                }
+            }
         }
         .task {
             model.resumeTimerIfNeeded()
@@ -177,8 +192,10 @@ public struct FreeCellView: View {
     // MARK: - ステータスバー
 
     /// 数字の並び。帯には表示だけを置く。拡大の切り替えは右下の「⋯」へ（#1468）。
+    /// 全画面（A・#2531）ではモックどおり 44pt の帯より低い 1 行の札にする（`GameStatusBarStyle.compactMinHeight`）。
     private var statusBar: some View {
-        GameStatusBar {
+        GameStatusBar(verticalPadding: GameStatusBarStyle.compactVerticalPadding,
+                      minHeight: GameStatusBarStyle.compactMinHeight) {
             statusReadout
         } trailing: {
             EmptyView()
@@ -341,7 +358,9 @@ public struct FreeCellView: View {
             }
             .onEnded { value in
                 guard let current = drag else { return }
-                drag = nil
+                // 置けなかったとき、指の下の札が消えて元の札が「パッ」と濃くなるのを避け、
+                // 薄さが戻る様子を見せる（#2707）。成功時の移動（0.2 秒）より少し短く。
+                withGameAnimation(.easeOut(duration: 0.15)) { drag = nil }
                 resolveDrop(of: current, at: value.location)
             }
     }
@@ -625,9 +644,14 @@ public struct FreeCellView: View {
             Spacer(minLength: 8)
 
             Button { model.newGame() } label: {
-                Label(tr("次のゲーム"), systemImage: "arrow.clockwise")
+                Label(tr("もう一回"), systemImage: "arrow.clockwise")
             }
             .buttonStyle(.game(.primary))
+
+            Button { model.restartSameDeal() } label: {
+                Text(tr("同じ配札で"))
+            }
+            .buttonStyle(.game(.skip))
         }
         .themeBody(14)
         .padding(.horizontal, 16).padding(.vertical, 8)
@@ -682,7 +706,8 @@ public struct FreeCellView: View {
 
     private var hintNudge: HintNudge {
         HintNudge(
-            isEligible: model.canUseHint && !hintRescue.isWatching,
+            isEligible: HintNudgePolicy.isEligible(
+                canUseHint: model.canUseHint, isWatchingAd: hintRescue.isWatching, showsBlockingPanel: model.showsDeadEndPrompt),
             game: model.dealSerial,
             activity: [model.moveCount, model.hints.used]
         )
@@ -737,6 +762,10 @@ public struct FreeCellView: View {
 
             GameDeadEndDismissButton(tr("新しい配札にする"), isDisabled: undoRescue.isWatching) {
                 model.newGame()
+            }
+
+            GameDeadEndDismissButton(tr("同じ配札でやり直す"), isDisabled: undoRescue.isWatching) {
+                model.restartSameDeal()
             }
 
             GameDeadEndDismissButton(tr("盤面を見る"), isDisabled: undoRescue.isWatching) {

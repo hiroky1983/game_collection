@@ -62,12 +62,67 @@ public struct GameChromeNewGame {
     }
 }
 
+/// タイトルの下に出す「今の条件」のチップ（#1690・会長決裁 2026-10-25。#2906 でタップできない表示だけに変更）。
+///
+/// 対局中も今の条件（例「ふつう・先手」）が分かる**表示専用**のチップ。置き場所は全ゲーム共通の
+/// 1 か所（ナビバーのタイトルの下。全画面の枠ではヘッダーの表示名の下）に固定する。
+/// タップでは何も起きない（設定を開く役割は既存の「＋」ボタンとかぶるため、#2906 で外した）。
+public struct GameChromeCondition {
+    /// 条件の言葉。**先頭ほど大事**（難易度を先頭に置く）。幅が足りないときは先頭だけに縮める。
+    let parts: [String]
+
+    public init(_ parts: [String]) {
+        self.parts = parts.filter { !$0.isEmpty }
+    }
+
+    /// 全文（「ふつう・先手」）。
+    var fullText: String { parts.joined(separator: tr("・")) }
+    /// 縮めた文（先頭 = 難易度だけ）。
+    var shortText: String { parts.first ?? "" }
+    var hasShortForm: Bool { parts.count > 1 }
+}
+
+/// 条件のチップ本体。12pt・タップできない表示専用（#2906。押せる見た目になる「⌄」は付けない）。
+/// 文字色は置き場所の面に合わせて呼び出し側が渡す。
+struct GameConditionChip: View {
+    let text: String
+    let ink: Color
+
+    var body: some View {
+        Text(text)
+            .themeCaption(12, weight: .semibold, maxScale: 1.3)
+            .lineLimit(1)
+            .foregroundStyle(ink)
+            .padding(.horizontal, 6)
+            .frame(minHeight: 16)
+            // ボタンではなく、値を読み上げるだけの表示（#2906）。
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(tr("今の条件: %@", text))
+    }
+}
+
+/// 全文 → 先頭だけ、の順に幅へ収まる方を出す（`ViewThatFits`）。収まる方が無ければ先頭だけ。
+struct GameConditionChipFitting: View {
+    let condition: GameChromeCondition
+    let ink: Color
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            GameConditionChip(text: condition.fullText, ink: ink)
+            if condition.hasShortForm {
+                GameConditionChip(text: condition.shortText, ink: ink)
+            }
+        }
+    }
+}
+
 public extension View {
     /// ゲーム画面の共通枠を当てる（背景・評価リクエスト・ナビバー・戻る・タイトル）。
     ///
     /// - Parameters:
     ///   - title: ナビゲーションバー中央に出す表示名。
     ///   - review: 評価リクエストの実行をこの画面に紐づける（`GameServices.review`）。
+    ///   - condition: タイトルの下に出す今の条件のチップ（#1690）。条件を選べるゲームだけ渡す。
     ///   - reference: 役の早見表。あるゲームだけ渡す。
     ///   - newGame: 新規ボタン。あるゲームだけ渡す。
     ///   - actions: 上の 2 つに収まらないゲーム固有の操作（難易度・盤面選択メニューなど）。最後尾に並ぶ。
@@ -86,6 +141,7 @@ public extension View {
     func gameChrome<Actions: ToolbarContent>(
         title: String,
         review: ReviewRequestService?,
+        condition: GameChromeCondition? = nil,
         reference: GameChromeReference? = nil,
         newGame: GameChromeNewGame? = nil,
         hidesBackButton: Bool = false,
@@ -93,7 +149,7 @@ public extension View {
         @ToolbarContentBuilder actions: () -> Actions
     ) -> some View {
         modifier(GameChromeBase(review: review))
-            .modifier(GameChromeToolbar(title: title, reference: reference, newGame: newGame,
+            .modifier(GameChromeToolbar(title: title, condition: condition, reference: reference, newGame: newGame,
                                         hidesBackButton: hidesBackButton, hidesHowToPlay: hidesHowToPlay,
                                         actions: actions()))
     }
@@ -102,6 +158,7 @@ public extension View {
     func gameChrome(
         title: String,
         review: ReviewRequestService?,
+        condition: GameChromeCondition? = nil,
         reference: GameChromeReference? = nil,
         newGame: GameChromeNewGame? = nil,
         hidesBackButton: Bool = false,
@@ -109,7 +166,7 @@ public extension View {
     ) -> some View {
         modifier(GameChromeBase(review: review))
             .modifier(GameChromeToolbar<ToolbarItem<Void, EmptyView>>(
-                title: title, reference: reference, newGame: newGame, hidesBackButton: hidesBackButton,
+                title: title, condition: condition, reference: reference, newGame: newGame, hidesBackButton: hidesBackButton,
                 hidesHowToPlay: hidesHowToPlay, actions: nil))
     }
 }
@@ -118,15 +175,16 @@ public extension View {
 ///
 /// 戻るは OS 既定のものを隠して自前で置いている（`navigationBarBackButtonHidden`）。
 /// 直前の画面名が入ると表示名の幅を圧迫するため。
-@ToolbarContentBuilder
-private func gameChromeBarItems(title: String, dismiss: DismissAction, showsBack: Bool) -> some ToolbarContent {
+@MainActor @ToolbarContentBuilder
+private func gameChromeBarItems(title: String, condition: GameChromeCondition?, dismiss: DismissAction,
+                                showsBack: Bool) -> some ToolbarContent {
     if showsBack {
         ToolbarItem(placement: .cancellationAction) {
             Button { dismiss() } label: { Label(tr("戻る"), systemImage: "chevron.left") }
         }
     }
     ToolbarItem(placement: .principal) {
-        GameChromeTitle(title: title)
+        GameChromePrincipal(title: title, condition: condition)
     }
 }
 
@@ -143,13 +201,37 @@ private struct GameChromeTitle: View {
     }
 }
 
+/// ナビバー中央: 表示名と、その下の今の条件のチップ（#1690）。
+///
+/// チップは表示名の下に積む（バーは iOS 26 で 54pt・iOS 17 の SE で 44pt。20pt の題字 + 12pt のチップは収まる）。
+/// 文字サイズが「アクセシビリティ」の段になったらチップを畳む（バーに収まらず題字が欠けるため。
+/// 設定は「新規」ボタンからも開ける）。
+private struct GameChromePrincipal: View {
+    let title: String
+    let condition: GameChromeCondition?
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        VStack(spacing: 0) {
+            GameChromeTitle(title: title)
+            if let condition, !dynamicTypeSize.isAccessibilitySize {
+                GameConditionChipFitting(condition: condition, ink: Theme.coralText)
+            }
+        }
+    }
+}
+
 /// 背景・評価リクエスト・ナビバーの構成。ツールバーの中身より前に当てる。
-private struct GameChromeBase: ViewModifier {
+///
+/// `paintsBackground` は全画面の枠（`FullScreenGameChrome.swift`・#2531）が false で渡す。あちらは面（フェルト）を
+/// 自分で画面全体に敷くので、ここで地の色を塗ると中身の範囲だけ地の色が面の上に乗ってしまう。
+struct GameChromeBase: ViewModifier {
     let review: ReviewRequestService?
+    var paintsBackground = true
 
     func body(content: Content) -> some View {
         content
-            .popBackground()
+            .background { if paintsBackground { Theme.background.ignoresSafeArea() } }
             .reviewRequestPrompt(review)
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
@@ -162,6 +244,7 @@ private struct GameChromeBase: ViewModifier {
 
 private struct GameChromeToolbar<Actions: ToolbarContent>: ViewModifier {
     let title: String
+    let condition: GameChromeCondition?
     let reference: GameChromeReference?
     let newGame: GameChromeNewGame?
     let hidesBackButton: Bool
@@ -172,7 +255,7 @@ private struct GameChromeToolbar<Actions: ToolbarContent>: ViewModifier {
 
     func body(content: Content) -> some View {
         content.toolbar {
-            gameChromeBarItems(title: title, dismiss: dismiss, showsBack: !hidesBackButton)
+            gameChromeBarItems(title: title, condition: condition, dismiss: dismiss, showsBack: !hidesBackButton)
             // 並びはここで固定する: 役の早見表 → ？ → 新規 → その他。
             if let reference {
                 ToolbarItem(placement: .primaryAction) {

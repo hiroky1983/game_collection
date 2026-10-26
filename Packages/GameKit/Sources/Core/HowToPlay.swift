@@ -23,6 +23,8 @@ public struct HowToPlayGuide: Sendable, Equatable {
     public let items: [HowToPlayItem]
     /// 図に入らない補足。`items` のあとに文だけのカードで出す。
     public let notes: [String]
+    /// 図で見る「はじめての遊び方」（#2827）。持つゲームだけ、シートの先頭に入口のボタンが出る。
+    public let onboarding: OnboardingGuide?
 
     public init(
         gameID: String,
@@ -31,7 +33,8 @@ public struct HowToPlayGuide: Sendable, Equatable {
         hint: String,
         hintIcon: String = "hand.tap.fill",
         items: [HowToPlayItem] = [],
-        notes: [String] = []
+        notes: [String] = [],
+        onboarding: OnboardingGuide? = nil
     ) {
         self.gameID = gameID
         self.title = title
@@ -40,6 +43,15 @@ public struct HowToPlayGuide: Sendable, Equatable {
         self.hintIcon = hintIcon
         self.items = items
         self.notes = notes
+        self.onboarding = onboarding
+    }
+
+    /// 「はじめての遊び方」（#2827）を持たせた版を返す。
+    public func onboarding(_ guide: OnboardingGuide) -> HowToPlayGuide {
+        HowToPlayGuide(
+            gameID: gameID, title: title, lines: lines, hint: hint, hintIcon: hintIcon,
+            items: items, notes: notes, onboarding: guide
+        )
     }
 
     /// 項目に図を差し込んだ版を返す。図の View はゲーム側のモジュールにあるので、文言は Core、
@@ -50,7 +62,7 @@ public struct HowToPlayGuide: Sendable, Equatable {
         return HowToPlayGuide(
             gameID: gameID, title: title, lines: lines, hint: hint, hintIcon: hintIcon,
             items: zip(items, figures).map { HowToPlayItem($0.text, figure: $1) },
-            notes: notes
+            notes: notes, onboarding: onboarding
         )
     }
 
@@ -58,7 +70,7 @@ public struct HowToPlayGuide: Sendable, Equatable {
     public static func == (lhs: HowToPlayGuide, rhs: HowToPlayGuide) -> Bool {
         lhs.gameID == rhs.gameID && lhs.title == rhs.title && lhs.lines == rhs.lines
             && lhs.hint == rhs.hint && lhs.hintIcon == rhs.hintIcon
-            && lhs.items == rhs.items && lhs.notes == rhs.notes
+            && lhs.items == rhs.items && lhs.notes == rhs.notes && lhs.onboarding == rhs.onboarding
     }
 }
 
@@ -220,26 +232,28 @@ public extension HowToPlayGuide {
             HowToPlayItem(tr("自分の石ではさんだ相手の石は、すべて自分の色に裏返ります。")),
             HowToPlayItem(tr("最後に石が多かったほうが勝ちです。")),
         ],
-        notes: []
+        notes: [
+            tr("お互い置けなくなって空きマスが残ったときは、残ったマスは勝った方に加算されます。"),
+        ]
     ) }
 
     static var poker: HowToPlayGuide { HowToPlayGuide(
         gameID: "poker",
         title: tr("ポーカーの遊び方"),
         lines: [
-            tr("手札は 5 枚。残したいカードをタップで選びます。"),
-            tr("選ばなかったカードは 1 回だけ引き直せます。"),
+            tr("手札は 5 枚。入れ替えたいカードをタップで選びます。"),
+            tr("選んだカードを引き直せます。"),
             tr("10 回勝負。勝った回は自分の役の点が入ります。"),
         ],
-        hint: tr("残すカードをタップしよう"),
+        hint: tr("入れ替えるカードをタップしよう"),
         items: [
-            HowToPlayItem(tr("手札は 5 枚。残したいカードをタップで選びます。")),
-            HowToPlayItem(tr("選ばなかったカードは 1 回だけ引き直せます。")),
+            HowToPlayItem(tr("手札は 5 枚。入れ替えたいカードをタップで選びます。")),
+            HowToPlayItem(tr("選んだカードを引き直せます。")),
             HowToPlayItem(tr("CPU と手札を見せ合い、役の強い側がその回の勝ちです。")),
             HowToPlayItem(tr("10 回勝負。勝った回は自分の役の点が入り、合計点の多い側が勝ちです。")),
         ],
         notes: [
-            tr("役の一覧と点数は「くわしいルール」で見られます。"),
+            tr("役の一覧は「くわしいルール」、点数は「役の点数表」で見られます。"),
             tr("広告を見ると、10 回のうち 1 度だけもう 1 回カードを交換できます。"),
         ]
     ) }
@@ -530,6 +544,9 @@ public extension HowToPlayGuide {
         notes: [
             tr("青いチェックポイントより先でミスしたときは、広告を見てそこから再開することもできます。"),
             tr("ペダルは地面でしか漕げないので、低く跳ぶほどスピードが乗ります。"),
+            tr("鳥は近づくと飛び立ちます。跳ばずに走ったまま、下を抜けましょう。"),
+            tr("スピードアップのアイテムを取ると、しばらく速くなります。"),
+            tr("たこ焼きを取ると、3 秒だけ障害にぶつからなくなります。"),
         ]
     ) }
 
@@ -540,6 +557,9 @@ public extension HowToPlayGuide {
         lastLine: tr("ぶつかるか穴に落ちたらおしまい。途中で閉じると記録は残りません。"),
         notes: [
             tr("ペダルは地面でしか漕げないので、低く跳ぶほどスピードが乗ります。"),
+            tr("鳥は近づくと飛び立ちます。跳ばずに走ったまま、下を抜けましょう。"),
+            tr("スピードアップのアイテムを取ると、しばらく速くなります。"),
+            tr("たこ焼きを取ると、3 秒だけ障害にぶつからなくなります。"),
         ]
     ) }
 
@@ -626,27 +646,6 @@ public extension HowToPlayGuide {
         notes: [
             tr("押す順番は関係ありません。同じマスを 2 回押すと元に戻ります。"),
             tr("難易度は 3 段階で、最短の手数（4・7・10 手）が変わります。少ない手数ほど良い記録です。"),
-        ]
-    ) }
-
-    static var roulette: HowToPlayGuide { HowToPlayGuide(
-        gameID: "roulette",
-        title: tr("ルーレットの遊び方"),
-        lines: [
-            tr("チップの額を選び、賭けたい場所（数字・赤黒・奇数偶数・1〜18 / 19〜36・12 個ずつの区分）をタップして置きます。何か所にも置けます。"),
-            tr("「スピン」でホイールが回り、玉の真下で止まったポケットの数字が出目です。"),
-            tr("配当は数字 1 点で 35 倍、12 個の区分で 2 倍、赤黒などは 1 倍（元金も戻ります）。0 は緑で、赤黒などの賭けはすべて外れです。"),
-        ],
-        hint: tr("賭ける場所をタップしてスピン"),
-        hintIcon: "circle.circle.fill",
-        items: [
-            HowToPlayItem(tr("チップの額を選び、賭けたい場所をタップして置きます。何か所にも置けます。")),
-            HowToPlayItem(tr("「スピン」でホイールが回り、玉の真下で止まったポケットの数字が出目です。")),
-            HowToPlayItem(tr("配当は、数字 1 点で 35 倍、12 個の区分で 2 倍、赤黒などは 1 倍（元金も戻ります）。")),
-            HowToPlayItem(tr("0 は緑。赤黒・奇数偶数などの賭けは、0 が出るとすべて外れです。")),
-        ],
-        notes: [
-            tr("「戻す」で、最後に置いた 1 口を外せます。"),
         ]
     ) }
 
@@ -806,21 +805,23 @@ public extension HowToPlayGuide {
         gameID: "speed",
         title: tr("スピードの遊び方"),
         lines: [
-            tr("台札は真ん中の2山。手札から、台札の数字と1つ違い（A と K もつながる）の札を、どちらかの台札に重ねます。順番はなく、CPU も同時に出してきます。"),
+            tr("台札は真ん中の2山。台札の数字と1つ違い（A と K もつながる）の手札を、重ねたい台札のほうへ払って出します。順番はなく、CPU も同時に出してきます。"),
             tr("出した札のぶん、山札から手札に補充されます。手札も山札も先に出し切ったほうの勝ちです。"),
-            tr("どちらも出せなくなったら「めくる」で、両方の山札から1枚ずつ台札に置きます。CPU の速さは右上の「速さ」で選べます。あなたの側に制限時間はありません。"),
+            tr("どちらも出せなくなったら「めくる」で、両方の山札から1枚ずつ台札に置きます。CPU の速さは右上の「＋」で始めるときに選べます。あなたの側に制限時間はありません。"),
         ],
-        hint: tr("台札と1つ違いの札を重ねよう"),
+        hint: tr("1つ違いの札を台札のほうへ払おう"),
         hintIcon: "hare.fill",
         items: [
             HowToPlayItem(tr("台札は真ん中の 2 山。数字が 1 つ違いの札を、どちらかの台札に重ねます。")),
+            HowToPlayItem(tr("手札の札を、出したい台札のほうへ払うと出せます。台札の上まで動かして離しても出せます。")),
             HowToPlayItem(tr("A と K もつながります。マークは関係ありません。")),
             HowToPlayItem(tr("順番はなく、CPU も同時に出してきます。出したぶん、山札から手札に補充されます。")),
             HowToPlayItem(tr("どちらも出せなくなったら「めくる」。両方の山札から 1 枚ずつ台札に置きます。")),
-            HowToPlayItem(tr("手札も山札も先に出し切ったほうの勝ちです。")),
+            HowToPlayItem(tr("手札も山札も先に出し切ったほうの勝ち。山札が無くなったら、めくらずに手札を出し切れば勝ちです。")),
         ],
         notes: [
-            tr("CPU の速さは、右上の「速さ」で選べます。あなたの側に制限時間はありません。"),
+            tr("出せない札を払うと手札に戻ります（ペナルティはありません）。"),
+            tr("CPU の速さは、右上の「＋」で始めるときに選べます。あなたの側に制限時間はありません。"),
         ]
     ) }
 
@@ -852,24 +853,25 @@ public extension HowToPlayGuide {
         gameID: "hearts",
         title: tr("ハーツの遊び方"),
         lines: [
-            tr("配られた 13 枚から 3 枚を左どなりへ渡し、クラブの 2 から順に 1 枚ずつ出します。出された札と同じスートがあれば必ず出します。"),
-            tr("最初に出たスートで数字がいちばん大きい人が 4 枚を取ります。ハートは 1 点、スペードの Q は 13 点です。"),
+            tr("取らないゲームです。点が少ないほど勝ちで、ハートは 1 点、スペードの Q は 13 点です。"),
+            tr("最初に出たマークと同じマークのうち、数字がいちばん大きい人が 4 枚を取ります。A が最強、2 が最弱です。"),
             tr("だれかが 50 点に届いたら終わり。合計の少ない人が勝ちです。"),
         ],
         hint: tr("ハートとスペードのQを取らないように"),
         hintIcon: "suit.heart.fill",
         items: [
+            HowToPlayItem(tr("札の強さは A がいちばん強く、2 がいちばん弱い。比べるのは同じマークの中だけです。")),
+            HowToPlayItem(tr("最初に出たマークと同じマークで、いちばん強い札を出した人が 4 枚を取ります。別のマークは A でも勝てません。")),
+            HowToPlayItem(tr("取った札のハートは 1 枚 1 点、スペードの Q は 13 点。点は少ないほど勝ち、取らないゲームです。")),
             HowToPlayItem(tr("13 枚ずつ配られます。まず 3 枚を選んで、左どなりへ渡します。")),
-            HowToPlayItem(tr("最初はクラブの 2 から。出された札と同じスートを、順に 1 枚ずつ出します。")),
-            HowToPlayItem(tr("最初に出たスートで数字がいちばん大きい人が、4 枚を取ります。")),
-            HowToPlayItem(tr("取った札のハートは 1 枚 1 点、スペードの Q は 13 点。点は少ないほど良い。")),
-            HowToPlayItem(tr("同じスートが無いときは、どの札でも出せます。点の札を押し付けるチャンス。")),
+            HowToPlayItem(tr("最初はクラブの 2 から。出された札と同じマークを、順に 1 枚ずつ出します。")),
+            HowToPlayItem(tr("同じマークが無いときは、どの札でも出せます。点の札を押し付けるチャンス。")),
             HowToPlayItem(tr("だれかが 50 点に届いたら終わり。合計の少ない人が勝ちです。")),
         ],
         notes: [
             tr("ハートは、だれかが場に出すまで先頭に出せません（手札がハートだけなら出せます）。"),
             tr("1 巡目はハートとスペードの Q を出せません（それしか無いときは出せます）。"),
-            tr("CPU の強さは、右上の「新規対局」で選べます。"),
+            tr("札の強さと点数は、対局中にヘッダーのボタンから見られます。CPU の強さは「新規対局」で選べます。"),
         ]
     ) }
 
@@ -915,6 +917,29 @@ public extension HowToPlayGuide {
         notes: [
             tr("円盤は 3〜7 枚から選べます。最少手数は 3 枚で 7 手、1 枚増えるごとに約 2 倍です。"),
             tr("手数が少ないほど良い記録です。クリアまでのタイムも残ります。"),
+        ]
+    ) }
+
+    /// おじさんちのねこさがし（#2250）。図は `GameCatPuzzle` 側で `illustrated(_:)` を使って差し込む。
+    static var catPuzzle: HowToPlayGuide { HowToPlayGuide(
+        gameID: "catpuzzle",
+        title: tr("おじさんちのねこさがしの遊び方"),
+        lines: [
+            tr("おじさんの家の間取りに、飼い猫が隠れています。部屋・行・列のそれぞれに、猫がちょうど 1 匹ずついます。"),
+            tr("猫どうしは、ななめも含めて隣り合いません。"),
+            tr("マスをタップすると ×（いない）を付け外しし、ダブルタップでそのマスの猫を見つけます。全部の猫を見つけたらクリアです。"),
+        ],
+        hint: tr("部屋・行・列に猫を 1 匹ずつ。隣には置けない"),
+        hintIcon: "cat.fill",
+        items: [
+            HowToPlayItem(tr("部屋・行・列のそれぞれに、猫がちょうど 1 匹ずついます。")),
+            HowToPlayItem(tr("猫どうしは、ななめも含めて隣り合いません。")),
+            HowToPlayItem(tr("タップで ×（いない）を付け外し、ダブルタップで猫を見つけます。全部見つけたらクリアです。")),
+        ],
+        notes: [
+            tr("× の付け外しはミスになりません。答えでないマスをダブルタップすると、赤い × が付いてミスになります（赤い × は消せません）。ミスが 3 回になると終わりです。"),
+            tr("盤は 6×6・7×7・8×8 の 3 段階で、問題は毎回変わります（答えは 1 通り）。"),
+            tr("ヒントは 1 問につき 3 回まで。記録はクリアまでのタイムです。"),
         ]
     ) }
 
@@ -1001,7 +1026,7 @@ public extension HowToPlayGuide {
         .game2048, .shogi, .gomoku, .minesweeper, .othello,
         .poker, .concentration, .blackjack, .daifugo, .mahjongSolitaire, .mahjong,
         .sudoku, .go, .solitaire, .chess, .blocks, .freecell, .runner,
-        .hanafuda, .spider, .shiritori, .fifteen, .akariKeshi, .roulette, .fruits, .colorRelay, .anzan, .backgammon, .speed,
+        .hanafuda, .spider, .shiritori, .fifteen, .akariKeshi, .fruits, .colorRelay, .anzan, .backgammon, .speed,
         .diceCombo,
         .mancala,
         .homerun, .ojisanPuzzleBackpain,
@@ -1009,6 +1034,7 @@ public extension HowToPlayGuide {
         .hearts,
         .tsunagi, .hanoi,
         .yonmoku,
+        .catPuzzle,
     ] }
 }
 
@@ -1039,6 +1065,8 @@ public struct HowToPlaySheet<Extra: View>: View {
             ScrollViewReader { proxy in
             ScrollView {
                 VStack(spacing: 10) {
+                    // 自動では開かない。ボタンを押したときだけ図のカードが開く（#2827）。
+                    OnboardingEntry(guide.onboarding, style: .prominent)
                     if !guide.items.isEmpty {
                         illustratedItems
                     } else {
@@ -1139,6 +1167,8 @@ private struct HowToPlayNumberBadge: View {
             .foregroundStyle(Theme.onAccent)
             .frame(width: 22, height: 22)
             .background(Circle().fill(Theme.Fill.coral))
+            // 番号は見た目の飾り。「1」だけが単独のフォーカスにならないよう読み上げから外す（#2641）。
+            .accessibilityHidden(true)
     }
 }
 
@@ -1360,6 +1390,7 @@ public struct RuleListSheet<Figures: View>: View {
                         Text(rule.0)
                             .themeBody(14, weight: .black)
                             .foregroundStyle(Theme.coralText)
+                            .accessibilityAddTraits(.isHeader)
                         Text(rule.1)
                             .themeBody(13, weight: .medium)
                             .foregroundStyle(Theme.ink)
@@ -1413,6 +1444,7 @@ public struct RuleFigureCard<Content: View>: View {
                         Text(title)
                             .themeBody(14, weight: .black)
                             .foregroundStyle(Theme.coralText)
+                            .accessibilityAddTraits(.isHeader)
                     }
                     if let detail {
                         Text(detail)
@@ -1497,6 +1529,7 @@ public struct YakuTableSection<Content: View>: View {
                     .themeBody(13, weight: .black)
                     .foregroundStyle(Theme.inkSub)
                     .padding(.horizontal, 4)
+                    .accessibilityAddTraits(.isHeader)
             }
             VStack(alignment: .leading, spacing: 12) {
                 content
@@ -1620,6 +1653,8 @@ public extension View {
 public struct HowToPlayHint: View {
     private let guide: HowToPlayGuide
     @State private var isVisible: Bool
+    /// 卓（フェルト）の上に置かれたときは白系で出す（全画面の枠 #2531）。地の上では従来の `Theme.inkSub` と同じ値。
+    @Environment(\.cardTableInk) private var ink
 
     public init(_ guide: HowToPlayGuide, playLog: PlayLog?) {
         self.guide = guide
@@ -1645,7 +1680,7 @@ public struct HowToPlayHint: View {
         if isVisible {
             Label(guide.hint, systemImage: guide.hintIcon)
                 .themeBody(14)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(ink.labelSub)
                 .allowsHitTesting(false)
         }
     }

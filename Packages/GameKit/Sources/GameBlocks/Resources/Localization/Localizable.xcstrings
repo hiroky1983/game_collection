@@ -1,6 +1,29 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "%lld 回で壊れる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Breaks in %lld hit"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Breaks in %lld hits"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "3 回で終わり" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -34,6 +57,17 @@
         }
       }
     },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
     "はじめから" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -52,6 +86,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Start over?"
+          }
+        }
+      }
+    },
+    "ふつうのブロックは 1 回、硬いブロックは 2 回当てると壊れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Normal blocks break in 1 hit, hard blocks in 2."
+          }
+        }
+      }
+    },
+    "アイテム" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Items"
           }
         }
       }
@@ -155,6 +211,17 @@
         }
       }
     },
+    "パドルが伸びるのは 12 秒だけ。球は 3 個まで増えます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The longer paddle lasts only 12 seconds. You can have up to 3 balls."
+          }
+        }
+      }
+    },
     "パドルではね返して全部くずそう" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -162,6 +229,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Bounce the ball off your paddle and break every block"
+          }
+        }
+      }
+    },
+    "パドルで球をはね返して、ブロックに当てて壊すゲームです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bounce the ball off your paddle to hit and break the blocks."
+          }
+        }
+      }
+    },
+    "パドルの動かし方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moving the paddle"
           }
         }
       }
@@ -188,6 +277,17 @@
         }
       }
     },
+    "ブロックの種類" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kinds of blocks"
+          }
+        }
+      }
+    },
     "ブロック崩し" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -199,6 +299,17 @@
         }
       }
     },
+    "ブロック崩しのはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Block Breaker: first steps"
+          }
+        }
+      }
+    },
     "ブロック崩しの盤" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -206,6 +317,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Block Breaker board"
+          }
+        }
+      }
+    },
+    "ベスト" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best"
           }
         }
       }
@@ -243,6 +365,17 @@
         }
       }
     },
+    "全 12 ステージをクリアしたら、あなたの勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear all 12 stages to win."
+          }
+        }
+      }
+    },
     "全ステージクリア！" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -261,6 +394,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Resume"
+          }
+        }
+      }
+    },
+    "勝ち負けの決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Winning and losing"
+          }
+        }
+      }
+    },
+    "壊せるブロックを全部消すと、次のステージへ進みます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear every breakable block to move on to the next stage."
           }
         }
       }
@@ -294,6 +449,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Watch an Ad to Continue"
+          }
+        }
+      }
+    },
+    "指は盤の上でも盤の下の空いた場所でもよく、パドルに重ねなくて大丈夫です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slide anywhere on the board or in the empty space below it; you don't need to touch the paddle."
+          }
+        }
+      }
+    },
+    "指を横に動かした分だけパドルが動きます。タップで球が飛び出します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The paddle moves as far as you slide your finger sideways. Tap to launch the ball."
           }
         }
       }
@@ -366,6 +543,28 @@
         }
       }
     },
+    "灰色のブロックは壊れません。残っていてもステージクリアできます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gray blocks can't be broken. You can clear the stage with them still there."
+          }
+        }
+      }
+    },
+    "球が増えているときは、全部落ちるまでミスになりません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "With extra balls in play, you only lose a life once every ball is gone."
+          }
+        }
+      }
+    },
     "球を落とすと 1 ミス" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -388,6 +587,17 @@
         }
       }
     },
+    "盤の球をすべて落とすと 1 ミス。3 回ミスで終わりです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Losing all your balls costs a life. The game ends after 3."
+          }
+        }
+      }
+    },
     "終了してはじめから" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -395,6 +605,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Quit & Start Over"
+          }
+        }
+      }
+    },
+    "落ちてくるアイテムをパドルで受けると、パドルが伸びたり球が増えたりします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Catch falling items to get a longer paddle or extra balls."
           }
         }
       }

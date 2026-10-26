@@ -48,7 +48,7 @@ public enum SpeedAccessibility {
         case .playing:
             if isStuck { return tr("どちらも出せません。めくってください") }
             if hasSelection { return tr("どちらの台札に置くか選んでください") }
-            return tr("台札と1つ違いの札を出してください")
+            return tr("1つ違いの札を台札のほうへ払ってください")
         case .result:
             if isDraw { return tr("引き分け") }
             return winner == .human ? tr("あなたの勝ち") : tr("CPUの勝ち")

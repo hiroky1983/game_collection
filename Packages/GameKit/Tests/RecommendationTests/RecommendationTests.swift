@@ -27,6 +27,10 @@ import GameAnzan
 import GameColorRelay
 import GameFruits
 import GameDiceCombo
+import GameCatPuzzle
+import GameSpeed
+import GameOldMaid
+import GameHearts
 import GameSpider
 import GameChess
 import GameBlocks
@@ -43,11 +47,14 @@ import GameKitTestSupport
 /// 一致は `testRegistryMatchesAppRegistry` がソース走査で機械的に検証する。
 // blockpuzzle は含めない（#642 で v1.1.4 のハブから外したまま、#603 の差し替え判断が続いている）。
 // hanafuda は #668 で戻した。
+// 2026-10-26 の会長決裁（GA4 の 10/22〜26 の実績を踏まえた見直し）で並びを組み直した
+// （`App/AppGameServices.swift` と同じ並びに追従）。
 private let hubOrder = [
-    "homerun", "poker", "solitaire", "runner", "mahjong4", "sudoku", "othello", "2048", "shogi",
-    "shiritori", "daifugo", "gomoku", "minesweeper", "spider", "blackjack", "ojisanpuzzle", "anzan",
-    "mahjong", "hanafuda", "go", "blocks", "concentration", "chess", "freecell", "fifteen",
-    "colorrelay", "fruits", "dicecombo",
+    "homerun", "colorrelay", "solitaire", "poker", "dicecombo", "mahjong4", "othello", "sudoku",
+    "gomoku", "ojisanpuzzle", "fruits", "2048", "shogi", "shiritori", "daifugo", "minesweeper",
+    "spider", "blackjack", "runner", "anzan", "mahjong", "hanafuda", "go", "blocks",
+    "concentration", "chess", "freecell", "fifteen",
+    "catpuzzle", "speed", "oldmaid", "hearts",
 ]
 
 @MainActor
@@ -55,12 +62,13 @@ private func makeRegistry() -> GameRegistry {
     // BlockPuzzleModule は含めない（#642 / #603。v1.1.5 の `AppEnvironment.registry` と
     // 構成を一致させるため）。HanafudaModule は #668 で戻した。
     GameRegistry([
-        HomerunModule(), PokerModule(), SolitaireModule(), RunnerModule(), MahjongModule(),
-        SudokuModule(), OthelloModule(), Game2048Module(), ShogiModule(), ShiritoriModule(),
-        DaifugoModule(), GomokuModule(), MinesweeperModule(), SpiderModule(), BlackjackModule(),
-        OjisanPuzzleModule(), AnzanModule(), MahjongSolitaireModule(), HanafudaModule(), GoModule(),
-        BlocksModule(), ConcentrationModule(), ChessModule(), FreeCellModule(), FifteenModule(),
-        ColorRelayModule(), FruitsModule(), DiceComboModule(),
+        HomerunModule(), ColorRelayModule(), SolitaireModule(), PokerModule(), DiceComboModule(),
+        MahjongModule(), OthelloModule(), SudokuModule(), GomokuModule(), OjisanPuzzleModule(),
+        FruitsModule(), Game2048Module(), ShogiModule(), ShiritoriModule(), DaifugoModule(),
+        MinesweeperModule(), SpiderModule(), BlackjackModule(), RunnerModule(), AnzanModule(),
+        MahjongSolitaireModule(), HanafudaModule(), GoModule(), BlocksModule(), ConcentrationModule(),
+        ChessModule(), FreeCellModule(), FifteenModule(),
+        CatPuzzleModule(), SpeedModule(), OldMaidModule(), HeartsModule(),
     ])
 }
 
@@ -143,7 +151,7 @@ struct RecommendationTableTests {
         ("daifugo",       ["poker", "blackjack", "colorrelay"]),
         ("mahjong",       ["mahjong4", "concentration", "minesweeper"]),
         ("mahjong4",      ["mahjong", "daifugo", "poker"]),
-        ("sudoku",        ["minesweeper", "2048", "mahjong"]),
+        ("sudoku",        ["minesweeper", "2048", "catpuzzle"]),
         ("go",            ["gomoku", "othello", "shogi"]),
         ("solitaire",     ["freecell", "mahjong", "concentration"]),
         ("freecell",      ["solitaire", "spider", "sudoku"]),
@@ -158,6 +166,10 @@ struct RecommendationTableTests {
         ("colorrelay",    ["daifugo", "poker", "concentration"]),
         ("fruits",        ["ojisanpuzzle", "2048", "blocks"]),
         ("dicecombo",     ["poker", "mahjong4", "blackjack"]),
+        ("catpuzzle",     ["sudoku", "minesweeper", "ojisanpuzzle"]),
+        ("speed",         ["oldmaid", "hearts", "solitaire"]),
+        ("oldmaid",       ["speed", "concentration", "daifugo"]),
+        ("hearts",        ["daifugo", "colorrelay", "oldmaid"]),
     ]
 
     @Test("全ゲームそれぞれ、未プレイのみのときは第1候補が出る")
@@ -660,7 +672,7 @@ struct PlayLogStorageTests {
         // 伸びる（1 本あたり約 8 バイト。プレイ回数では伸びない）。22 本で 297 バイト、柵越えおじさん（#1348）を
         // 足した 23 本で 305 バイトになったため、本数ぶんの余裕を見て 350 にした。おじさんの荷物運びパズル（#1904）を
         // 足した 24 本で 351 バイト（ID が 12 文字と長いぶん 1 本で大きく伸びた）になったため 400 にした。
-        // 倉庫から 4 本（いろリレー・ルーレット・おじさんの盆栽・サイコロ役づくり #2384）を足した 29 本で 409 バイトになったため
+        // 倉庫から 4 本（#2384）を足した 29 本で 409 バイトになったため
         // 450 にした。全体（下）は 24 本で 497 バイト・29 本で 555 バイトなので、同じ理由で 512 → 600 にした。
         // その後ルーレットを倉庫へ戻して 28 本になった（v1.1.13 審査の却下・2026-10-19）。上限は据え置き。
         #expect(storedValueSize(after1020) < 450,

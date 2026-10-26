@@ -189,6 +189,39 @@
         }
       }
     },
+    "CPUが考えています" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU is thinking"
+          }
+        }
+      }
+    },
+    "CPUが「%@」を取りました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU took “%@”"
+          }
+        }
+      }
+    },
+    "CPUが「%@」を取りました。あなたの番です" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU took “%@”. Your turn"
+          }
+        }
+      }
+    },
     "CPUが考え中…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -350,6 +383,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "You %1$lld · CPU %2$lld"
+          }
+        }
+      }
+    },
+    "・今回%lld秒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · This run: %lld s"
           }
         }
       }
@@ -956,6 +1000,259 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : " / Goal: %@"
+          }
+        }
+      }
+    },
+    "カードしりとりのはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Card Shiritori: first steps"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "取った札が、ノルマの枚数に届いたら勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Win when the cards you've taken reach the quota."
+          }
+        }
+      }
+    },
+    "ノルマは かんたん %1$lld 枚・ふつう %2$lld 枚・むずかしい %3$lld 枚です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The quota is %1$lld cards on Easy, %2$lld on Normal and %3$lld on Hard."
+          }
+        }
+      }
+    },
+    "ノルマは無く、札が尽きるまで続きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There is no quota. The game goes on until the cards run out."
+          }
+        }
+      }
+    },
+    "全部の札を取りきると、パーフェクトで勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take every card for a perfect win."
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What to do on your turn"
+          }
+        }
+      }
+    },
+    "場の札の読みの、最後の字から始まる札を選んで取ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick a card whose reading starts with the last letter of the card in play."
+          }
+        }
+      }
+    },
+    "たとえば「りんご」の次は、「ご」で始まる「ごりら」です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For example, after \"ringo\" comes \"gorira\", which starts with \"go\"."
+          }
+        }
+      }
+    },
+    "取ったあと" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After you take a card"
+          }
+        }
+      }
+    },
+    "取った札が、新しい場の札になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The card you took becomes the new card in play."
+          }
+        }
+      }
+    },
+    "そのあとは CPU の番です。CPU も同じように札を取ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Then it's the CPU's turn. The CPU takes cards the same way."
+          }
+        }
+      }
+    },
+    "札を取った場所には、山札から新しい札が出ます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new card from the deck fills the spot you took from."
+          }
+        }
+      }
+    },
+    "制限時間は %lld 秒です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have %lld seconds."
+          }
+        }
+      }
+    },
+    "しりとりが成立すると +%lld 秒。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A valid shiritori move adds %lld seconds."
+          }
+        }
+      }
+    },
+    "合わない札を選ぶと -%lld 秒です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Picking a card that doesn't fit takes away %lld seconds."
+          }
+        }
+      }
+    },
+    "「ん」で終わる札" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cards ending in \"n\""
+          }
+        }
+      }
+    },
+    "読みが「ん」で終わる札を取ると、その場で負けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you take a card whose reading ends in \"n\", you lose on the spot."
+          }
+        }
+      }
+    },
+    "CPU が「ん」で終わる札を取ったときは、あなたの勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the CPU takes a card ending in \"n\", you win."
+          }
+        }
+      }
+    },
+    "勝ち負けの決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to win or lose"
+          }
+        }
+      }
+    },
+    "CPU が続けられなくなったら、あなたの勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the CPU can't continue, you win."
+          }
+        }
+      }
+    },
+    "あなたが続けられなくなる・時間切れになると、負けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you can't continue or time runs out, you lose."
+          }
+        }
+      }
+    },
+    "「ん」で終わる読みは、その場で負け" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A reading ending in \"n\" loses on the spot"
           }
         }
       }

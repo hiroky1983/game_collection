@@ -90,8 +90,6 @@ targets:
       - package: GameKit
         product: GameFifteen
       - package: GameKit
-        product: GameRoulette
-      - package: GameKit
         product: GameFruits
       - package: GameKit
         product: GameColorRelay
@@ -121,6 +119,8 @@ targets:
         product: GameHanoi
       - package: GameKit
         product: GameYonmoku
+      - package: GameKit
+        product: GameCatPuzzle
       - package: GameKit
         product: MahjongTiles
       - package: GoogleMobileAds
@@ -257,8 +257,8 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.hirockysan1983.asobiba
-        MARKETING_VERSION: "1.1.13"
-        CURRENT_PROJECT_VERSION: "38"
+        MARKETING_VERSION: "1.1.14"
+        CURRENT_PROJECT_VERSION: "39"
         GENERATE_INFOPLIST_FILE: NO
         SWIFT_VERSION: "6.0"
         # 1 = iPhone / 2 = iPad（#458）。調べた競合 30 本すべてが iPad 対応で、

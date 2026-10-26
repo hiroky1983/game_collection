@@ -20,7 +20,6 @@ import GameRunner
 import GameHanafuda
 @testable import GameShiritori
 @testable import GameFifteen
-import GameRoulette
 import GameFruits
 import GameColorRelay
 import GameAnzan
@@ -76,7 +75,7 @@ private func makeHubGameIDs() -> Set<String> {
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(),
         RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(), FifteenModule(),
         HomerunModule(), OjisanPuzzleModule(),
-        RouletteModule(), FruitsModule(), ColorRelayModule(), AnzanModule(), BackgammonModule(), SpeedModule(),
+        FruitsModule(), ColorRelayModule(), AnzanModule(), BackgammonModule(), SpeedModule(),
         MancalaModule(),
         AkariKeshiModule(),
         TsunagiModule(),
@@ -306,11 +305,11 @@ struct AnalyticsEventShapeTests {
         #expect([GameOutcome.win, .loss, .draw].map { AnalyticsResult($0) } == [.win, .loss, .draw])
     }
 
-    @Test("mode は tonpuu / single_hand / stage / endless / backpain / puzzle と将棋の手合い5値の11値に閉じ、全値がどれかのゲームの遊び方から使われている（#820）")
+    @Test("mode は tonpuu / single_hand / stage / endless / backpain / puzzle と将棋の手合い5値・single_round の12値に閉じ、全値がどれかのゲームの遊び方から使われている（#820）")
     func modeIsClosed() {
         #expect(AnalyticsMode.allCases.map(\.rawValue) == [
             "tonpuu", "single_hand", "stage", "endless", "backpain", "puzzle",
-            "even", "rook_player", "rook_cpu", "bishop_player", "bishop_cpu",
+            "even", "rook_player", "rook_cpu", "bishop_player", "bishop_cpu", "single_round",
         ])
         // 送る文字列は rawValue そのもの（開始と終わりで同じ値）。
         for mode in AnalyticsMode.allCases {
@@ -321,10 +320,13 @@ struct AnalyticsEventShapeTests {
         // 遊び方を持つゲームの型から写した値の集合 = 全量。使われない値を定義していない。
         let used = MahjongGameLength.allCases.map(\.analyticsMode) + RunnerMode.allCases.map(\.analyticsMode)
             + OjisanPuzzleMode.allCases.map(\.analyticsMode)
+            // 単発戦はポーカーとブラックジャックで同じ値を使う（ゲームは `game_id` で分かれる）ので、片方だけ数える。
+            + PokerSessionFormat.allCases.compactMap(\.analyticsMode)
             // 平手は落とす側によらず同じ値なので、重複を畳んでから突き合わせる。
             + Array(Set(ShogiHandicap.allCases.flatMap { handicap in
                 ShogiHandicapDropper.allCases.map { ShogiMatchSetting(handicap: handicap, dropper: $0).analyticsMode }
             }))
+        #expect(BlackjackMatchFormat.allCases.compactMap(\.analyticsMode) == PokerSessionFormat.allCases.compactMap(\.analyticsMode))
         #expect(used.count == Set(used).count, "別のゲームの遊び方が同じ値に潰れている")
         #expect(Set(used) == Set(AnalyticsMode.allCases))
     }
@@ -483,7 +485,7 @@ struct GameAnalyticsTests {
 
     @Test("送信対象の gameID はハブの登録内容と一致する")
     func allowedGameIDsMatchHub() {
-        #expect(hubGameIDs.count == 34, "ハブに並ぶゲームは34本（企画倉庫の四目並べ #1738・線つなぎ #2235・明かり消しパズル #1883・マンカラ #1626 を含む。v1.1.8 で並べる柵越えおじさん #1348・v1.1.11 で並べるおじさんの荷物運びパズル #1904 と、企画倉庫のルーレット #1318・くっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322・スピード #1323 を含む）")
+        #expect(hubGameIDs.count == 33, "ハブに並ぶゲームは33本（企画倉庫の四目並べ #1738・線つなぎ #2235・明かり消しパズル #1883・マンカラ #1626 を含む。v1.1.8 で並べる柵越えおじさん #1348・v1.1.11 で並べるおじさんの荷物運びパズル #1904 と、企画倉庫のくっつきフルーツ #1319・いろリレー #1320・ぱっと暗算 #1321・バックギャモン #1322・スピード #1323 を含む）")
         // 各 Model が使う gameID と、ハブのモジュールの id が食い違っていないこと。
         // 食い違うと、そのゲームのイベントだけ丸ごと捨てられて気付けない。
         let (services, spy) = makeServices()
@@ -633,8 +635,8 @@ struct AnalyticsDoubleFireTests {
         let snapshots = MemorySnapshotStore()
         let (first, spyFirst) = makeServices(snapshots: snapshots)
         let model = Game2048Model(services: first)
-        model.move(.left)
-        model.move(.up)
+        // 初期タイルの置き場によっては左・上が空振りするので、全方向を試して必ず一手は動かす。
+        for direction in Direction.allCases { model.move(direction) }
         #expect(spyFirst.starts(of: "2048") == 1, "初回の開始は1回")
         #expect(snapshots.exists(for: "2048"), "中断の保存がある")
 
@@ -651,8 +653,8 @@ struct AnalyticsDoubleFireTests {
         let (services, spy) = makeServices(snapshots: snapshots)
 
         let first = Game2048Model(services: services)
-        first.move(.left)
-        first.move(.up)
+        // 初期タイルの置き場によっては左・上が空振りするので、全方向を試して必ず一手は動かす。
+        for direction in Direction.allCases { first.move(direction) }
         #expect(spy.starts(of: "2048") == 1)
 
         // ハブへ戻る（`HubView` が path の変化で呼ぶ経路）。
@@ -1486,7 +1488,7 @@ struct RunnerQuitTests {
         #expect(spy.ends.isEmpty, "ミスでは終局しない")
         services.gameDidLeave(gameID: RunnerModel.gameID)
         let end = spy.events.last
-        guard case let .gameEnd(_, result, _, _, cause, _, _, _)? = end else { Issue.record("game_end が無い"); return }
+        guard case let .gameEnd(_, result, _, _, cause, _, _, _, _)? = end else { Issue.record("game_end が無い"); return }
         #expect(result == .quit)
         #expect(cause == .pit)
     }
@@ -1496,16 +1498,89 @@ struct RunnerQuitTests {
         let (services, spy) = makeServices()
         let model = RunnerModel(services: services, startingAt: 1)
         autoPlayCurrentStage(model)
-        guard case let .gameEnd(_, result, _, _, cause, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
+        guard case let .gameEnd(_, result, _, _, cause, _, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
         #expect(result == .win)
         #expect(cause == nil)
         // 次のプレイへ持ち越さない: 2 面でミスして離れると、2 面の死因だけが載る。
         model.advanceToNextStage()
         failCurrentStage(model)
         services.gameDidLeave(gameID: RunnerModel.gameID)
-        guard case let .gameEnd(_, result2, _, _, cause2, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
+        guard case let .gameEnd(_, result2, _, _, cause2, _, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
         #expect(result2 == .quit)
         #expect(cause2 == .pit)
+    }
+
+    /// #2848: ミスの回数・最後の地点（5 刻みの進行率）が `game_end` に載り、ミス直後の離脱は `exit` で分かれる。
+    @Test("ミスして走り直さず離れると quit に miss_count / miss_at / exit=after_miss が付く")
+    func quitAfterMissCarriesMissSummary() {
+        let (services, spy) = makeServices()
+        let model = RunnerModel(services: services)
+        failCurrentStage(model)
+        services.gameDidLeave(gameID: RunnerModel.gameID)
+        guard case let .gameEnd(_, result, _, _, _, _, _, _, misses)? = spy.events.last
+        else { Issue.record("game_end が無い"); return }
+        #expect(result == .quit)
+        #expect(misses?.count == 1)
+        #expect(misses?.exit == .afterMiss)
+        #expect((misses?.lastAtPercent ?? -1) % 5 == 0)
+        let parameters = spy.events.last?.parameters ?? [:]
+        #expect(parameters["miss_count"] == .int(1))
+        #expect(parameters["exit"] == .string("after_miss"))
+        #expect(parameters["miss_at"] != nil)
+    }
+
+    @Test("ミスを挽回してクリアすると win に miss_count が付き、exit は付かない")
+    func winAfterRetryCarriesMissCountWithoutExit() {
+        let (services, spy) = makeServices()
+        let model = RunnerModel(services: services)
+        failCurrentStage(model)
+        model.retryStage()
+        failCurrentStage(model)
+        model.retryStage()
+        autoPlayCurrentStage(model)
+        guard case let .gameEnd(_, result, _, _, _, _, _, _, misses)? = spy.events.last
+        else { Issue.record("game_end が無い"); return }
+        #expect(result == .win)
+        #expect(misses?.count == 2)
+        #expect(misses?.exit == nil)
+        #expect(spy.events.last?.parameters["exit"] == nil)
+    }
+
+    @Test("ミスの無いプレイの game_end に miss_count / miss_at / exit は付かない")
+    func noMissNoMissParameters() {
+        let parameters = AnalyticsEvent.gameEnd(gameID: "runner", result: .win, durationSec: 3).parameters
+        #expect(parameters["miss_count"] == nil)
+        #expect(parameters["miss_at"] == nil)
+        #expect(parameters["exit"] == nil)
+        #expect(AnalyticsMissSummary(count: 0, lastAtPercent: 47, exit: nil).count == 1)
+        #expect(AnalyticsMissSummary(count: 1, lastAtPercent: 47, exit: nil).lastAtPercent == 45)
+        #expect(AnalyticsMissSummary(count: 1, lastAtPercent: 400, exit: nil).lastAtPercent == 100)
+    }
+
+    /// #2848: クリアした面の画面を、次へも「もう一度」も押さずに離れたときだけ `clear_exit`。
+    @Test("クリア直後に離れると clear_exit が 1 回出る。次の面へ進めば出ない")
+    func clearExitOnlyWhenLeavingAfterClear() {
+        let (services, spy) = makeServices()
+        let model = RunnerModel(services: services, startingAt: 1)
+        autoPlayCurrentStage(model)
+        model.advanceToNextStage()
+        failCurrentStage(model)
+        services.gameDidLeave(gameID: RunnerModel.gameID)
+        #expect(!spy.events.contains { if case .clearExit = $0 { return true } else { return false } },
+                "次の面へ進んだあとのミス離脱は clear_exit ではない")
+
+        let (services2, spy2) = makeServices()
+        let model2 = RunnerModel(services: services2, startingAt: 1)
+        autoPlayCurrentStage(model2)
+        services2.gameDidLeave(gameID: RunnerModel.gameID)
+        services2.gameDidLeave(gameID: RunnerModel.gameID)
+        let exits = spy2.events.compactMap { event -> [String: AnalyticsValue]? in
+            if case .clearExit = event { return event.parameters } else { return nil }
+        }
+        #expect(exits.count == 1)
+        #expect(exits.first?["game_id"] == .string(RunnerModel.gameID))
+        #expect(exits.first?["level"] == .string("stage-1"))
+        #expect(AnalyticsEvent.clearExit(gameID: "runner", level: .stage(1)).name == "clear_exit")
     }
 
     @Test("走り出す前に離れても quit は出ない")
@@ -1758,8 +1833,8 @@ struct UntouchedSnapshotReopenTests {
         let exempt: [String: String] = [
             "BlackjackModule.swift": "1 回目を配る前は保存しない（game_start は配った時点で数える・#2552）",
             "PokerModule.swift": "同上（局を持たない .idle の保存）",
-            "RouletteModule.swift": "同上（口の無い賭け中の保存）",
             "HanoiModule.swift": "手つかずの盤はそもそも保存しない（#1847）",
+            "CatPuzzleModule.swift": "同上（印の無い盤は保存しない・#2250）",
         ]
         let sources = SourceScan.packageRoot.appendingPathComponent("Sources")
         let files = try #require(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
@@ -1784,8 +1859,8 @@ struct UntouchedSnapshotReopenTests {
         let snapshots = MemorySnapshotStore()
         let (first, _) = makeHubServices(snapshots: snapshots, modules: [Game2048Module()])
         let model = Game2048Model(services: first)
-        model.move(.left)
-        model.move(.up)
+        // 初期タイルの置き場によっては左・上が空振りするので、全方向を試して必ず一手は動かす。
+        for direction in Direction.allCases { model.move(direction) }
         let module = Game2048Module()
         #expect(!module.hasUntouchedSnapshot(in: snapshots), "動かした盤は手つかずではない")
 

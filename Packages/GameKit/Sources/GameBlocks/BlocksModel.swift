@@ -18,6 +18,12 @@ public final class BlocksModel {
 
     public private(set) var field: BlocksField
     public private(set) var score: Int
+    /// ヘッダーに常時出す「ベスト」（#2808・2048 の #2615 と同じ形）。保存済みの自己ベストと今の得点の大きい方。
+    /// 記録は決着時にしか書かれないので、今の得点が超えた瞬間にここで追従させる。0 のときは nil（出さない）。
+    var liveBestScore: Int? {
+        let best = max(services?.playLog?.record(gameID: Self.gameID)?.bestPoints ?? 0, score)
+        return best > 0 ? best : nil
+    }
     /// このステージを始めた時点の得点（#1622）。
     ///
     /// 復元・コンティニューはブロックが全部戻るステージ頭から再開するので、保存する得点も
@@ -268,6 +274,9 @@ public final class BlocksModel {
         startStage()
         // `game_end` は送信済みなので、続きは次の 1 プレイとして数え直す（#158）。
         services?.gameDidRestart(gameID: Self.gameID, level: .stage(stageNumber))
+        // 続きの盤面は既に遊んだ盤面（#2642）。`launch()` を待つと、撃たずに「はじめから」を押したとき
+        // `game_end`(quit) が出ない。`gameDidProgress` は冪等なので次の `launch()` でも二重に数えない。
+        services?.gameDidProgress(gameID: Self.gameID)
         return true
     }
 

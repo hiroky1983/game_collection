@@ -19,11 +19,14 @@ struct FruitsSnapshot: Codable {
     var drawCount: Int
     var dropCount: Int
     var hasMadeKinmatsu: Bool
+    /// このプレイで育てた最高の段（#2865）。鍵が無い古い中断データは nil で読める。
+    var highestKind: FruitKind?
 
     /// 保存の鍵は くっつきフルーツ時代のまま（`hasMadeMelon`）。名前を変えると、盆栽化（#2361）より前の
     /// 中断データが読めずに新規開始へ倒れる。
     private enum CodingKeys: String, CodingKey {
         case fruits, cursorX, score, heldKind, nextKind, continueUsed, seed, drawCount, dropCount
         case hasMadeKinmatsu = "hasMadeMelon"
+        case highestKind
     }
 }

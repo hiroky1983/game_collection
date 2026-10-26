@@ -52,6 +52,12 @@ public final class FruitsModel {
     public private(set) var field: FruitField
     public private(set) var score: Int
     public private(set) var phase: FruitsPhase
+    /// ヘッダーに常時出す「ベスト」（#2808・2048 の #2615 と同じ形）。保存済みの自己ベストと今の得点の大きい方。
+    /// 記録は決着時にしか書かれないので、今の得点が超えた瞬間にここで追従させる。0 のときは nil（出さない）。
+    var liveBestScore: Int? {
+        let best = max(services?.playLog?.record(gameID: Self.gameID)?.bestPoints ?? 0, score)
+        return best > 0 ? best : nil
+    }
     /// 手に持っている果物。落とした直後、次が現れるまでは nil。
     public private(set) var heldKind: FruitKind?
     /// 「つぎ」に出す果物。手の果物を落とすと、間を置いてこれが手に来る。
@@ -62,6 +68,9 @@ public final class FruitsModel {
     public private(set) var recordResult: RecordResult?
     /// このプレイで金の松を作ったか。終局の勝敗（評価リクエスト・記録の勝ち数）に使う。
     public private(set) var hasMadeKinmatsu: Bool
+    /// このプレイで育てた最高の段（#2865）。合体でできた段だけを数える（落として出てきた段は含まない）。
+    /// 1 プレイ限りの値で、記録（PlayLog）には残さない。中断データには持つ（開き直しても消えない）。
+    public private(set) var highestKind: FruitKind?
     /// このプレイで落とした数。
     public private(set) var dropCount: Int
     /// 危険線より上に果物があるか（描画の警告に使う）。
@@ -125,6 +134,9 @@ public final class FruitsModel {
             phase = .playing
             continueUsed = snap.continueUsed
             hasMadeKinmatsu = snap.hasMadeKinmatsu
+            // 古い中断データ（鍵なし）は盤の最大の段と金の松の印から復元する。
+            highestKind = snap.highestKind
+                ?? (snap.hasMadeKinmatsu ? .kinmatsu : snap.fruits.map(\.kind).filter { $0 > .mikan }.max())
             dropCount = snap.dropCount
             self.seed = snap.seed
             self.drawCount = drawCount
@@ -146,6 +158,7 @@ public final class FruitsModel {
             phase = .playing
             continueUsed = false
             hasMadeKinmatsu = false
+            highestKind = nil
             dropCount = 0
             self.seed = seed
             self.drawCount = drawCount
@@ -170,7 +183,12 @@ public final class FruitsModel {
 
     /// 手の果物を落とす。
     public func drop() {
-        guard phase == .playing, let kind = heldKind else { return }
+        guard phase == .playing else { return }
+        guard let kind = heldKind else {
+            // 落とした直後の待ち時間。手に何も無いことを無音で無視せず、警告の手応えで伝える。
+            services?.feedback.notify(.warning)
+            return
+        }
         field.drop(kind)
         fruitCount = field.count
         heldKind = nil
@@ -224,6 +242,7 @@ public final class FruitsModel {
         phase = .playing
         continueUsed = false
         hasMadeKinmatsu = false
+        highestKind = nil
         dropCount = 0
         recordResult = nil
         effects = []
@@ -296,9 +315,11 @@ public final class FruitsModel {
             score += into.points
             needsCheckpoint = true
             appendEffect(.merge(into), x: x, y: y)
+            if into > (highestKind ?? .sakura) { highestKind = into }
             if into == .kinmatsu {
                 hasMadeKinmatsu = true
-                services?.feedback.notify(.success)
+                // 金の松ができた瞬間だけ特別扱い（#2865）。触覚は成功と同じ最も強い種類で、効果音を長いファンファーレにする。
+                services?.feedback.notify(.milestone)
             } else {
                 services?.feedback.impact(into >= .icho ? .medium : .light)
             }
@@ -354,7 +375,8 @@ public final class FruitsModel {
             seed: seed,
             drawCount: drawCount,
             dropCount: dropCount,
-            hasMadeKinmatsu: hasMadeKinmatsu
+            hasMadeKinmatsu: hasMadeKinmatsu,
+            highestKind: highestKind
         )
         try? services?.snapshots.save(snapshot, for: Self.gameID)
     }

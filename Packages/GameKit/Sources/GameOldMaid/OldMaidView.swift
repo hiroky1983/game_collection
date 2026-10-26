@@ -18,35 +18,60 @@ public struct OldMaidView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 8) {
-            statusBar
-            cpuRow
-            // 決着後は卓も手札も要らないので、代わりに順位のリザルトを出す。
-            // 縦の余りは `Spacer` ではなく手札 / リザルトのカード自身に吸わせる（大富豪 #193 と同じ）。
-            if model.phase == .result {
-                resultCard
-                    .transition(.opacity)
-            } else {
-                tableArea
-                    .transition(.opacity)
-                handArea
-                    .transition(.opacity)
+        // レイアウトパターン A（全画面・会長 QA 2026-10-23・#2531）: 大富豪・いろリレーと同じく、フェルトを画面全体に敷き、
+        // ヘッダーは 1 行（戻る・ババ抜き・ゲーム数と強さと手番の札・？・＋）、バナーは画面最下部。
+        // 白い札（ステータスの帯・CPU・卓・手札・操作欄）はやめてフェルトに直に置き、CPU の席は共通部品（`OpponentSeat`）。
+        GeometryReader { geometry in
+            let metrics = OldMaidLayoutA.metrics(screenWidth: geometry.size.width, contentHeight: geometry.size.height,
+                                                 elementScale: layout.elementScale)
+            VStack(spacing: OldMaidLayoutA.spacing) {
+                cpuRow(metrics)
+                // 決着後は卓も手札も要らないので、代わりに順位のリザルトを出す。
+                if model.phase == .result {
+                    resultCard
+                        .transition(.opacity)
+                } else {
+                    // 縦の余りは卓（引く相手の伏せ札）の上下に分けて置き、卓を席と手札のあいだの真ん中に置く
+                    // （大富豪の場と同じ見た目）。手札・操作欄は下にそろえるので、番が替わって卓の高さが変わっても動かない。
+                    Spacer(minLength: 0)
+                    tableArea(metrics)
+                        // 伏せ札は縮められる（枠の中でスクロール）が、余白があるうちは手札より先に全段を見せる（#2685）。
+                        // 手札の最小の高さ（札 1 段）は優先度が低くても先に確保される。
+                        .layoutPriority(2)
+                        .transition(.opacity)
+                    Spacer(minLength: 0)
+                    handArea(metrics)
+                        // 余りを分ける上下の Spacer より先に、手札の全段ぶんを取る。
+                        .layoutPriority(1)
+                        .transition(.opacity)
+                }
+                HowToPlayHint(.oldMaid, playLog: services.playLog)
+                actionArea
+                RecommendationSlot(services: services, isFinished: model.phase == .result, ladder: ladder)
             }
-            HowToPlayHint(.oldMaid, playLog: services.playLog)
-            actionArea
-            RecommendationSlot(services: services, isFinished: model.phase == .result, ladder: ladder)
-            BannerSlot(ads: services.ads)
+            // 局面 → リザルトの差し替えは、残り続ける親に置かないと `transition` が効かない（#195）。
+            .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
+            // 左右 8pt（全画面の枠の値）。上下はヘッダーの余白 4 とバナーの帯の余白 8 に足す分。
+            .padding(.horizontal, OldMaidLayoutA.sideInset)
+            .padding(.vertical, OldMaidLayoutA.verticalInset)
+            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
         }
-        // 局面 → リザルトの差し替えは、残り続ける親に置かないと `transition` が効かない（#195）。
-        .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
-        .padding(Theme.pad)
-        .gameChrome(title: tr("ババ抜き"), review: services.review,
+        // ゲーム数・CPU の強さ・手番は、ヘッダー下の帯ではなくヘッダーの行の札に置く（A の「1 行のヘッダー」）。
+        .gameChrome(title: tr("ババ抜き"), review: services.review, fullScreen: .felt, ads: services.ads,
                     newGame: GameChromeNewGame(.match) {
                         showNewGame = true
-                    })
-        .howToPlay(HowToPlayGuide.oldMaid.illustrated(OldMaidHowToFigures.items))
+                    }) {
+            statusChips
+        }
+        // 図で見る遊び方（#2824）は「？」の中から開くので、開いているあいだは CPU の手番を止め、閉じたら続きを回す。
+        .howToPlay(HowToPlayGuide.oldMaid.illustrated(OldMaidHowToFigures.items).onboarding(OldMaidOnboarding.guide),
+                   onPresent: { cpuTask?.cancel() }, onDismiss: { runCPU() })
+        // 開始シートにも図で見る遊び方の入口があるので、開いているあいだは手番を止める。
+        .onChange(of: showNewGame) { _, isOpen in
+            if isOpen { cpuTask?.cancel() } else { runCPU() }
+        }
         .sheet(isPresented: $showNewGame) {
-            OldMaidNewGameSheet(aiLevel: model.aiLevel) { level in
+            OldMaidNewGameSheet(aiLevel: model.aiLevel, discardsProgress: model.phase == .playing) { level in
                 showNewGame = false
                 model.startGame(aiLevel: level)
                 runCPU()
@@ -58,14 +83,14 @@ public struct OldMaidView: View {
             // 中断から戻ったときは init が `.playing` まで復元しているので配り直さない。
             if model.phase == .idle { model.startGame() }
             #if DEBUG
-            // 撮影・動作確認用: `-oldMaidScenario tell|watched|result` で局面を差し替える。
+            // 撮影・動作確認用: `-oldMaidScenario tell|watched|result|crowded` で局面を差し替える。
             let args = ProcessInfo.processInfo.arguments
             if let i = args.firstIndex(of: "-oldMaidScenario"), i + 1 < args.count {
                 model.applyDebugScenario(args[i + 1])
             }
             #endif
             // 中断から戻ったときに CPU の手番が止まったままにならないようにする。
-            await model.runCPUTurnsIfNeeded()
+            runCPU()
         }
     }
 
@@ -85,26 +110,55 @@ public struct OldMaidView: View {
         }
     }
 
-    // MARK: - ステータス
+    // MARK: - ステータス（ヘッダーの行の札）
 
-    private var statusBar: some View {
-        HStack(spacing: 8) {
-            Label(tr("%lldゲーム目", max(model.gameNumber, 1)), systemImage: "number")
-                .themeBody(13)
-                .foregroundStyle(Theme.inkSub)
-            Text(CPUStrength.strength(for: model.aiLevel).label)
-                .scaledFont(11, weight: .bold, design: .rounded)
-                .foregroundStyle(Theme.onAccent)
-                .padding(.horizontal, 8).padding(.vertical, 2)
-                .background(Capsule().fill(CPUStrength.strength(for: model.aiLevel).accent))
-                .accessibilityLabel(tr("CPUの強さ、%@", CPUStrength.strength(for: model.aiLevel).label))
-            Spacer()
-            Text(turnLabel)
-                .scaledFont(12, weight: .bold, design: .rounded)
-                .foregroundStyle(model.isPlayerTurn ? Theme.tealText : Theme.inkSub)
+    /// ゲーム数・CPU の強さ・手番。ヘッダーの残りの幅に収まらないとき（英語の iPhone SE など）はゲーム数、
+    /// 次に強さを落とす。文字色（白）は全画面の枠が配る。手番の札（`TurnBadge`）は対戦ゲーム共通の色（#1419）。
+    private var statusChips: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                gameCountLabel
+                strengthBadge
+                turnChip
+            }
+            HStack(spacing: 8) {
+                strengthBadge
+                turnChip
+            }
+            turnChip
         }
-        .padding(.horizontal, 14).padding(.vertical, 8)
-        .popCard(corner: Theme.cornerSmall)
+    }
+
+    private var gameCountLabel: some View {
+        Label(tr("%lldゲーム目", max(model.gameNumber, 1)), systemImage: "number")
+            .themeBody(13, maxScale: Self.seatTextMaxScale)
+    }
+
+    private var strengthBadge: some View {
+        let strength = CPUStrength.strength(for: model.aiLevel)
+        return Text(strength.label)
+            .scaledFont(11, weight: .bold, design: .rounded)
+            .foregroundStyle(Theme.onAccent)
+            .padding(.horizontal, 8).padding(.vertical, 2)
+            .background(Capsule().fill(strength.accent))
+            .accessibilityLabel(tr("CPUの強さ、%@", strength.label))
+    }
+
+    /// 手番の札。席に名前を出さない（アイコンで見分ける）ので、CPU の番ならその席のアイコンを添えてどの席か分かるようにする。
+    private var turnChip: some View {
+        HStack(spacing: 4) {
+            if model.phase == .playing, !model.isPlayerTurn {
+                OpponentSeatIcon(index: model.currentPlayer, diameter: layout.scaled(22))
+            }
+            TurnBadge(turnLabel, kind: turnKind)
+        }
+    }
+
+    private var turnKind: TurnBadge.Kind {
+        switch model.phase {
+        case .idle, .result: return .finished
+        case .playing: return model.isPlayerTurn ? .you : .cpu
+        }
     }
 
     private var turnLabel: String {
@@ -118,84 +172,88 @@ public struct OldMaidView: View {
 
     // MARK: - CPU
 
-    private var cpuRow: some View {
-        HStack(spacing: 8) {
+    /// CPU の席・卓のラベルが文字サイズ設定で拡大する上限倍率（大富豪 #1782 と同じ）。
+    private static let seatTextMaxScale: CGFloat = 1.6
+    /// 直前の「引く」に関わらない席の吹き出しの濃さ。
+    private static let staleBubbleOpacity: Double = 0.35
+
+    /// CPU 3 人の席。見せ方は大富豪・いろリレーと同じ共通部品（`OpponentSeat`・#2531）:
+    /// 色と記号の丸いアイコン・手番の黄色い輪・裏向きのトランプの束・残り枚数・直前の手の吹き出し。
+    private func cpuRow(_ metrics: OldMaidLayoutA.Metrics) -> some View {
+        HStack(alignment: .top, spacing: 8) {
             ForEach(1..<OldMaidModel.playerCount, id: \.self) { index in
-                cpuCard(index)
+                cpuSeat(index, metrics)
             }
         }
     }
 
-    private func cpuCard(_ index: Int) -> some View {
+    private func cpuSeat(_ index: Int, _ metrics: OldMaidLayoutA.Metrics) -> some View {
         let isCurrent = model.phase == .playing && model.currentPlayer == index
-        let isTarget = model.humanTarget == index
         let count = model.hands[index].count
         let action = OldMaidAccessibility.actionText(model.game?.lastActions[index] ?? OldMaidAction.none)
-        return VStack(spacing: 4) {
-            OldMaidFaceView(face: model.face(of: index), isOut: count == 0 && model.phase != .idle)
-                .frame(width: layout.scaled(34), height: layout.scaled(34))
-            Text(model.playerName(index))
-                .scaledFont(12, weight: .bold, design: .rounded)
-                .foregroundStyle(isCurrent ? Theme.coralText : Theme.ink)
-            Text(cpuStatus(index, count: count))
-                .scaledFont(11, weight: .semibold, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
-                .lineLimit(1).minimumScaleFactor(0.6)
-            Text(action.isEmpty ? " " : action)
-                .scaledFont(10, weight: .bold, design: .rounded)
-                .foregroundStyle(Theme.onAccent)
-                .lineLimit(1).minimumScaleFactor(0.6)
-                .padding(.horizontal, 6).padding(.vertical, 3)
-                .frame(maxWidth: .infinity)
-                .background(Capsule().fill(action.isEmpty ? Color.clear : Theme.Fill.purple))
+        // あがった人は札が無いので、吹き出しに「n位であがり」を出す（以前の白い札の 2 行目）。
+        let finished = finishedLabel(index)
+        let bubble = finished ?? action
+        // 直前の「引く」に関わらない人の吹き出しは何手も前の出来事なので薄くする（配った直後は直前の「引く」が無いので全員そのまま）。
+        let isStale = model.game?.lastTransfer.map { $0.from != index && $0.to != index } ?? false
+        let back = metrics.seatCardMetrics
+        var spoken = [model.playerName(index), finished ?? tr("残り%lld枚", count)]
+        if finished == nil, !action.isEmpty { spoken.append(action) }
+        // 手番は輪の色でしか示さないので、席を 1 まとまりにして「〜の番」まで読ませる（大富豪 #2495 と同じ）。
+        if isCurrent { spoken.append(tr("%@の番", model.playerName(index))) }
+        return OpponentSeat(
+            index: index, diameter: metrics.seatDiameter, isCurrent: isCurrent, cardCount: count, lastAction: bubble,
+            lastActionOpacity: isStale ? Self.staleBubbleOpacity : 1,
+            accessibilityLabel: spoken.joined(separator: tr("、"))
+        ) {
+            OpponentCardFan(count: count, cardWidth: back.width, cardHeight: back.height) {
+                // トランプの裏（藍の面 + 白い内枠 + スート印）。外形と面は共通基盤（#397）。
+                ZStack {
+                    PlayingCardSurface(faceUp: false, cornerRadius: back.cornerRadius, shadowRadius: 1)
+                    PlayingCardBack(metrics: back)
+                }
+            }
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 8).padding(.horizontal, 6)
-        .popCard(corner: Theme.cornerSmall)
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
-                .strokeBorder(isTarget ? Theme.coral : Color.clear, lineWidth: 2)
-        )
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel([model.playerName(index), cpuStatus(index, count: count), action]
-            .filter { !$0.isEmpty }.joined(separator: tr("、")))
     }
 
-    private func cpuStatus(_ index: Int, count: Int) -> String {
-        if let place = model.game?.finishOrder.firstIndex(of: index) {
-            return tr("%lld位であがり", place + 1)
-        }
-        return tr("残り%lld枚", count)
+    /// あがった CPU の順位（「n位であがり」）。まだ残っていれば nil。
+    private func finishedLabel(_ index: Int) -> String? {
+        guard let place = model.game?.finishOrder.firstIndex(of: index) else { return nil }
+        return tr("%lld位であがり", place + 1)
     }
 
     // MARK: - 卓（引く相手の伏せ札）
 
-    private var tableArea: some View {
+    /// 卓。白い札は使わずフェルトに直に置く（文字は卓の上の色・`cardTableInk`）。
+    private func tableArea(_ metrics: OldMaidLayoutA.Metrics) -> some View {
         VStack(spacing: 8) {
             if let target = model.humanTarget {
-                targetPicker(target)
+                targetPicker(target, metrics)
             } else {
-                waitingPanel
+                waitingPanel(metrics)
             }
-            HStack(spacing: 6) {
-                Image(systemName: "rectangle.stack.fill")
-                    .scaledFont(11, weight: .bold)
-                Text(tr("捨てたペア %lld組", model.game?.discardedPairs.count ?? 0))
-                    .scaledFont(11, weight: .semibold, design: .rounded)
-                Spacer()
-                if let joker = jokerNote {
-                    Text(joker)
-                        .scaledFont(11, weight: .bold, design: .rounded)
-                        .foregroundStyle(Theme.purple)
-                        .lineLimit(1).minimumScaleFactor(0.6)
+            CardTableInkReader { ink in
+                HStack(spacing: 6) {
+                    Image(systemName: "rectangle.stack.fill")
+                        .scaledFont(11, weight: .bold)
+                    Text(tr("捨てたペア %lld組", model.game?.discardedPairs.count ?? 0))
+                        .scaledFont(11, weight: .semibold, design: .rounded)
+                    Spacer()
+                    if let joker = jokerNote {
+                        // フェルトの上で紫の文字は沈むので、紫の札に白い文字で出す。
+                        Text(joker)
+                            .scaledFont(11, weight: .bold, design: .rounded)
+                            .foregroundStyle(Theme.onAccent)
+                            .lineLimit(1).minimumScaleFactor(0.6)
+                            .padding(.horizontal, 8).padding(.vertical, 2)
+                            .background(Capsule().fill(Theme.Fill.purple))
+                    }
                 }
+                .foregroundStyle(ink.labelSub)
             }
-            .foregroundStyle(Theme.inkSub)
             .accessibilityElement(children: .combine)
         }
-        .padding(.horizontal, 12).padding(.vertical, 10)
         .frame(maxWidth: .infinity)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     /// 誰がジョーカーを持っているかは、あなた自身が持っているときだけ分かる。
@@ -204,51 +262,89 @@ public struct OldMaidView: View {
     }
 
     /// あなたの番: 相手の顔と伏せ札。札をタップすると指をかけ、顔に出ることがある。
-    private func targetPicker(_ target: Int) -> some View {
+    private func targetPicker(_ target: Int, _ metrics: OldMaidLayoutA.Metrics) -> some View {
         let cards = model.hands[target]
         let face = model.face(of: target)
         return VStack(spacing: 8) {
-            HStack(spacing: 10) {
-                OldMaidFaceView(face: face)
-                    .frame(width: layout.scaled(52), height: layout.scaled(52))
-                    .accessibilityLabel(tr("%1$@の顔、%2$@", model.playerName(target), OldMaidAccessibility.faceName(face)))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(tr("%@の札から1枚選んで引く", model.playerName(target)))
-                        .scaledFont(13, weight: .bold, design: .rounded)
-                        .foregroundStyle(Theme.ink)
-                        .lineLimit(1).minimumScaleFactor(0.6)
-                    Text(faceCaption(face))
-                        .scaledFont(12, weight: .bold, design: .rounded)
-                        .foregroundStyle(face == .neutral ? Theme.inkSub : Theme.coralText)
-                        .lineLimit(1).minimumScaleFactor(0.6)
+            CardTableInkReader { ink in
+                HStack(spacing: 10) {
+                    OldMaidFaceView(face: face)
+                        .frame(width: metrics.faceDiameter, height: metrics.faceDiameter)
+                        .accessibilityLabel(tr("%1$@の顔、%2$@", model.playerName(target), OldMaidAccessibility.faceName(face)))
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 4) {
+                            // 席に名前を出さないので、引く相手は席と同じアイコンで示す（大富豪の「〜が出した」と同じ）。
+                            OpponentSeatIcon(index: target, diameter: layout.scaled(16))
+                            Text(tr("%@の札から1枚選んで引く", model.playerName(target)))
+                                .scaledFont(13, weight: .bold, design: .rounded)
+                                .foregroundStyle(ink.label)
+                                .lineLimit(1).minimumScaleFactor(0.6)
+                        }
+                        faceCaptionView(face, ink: ink)
+                    }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
             }
             .gameAnimation(.easeInOut(duration: 0.15), value: face)
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: OldMaidHandLayout.columnSpacing),
-                               count: OldMaidHandLayout.columns),
-                spacing: OldMaidHandLayout.rowSpacing
-            ) {
-                ForEach(Array(cards.enumerated()), id: \.element.id) { position, card in
-                    let isSelected = model.selectedID == card.id
-                    OldMaidCardBackView(selected: isSelected)
-                        .offset(y: isSelected ? -8 : 0)
-                        .gameAnimation(.spring(response: 0.2), value: isSelected)
-                        // 見える札は 42pt のまま、タップ判定だけを列いっぱいに広げて 44pt 以上にする（#195）。
-                        .frame(maxWidth: .infinity, minHeight: OldMaidHandLayout.minimumTapTarget)
-                        .contentShape(Rectangle())
-                        .onTapGesture { model.toggleSelection(card.id) }
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(OldMaidAccessibility.targetCardLabel(
-                            position: position, count: cards.count, isSelected: isSelected))
-                        .accessibilityHint(tr("ダブルタップで選択を切り替えます"))
-                        .accessibilityAddTraits(.isButton)
-                        .accessibilityAction { model.toggleSelection(card.id) }
+            // 伏せ札が 2 段になると、縦の短い画面（iPhone SE）では下の手札の枠が潰れて札が 1 枚も見えなく
+            // なっていた（v1.1.14 の公開前 QA・#2685）。伏せ札も枠の中でスクロールできるようにし、縮むのは 1 段ぶんまで。
+            // 余裕のある画面では 2 段とも見える高さ（上限）まで広がる。選んだ札が 8pt 浮くぶん上に余白を取る。
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVGrid(
+                    columns: Array(repeating: GridItem(.flexible(), spacing: OldMaidHandLayout.columnSpacing),
+                                   count: OldMaidHandLayout.columns),
+                    spacing: OldMaidHandLayout.rowSpacing
+                ) {
+                    ForEach(Array(cards.enumerated()), id: \.element.id) { position, card in
+                        let isSelected = model.selectedID == card.id
+                        OldMaidCardBackView(selected: isSelected, metrics: metrics.card)
+                            .offset(y: isSelected ? -Self.selectedLift : 0)
+                            .gameAnimation(.spring(response: 0.2), value: isSelected)
+                            // 札は列幅 − 4pt。タップ判定は列いっぱい（44pt 以上・#195）。
+                            .frame(maxWidth: .infinity, minHeight: OldMaidHandLayout.minimumTapTarget)
+                            .contentShape(Rectangle())
+                            .onTapGesture { model.toggleSelection(card.id) }
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel(OldMaidAccessibility.targetCardLabel(
+                                position: position, count: cards.count, isSelected: isSelected))
+                            .accessibilityHint(tr("ダブルタップで選択を切り替えます"))
+                            .accessibilityAddTraits(.isButton)
+                            .accessibilityAction { model.toggleSelection(card.id) }
+                    }
                 }
+                .gameAnimation(.easeInOut(duration: 0.18), value: cards)
+                .frame(maxWidth: .infinity)
+                .padding(.top, Self.selectedLift)
             }
-            .gameAnimation(.easeInOut(duration: 0.18), value: cards)
+            .frame(maxWidth: .infinity,
+                   minHeight: targetGridHeight(rows: 1, metrics),
+                   maxHeight: targetGridHeight(rows: OldMaidHandLayout.rows(cards.count), metrics))
         }
+    }
+
+    /// 顔色の一言。顔に出たとき（にやり / ひやり）は、フェルトの上でも目立つよう珊瑚色の札に白い文字で出す。
+    @ViewBuilder
+    private func faceCaptionView(_ face: OldMaidFace, ink: CardTableInk) -> some View {
+        let caption = Text(faceCaption(face))
+            .scaledFont(12, weight: .bold, design: .rounded)
+            .lineLimit(1).minimumScaleFactor(0.6)
+        if face == .neutral {
+            caption.foregroundStyle(ink.labelSub)
+        } else {
+            caption
+                .foregroundStyle(Theme.onAccent)
+                .padding(.horizontal, 8).padding(.vertical, 2)
+                .background(Capsule().fill(Theme.Fill.coral))
+        }
+    }
+
+    /// 選んだ伏せ札が浮き上がる高さ。
+    private static let selectedLift: CGFloat = 8
+
+    /// 伏せ札 `rows` 段ぶんの高さ（浮き上がりの余白を含む）。
+    private func targetGridHeight(rows: Int, _ metrics: OldMaidLayoutA.Metrics) -> CGFloat {
+        let card = max(metrics.card.height, OldMaidHandLayout.minimumTapTarget)
+        return Self.selectedLift + card * CGFloat(rows) + OldMaidHandLayout.rowSpacing * CGFloat(rows - 1)
     }
 
     private func faceCaption(_ face: OldMaidFace) -> String {
@@ -261,10 +357,10 @@ public struct OldMaidView: View {
     }
 
     /// CPU の番: 誰が誰から引いているか。直前に動いた札があなたの札なら、それも伝える。
-    private var waitingPanel: some View {
+    private func waitingPanel(_ metrics: OldMaidLayoutA.Metrics) -> some View {
         let drawer = model.currentPlayer
         let from = model.game?.currentTarget
-        return VStack(spacing: 6) {
+        return CardTableInkReader { ink in
             HStack(spacing: 10) {
                 OldMaidFaceView(face: .neutral)
                     .frame(width: layout.scaled(40), height: layout.scaled(40))
@@ -273,20 +369,19 @@ public struct OldMaidView: View {
                     if model.phase == .playing, let from {
                         Text(tr("%1$@が%2$@から引いています", model.playerName(drawer), model.playerName(from)))
                             .scaledFont(13, weight: .bold, design: .rounded)
-                            .foregroundStyle(Theme.ink)
+                            .foregroundStyle(ink.label)
                             .lineLimit(1).minimumScaleFactor(0.6)
                     }
                     if let note = lastTransferNote {
                         Text(note)
                             .scaledFont(12, weight: .semibold, design: .rounded)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(ink.labelSub)
                             .lineLimit(1).minimumScaleFactor(0.6)
                     }
                 }
                 Spacer(minLength: 0)
             }
         }
-        .frame(minHeight: layout.scaled(OldMaidHandLayout.tableMinHeight))
         .accessibilityElement(children: .combine)
     }
 
@@ -307,27 +402,37 @@ public struct OldMaidView: View {
 
     // MARK: - 手札
 
-    private var handArea: some View {
+    /// 手札 `rows` 段ぶんの高さ（グリッドの上の余白 4pt を含む）。
+    private func handGridHeight(rows: Int, _ metrics: OldMaidLayoutA.Metrics) -> CGFloat {
+        4 + metrics.card.height * CGFloat(rows) + OldMaidHandLayout.rowSpacing * CGFloat(rows - 1)
+    }
+
+    private func handArea(_ metrics: OldMaidLayoutA.Metrics) -> some View {
         let lastDrawn = model.lastDrawnCardID
         return VStack(spacing: 6) {
-            HStack(spacing: 8) {
-                Text(tr("あなた（残り%lld枚）", model.playerHand.count))
-                    .themeBody(13)
-                    .foregroundStyle(Theme.ink)
-                Spacer()
-                Button {
-                    model.shuffleHand()
-                } label: {
-                    Label(tr("シャッフル"), systemImage: "shuffle")
-                        .scaledFont(12, weight: .bold, design: .rounded)
-                        .lineLimit(1).minimumScaleFactor(0.7)
-                        .padding(.horizontal, 10)
-                        .frame(minHeight: OldMaidHandLayout.minimumTapTarget)
+            CardTableInkReader { ink in
+                HStack(spacing: 8) {
+                    Text(tr("あなた（残り%lld枚）", model.playerHand.count))
+                        .themeBody(13, maxScale: Self.seatTextMaxScale)
+                        .foregroundStyle(ink.label)
+                    Spacer()
+                    Button {
+                        model.shuffleHand()
+                    } label: {
+                        Label(tr("シャッフル"), systemImage: "shuffle")
+                            .scaledFont(12, weight: .bold, design: .rounded)
+                            .lineLimit(1).minimumScaleFactor(0.7)
+                            .padding(.horizontal, 12).padding(.vertical, 6)
+                            // フェルトの上では青緑・珊瑚色の文字が沈むので、白い札に載せる。押せる範囲は 44pt のまま。
+                            .background(Capsule().fill(Theme.surface))
+                            .frame(minHeight: OldMaidHandLayout.minimumTapTarget)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.pop)
+                    .foregroundStyle(model.isJokerWatched ? Theme.coralText : Theme.tealText)
+                    .disabled(!model.canShuffle)
+                    .accessibilityHint(tr("手札の並びを混ぜます。ジョーカーの場所を覚えられなくなります"))
                 }
-                .buttonStyle(.pop)
-                .foregroundStyle(model.isJokerWatched ? Theme.coralText : Theme.tealText)
-                .disabled(!model.canShuffle)
-                .accessibilityHint(tr("手札の並びを混ぜます。ジョーカーの場所を覚えられなくなります"))
             }
             // 手札は最大 14 枚。7 列 × 2 段で収まるが、縦が足りない画面では枠の中でスクロールさせる。
             ScrollView(.vertical, showsIndicators: false) {
@@ -338,7 +443,7 @@ public struct OldMaidView: View {
                 ) {
                     ForEach(model.playerHand) { card in
                         let isLastDrawn = card.id == lastDrawn
-                        OldMaidCardFaceView(card: card, highlighted: isLastDrawn)
+                        OldMaidCardFaceView(card: card, highlighted: isLastDrawn, size: .table(metrics.card))
                             .frame(maxWidth: .infinity)
                             .transition(.scale.combined(with: .opacity))
                             .accessibilityElement(children: .ignore)
@@ -351,8 +456,14 @@ public struct OldMaidView: View {
                 // 引いた札が増える・ペアで消える・混ぜて並びが変わる変化を演出する（#195）。
                 .gameAnimation(.easeInOut(duration: 0.2), value: model.playerHand)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // 縦の短い画面（iPhone SE）では手札の枠が札 1 段ぶんより低く潰れ、数字だけ見えてマークが
+            // 切れていた（v1.1.14 の公開前 QA・#2685）。少なくとも 1 段は札が丸ごと見える高さを確保する。
+            // 上限は全段ぶん（それより下に余りを溜めず、余りは卓の上下へ回す）。
+            .frame(maxWidth: .infinity,
+                   minHeight: handGridHeight(rows: 1, metrics),
+                   maxHeight: handGridHeight(rows: OldMaidHandLayout.rows(model.playerHand.count), metrics))
             if model.isJokerWatched {
+                // フェルトの上でも目立つよう、珊瑚色の札に白い文字で出す。
                 HStack(spacing: 4) {
                     Image(systemName: "eye.fill")
                         .scaledFont(11, weight: .bold)
@@ -361,14 +472,13 @@ public struct OldMaidView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                 }
-                .foregroundStyle(Theme.coralText)
+                .foregroundStyle(Theme.onAccent)
+                .padding(.horizontal, 10).padding(.vertical, 3)
+                .background(Capsule().fill(Theme.Fill.coral))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityElement(children: .combine)
             }
         }
-        .padding(.horizontal, OldMaidHandLayout.horizontalPadding).padding(.vertical, 10)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .popCard(corner: Theme.cornerSmall)
     }
 
     // MARK: - 操作
@@ -386,7 +496,7 @@ public struct OldMaidView: View {
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
         case .result:
-            actionButton(tr("次のゲーム"), role: .primary) {
+            actionButton(tr("もう一回"), role: .primary) {
                 model.startGame()
                 runCPU()
             }
@@ -427,6 +537,10 @@ public struct OldMaidView: View {
                             .padding(.vertical, 3)
                             .background(Capsule().fill(place == 0 ? Theme.Fill.yellow
                                                        : (isLoser ? Theme.Fill.purple : Theme.fillMuted)))
+                        // 卓では席をアイコンで見分けているので、順位にも同じアイコンを添える（大富豪・いろリレーと同じ）。
+                        if player != OldMaidModel.humanIndex {
+                            OpponentSeatIcon(index: player, diameter: layout.scaled(24))
+                        }
                         Text(model.playerName(player))
                             .scaledFont(13, weight: .bold, design: .rounded)
                             .foregroundStyle(player == OldMaidModel.humanIndex ? Theme.coralText : Theme.ink)
@@ -448,6 +562,7 @@ public struct OldMaidView: View {
             RecordLabel(model.recordResult)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+        // 縦の余りをここで吸い、リザルトの下にフェルトの空白を残さない（大富豪 #193 と同じ）。
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, 14).padding(.vertical, 12)
         .popCard(corner: Theme.cornerSmall)
@@ -468,41 +583,127 @@ public struct OldMaidView: View {
     }
 }
 
+// MARK: - 全画面（A）の寸法
+
+/// レイアウトパターン A でのババ抜きの寸法（#2531。大富豪の `DaifugoLayoutA` と同じ考え方）。
+/// View を組まずに札の大きさ・SE での収まりをテストできるよう純関数にする（`OldMaidLayoutTests`）。
+///
+/// 手札・伏せ札は 7 列のまま、**札を列幅いっぱい（列幅 − 4pt）まで大きくする**（`PlayingCardMetrics.compact` の相似拡大）。
+/// 広い画面（iPad）では倍率に上限（`maxCardScale` × `elementScale`）を掛ける。
+enum OldMaidLayoutA {
+    /// 画面の左右の余白（全画面の枠の値）。
+    static let sideInset: CGFloat = FullScreenGameLayoutMetrics.sideInset
+    /// 中身の上下の余白（ヘッダーの余白 4 / バナーの帯の余白 8 に足す分）。
+    static let verticalInset: CGFloat = 2
+    /// 段のあいだの間隔（大富豪と同じ）。
+    static let spacing: CGFloat = 6
+    /// 列のあいだに残す隙間（札の幅 = 列幅 − これ）。
+    static let handGap: CGFloat = 4
+    /// 札の拡大率の上限（狭い画面の倍率。iPad ではさらに `elementScale` 倍）。
+    static let maxCardScale: CGFloat = 1.5
+    /// 席のアイコンを小さい段に切り替える画面の幅（大富豪・いろリレーと同じ）。
+    static let compactBreakpoint: CGFloat = 390
+
+    struct Metrics: Equatable {
+        /// 手札・伏せ札の札。
+        let card: PlayingCardMetrics
+        /// CPU の席のアイコンの直径。
+        let seatDiameter: CGFloat
+        /// CPU の席の裏向きの札。
+        let seatCardMetrics: PlayingCardMetrics
+        /// 引く相手の顔の直径（狭い画面は 44・それ以外は 52）。
+        let faceDiameter: CGFloat
+    }
+
+    /// 1 列の幅（＝タップ判定の幅）。
+    static func columnWidth(screenWidth: CGFloat) -> CGFloat {
+        max(0, screenWidth - sideInset * 2) / CGFloat(OldMaidHandLayout.columns)
+    }
+
+    /// 札の拡大率（`PlayingCardMetrics.compact` に掛ける）。
+    static func cardScale(screenWidth: CGFloat, elementScale: CGFloat = 1) -> CGFloat {
+        let fit = (columnWidth(screenWidth: screenWidth) - handGap) / PlayingCardMetrics.compact.width
+        return max(0, min(fit, maxCardScale * elementScale))
+    }
+
+    /// - Parameter contentHeight: 中身に使える高さ（全画面の枠のヘッダーの下からバナーの帯の上まで）。札は幅いっぱいまで
+    ///   大きくするが、伏せ札・手札を 1 段ずつに縮めても収まらない高さ（iPhone SE）では、収まる大きさまでに抑える。
+    static func metrics(screenWidth: CGFloat, contentHeight: CGFloat = .infinity, elementScale: CGFloat = 1) -> Metrics {
+        let compact = screenWidth < compactBreakpoint
+        let seatCardWidth = OpponentSeatStyle.cardWidth(compact: compact) * elementScale
+        let seatDiameter = OpponentSeatStyle.iconDiameter(compact: compact) * elementScale
+        let seatCard = PlayingCardMetrics.compact.scaled(by: seatCardWidth / PlayingCardMetrics.compact.width)
+        let face = (compact ? 44 : 52) * elementScale
+        // 札 2 段（伏せ札 1 段 + 手札 1 段）に回せる高さで抑える。下限は以前の札（42×60）の大きさ。
+        let fixed = fixedMinimumHeight(seatDiameter: seatDiameter, seatCardHeight: seatCard.height, faceDiameter: face)
+        let heightFit = (contentHeight - fixed) / 2 / PlayingCardMetrics.compact.height
+        let scale = min(cardScale(screenWidth: screenWidth, elementScale: elementScale), max(1, heightFit))
+        return Metrics(
+            card: PlayingCardMetrics.compact.scaled(by: scale),
+            seatDiameter: seatDiameter,
+            seatCardMetrics: seatCard,
+            faceDiameter: face
+        )
+    }
+
+    /// 伏せ札・手札がどちらも 2 段（`-oldMaidScenario crowded`）で、ミニガイドとジョーカーの注意が出ているときに、
+    /// 卓・手札を 1 段まで縮めて要る高さのうち、札 2 段ぶん以外の高さ（#2685 の「縮むのは 1 段ぶんまで」の下限）。
+    /// 席（アイコン + 束 + 枚数の札 18 + 吹き出し 20）+ 卓（顔 + 8 + 浮き 8 + 8 + ペアの行 14）+
+    /// 手札（見出し 44 + 6 + 4 + 6 + 注意 20）+ ミニガイド 22 + 操作欄 60 + 間隔（Spacer 2 つを含む 6 か所）+ 上下の余白。
+    static func fixedMinimumHeight(seatDiameter: CGFloat, seatCardHeight: CGFloat, faceDiameter: CGFloat) -> CGFloat {
+        let seat = seatDiameter + OpponentSeatStyle.spacing * 3 + seatCardHeight + 18 + 20
+        let table = faceDiameter + 8 + 8 + 8 + 14
+        let hand: CGFloat = 44 + 6 + 4 + 6 + 20
+        let rows: [CGFloat] = [seat, 0, table, 0, hand, 22, 60]
+        return rows.reduce(0, +) + spacing * CGFloat(rows.count - 1) + verticalInset * 2
+    }
+
+    /// 上の下限の高さ（札 2 段を含む）。`OldMaidLayoutTests` が SE の使える高さと突き合わせる。
+    static func estimatedMinimumHeight(screenWidth: CGFloat, contentHeight: CGFloat = .infinity) -> CGFloat {
+        let m = metrics(screenWidth: screenWidth, contentHeight: contentHeight)
+        let card = max(m.card.height, OldMaidHandLayout.minimumTapTarget)
+        return fixedMinimumHeight(seatDiameter: m.seatDiameter, seatCardHeight: m.seatCardMetrics.height,
+                                  faceDiameter: m.faceDiameter) + card + m.card.height
+    }
+}
+
 // MARK: - 手札グリッドの寸法
 
-/// 手札・伏せ札グリッドの寸法（大富豪 #195・いろリレーと同じ考え方）。見た目の札は 42pt のまま、
-/// タップ判定だけを列いっぱいに広げる。
+/// 手札・伏せ札グリッドの寸法（大富豪 #195・いろリレーと同じ考え方）。札は列幅 − 4pt（`OldMaidLayoutA`）、
+/// タップ判定は列いっぱい。
 enum OldMaidHandLayout {
     static let columns = 7
     static let columnSpacing: CGFloat = 0
     static let rowSpacing: CGFloat = 6
-    /// 手札カード（`popCard`）の内側の左右余白。
-    static let horizontalPadding: CGFloat = 12
     /// Apple HIG の最小タップ標的。
     static let minimumTapTarget: CGFloat = 44
-    /// CPU の番の卓の高さ（伏せ札 2 段ぶん）。番が替わるたびに卓の高さが跳ねないようにする。
-    static let tableMinHeight: CGFloat = 132
 
-    /// 画面幅 `screenWidth` のときの、伏せ札 1 枚あたりのタップ判定の幅。
+    /// 画面幅 `screenWidth` のときの、伏せ札 1 枚あたりのタップ判定の幅（= 列幅）。
     static func tapWidth(screenWidth: CGFloat) -> CGFloat {
-        let available = screenWidth - Theme.pad * 2 - horizontalPadding * 2
-        return (available - columnSpacing * CGFloat(columns - 1)) / CGFloat(columns)
+        OldMaidLayoutA.columnWidth(screenWidth: screenWidth)
+    }
+
+    /// `count` 枚を並べる段数（0 枚でも 1 段ぶんの高さは取る）。
+    static func rows(_ count: Int) -> Int {
+        max(1, (count + columns - 1) / columns)
     }
 }
+
 
 // MARK: - 札（トランプ共通基盤）
 
 /// 表向きの札。面・紙・ジョーカーの図案はトランプ共通基盤（`PlayingCardSurface` / `PlayingCardFace`・#397）。
 struct OldMaidCardFaceView: View {
     enum Size {
-        case small, mini
-        /// small = 大富豪の手札と同じ 42×60。mini はリザルトの行に添える大きさ。
+        /// small = 42×60（遊び方の図）。mini はリザルトの行に添える大きさ。table は卓の手札（画面幅から決めた寸法をそのまま使う・#2531）。
+        case small, mini, table(PlayingCardMetrics)
         var metrics: PlayingCardMetrics {
             switch self {
             case .small: return .compact
             case .mini:
                 return PlayingCardMetrics(width: 24, height: 34, cornerRadius: Theme.cornerSmall / 3,
                                           rankFont: 9, suitFont: 9, pipSpacing: 0, backMotifFont: 10)
+            case .table(let metrics): return metrics
             }
         }
     }
@@ -513,7 +714,11 @@ struct OldMaidCardFaceView: View {
     // 別ファイル（遊び方の図）からも memberwise init で作るので private にしない。
     @Environment(\.adaptiveLayout) var layout
 
-    private var metrics: PlayingCardMetrics { size.metrics.scaled(by: layout.elementScale) }
+    /// 卓の寸法（`.table`）は `OldMaidLayoutA` が倍率まで含めて決めているので、ここでは掛けない。
+    private var metrics: PlayingCardMetrics {
+        if case .table(let metrics) = size { return metrics }
+        return size.metrics.scaled(by: layout.elementScale)
+    }
 
     var body: some View {
         ZStack {
@@ -534,10 +739,19 @@ struct OldMaidCardFaceView: View {
 /// 伏せた札（相手の手札）。裏はトランプ共通基盤（`PlayingCardBack`）。
 struct OldMaidCardBackView: View {
     var selected: Bool
+    /// 卓の寸法（`OldMaidLayoutA` が画面幅から決める・#2531）。nil なら 42×60（遊び方の図）。
+    var tableMetrics: PlayingCardMetrics? = nil
     // 別ファイル（遊び方の図）からも memberwise init で作るので private にしない。
     @Environment(\.adaptiveLayout) var layout
 
-    private var metrics: PlayingCardMetrics { PlayingCardMetrics.compact.scaled(by: layout.elementScale) }
+    init(selected: Bool, metrics: PlayingCardMetrics? = nil) {
+        self.selected = selected
+        self.tableMetrics = metrics
+    }
+
+    private var metrics: PlayingCardMetrics {
+        tableMetrics ?? PlayingCardMetrics.compact.scaled(by: layout.elementScale)
+    }
 
     var body: some View {
         ZStack {
@@ -630,11 +844,14 @@ struct OldMaidFaceView: View {
 
 struct OldMaidNewGameSheet: View {
     @State private var level: Int
+    /// 対局中に開いたとき true（開始ボタンが「終了してスタート」になる）。決着後・開始待ちは通常の「スタート」。
+    let discardsProgress: Bool
     let onStart: (Int) -> Void
     let onCancel: () -> Void
 
-    init(aiLevel: Int, onStart: @escaping (Int) -> Void, onCancel: @escaping () -> Void) {
+    init(aiLevel: Int, discardsProgress: Bool = false, onStart: @escaping (Int) -> Void, onCancel: @escaping () -> Void) {
         _level = State(initialValue: aiLevel)
+        self.discardsProgress = discardsProgress
         self.onStart = onStart
         self.onCancel = onCancel
     }
@@ -642,6 +859,8 @@ struct OldMaidNewGameSheet: View {
     var body: some View {
         GameSetupSheet(
             kind: .versus,
+            discardsProgress: discardsProgress,
+            onboarding: OldMaidOnboarding.guide,
             onStart: { onStart(level) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("CPUの強さ")) {

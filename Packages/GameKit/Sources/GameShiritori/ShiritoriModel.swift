@@ -66,6 +66,11 @@ public final class ShiritoriModel: AITurnGuarded {
     public var hasProgressToLose: Bool { phase == .playing }
     public private(set) var isPlayerTurn = false
     public private(set) var timeRemaining: Double = ShiritoriTime.initial
+    /// この局で実際に使った秒数（プレイヤーの手番の経過 + お手つきの減点。一時停止中・CPU の手番・加算分は含めない）。
+    /// ノルマ到達の決着だけ、最速の記録（`GameScore.seconds`）に渡す（#2609）。
+    public private(set) var elapsedSeconds: Double = 0
+    /// ノルマ到達で決着した局の所要秒数（四捨五入）。到達以外の決着・対局中は nil。
+    public private(set) var quotaClearSeconds: Int?
     public private(set) var ending: ShiritoriEnding?
     public private(set) var quota: ShiritoriQuota = .standard
     /// 今の局のモード。**局の開始時に焼き込み**、途中で設定を読み直さない（#1502・1 局 = 1 RuleSet）。
@@ -118,6 +123,11 @@ public final class ShiritoriModel: AITurnGuarded {
         self.cpuCursorDelay = cpuCursorDelay
         self.cpuCursorStepDelay = cpuCursorStepDelay
         self.seed = seed
+        // 開始シートの初期選択は最後に選んだ条件（#2611）。記録が無ければ既定のまま。
+        if let last = services?.playLog?.lastStart(ShiritoriStartChoice.self, gameID: "shiritori") {
+            self.quota = last.quota
+            self.mode = last.mode
+        }
     }
 
     // MARK: - 公開状態
@@ -149,6 +159,7 @@ public final class ShiritoriModel: AITurnGuarded {
         commitTimeUpLoss()   // 保留中の負けは、始め直す前に記録する（前の局の記録を落とさない）
         if let quota { self.quota = quota }
         if let mode { self.mode = mode }
+        services?.playLog?.saveLastStart(ShiritoriStartChoice(quota: self.quota, mode: self.mode), gameID: gameID)
         let deal: ShiritoriDeal
         if var generator = makeGenerator() {
             deal = ShiritoriRules.deal(deck: deck, mode: self.mode, quota: self.quota, using: &generator)
@@ -165,6 +176,8 @@ public final class ShiritoriModel: AITurnGuarded {
         currentCard = deal.opener
         currentReading = deal.opener.primaryReading
         timeRemaining = ShiritoriTime.initial
+        elapsedSeconds = 0
+        quotaClearSeconds = nil
         ending = nil
         didPlayerWin = false
         recordResult = nil
@@ -208,6 +221,7 @@ public final class ShiritoriModel: AITurnGuarded {
     /// 時間を進める。**プレイヤーの手番のあいだだけ**減り、0 になったら時間切れで終わる。
     public func tick(_ seconds: Double) {
         guard phase == .playing, isPlayerTurn, !isPaused, seconds > 0 else { return }
+        elapsedSeconds += min(seconds, timeRemaining)
         timeRemaining = max(0, timeRemaining - seconds)
         if timeRemaining <= 0 { finish(.timeUp) }
     }
@@ -220,6 +234,7 @@ public final class ShiritoriModel: AITurnGuarded {
     private func miss() {
         lastEvent = .miss
         services?.feedback.notify(.warning)
+        elapsedSeconds += min(ShiritoriTime.missPenalty, timeRemaining)
         timeRemaining = max(0, timeRemaining - ShiritoriTime.missPenalty)
         if timeRemaining <= 0 { finish(.timeUp) }
     }
@@ -331,6 +346,7 @@ public final class ShiritoriModel: AITurnGuarded {
 
     private func finish(_ ending: ShiritoriEnding) {
         self.ending = ending
+        quotaClearSeconds = ending == .quotaReached ? max(1, Int(elapsedSeconds.rounded())) : nil
         phase = .result
         isPlayerTurn = false
         switch ending {
@@ -353,11 +369,12 @@ public final class ShiritoriModel: AITurnGuarded {
     }
 
     private func recordFinish() {
-        // 従来のモードの記録は variant nil のまま（保存先を変えない）。とことんは別枠で、順位表へは送らない。
-        let variant = mode.scoreVariant
+        // 「ふつう」のノルマの記録は variant nil のまま（保存先を変えない）。難易度違いととことんは別枠。順位表へ送るのはノルマだけ。
+        let variant = mode.scoreVariant(quota: quota)
         recordResult = services?.gameDidFinish(
             gameID: gameID, outcome: reviewOutcome,
-            score: GameScore(variant: variant?.key, variantLabel: variant?.label, isLeaderboardEligible: variant == nil)
+            score: GameScore(seconds: quotaClearSeconds, variant: variant?.key, variantLabel: variant?.label,
+                             isLeaderboardEligible: mode == .quota)
         )
     }
 
@@ -421,6 +438,8 @@ public final class ShiritoriModel: AITurnGuarded {
         self.quota = quota
         self.mode = mode
         timeRemaining = ShiritoriTime.initial
+        elapsedSeconds = 0
+        quotaClearSeconds = nil
         ending = nil
         didPlayerWin = false
         lastEvent = nil
@@ -448,3 +467,9 @@ extension ShiritoriModel {
     }
 }
 #endif
+
+/// 最後に選んだ開始条件（#2611）。中断データとは別に残り、終局しても消えない。
+struct ShiritoriStartChoice: Codable {
+    var quota: ShiritoriQuota
+    var mode: ShiritoriMode
+}

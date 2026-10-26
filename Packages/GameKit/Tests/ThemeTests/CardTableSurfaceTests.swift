@@ -139,13 +139,23 @@ struct CardTableSurfaceTests {
 
     // MARK: - 受け入れ条件: 4 本が同じ卓に乗っている
 
+    /// レイアウトパターン A（全画面・#2531）に載せ替えたもの。共通の卓のフェルトを全画面の枠から受け取る。
+    static let fullScreenModules: Set<String> = ["GameMahjongSolitaire", "GameFreeCell", "GameSolitaire", "GameSpider"]
+
     @Test("4 本が共通の卓（cardTable）を使い、ゲームごとの卓を作っていない", arguments: [
         "GameSolitaire", "GameSpider", "GameFreeCell", "GameMahjongSolitaire",
     ])
     func everyGameSitsOnTheSharedTable(module: String) throws {
         let source = SourceScan.strippingComments(try SourceScan.moduleSources(module))
-        #expect(SourceScan.matchCount(of: "\\.cardTable\\(", in: source) == 1,
-                "\(module) が卓を 1 か所で付けていない（0 = 卓が無い / 2 以上 = 二重）")
+        if Self.fullScreenModules.contains(module) {
+            // レイアウトパターン A（#2531）: フェルトは全画面の枠が画面全体に敷く。盤に卓を重ねると二重になる。
+            #expect(source.contains("fullScreen: .felt"), "\(module) が全画面の枠（フェルト）を通っていない")
+            #expect(SourceScan.matchCount(of: "\\.cardTable\\(", in: source) == 0,
+                    "\(module) が全画面のフェルトの上に卓を二重に敷いている")
+        } else {
+            #expect(SourceScan.matchCount(of: "\\.cardTable\\(", in: source) == 1,
+                    "\(module) が卓を 1 か所で付けていない（0 = 卓が無い / 2 以上 = 二重）")
+        }
         #expect(!source.contains("CardTableSurface("), "\(module) が卓の面を直接組み立てている")
         #expect(!source.contains("EllipticalGradient"), "\(module) にフェルトの描画が直書きされている")
     }
@@ -167,7 +177,8 @@ struct CardTableSurfaceTests {
     /// `@Environment(\.cardTableInk)` を持っても既定の `.plain` しか届かず、フェルトの上に地の色が
     /// 乗る（verifier が最小構成で再現。フリーセルの仕切りと麻雀ソリティアのクリア文字で実際に起きた）。
     @Test("卓の上の色は画面の View 本体で読まず、盤の中の子 View（CardTableInkReader）で読む", arguments: [
-        "GameSolitaire", "GameSpider", "GameFreeCell", "GameMahjongSolitaire",
+        "GameSolitaire", "GameSpider", "GameFreeCell", "GameMahjongSolitaire", "GameOldMaid", "GameHearts", "GamePoker",
+        "GameConcentration",
     ])
     func tableInkIsReadInsideTheTable(module: String) throws {
         let source = SourceScan.strippingComments(try SourceScan.moduleSources(module))
@@ -175,7 +186,7 @@ struct CardTableSurfaceTests {
                 "\(module) が画面の View 本体で cardTableInk を読んでいる（盤に付けた卓の値は届かない）")
         // 卓の上に色の要る部品を持つゲームは、器を通して読む。麻雀ソリティアのクリア表示は共通の
         // `GameClearCard`（素材の上に Theme.ink で描く）になり、卓の色を読まなくなった（#1755）。
-        if module == "GameFreeCell" {
+        if ["GameFreeCell", "GameOldMaid", "GameHearts", "GamePoker"].contains(module) {
             #expect(source.contains("CardTableInkReader {"), "\(module) が CardTableInkReader を使っていない")
         }
     }
@@ -187,7 +198,12 @@ struct CardTableSurfaceTests {
     ])
     func cardGamesShareTheTableTopInset(path: String) throws {
         let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/\(path)"))
-        #expect(SourceScan.matchCount(of: "\\.cardTable\\(topInset: CardTableStyle\\.cardTopInset\\)", in: source) == 1,
+        let module = String(path.prefix(while: { $0 != "/" }))
+        // レイアウトパターン A（#2531）では卓を付けず、盤の上に同じ値の余白を取る。
+        let pattern = Self.fullScreenModules.contains(module)
+            ? "\\.padding\\(\\.top, CardTableStyle\\.cardTopInset\\)"
+            : "\\.cardTable\\(topInset: CardTableStyle\\.cardTopInset\\)"
+        #expect(SourceScan.matchCount(of: pattern, in: source) == 1,
                 "\(path) が卓の中の共通の上の余白を使っていない")
         #expect(CardTableStyle.cardTopInset > 0)
     }

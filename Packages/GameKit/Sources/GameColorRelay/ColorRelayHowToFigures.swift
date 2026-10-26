@@ -22,7 +22,7 @@ enum ColorRelayHowToFigures {
     }
 
     /// 場の赤の 5 に、同じ色（赤の 8）と同じ数字（緑の 5）は出せる。色も数字も違う札は出せない。
-    private struct MatchFigure: View {
+    struct MatchFigure: View {
         var body: some View {
             HStack(alignment: .top, spacing: 14) {
                 VStack(spacing: 4) {
@@ -47,7 +47,7 @@ enum ColorRelayHowToFigures {
     }
 
     /// 山から 1 枚引く。
-    private struct DrawFigure: View {
+    struct DrawFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 16) { index in
                 VStack(spacing: 4) {
@@ -66,7 +66,7 @@ enum ColorRelayHowToFigures {
     }
 
     /// とばし（次の人の番を飛ばす）とぎゃく（向きが逆）。
-    private struct SkipReverseFigure: View {
+    struct SkipReverseFigure: View {
         var body: some View {
             HStack(alignment: .top, spacing: 22) {
                 VStack(spacing: 4) {
@@ -82,7 +82,7 @@ enum ColorRelayHowToFigures {
     }
 
     /// +2 を出されると、次の人は 2 枚引く。
-    private struct DrawTwoFigure: View {
+    struct DrawTwoFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 16) { index in
                 VStack(spacing: 4) {
@@ -106,7 +106,7 @@ enum ColorRelayHowToFigures {
     }
 
     /// いろがえ・いろがえ+4。どの札の上にも出せて、次の色を選べる。
-    private struct WildFigure: View {
+    struct WildFigure: View {
         var body: some View {
             HStack(alignment: .top, spacing: 18) {
                 VStack(spacing: 4) {
@@ -131,7 +131,7 @@ enum ColorRelayHowToFigures {
     }
 
     /// 手札がなくなったら勝ち。
-    private struct WinFigure: View {
+    struct WinFigure: View {
         var body: some View {
             VStack(spacing: 4) {
                 RuleMiniSlot()

@@ -310,4 +310,18 @@ struct OldMaidPersistenceTests {
         model.startGame()
         #expect(spy.starts(of: OldMaidModel.gameID) == 2, "2 ゲーム目は gameDidRestart で数える")
     }
+
+    @Test("記録は「ふつう」だけ区分なし、ほかの強さは強さ別の区分に分かれる（#2716）")
+    func recordVariantPerStrength() {
+        let model = makeModel()
+        model.startGame()
+        #expect(model.recordScore.variant == nil)
+        for strength in CPUStrength.allCases where strength != .standard {
+            model.startGame(aiLevel: strength.rawValue)
+            #expect(model.recordScore.variant == strength.recordVariantKey)
+            #expect(model.recordScore.variantLabel == RecordVariantLabels.label(
+                recordKey: "oldmaid#\(strength.recordVariantKey)", language: .japanese))
+            #expect(model.recordScore.variantLabel != nil)
+        }
+    }
 }

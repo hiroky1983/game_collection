@@ -20,7 +20,6 @@ import GameRunner
 import GameHanafuda
 import GameShiritori
 import GameFifteen
-import GameRoulette
 import GameFruits
 import GameColorRelay
 import GameAnzan
@@ -103,7 +102,7 @@ func makeHubModules() -> [GameModule] {
         SolitaireModule(), ChessModule(), BlocksModule(), FreeCellModule(),
         RunnerModule(), HanafudaModule(), SpiderModule(), ShiritoriModule(), FifteenModule(),
         HomerunModule(), OjisanPuzzleModule(),
-        RouletteModule(), FruitsModule(), ColorRelayModule(), AnzanModule(), BackgammonModule(), SpeedModule(),
+        FruitsModule(), ColorRelayModule(), AnzanModule(), BackgammonModule(), SpeedModule(),
         MancalaModule(),
         AkariKeshiModule(),
         TsunagiModule(),
@@ -316,7 +315,6 @@ struct GameCenterLeaderboardTests {
             // エンドレス（#675）は区分キー "endless"（`RunnerMode.endless.recordVariant`）で走行距離の表へ。
             ("runner", GameScore(metric: .points, points: 1, variant: "endless")),
             ("hanafuda", GameScore(metric: .points, points: 1)),
-            ("roulette", GameScore(metric: .points, points: 1)),
             ("fruits", GameScore(metric: .points, points: 1)),
             // 柵越えおじさん（homerun）は常設の表を持たない（週間ランキングだけ・会長指示 2026-10-12）ので含めない。
         ]

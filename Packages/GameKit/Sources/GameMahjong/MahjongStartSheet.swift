@@ -17,7 +17,7 @@ struct MahjongStartSheet: View {
     @State private var showsDetails = false
 
     var body: some View {
-        GameSetupSheet(kind: .versus, onStart: onStart, onCancel: onCancel) {
+        GameSetupSheet(kind: .versus, onboarding: MahjongOnboarding.guide(length: length), onStart: onStart, onCancel: onCancel) {
             GameSetupSection(tr("対局の長さ")) {
                 HStack(spacing: 12) {
                     ForEach(MahjongGameLength.allCases) { option in

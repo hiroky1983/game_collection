@@ -293,6 +293,65 @@ struct OthelloPassDeadlockTests {
         #expect(model.gameOver == false)
     }
 
+    /// パスは石が動かない操作なので、押した 1 回の触覚だけが手応えになる（#2540）。
+    @Test func confirmPassGivesLightImpactOnce() throws {
+        let store = MemorySnapshotStore()
+        try store.save(
+            othelloSnapshot(cells: othelloCells(othelloWhiteMustPassDiagram),
+                            currentStone: .white, humanSide: .white, mustPass: true),
+            for: "othello")
+        let spy = SpyFeedbackService()
+        let model = OthelloModel(
+            services: GameServices(snapshots: store, ads: NoopAdService(), feedback: spy),
+            flipSettleDelay: .zero)
+        spy.reset()
+
+        model.confirmPass()
+        #expect(spy.impacts == [.light])
+
+        model.confirmPass() // 押せない状態では鳴らさない
+        #expect(spy.impacts == [.light])
+    }
+
+    /// パスが成立するたびに `passEventID` が 1 つ増える（#2797。View の「パス」の札の契機）。
+    @Test func confirmPassBumpsPassEventID() throws {
+        let store = MemorySnapshotStore()
+        try store.save(
+            othelloSnapshot(cells: othelloCells(othelloWhiteMustPassDiagram),
+                            currentStone: .white, humanSide: .white, mustPass: true),
+            for: "othello")
+        let model = OthelloModel(services: makeServices(store), flipSettleDelay: .zero)
+        #expect(model.passEventID == 0)
+
+        model.confirmPass()
+        #expect(model.passEventID == 1)
+
+        model.confirmPass() // 押せない状態では増やさない
+        #expect(model.passEventID == 1)
+    }
+
+    /// 新規対局・投了は出ている札を畳む契機を進める。`passEventID` は 0 へ戻さない（#2797）。
+    @Test func newGameAndResignDismissPassBanner() throws {
+        let model = OthelloModel(services: makeServices(MemorySnapshotStore()), flipSettleDelay: .zero)
+        let before = model.passBannerDismissID
+        model.resign()
+        #expect(model.passBannerDismissID == before + 1)
+        model.newGame()
+        #expect(model.passBannerDismissID == before + 2)
+        #expect(model.passEventID == 0)
+    }
+
+    /// 結果カードは「盤を見る」で閉じられ、新しい対局で開け直す（#2797。将棋・チェス・囲碁・五目並べと同じ形）。
+    /// パスの手段は人間側の自動確定 1 箇所で、ブロッキングのアラートは残さない。
+    @Test func viewWiresResultCardCloseAndNonBlockingPass() throws {
+        let source = try Self.viewSource()
+        #expect(SourceScan.matchCount(of: #"resultCardClosed = true"#, in: source) == 1)
+        #expect(SourceScan.matchCount(of: #"if !over \{ resultCardClosed = false \}"#, in: source) == 1,
+                "新しい対局で結果カードを開け直していない")
+        #expect(SourceScan.matchCount(of: #"model\.gameOver && !resultCardClosed"#, in: source) >= 1)
+        #expect(SourceScan.matchCount(of: #"\.alert\("#, in: source) == 0, "パスがブロッキングのアラートに戻っている")
+    }
+
     /// View が復元直後にも案内を出すよう結線されていること。
     /// モデル側が正しくても、2 引数版 `onChange` は `initial: true` が無いと初期値で発火せず、
     /// パスの手段（案内の「OK」）に到達できないまま詰む。
@@ -478,6 +537,31 @@ struct OthelloEmptyCellBonusTests {
         #expect(model.blackScore == 64)         // 空き 60 が勝者に乗る
         #expect(model.whiteScore == 0)
         #expect(model.blackScore + model.whiteScore == 64)
+    }
+
+    /// 結果カードの数え上げ（#2813）: 0 マス目は実石数、最後は確定スコアに一致し、途中は 1 マスずつ増える。
+    @Test func scoreCountsUpOneCellAtATime() throws {
+        let model = try restored(othelloWipeoutPendingDiagram)
+        model.tap(row: 2, col: 5)
+
+        try #require(model.gameOver)
+        #expect(model.bonusCellCount == 60)
+        #expect(model.score(revealingBonus: 0) == (4, 0))
+        #expect(model.score(revealingBonus: 1) == (5, 0))
+        #expect(model.score(revealingBonus: 60) == (model.blackScore, model.whiteScore))
+        #expect(model.score(revealingBonus: 999) == (model.blackScore, model.whiteScore))
+        #expect(model.score(revealingBonus: -3) == (4, 0))
+    }
+
+    /// 加算が無い終局（引き分け・満盤・投了）では数え上げるものが無い（#2813）。
+    @Test func noBonusCellsWhenNothingToAdd() throws {
+        let draw = try restored(othelloDrawPendingDiagram)
+        draw.tap(row: 0, col: 2)
+        #expect(draw.bonusCellCount == 0)
+
+        let full = try restored(othelloLastCellDiagram)
+        full.tap(row: 0, col: 0)
+        #expect(full.bonusCellCount == 0)
     }
 
     /// 勝敗は加算前の石数で決まる（加算は表示だけ）。

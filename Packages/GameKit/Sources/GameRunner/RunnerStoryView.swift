@@ -125,6 +125,10 @@ struct RunnerStoryView: View {
             .foregroundStyle(.white)
             .padding(.horizontal, 24)
             .padding(.vertical, 12)
+            // 文字サイズが小さい側でも押せる高さを 44pt に保つ（#2528）。枠の中に入れるので
+            // 背景のカプセルもこの高さになり、当たり判定とも一致する。
+            .frame(minHeight: GameButtonMetrics.minTapTarget)
+            .contentShape(Rectangle())
             .background(Capsule().fill(Color.white.opacity(0.18)))
     }
 

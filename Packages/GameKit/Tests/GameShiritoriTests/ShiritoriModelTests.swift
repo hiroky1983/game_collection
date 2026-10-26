@@ -7,8 +7,8 @@ import CoreTestSupport
 // MARK: - 支援
 
 @MainActor
-private func makeModel(seed: UInt64? = 42) -> (ShiritoriModel, GameServices) {
-    let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService())
+private func makeModel(seed: UInt64? = 42, playLog: PlayLog? = nil) -> (ShiritoriModel, GameServices) {
+    let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), playLog: playLog)
     return (ShiritoriModel(services: services, cpuDelay: .zero, seed: seed), services)
 }
 
@@ -241,6 +241,45 @@ struct ShiritoriModelTests {
         #expect(model.timeRemaining > 0, "時間は残っている")
         #expect(model.phase == .result)
         #expect(model.reviewOutcome == .win)
+    }
+
+    private func freshPlayLog(_ tag: String) throws -> PlayLog {
+        let name = "asobiba.shiritori.seconds.tests.\(tag)"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defaults.removePersistentDomain(forName: name)
+        return PlayLog(defaults: defaults)
+    }
+
+    @Test("ノルマ到達の決着だけ所要秒数を最速の記録に渡す。お手つきの減点は含め、一時停止と CPU の手番は含めない（#2609）")
+    func quotaClearRecordsElapsedSeconds() async throws {
+        let (model, _) = makeModel(playLog: try freshPlayLog("clear"))
+        model.configureForTesting(opener: apple, board: Self.quotaChain, quota: .easy)
+        model.tick(10)
+        model.pause()
+        model.tick(30)                       // 一時停止中は数えない
+        model.select(0)                      // 再開 + 1 枚目
+        model.tick(5)                        // 取った直後は CPU の手番なので数えない
+        #expect(model.elapsedSeconds == 10)
+        await model.runCPUTurnIfNeeded()
+        model.tick(3)
+        for slot in [2, 4, 6] where model.phase == .playing {
+            model.select(slot)
+            await model.runCPUTurnIfNeeded()
+        }
+        #expect(model.ending == .quotaReached)
+        #expect(model.quotaClearSeconds == 13)
+        #expect(model.recordResult?.record.bestSeconds == 13)
+        #expect(model.recordResult?.update.seconds == true)
+    }
+
+    @Test("時間切れ・負けでは所要秒数を記録に渡さない（#2609）")
+    func nonClearEndingsDoNotRecordSeconds() throws {
+        let (model, _) = makeModel(playLog: try freshPlayLog("timeup"))
+        model.configureForTesting(opener: apple, board: [gorilla], quota: .easy)
+        model.tick(100)
+        #expect(model.ending == .timeUp)
+        #expect(model.quotaClearSeconds == nil)
+        #expect(model.recordResult?.record.bestSeconds == nil)
     }
 
     @Test("同じ 4 枚でも、ふつう（6 枚）ではまだ届かない。決着は CPU の詰みまで持ち越す")
@@ -862,7 +901,7 @@ struct ShiritoriTimeExtensionTests {
         model.tick(ShiritoriTime.initial)
 
         func ends() -> [AnalyticsResult] {
-            spy.events.compactMap { if case let .gameEnd(_, result, _, _, _, _, _, _) = $0 { return result } else { return nil } }
+            spy.events.compactMap { if case let .gameEnd(_, result, _, _, _, _, _, _, _) = $0 { return result } else { return nil } }
         }
         func starts() -> Int { spy.events.filter { if case .gameStart = $0 { return true } else { return false } }.count }
         #expect(ends() == [.loss] && starts() == 1)

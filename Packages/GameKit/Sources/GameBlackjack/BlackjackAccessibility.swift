@@ -32,6 +32,16 @@ public enum BlackjackAccessibility {
         return value > 21 ? tr("%@、バスト", base) : base
     }
 
+    /// ディーラーが 1 枚引いたときの読み上げ文（#2595）。引いている最中（`.dealerTurn`）だけ読む。
+    ///
+    /// 「結果まで進める」は引き切ると同時に `.result` へ移るので、途中の 1 枚ごとには読まず、
+    /// 最終の合計を 1 回だけ読む（決着の幕の読み上げとは言葉が違うので二重にならない）。
+    /// 配った直後の自然な決着（0 → 2 枚）は引きではないので読まない。
+    public static func dealerDrawAnnouncement(oldCount: Int, newCount: Int, value: Int) -> String? {
+        guard oldCount >= 2, newCount > oldCount else { return nil }
+        return totalLabel(owner: tr("ディーラー"), value: value)
+    }
+
     /// 勝敗が決まったときの読み上げ文（#1574）。画面の勝敗バッジと同じ言葉で読ませる。
     ///
     /// - Parameter isSplit: スプリットしたラウンドか。手ごとに勝敗が割れうるので、

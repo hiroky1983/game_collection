@@ -9,6 +9,17 @@ public struct DaifugoModule: GameModule {
 
     public init() {}
 
+    /// 人間が一度も動いていない局（CPU が親で先に出しただけ）は「続き」ではない（#2774）。
+    public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(DaifugoSnapshot.self, for: id) else { return false }
+        return DaifugoSnapshot.humanHasActed(lastActions: snap.lastActions)
+    }
+
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(DaifugoSnapshot.self, for: id) else { return false }
+        return !DaifugoSnapshot.humanHasActed(lastActions: snap.lastActions)
+    }
+
     public func makeView(services: GameServices) -> AnyView {
         AnyView(DaifugoView(services: services))
     }

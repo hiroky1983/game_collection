@@ -321,7 +321,8 @@ struct RewardGuardCallSiteTests {
         let guards = sources.reduce(0) { $0 + Self.occurrences(of: "guardedBy: .", in: $1.text) }
         // 盤ゲーム 5 本の「待った」は Core の `BoardUndoButton` 1 か所に寄せた（#828）ので、ここには数えない。
         // 2048・ブロックならべ・ナンプレの広告コンティニューの幕も Core の `RewardedContinueOverlay` に寄せた（#829）。
-        #expect(requests == 25, "救済の入口は25面（`requestHandledByModel` の3面と、Core に寄せた待った・コンティニューの幕を除く。いろリレーの引き札免除 #1320・ぱっと暗算の見直し #1321・スピードのタイム #1323・柵越えおじさんの挑戦回数 #1348・しりとりの時間延長 #1717・麻雀ソリティアとナンプレの戻す #1855・2048 の戻す #2023・マインスイーパーのヒント #2024・15パズルのヒント #1975・おじさんの荷物運びパズルの続ける救済 #2013 を含む）")
+        // おじさんちのねこさがしのミス 3 回目のコンティニューは、幕を結果カード 1 枚にまとめたので直接呼ぶ（#2904）。
+        #expect(requests == 27, "救済の入口は27面（おじさんちのねこさがしのヒント #2250・コンティニュー #2904・`requestHandledByModel` の3面と、Core に寄せた待った・コンティニューの幕を除く。いろリレーの引き札免除 #1320・ぱっと暗算の見直し #1321・スピードのタイム #1323・柵越えおじさんの挑戦回数 #1348・しりとりの時間延長 #1717・麻雀ソリティアとナンプレの戻す #1855・2048 の戻す #2023・マインスイーパーのヒント #2024・15パズルのヒント #1975・おじさんの荷物運びパズルの続ける救済 #2013 を含む）")
         #expect(requests == guards,
                 "`RewardedRescue.request` の呼び出しと `guardedBy` の数が合わない（\(requests) 対 \(guards)）")
     }
@@ -367,6 +368,7 @@ struct RewardGuardCallSiteTests {
             .sorted()
         #expect(callers == [
             "Game2048/Game2048View.swift",
+            // ねこさがし（#2780）のミス 3 回目の幕は、結果カード 1 枚にまとめたので外れた（#2904）。
             // くっつきフルーツ（#1319・企画倉庫）のゲームオーバーの幕も同じ部品。
             "GameFruits/FruitsView.swift",
             "GameSudoku/SudokuView.swift",
@@ -442,7 +444,7 @@ struct RewardGuardCallSiteTests {
         let withOutcome = sources.reduce(0) {
             $0 + Self.occurrences(of: "requestHandledByModel(withOutcome:", in: $1.text)
         }
-        #expect(withOutcome == 8, "広告をモデルで抱えている7面（ブラックジャック・ポーカー・麻雀・ルーレット #1318・フリーセル・スパイダー・ソリティアのヒント #2025）。麻雀は復活と最終局延長（#1201）の2か所")
+        #expect(withOutcome == 7, "広告をモデルで抱えている6面（ブラックジャック・ポーカー・麻雀・フリーセル・スパイダー・ソリティアのヒント #2025）。麻雀は復活と最終局延長（#1201）の2か所")
         #expect(all == withOutcome,
                 "`Bool` 版の `requestHandledByModel` が残っている（全 \(all) 件のうち withOutcome は \(withOutcome) 件）")
     }
@@ -469,7 +471,6 @@ struct RewardGuardCallSiteTests {
             "GameMahjong/MahjongModel.swift",
             "GameOthello/OthelloModel.swift",
             "GamePoker/PokerModel.swift",
-            "GameRoulette/RouletteModel.swift",
             "GameShogi/ShogiGameModel.swift",
         ], "共通 API を迂回した広告の呼び出しがある: \(callers)")
     }

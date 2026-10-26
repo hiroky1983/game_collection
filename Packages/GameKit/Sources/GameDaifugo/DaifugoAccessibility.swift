@@ -56,4 +56,32 @@ public enum DaifugoAccessibility {
         guard let ownerName else { return cardsText }
         return tr("%1$@。%2$@が出しました", cardsText, ownerName)
     }
+
+    /// 交換の帯の文（#2607）。受け取った札・渡した札の順で 1 行ずつ。画面は記号（♠A）、読み上げはスートの読み（スペードのエース）。
+    public static func exchangeLines(_ notice: DaifugoExchangeNotice, partnerName: String, spoken: Bool) -> [String] {
+        func cards(_ list: [DaifugoCard]) -> String {
+            spoken
+                ? list.map(cardName).joined(separator: tr("、"))
+                : list.map { ($0.suit?.symbol ?? "") + $0.rankLabel }.joined(separator: " ")
+        }
+        var lines: [String] = []
+        if !notice.received.isEmpty { lines.append(tr("%1$@から %2$@ を受け取りました", partnerName, cards(notice.received))) }
+        if !notice.gave.isEmpty { lines.append(tr("%1$@へ %2$@ を渡しました", partnerName, cards(notice.gave))) }
+        return lines
+    }
+
+    /// しばり中の札の読み上げ文（#2605）。記号のままだと読みが安定しないのでスートの読みで伝える。
+    public static func bindLabel(_ suits: Set<DaifugoSuit>) -> String {
+        let names = suits.sorted { $0.rawValue < $1.rawValue }.compactMap { suitName($0) }
+        return tr("しばり中、%@のカードだけ出せます", names.joined(separator: tr("、")))
+    }
+
+    /// CPU の席 1 つの読み上げ文。手番かどうかは画面ではアイコンの色でしか示さないので、文字にして足す（#2495）。
+    /// 名前・残り枚数・直前の動き（空なら省く）を 1 まとまりに読ませる。
+    public static func seatLabel(name: String, remaining: Int, action: String, isTurn: Bool) -> String {
+        var parts = [name, tr("残り%lld枚", remaining)]
+        if !action.isEmpty { parts.append(action) }
+        if isTurn { parts.append(tr("%@の番", name)) }
+        return parts.joined(separator: tr("、"))
+    }
 }

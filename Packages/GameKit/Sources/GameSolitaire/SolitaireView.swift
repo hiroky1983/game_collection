@@ -49,15 +49,26 @@ public struct SolitaireView: View {
         _model = State(initialValue: SolitaireModel(services: services))
     }
 
+    /// クリアが続いたら一段上のめくり方（3 枚めくり）を勧める（#2599）。始め直しは開始シートの「配る」と同じ経路。
+    private var ladder: DifficultyLadderPrompt? {
+        let modes = SolitaireDrawMode.allCases
+        return DifficultyLadderPrompt(result: model.recordResult, currentLevel: modes.firstIndex(of: model.rules.drawMode),
+                                      levelLabels: modes.map(\.label)) { level in
+            model.newGame(rules: SolitaireRuleSet(drawMode: modes[level]))
+        }
+    }
+
     public var body: some View {
-        // 左右の余白は部品ごとに付ける。卓だけは `boardSideInset`（4pt）まで詰めて札の幅に回し、
-        // 帯・ボタン・バナーは従来どおり `Theme.pad`（16pt）。フリーセル・スパイダーと同じ。
+        // 左右の余白は部品ごとに付ける。盤だけは `boardSideInset`（4pt）まで詰めて札の幅に回し、
+        // 帯・ボタンは全画面の枠の左右の余白（8pt）。フリーセルと同じ。
         VStack(spacing: 8) {
             statusBar
-                .padding(.horizontal, Theme.pad)
-            // 盤は卓の上に置く（#1501）。札の大きさは卓の内側の幅から決まる。
+                .padding(.horizontal, FullScreenGameLayoutMetrics.sideInset)
+            // レイアウトパターン A（全画面・#2531）: 卓のフェルトは全画面の枠が画面全体に敷くので、盤に `.cardTable()`
+            // （木枠付きの卓）は付けない。札の大きさは盤の幅から決まるので、木枠の分だけ大きくなる。
+            // 札が帯に張り付いて見えないよう、卓の中の上の余白（`cardTopInset`・ソリティア系で共通）は残す。
             SolitaireBoardView(model: model, services: services)
-                .cardTable(topInset: CardTableStyle.cardTopInset)
+                .padding(.top, CardTableStyle.cardTopInset)
                 // クリアは盤に重ねる共通のカードで示す（#1755）。
                 .gameClearCard(isPresented: model.phase == .won,
                                details: [tr("%1$lld手 / タイム %2$@", model.moveCount, RecordFormat.time(model.elapsedSeconds))])
@@ -69,22 +80,25 @@ public struct SolitaireView: View {
                 isWatchingUndoAd: undoRescue.isWatching,
                 onUndo: requestUndo,
                 isWatchingHintAd: hintRescue.isWatching,
-                onHint: requestHint
+                onHint: requestHint,
+                ladder: ladder
             )
-            .padding(.horizontal, Theme.pad)
+            .padding(.horizontal, FullScreenGameLayoutMetrics.sideInset)
             HowToPlayHint(.solitaire, playLog: services.playLog)
-                .padding(.horizontal, Theme.pad)
-            // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
+                .padding(.horizontal, FullScreenGameLayoutMetrics.sideInset)
+            // 余りの高さは「⋯」の行とバナーの帯のあいだに置く（盤→「⋯」→余白→広告・#1485）。
             Spacer(minLength: 0)
-            BannerSlot(ads: services.ads)
-                .padding(.horizontal, Theme.pad)
         }
-        .padding(.vertical, Theme.pad)
-        .gameChrome(title: tr("ソリティア"), review: services.review,
+        // 上下はヘッダーの余白 4 とバナーの帯の余白 8 に足す分。
+        .padding(.vertical, 4)
+        // レイアウトパターン A（全画面・会長決裁 2026-10-19・#2429 → #2531）: フェルトを画面全体に敷き、ヘッダーは 1 行
+        // （戻る・ソリティア・？・＋）、バナーは画面最下部。手数と時計はモックの A 案どおりヘッダーの下に
+        // 低い 1 行の札で残す。
+        .gameChrome(title: tr("ソリティア"), review: services.review, fullScreen: .felt, ads: services.ads,
                     newGame: GameChromeNewGame(.solo) {
                         openSetup()
                     })
-        .howToPlay(HowToPlayGuide.solitaire.illustrated(SolitaireHowToFigures.items)) { SolitaireRuleSheet() }
+        .howToPlay(HowToPlayGuide.solitaire.illustrated(SolitaireHowToFigures.items).onboarding(SolitaireOnboarding.guide)) { SolitaireRuleSheet() }
         // めくり方を選んでから配る（#498）。局に焼き込むのは「配る」を押した瞬間だけ。
         .sheet(isPresented: $showSetup) {
             SolitaireSetupSheet(draft: $draft, discardsProgress: model.canUndo) {
@@ -154,6 +168,17 @@ public struct SolitaireView: View {
                 )
             }
         }
+        // 「自動で上がる」は 1 手ずつ順に送る（#2706）。画面を離れて止められたら残りを一気に片付けて、
+        // 「入力が止まったまま」の盤を残さない。
+        .task(id: model.autoFinishRun) {
+            let run = model.autoFinishRun
+            while let wait = model.advanceAutoFinish(for: run) {
+                do { try await Task.sleep(for: wait) } catch {
+                    model.finishAutoFinishNow(for: run)
+                    return
+                }
+            }
+        }
         .task {
             model.resumeTimerIfNeeded()
             #if DEBUG
@@ -208,8 +233,10 @@ public struct SolitaireView: View {
 
     // MARK: - ステータスバー
 
+    /// 全画面（A・#2531）ではモックどおり 44pt の帯より低い 1 行の札にする（`GameStatusBarStyle.compactMinHeight`）。
     private var statusBar: some View {
-        GameStatusBar {
+        GameStatusBar(verticalPadding: GameStatusBarStyle.compactVerticalPadding,
+                      minHeight: GameStatusBarStyle.compactMinHeight) {
             HStack(spacing: 8) {
                 Group {
                     if model.phase == .won {
@@ -321,7 +348,7 @@ struct SolitaireRuleSheet: View {
         (tr("空いた列"), tr("札が無くなった列に置けるのは K だけです。K を引くまで空けておくか、思い切って埋めるかがクロンダイクの読みどころです")),
         (tr("山札"), tr("左上の山札はタップでめくれます。最後までめくったらもう一度タップすると、捨て札が山札に戻ります（何周でもできます）")),
         (tr("めくり方を選ぶ"), tr("「新規ゲーム」を押すと、山札を1枚ずつめくるか3枚ずつめくるかを選べます。3枚めくりでは使えるのがいちばん上の1枚だけになるぶん歯ごたえがあり、自己ベストは1枚めくりとは別に記録されます（Game Center の順位表に載るのは1枚めくりだけです）。選んだめくり方はその配札のあいだ変わりません")),
-        (tr("操作"), tr("動かしたい札をタップして選び、置きたい列か組札をタップします。もう一度同じ札をタップすると選択を外せます")),
+        (tr("操作"), tr("動かしたい札をタップして選び、置きたい列か組札をタップします。ドラッグでも動かせます。もう一度同じ札をタップすると選択を外せます。同じ札をすばやく2回タップすると組札へ送れます。あとは積むだけになったら、右下の「⋯」の「自動で上がる」で残りをまとめて組札へ送れます")),
         (tr("戻す"), tr("「戻す」は1局につき%1$lld回まで無料です。残り回数はボタンに出ています。使い切ったあとは、広告を見ると%2$lld回ぶん補充できます", SolitaireUndoBudget.free, SolitaireUndoBudget.refill)),
         (tr("ジョーカー"), tr("1局につき1枚持っています。場札の列の上に置くと、その上にはどんな札でも1枚だけ重ねられます（空の列と、すでにジョーカーがある列には置けません）。上の札が全部はけると自動で消えて、下の札がまた使えるようになります")),
         (tr("ジョーカーの補充"), tr("使い切ったあと、手詰まりになったときや、指せる手はあってもクリアできなくなったときに、広告を見て1枚受け取れます。「戻す」でジョーカーを置いた手を巻き戻せば、手持ちに戻ります。ジョーカーを使ってクリアした記録は、自己ベストには残りますが Game Center の順位表には送りません")),

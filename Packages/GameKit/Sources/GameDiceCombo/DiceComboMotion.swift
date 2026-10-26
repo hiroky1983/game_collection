@@ -2,7 +2,7 @@ import SwiftUI
 
 /// サイコロが転がる演出の長さと形（#2365）。**状態を持たない定数と純関数だけ**を置き、View から切り出す。
 ///
-/// ルーレット（`RouletteMotion`）と同じ方針で、長さは秒の定数として持ち、Model へは `Duration` で渡す。
+/// 長さは秒の定数として持ち、Model へは `Duration` で渡す。
 /// 出目は振った瞬間に Model が確定させていて、ここが決めるのは「止まるまでに何を見せるか」だけ。
 enum DiceComboMotion {
 

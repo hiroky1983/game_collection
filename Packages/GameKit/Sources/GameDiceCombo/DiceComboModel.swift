@@ -10,6 +10,10 @@ import Observation
 public final class DiceComboModel {
     public static let gameID = "dicecombo"
 
+    /// 大きな役として祝う点（#2804）。ファイブダイス（50）・ビッグストレート（30）・スモールストレート（25）。
+    /// 通常の役（フルハウスの合計・チョイスなど）では超えにくい線に置く。
+    public static let bigScoreThreshold = 25
+
     /// いまの出目。このターンでまだ振っていなければ空。
     public private(set) var dice: [Int] = []
     /// 各サイコロをキープしているか（`dice` と同じ並び）。
@@ -39,7 +43,7 @@ public final class DiceComboModel {
 
     /// services を渡すと、中断スナップショットがあれば復元、無ければ新規開始する。
     /// `seed` を渡すと出目を種から決める（テスト用。省略時はシステム乱数）。
-    /// `rollInterval` はサイコロが転がる演出の長さ（ルーレットの `spinInterval` と同じ作法・#2365）。
+    /// `rollInterval` はサイコロが転がる演出の長さ（#2365）。
     public init(services: GameServices? = nil, seed: UInt64? = nil, rollInterval: Duration = .zero) {
         self.services = services
         self.rollInterval = rollInterval
@@ -85,6 +89,13 @@ public final class DiceComboModel {
     public var upperSubtotal: Int { DiceComboLogic.upperSubtotal(scores) }
     public var bonus: Int { DiceComboLogic.bonus(scores) }
     public var total: Int { DiceComboLogic.total(scores) }
+
+    /// ヘッダーに常時出す「ベスト」（#2808・2048 の #2615 と同じ形）。保存済みの自己ベストと今の合計の大きい方。
+    /// 記録は決着時にしか書かれないので、今の合計が超えた瞬間にここで追従させる。0 のときは nil（出さない）。
+    var liveBestScore: Int? {
+        let best = max(services?.playLog?.record(gameID: Self.gameID)?.bestPoints ?? 0, total)
+        return best > 0 ? best : nil
+    }
 
     /// 「新しいゲーム」で失われる進行があるか（#1011）。1 回も振っていない局と決着した局は捨てて構わない。
     public var hasProgressToLose: Bool { !isFinished && (rollsUsed > 0 || !scores.isEmpty) }
@@ -150,15 +161,17 @@ public final class DiceComboModel {
             services?.feedback.notify(.warning)
             return
         }
-        scores[category] = DiceComboLogic.score(category, dice: dice)
+        let points = DiceComboLogic.score(category, dice: dice)
+        scores[category] = points
         lastFilled = category
+        if points >= Self.bigScoreThreshold { services?.feedback.notify(.milestone) }
         dice = []
         held = []
         rollsUsed = 0
         if DiceComboLogic.isComplete(scores) {
             finish()
         } else {
-            services?.feedback.impact(.light)
+            if points < Self.bigScoreThreshold { services?.feedback.impact(.light) }
             persist()
         }
     }

@@ -21,7 +21,7 @@ public enum MinesweeperState: Equatable, Sendable {
 /// | 初級 | 9×9 / 10 | 12.3% | 9×9 / 10 | 12.3%（完全一致）|
 /// | 中級 | 16×16 / 40 | 15.6% | 16×16 / 40 | 15.6%（本家が正方形なので完全一致）|
 /// | 上級 | 20×20 / 82 | 20.5% | 30×16 / 99 | 20.6% |
-public enum MinesweeperDifficulty: String, CaseIterable, Sendable {
+public enum MinesweeperDifficulty: String, CaseIterable, Codable, Sendable {
     case beginner, intermediate, advanced
 
     /// 画面に出す名前（表示言語に従う）。記録の区分名には `recordLabel` を使う。
@@ -417,6 +417,8 @@ public final class MinesweeperModel {
     /// 旗が誤っていれば地雷を踏んで負ける（本家と同じ挙動。安全化しない）。
     /// 旗数が一致しないときは `canChord` が false になるので盤面は一切変わらない。
     private func chord(row: Int, col: Int) {
+        // 周囲に地雷が無い開いたマスは、まとめて開く対象そのものではない。触れても黙って無視する（#2719）。
+        guard cells[row][col].adjacentMines > 0 else { return }
         guard canChord(row: row, col: col) else {
             services?.feedback.notify(.warning) // 旗数が合っていない・開く先が無い
             return

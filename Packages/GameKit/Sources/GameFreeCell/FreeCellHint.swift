@@ -16,6 +16,42 @@ public enum FreeCellHintResult: Equatable, Sendable {
     case hopeless
 }
 
+/// 答えと、それを導いた勝ち筋（見つかったときだけ。見込みで示した手・勝てない盤では空）。
+/// 筋を持ち回る理由はソリティア・スパイダーと同じ（毎回解き直すと待たされ、別の筋に乗り換えて往復もしうる）。
+public struct FreeCellHintAnswer: Sendable, Equatable {
+    public let result: FreeCellHintResult
+    /// 探索が返した勝ち筋そのまま（安全な組札送りを含む）。
+    public let plan: [FreeCellMove]
+}
+
+/// 示した筋の続き（#2602）。示した手を指した後の盤に着いたら、解き直さず同じ筋の次の手を示す。
+public struct FreeCellHintTrail: Sendable, Equatable {
+    let moves: [FreeCellMove]
+    let board: FreeCellBoard
+
+    /// `answer` の手を `board` で指した後の盤と、その続き。筋が無い（見込みの手・勝てない盤）か手が合わなければ nil。
+    /// 示した手は筋の途中（安全な組札送りの後ろ）にあることがあるので、その 1 手だけを筋から抜く。
+    /// 抜いた残りが次の盤から最後まで指せない筋は、続きとして信用せず捨てる。
+    public static func after(_ answer: FreeCellHintAnswer, from board: FreeCellBoard) -> FreeCellHintTrail? {
+        guard case .move(let move) = answer.result, !answer.plan.isEmpty,
+              let step = FreeCellHint.firstStep(of: answer.plan, from: board), step.move == move else { return nil }
+        var next = board
+        guard next.apply(move) else { return nil }
+        var rest = answer.plan
+        rest.remove(at: step.index)
+        var check = next
+        for m in rest where !check.apply(m) { return nil }
+        return rest.isEmpty ? nil : FreeCellHintTrail(moves: rest, board: next)
+    }
+
+    /// 今の盤が筋の続きの盤なら、その次の手。
+    public func answer(at current: FreeCellBoard) -> FreeCellHintAnswer? {
+        guard current == board, let step = FreeCellHint.firstStep(of: moves, from: current),
+              current.isLegal(step.move) else { return nil }
+        return FreeCellHintAnswer(result: .move(step.move), plan: moves)
+    }
+}
+
 /// 「次の一手」を求める純関数（#2025）。画面にも Model にも触れないので、`Task.detached` から安全に呼べる。
 public enum FreeCellHint {
 
@@ -27,14 +63,27 @@ public enum FreeCellHint {
         maxStates: Int = FreeCellSolver.defaultMaxStates,
         isCancelled: () -> Bool = { false }
     ) -> FreeCellHintResult? {
+        findPlan(in: board, maxStates: maxStates, isCancelled: isCancelled)?.result
+    }
+
+    /// `find` と同じだが、勝ち筋も一緒に返す（Model が続きの手に使う）。
+    public static func findPlan(
+        in board: FreeCellBoard,
+        maxStates: Int = FreeCellSolver.defaultMaxStates,
+        isCancelled: () -> Bool = { false }
+    ) -> FreeCellHintAnswer? {
         let result = FreeCellSolver.solve(board, maxStates: maxStates, isCancelled: isCancelled)
         if let solution = result.solution {
-            return firstMove(of: solution, from: board).map { .move($0) } ?? .hopeless
+            guard let move = firstMove(of: solution, from: board) else {
+                return FreeCellHintAnswer(result: .hopeless, plan: [])
+            }
+            return FreeCellHintAnswer(result: .move(move), plan: solution)
         }
         if isCancelled() { return nil }
         // 尽くして勝ち筋が無いなら不能。上限で打ち切ったのなら「不明」なので良さそうな手を示す。
-        if !result.hitLimit { return .hopeless }
-        return promisingMove(in: board).map { .move($0) } ?? .hopeless
+        if !result.hitLimit { return FreeCellHintAnswer(result: .hopeless, plan: []) }
+        guard let move = promisingMove(in: board) else { return FreeCellHintAnswer(result: .hopeless, plan: []) }
+        return FreeCellHintAnswer(result: .move(move), plan: [])
     }
 
     /// 勝ち筋のうち、プレイヤーに示す最初の 1 手。
@@ -44,16 +93,21 @@ public enum FreeCellHint {
     /// ただし飛ばした送りの後でないと本筋の手が成立しない（送る札の上に積む手など）ことがあるので、
     /// 今の盤で同じ札を動かせない手のときは、飛ばした最初の送りを示す。本筋が尽きたら（残りは送るだけ）その送りを示す。
     static func firstMove(of solution: [FreeCellMove], from board: FreeCellBoard) -> FreeCellMove? {
+        firstStep(of: solution, from: board)?.move
+    }
+
+    /// `firstMove` と同じ手に、それが `solution` の何番目かを添えて返す（筋からその 1 手だけを抜くのに使う）。
+    static func firstStep(of solution: [FreeCellMove], from board: FreeCellBoard) -> (move: FreeCellMove, index: Int)? {
         var working = board
-        var firstSkipped: FreeCellMove?
-        for move in solution {
+        var firstSkipped: (move: FreeCellMove, index: Int)?
+        for (index, move) in solution.enumerated() {
             if let card = foundationCard(of: move, in: working), FreeCellSolver.isSafe(card, working) {
-                if firstSkipped == nil, board.isLegal(move) { firstSkipped = move }
+                if firstSkipped == nil, board.isLegal(move) { firstSkipped = (move, index) }
                 guard working.apply(move) else { return nil }
                 continue
             }
             if board.isLegal(move), movedCards(move, in: board) == movedCards(move, in: working) {
-                return move
+                return (move, index)
             }
             return firstSkipped
         }

@@ -13,13 +13,15 @@ public struct GomokuModule: GameModule {
         AnyView(GomokuView(services: services))
     }
 
-    /// 一手も打っていない盤は「続き」ではない（#1572）。手順を持たない旧形式は盤上の石の数で見る。
+    /// 人間が一手も打っていない盤は「続き」ではない（#1572）。手順を持たない旧形式は盤上の石の数で見る。
+    /// 人間が白のときは CPU の初手（黒）が先に入るので、それだけでは数えない（#2508）。
     public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
         guard let snap = snapshots.load(GomokuSnapshot.self, for: id) else { return false }
-        return !(snap.moveHistory ?? []).isEmpty || snap.cells.contains { $0 != nil }
+        let total = snap.moveHistory?.count ?? snap.cells.filter { $0 != nil }.count
+        return CPUOpening.humanHasMoved(totalMoves: total, cpuMovesFirst: snap.humanSide == GomokuStone.white.rawValue)
     }
 
-    /// 一手も打っていない盤（#2161）。
+    /// 人間が一手も打っていない盤（#2161）。
     public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
         snapshots.exists(for: id) && !hasResumableSnapshot(in: snapshots)
     }

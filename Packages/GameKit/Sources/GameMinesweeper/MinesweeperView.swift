@@ -5,7 +5,11 @@ public struct MinesweeperView: View {
     @State private var model: MinesweeperModel
     private let services: GameServices
     @State private var showNewGame = true
-    @State private var zoomMode = false
+    /// 拡大モードの ON/OFF。ゲームごとに覚え、新規ゲーム・階段・もう一回・再起動の後も保つ（#2616）。
+    @AppStorage("minesweeperZoomMode") private var zoomPreference = false
+    /// 盤を拡大して表示するか。コンティニューの提案は盤だけに重ねるパネルなので、出ている間は等倍にする（#1486）。
+    /// 覚えている設定は書き換えない（提案を閉じれば拡大に戻る）。
+    private var zoomMode: Bool { zoomPreference && !showContinue }
     @State private var showContinue = false
     @State private var showConfirmNewGame = false
     @State private var showGiveUpConfirm = false
@@ -38,6 +42,11 @@ public struct MinesweeperView: View {
                 .overlay {
                     if showContinue { continueOverlay }
                 }
+                // 勝ちは盤に重ねる共通のクリアカードで示す（#2801。ナンプレ・麻雀ソリティアと同じ）。
+                // ヒントは 0 回でも省かず出す（#2613）。負けの演出・コンティニューの幕は今のまま。
+                .gameClearCard(isPresented: model.gameState == .won,
+                               details: [tr("%1$@ / ヒント %2$lld回 / タイム %3$@", model.recordVariantLabel, model.hints.used,
+                                            RecordFormat.time(model.elapsedSeconds))])
             controlArea
             HowToPlayHint(.minesweeper, playLog: services.playLog)
             // 余りの高さは「⋯」の行と広告のあいだに置く（盤→「⋯」→余白→広告・#1485）。
@@ -47,19 +56,13 @@ public struct MinesweeperView: View {
         .gameAnimation(.none, value: model.gameOver)
         .padding(Theme.pad)
         .gameChrome(title: tr("マインスイーパー"), review: services.review,
-                    newGame: GameChromeNewGame(.solo) {
-                        if model.gameState == .playing {
-                            showConfirmNewGame = true
-                        } else {
-                            showNewGame = true
-                        }
-                    })
-        .howToPlay(HowToPlayGuide.minesweeper.illustrated(MinesweeperHowToFigures.items))
+                    condition: GameChromeCondition([model.recordVariantLabel]),
+                    newGame: GameChromeNewGame(.solo) { requestNewGame() })
+        .howToPlay(HowToPlayGuide.minesweeper.illustrated(MinesweeperHowToFigures.items).onboarding(MinesweeperOnboarding.guide))
         .sheet(isPresented: $showNewGame) {
-            MinesweeperNewGameSheet { rows, cols, mines in
+            MinesweeperNewGameSheet(playLog: services.playLog) { rows, cols, mines in
                 // 旗モードは `newGame` がオフに戻す（#761）。
                 model.newGame(rows: rows, cols: cols, mines: mines)
-                zoomMode = false
                 showContinue = false
                 showNewGame = false
             } onCancel: {
@@ -149,10 +152,17 @@ public struct MinesweeperView: View {
         .onChange(of: model.gameState) { _, state in
             // 使用済みの局では提案を出さず、そのまま終局後の表示にする（1局1回・#657）。
             if state == .lost && model.canContinue {
-                // 盤だけに重ねるパネルなので、拡大表示中は先に等倍へ戻す（#1486）。
-                zoomMode = false
                 showContinue = true
             }
+        }
+    }
+
+    /// 新規対局の入口（ヘッダーの「新規」と条件のチップが共通で呼ぶ・#1690）。
+    private func requestNewGame() {
+        if model.gameState == .playing {
+            showConfirmNewGame = true
+        } else {
+            showNewGame = true
         }
     }
 
@@ -163,14 +173,14 @@ public struct MinesweeperView: View {
         GameOverflowBar(menuItems: [
             // 旗はマスのタップ結果を左右するので、状態はチェックとラベル（オン/オフ）の両方で伝える（#761）。
             GameControlMenuItem(
-                id: "flag", title: tr("旗モード"), systemImage: "flag.fill", isChecked: model.flagMode,
+                id: "flag", title: tr("旗モード"), systemImage: "flag.badge.ellipsis", isChecked: model.flagMode,
                 accessibilityLabel: MinesweeperAccessibility.flagToggleLabel(isOn: model.flagMode)
             ) { model.toggleFlagMode() },
             GameControlMenuItem(
                 id: "zoom", title: tr("拡大"), systemImage: "plus.magnifyingglass", isChecked: zoomMode,
                 accessibilityLabel: MinesweeperAccessibility.zoomToggleLabel(isZoomed: zoomMode),
                 accessibilityHint: MinesweeperAccessibility.zoomToggleHint(isZoomed: zoomMode)
-            ) { zoomMode.toggle() },
+            ) { zoomPreference.toggle() },
             // 局が始まる前は諦める相手がいないので押せない表示にする（#2423）。
             GameControlMenuItem(id: "giveUp", title: tr("諦める"), systemImage: "flag.fill", isDestructive: true,
                                 isEnabled: model.gameState == .playing) {
@@ -316,7 +326,6 @@ public struct MinesweeperView: View {
                                       levelLabels: levels.map(\.label)) { level in
             let next = levels[level]
             model.newGame(rows: next.rows, cols: next.cols, mines: next.mines)
-            zoomMode = false
             showContinue = false
         }
     }
@@ -331,7 +340,6 @@ public struct MinesweeperView: View {
             onReplay: {
                 // 同じ難易度（盤の大きさと地雷数）で始め直す。後始末は新規ゲームシートと同じ。
                 model.newGame(rows: model.rows, cols: model.cols, mines: model.totalMines)
-                zoomMode = false
                 showContinue = false
             },
             onChangeSettings: { showNewGame = true }
@@ -477,7 +485,8 @@ public struct MinesweeperView: View {
         )
         .contentShape(Rectangle())
         .onTapGesture {
-            if model.flagMode {
+            // 開いているマスは旗を置けないので、旗モード中でも数字タップのまとめて開くに回す（#2719）。
+            if model.flagMode && !cell.isRevealed {
                 model.toggleFlag(row: row, col: col)
             } else {
                 model.tap(row: row, col: col)
@@ -501,7 +510,8 @@ public struct MinesweeperView: View {
         ))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction {
-            if model.flagMode {
+            // 開いているマスは旗を置けないので、旗モード中でも数字タップのまとめて開くに回す（#2719）。
+            if model.flagMode && !cell.isRevealed {
                 model.toggleFlag(row: row, col: col)
             } else {
                 model.tap(row: row, col: col)
@@ -619,12 +629,26 @@ struct MinesweeperNewGameSheet: View {
     let onCancel: () -> Void
     /// 盤の寸法・地雷数・表示名は `MinesweeperDifficulty` が唯一の出どころ（#444）。
     /// ここに数値を直書きすると記録区分のラベルと二重管理になる。
-    @State private var level: MinesweeperDifficulty = .beginner
+    @State private var level: MinesweeperDifficulty
+
+    /// 開始条件の記憶（#2611）。初期選択は前回選んだ難易度、記録が無ければ初級。
+    private let playLog: PlayLog?
+
+    init(playLog: PlayLog?, onStart: @escaping (Int, Int, Int) -> Void, onCancel: @escaping () -> Void) {
+        self.playLog = playLog
+        self.onStart = onStart
+        self.onCancel = onCancel
+        _level = State(initialValue: playLog?.lastStart(MinesweeperDifficulty.self, gameID: "minesweeper") ?? .beginner)
+    }
 
     var body: some View {
         GameSetupSheet(
             kind: .solo,
-            onStart: { onStart(level.rows, level.cols, level.mines) }, onCancel: onCancel
+            onboarding: MinesweeperOnboarding.guide,
+            onStart: {
+                playLog?.saveLastStart(level, gameID: "minesweeper")
+                onStart(level.rows, level.cols, level.mines)
+            }, onCancel: onCancel
         ) {
             GameSetupSection(tr("難易度")) {
                 HStack(spacing: 6) {

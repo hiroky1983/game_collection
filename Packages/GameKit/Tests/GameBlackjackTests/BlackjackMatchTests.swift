@@ -108,6 +108,7 @@ struct BlackjackMatchTests {
         #expect(record?.plays == 1, "10 回で 1 回の決着")
         #expect(record?.metric == .points)
         #expect(record?.bestPoints == model.points)
+        #expect(record?.highestValue == model.bestStreak, "その勝負の最高連勝が歴代の自己ベスト候補として残る（#2591）")
         #expect(model.recordResult != nil)
         #expect(model.matchOutcome != nil)
         #expect(!store.exists(for: "blackjack"), "締めた勝負の中断データは残さない")
@@ -134,6 +135,7 @@ struct BlackjackMatchTests {
         #expect(model.matchOver)
         #expect(model.points == 7)
         #expect(model.matchOutcome == .win, "勝った手 7・負けた手 3 で勝ち越し")
+        #expect(model.handsWon == 7, "結果カードの「勝ち N回」に出す回数")
         #expect(log.record(gameID: "blackjack", variant: BlackjackModel.recordVariant)?.bestPoints == 7)
     }
 
@@ -235,7 +237,8 @@ struct BlackjackMatchTests {
         playWholeMatch(model)
         #expect(log.records(gameID: "blackjack").count == 1)
         #expect(log.record(gameID: "blackjack", variant: BlackjackModel.recordVariant)?.bestPoints == model.points)
-        #expect(log.summaryLine(gameID: "blackjack") == "ベスト \(model.points)", "ハブの 1 行は勝ち点の記録から出る")
+        let streak = model.bestStreak >= 1 ? "・最高\(model.bestStreak)連勝" : ""
+        #expect(log.summaryLine(gameID: "blackjack") == "ベスト \(model.points)\(streak)", "ハブの 1 行は勝ち点の記録から出る")
     }
 
     // MARK: - Game Center

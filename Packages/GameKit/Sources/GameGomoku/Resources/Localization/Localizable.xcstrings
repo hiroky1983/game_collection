@@ -12,6 +12,17 @@
         }
       }
     },
+    "決め手 %1$lld行%2$lld列" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Winning move: row %1$lld, column %2$lld"
+          }
+        }
+      }
+    },
     "%@は打てません（禁じ手）" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -310,13 +321,13 @@
         }
       }
     },
-    "思考中…" : {
+    "CPU思考中…" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Thinking…"
+            "value" : "CPU thinking…"
           }
         }
       }
@@ -614,6 +625,303 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "When on, the first tap previews a stone and tapping the same point again places it"
+          }
+        }
+      }
+    },
+    "禁じ手あり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renju rules"
+          }
+        }
+      }
+    },
+    "五目並べのはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gomoku: first steps"
+          }
+        }
+      }
+    },
+    "五目並べのはじめての遊び方（禁じ手あり）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gomoku: first steps (with forbidden moves)"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "黒と白が交互に石を置いて、先に自分の石を 5 つ並べるゲームです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black and white take turns placing stones. Be first to line up five of yours."
+          }
+        }
+      }
+    },
+    "たて・よこ・ななめ、どの向きでもかまいません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Across, down or diagonally — any direction counts."
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What to do on your turn"
+          }
+        }
+      }
+    },
+    "空いている交点をタップして、石を置きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap an empty point to place a stone."
+          }
+        }
+      }
+    },
+    "はじめの設定は 2 回タップ。1 回目は仮の石、同じ交点をもう一度タップで置きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "By default it takes two taps: the first shows a trial stone, tapping the same point again places it."
+          }
+        }
+      }
+    },
+    "黒が先手、白が後手です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black goes first, white second."
+          }
+        }
+      }
+    },
+    "相手の列を止める" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Block your opponent's line"
+          }
+        }
+      }
+    },
+    "相手が 4 つ並べたら、次の一手で 5 つになってしまいます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If your opponent lines up four, the next move makes five."
+          }
+        }
+      }
+    },
+    "あいている端に石を置いて、止めましょう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Place a stone on the open end to stop it."
+          }
+        }
+      }
+    },
+    "黒の禁じ手" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Forbidden moves for Black"
+          }
+        }
+      }
+    },
+    "禁じ手ありのときは、黒だけ打てない場所があります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "With forbidden moves on, there are points only Black can't play."
+          }
+        }
+      }
+    },
+    "三三・四四・長連（6 つ以上）になる場所です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These are points that make double-three, double-four, or an overline (six or more)."
+          }
+        }
+      }
+    },
+    "白には禁じ手がありません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "White has no forbidden moves."
+          }
+        }
+      }
+    },
+    "勝ち負けの決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to win or lose"
+          }
+        }
+      }
+    },
+    "先に 5 つ並べた方の勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whoever lines up five first wins."
+          }
+        }
+      }
+    },
+    "黒はちょうど 5 つで勝ち（6 つ以上は禁じ手）。白は 6 つ以上でも勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black wins with exactly five (six or more is forbidden). White wins even with six or more."
+          }
+        }
+      }
+    },
+    "盤が全部埋まったら引き分けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the board fills up, it is a draw."
+          }
+        }
+      }
+    },
+    "先に 5 つ並べた方の勝ちです。6 つ以上並んでも勝ちです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whoever lines up five first wins. Six or more also wins."
+          }
+        }
+      }
+    },
+    "5 つ並んだ！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Five in a row!"
+          }
+        }
+      }
+    },
+    "ここで止めていれば" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you had blocked here"
+          }
+        }
+      }
+    },
+    "負けにつながった局面に盤を戻し、止められた交点を示します" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows the position that led to the loss and the points that could have stopped it"
+          }
+        }
+      }
+    },
+    "ここで止めるなら %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "To stop it here: %@"
+          }
+        }
+      }
+    },
+    "結果に戻る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back to result"
           }
         }
       }

@@ -46,10 +46,19 @@ enum PokerMotion {
     /// 役名（`showdownTotalDuration` だけ遅れて出る）と同じだけ遅らせ、公開 → 役名と点の順を守る。
     static let pointsSettle: Animation = pointsChange.delay(showdownTotalDuration)
 
+    /// CPU が替えた札の枠が現れる動き（#2594）。5 枚が返り終わってから薄く出す（役名と同じ時刻）。
+    static let exchangedMarkAppear: Animation = .easeIn(duration: pointsChangeDuration).delay(showdownTotalDuration)
+
     /// 役名が出る瞬間（5 枚が返り終わった瞬間）。Model が役名の手応えを返す時刻に使う（#667）。
     static var showdownRevealDelay: Duration {
         .milliseconds(Int((showdownTotalDuration * 1000).rounded()))
     }
+
+    /// 結果に入ってから「次の勝負へ」を押せるようになるまでの長さ（秒・#2701）。
+    ///
+    /// 5 枚のめくり → 役名・交換した札の印の出現（`pointsChangeDuration`）が終わるまで。
+    /// 連打で役と勝敗を見ないまま次へ進まないようにする。
+    static var nextButtonLockDuration: TimeInterval { showdownTotalDuration + pointsChangeDuration }
 
     /// CPU の手札 `index` 枚目（0 始まり）の反転。左から順に段差をつける。
     static func showdownFlip(index: Int) -> Animation {

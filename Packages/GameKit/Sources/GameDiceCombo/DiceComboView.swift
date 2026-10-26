@@ -16,7 +16,7 @@ public struct DiceComboView: View {
     }
 
     public var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
             header
             scoreSheet
                 .layoutPriority(1)
@@ -47,7 +47,7 @@ public struct DiceComboView: View {
                             withGameAnimation { model.newGame() }
                         }
                     })
-        .howToPlay(HowToPlayGuide.diceCombo.illustrated(DiceComboHowToFigures.items))
+        .howToPlay(HowToPlayGuide.diceCombo.illustrated(DiceComboHowToFigures.items).onboarding(DiceComboOnboarding.guide))
         .dialogs { anchor in
             anchor.confirmationDialog(tr("新規ゲームを始めますか？"), isPresented: $showConfirmReset, titleVisibility: .visible) {
                 Button(tr("終了して新規ゲーム"), role: .destructive) { withGameAnimation { model.newGame() } }
@@ -82,12 +82,16 @@ public struct DiceComboView: View {
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(tr("%1$lldターン目、全%2$lldターン", model.turn, DiceComboCategory.allCases.count))
             Spacer()
+            if let best = model.liveBestScore {
+                HeaderBestStat(title: tr("ベスト"), value: RecordFormat.number(best))
+            }
             VStack(alignment: .trailing, spacing: 2) {
                 Text(tr("合計"))
                     .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.inkSub)
                 Text(verbatim: "\(model.total)")
                     .scaledFont(30, weight: .heavy, design: .rounded, maxScale: 1.2).monospacedDigit()
+                    .lineLimit(1).minimumScaleFactor(0.6)
                     .foregroundStyle(Theme.ink)
                     .contentTransition(.numericText())
             }
@@ -103,15 +107,15 @@ public struct DiceComboView: View {
     /// 左に上段（1〜6 の目・小計・ボーナス）、右に下段（6 役）。
     private var scoreSheet: some View {
         HStack(alignment: .top, spacing: 8) {
-            VStack(spacing: 4) {
+            VStack(spacing: 2) {
                 ForEach(DiceComboCategory.upper, id: \.self) { row($0) }
                 bonusRow
             }
-            VStack(spacing: 4) {
+            VStack(spacing: 2) {
                 ForEach(Self.lower, id: \.self) { row($0) }
             }
         }
-        .padding(8)
+        .padding(6)
         .popCard(corner: Theme.cornerSmall)
     }
 
@@ -266,9 +270,12 @@ public struct DiceComboView: View {
                     .scaledFont(28, weight: .heavy, design: .rounded, maxScale: 1.2)
                     .foregroundStyle(.white)
                 RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
-                Button(tr("もう一度")) { withGameAnimation { model.newGame() } }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Theme.Fill.coral)
+                Button { withGameAnimation { model.newGame() } } label: {
+                    Text(tr("もう一回")).foregroundStyle(Theme.onAccent)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(Theme.Fill.coral)
             }
             .padding()
         }
@@ -277,7 +284,8 @@ public struct DiceComboView: View {
 
 /// 得点表の 1 行。記入済みは濃く、入れられる役はいまの出目での点を差し色で出す。
 struct DiceComboScoreRow: View {
-    static let height: CGFloat = 40
+    /// 役を選ぶと取り消せないので、当たり判定は 44pt 以上（HIG）。
+    static let height: CGFloat = 44
 
     let name: String
     let rule: String
@@ -307,6 +315,13 @@ struct DiceComboScoreRow: View {
                 .fill(background)
         )
         .contentShape(Rectangle())
+        .scaleEffect(isCelebrated ? 1.08 : 1)
+        .gameAnimation(.spring(response: 0.3, dampingFraction: 0.45), value: isCelebrated)
+    }
+
+    /// 大きな役を入れた直後（#2804）。この行だけ一回り大きくして強調する。
+    private var isCelebrated: Bool {
+        isJustFilled && (scored ?? 0) >= DiceComboModel.bigScoreThreshold
     }
 
     @ViewBuilder
@@ -327,6 +342,7 @@ struct DiceComboScoreRow: View {
     }
 
     private var background: Color {
+        if isCelebrated { return Theme.yellow.opacity(0.7) }
         if isJustFilled { return Theme.yellow.opacity(0.35) }
         if scored != nil { return Theme.inkSub.opacity(0.12) }
         if let preview, preview > 0 { return Theme.coral.opacity(0.12) }

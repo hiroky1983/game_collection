@@ -27,6 +27,9 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     public var white: ChessPlayerKind
     public var black: ChessPlayerKind
     public var aiLevel: Int
+    /// 定跡の選び方を 1 局ごとに変える種（#2800）。新規対局ごとに引き直す。保存はしない
+    /// （続きから再開した対局は、その時点から別の定跡筋を選んでよい。手は常に定跡の合法手）。
+    private var bookSeed = UInt64.random(in: .min ... .max)
     public private(set) var undoUsed: Bool
     public private(set) var resigned: Bool
     /// この局のヒントの残り（#1118）。回数と順位表の扱いは Core の `BoardHintBudget` が持つ（将棋と共通）。
@@ -74,9 +77,12 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // 添字（`moves[ply - 1]`）が範囲外にならないようにする（#520）。
         self.reviewPly = min(max(snap?.reviewPly ?? moveList.count, 0), moveList.count)
         // 既定は CPU 対戦（人間=白 / CPU=黒）。
-        self.white = snap?.white ?? .human
-        self.black = snap?.black ?? .ai
-        self.aiLevel = snap?.aiLevel ?? 1
+        // 中断データが無いときの初期値は最後に選んだ条件（#2611）。初回は人間=白・入門。
+        let last = services?.playLog?.lastStart(ChessStartChoice.self, gameID: "chess")
+        let lastHuman = last?.humanSide ?? .white
+        self.white = snap?.white ?? (lastHuman == .white ? .human : .ai)
+        self.black = snap?.black ?? (lastHuman == .white ? .ai : .human)
+        self.aiLevel = snap?.aiLevel ?? last?.aiLevel ?? 1
         self.startedAt = snap?.startedAt ?? Date()
         self.undoUsed = snap?.undoUsed ?? false
         self.resigned = snap?.resigned ?? false
@@ -101,7 +107,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // 終局後の検討画面もスナップショットに残すので、再起動でその画面に戻ったとき
         // 記録行が消えないよう、保存済みの記録から作り直す。**記録し直さない**
         // （`gameDidFinish` を呼ばない）ので二重計上にはならない。
-        if gameOver, let record = services?.playLog?.record(gameID: gameID) {
+        if gameOver, let record = services?.playLog?.record(gameID: gameID, variant: recordVariant) {
             self.recordResult = RecordResult(record: record, update: RecordUpdate())
         }
         // 見返しとして復元した局は決着済み。中断データは残っていても続きは無いので、
@@ -355,7 +361,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             services?.feedback.notify(.warning)
         } else if mover == humanSide {
             // 着手の手応えは自分が指したときだけ。CPU の着手では鳴らさない。
-            services?.feedback.impact(.medium)
+            services?.feedback.impact(.board(.chessPiece))
         }
         persist()
     }
@@ -377,7 +383,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         }
         startPlayIfPending()
         recordResult = services?.gameDidFinish(
-            gameID: gameID, outcome: outcome, score: hints.winLossScore,
+            gameID: gameID, outcome: outcome, score: hints.winLossScore(gameID: gameID, aiLevel: recordLevel),
             // 評価リクエストの見せ場は「ふつう」以上の CPU に勝ったとき（#1471）。
             isReviewHighlight: beatsWorthyCPU
         )
@@ -409,8 +415,10 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         self.white = humanSide == .white ? .human : .ai
         self.black = humanSide == .white ? .ai : .human
         self.aiLevel = aiLevel
+        services?.playLog?.saveLastStart(ChessStartChoice(humanSide: humanSide, aiLevel: aiLevel), gameID: gameID)
         startedAt = startedAtFallback()
         gameSerial += 1
+        bookSeed = UInt64.random(in: .min ... .max)
         // 前対局の思考が走っていても、新しい対局の CPU を起動できるようにする（将棋 #145）。
         isThinking = false
         // ヒントの読みも同じ理由で下ろす（#1118）。旧タスクの defer は対局が変わると旗に触らない。
@@ -453,10 +461,11 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // 開始時の `aiTurnKey` と一致する場合だけ着手する（#531 で共通化）。
         await withAITurnGuard(key: \.aiTurnKey, thinking: \.isThinking) {
             let level = aiLevel
+            let seed = bookSeed
             let fen = position.toFEN()
             await thinkingGate?()
             return await Task.detached(priority: .userInitiated) {
-                await SimpleChessEngine(level: level).bestMove(fen: fen)
+                await SimpleChessEngine(level: level, seed: seed).bestMove(fen: fen)
             }.value
         } commit: { uci in
             guard isAITurn, let uci, let move = ChessMove.fromUCI(uci),
@@ -638,6 +647,17 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
 
     // MARK: - 永続化
 
+    /// 記録の強さ（#2617）。人間同士の対局は CPU がいないので「ふつう」＝区分なしに寄せる。
+    private var recordLevel: Int {
+        (white == .ai || black == .ai) ? aiLevel : CPUStrength.standard.rawValue
+    }
+
+    /// 記録の区分キー。「ふつう」は nil（それまでの記録）。
+    private var recordVariant: String? {
+        let strength = CPUStrength.strength(for: recordLevel)
+        return strength == .standard ? nil : strength.recordVariantKey
+    }
+
     /// 評価リクエストの見せ場（#1471）: 「ふつう」以上の CPU との対局か。人間同士の対局は含まない。
     private var beatsWorthyCPU: Bool {
         (white == .ai || black == .ai) && CPUStrength.isReviewWorthy(level: aiLevel)
@@ -666,4 +686,10 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
 
     // Date.now を init 前に使えないため分離。
     private func startedAtFallback() -> Date { Date() }
+}
+
+/// 最後に選んだ開始条件（#2611）。中断データとは別に残り、終局しても消えない。
+struct ChessStartChoice: Codable {
+    var humanSide: ChessColor
+    var aiLevel: Int
 }

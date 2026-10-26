@@ -22,7 +22,6 @@ import GameRunner
 import GameHanafuda
 import GameShiritori
 import GameFifteen
-import GameRoulette
 import GameFruits
 import GameColorRelay
 import GameAnzan
@@ -54,7 +53,6 @@ import GameSpider
 @testable import GameSudoku
 @testable import GameBlocks
 @testable import GameFifteen
-@testable import GameRoulette
 @testable import GameFruits
 @testable import GameColorRelay
 @testable import GameBackgammon
@@ -64,6 +62,7 @@ import GameSpider
 @testable import GameTsunagi
 import GameHanoi
 import GameYonmoku
+@testable import GameCatPuzzle
 @testable import GameShiritori
 import GameChess
 import GameBlocks
@@ -84,7 +83,6 @@ private let registeredModules: [GameModule] = [
     ShiritoriModule(),
     FifteenModule(),
     AkariKeshiModule(),
-    RouletteModule(),
     FruitsModule(),
     ColorRelayModule(),
     AnzanModule(),
@@ -112,6 +110,7 @@ private let registeredModules: [GameModule] = [
     TsunagiModule(),
     HanoiModule(),
     YonmokuModule(),
+    CatPuzzleModule(),
 ]
 
 // MARK: - 文言（受け入れ条件: 全ゲームぶんある・ルールは3行以内）
@@ -429,10 +428,10 @@ struct MahjongHanafudaHowToFiguresTests {
     @Test("画面のヘッダーの「？」と開始シートは図入りの版をつなぐ")
     func viewsWireIllustratedGuide() throws {
         let files: [(String, String, String)] = [
-            ("GameMahjong/MahjongView.swift", ".howToPlay(model.gameLength.howToPlayGuide)", "mahjong"),
+            ("GameMahjong/MahjongView.swift", ".howToPlay(model.gameLength.howToPlayGuide", "mahjong"),  // 後ろに .onboarding(...)（#2825）が続く
             ("GameMahjong/MahjongStartSheet.swift", "length.setupKeyItems", "mahjong の開始シート"),
-            ("GameMahjongSolitaire/MahjongSolitaireView.swift", ".howToPlay(HowToPlayGuide.mahjongSolitaire.illustrated(MahjongSolitaireHowToFigures.items))", "mahjongSolitaire"),
-            ("GameHanafuda/HanafudaView.swift", ".howToPlay(HowToPlayGuide.hanafuda.illustrated(HanafudaHowToFigures.items))", "hanafuda"),
+            ("GameMahjongSolitaire/MahjongSolitaireView.swift", ".howToPlay(HowToPlayGuide.mahjongSolitaire.illustrated(MahjongSolitaireHowToFigures.items)", "mahjongSolitaire"),  // 後ろに .onboarding(...)（#2825）が続く
+            ("GameHanafuda/HanafudaView.swift", ".howToPlay(HowToPlayGuide.hanafuda.illustrated(HanafudaHowToFigures.items)", "hanafuda"),  // 後ろに .onboarding(...)（#2827）が続く
         ]
         for (path, expected, name) in files {
             let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/" + path))
@@ -494,8 +493,8 @@ struct OjisanGamesHowToFiguresTests {
     @Test("画面のヘッダーの「？」と開始シートは図入りの版をつなぐ")
     func viewsWireIllustratedGuide() throws {
         let files: [(String, String, String)] = [
-            ("GameHomerun/HomerunView.swift", ".howToPlay(HowToPlayGuide.homerun.illustrated(HomerunHowToFigures.items)", "homerun"),
-            ("GameRunner/RunnerView.swift", ".howToPlay(model.mode.howToPlayGuide)", "runner"),
+            ("GameHomerun/HomerunView.swift", ".howToPlay(HowToPlayGuide.homerun.illustrated(HomerunHowToFigures.items)", "homerun"),  // 後ろに .onboarding(...)（#2826）が続く
+            ("GameRunner/RunnerView.swift", ".howToPlay(model.mode.howToPlayGuide", "runner"),  // 後ろに .onboarding(...)（#2826）が続く
             ("GameRunner/RunnerStartSheet.swift", "mode.setupKeyItems", "runner の開始シート"),
         ]
         for (path, expected, name) in files {
@@ -520,6 +519,7 @@ struct PuzzleOtherHowToFiguresTests {
             ("anzan", .anzan, AnzanHowToFigures.items),
             ("akarikeshi", .akariKeshi, AkariKeshiHowToFigures.items),
             ("tsunagi", .tsunagi, TsunagiHowToFigures.items),
+            ("catpuzzle", .catPuzzle, CatPuzzleHowToFigures.items),
             ("dicecombo", .diceCombo, DiceComboHowToFigures.items),
             ("shiritori", .shiritori, ShiritoriHowToFigures.items),
             ("shiritoriEndless", .shiritoriEndless, ShiritoriHowToFigures.endlessItems),
@@ -540,7 +540,7 @@ struct PuzzleOtherHowToFiguresTests {
 
     @Test("ハブに並ぶ全ゲームの「？」が図入りになった（#2044 の完了条件）")
     func everyRegisteredGameIsIllustrated() {
-        // 除外は無い（倉庫のゲームも含む。ルーレット・盆栽・いろリレー・バックギャモン・スピードは #2386 で図を足した）。
+        // 除外は無い（倉庫のゲームも含む。盆栽・いろリレー・バックギャモン・スピードは #2386 で図を足した）。
         for guide in HowToPlayGuide.all {
             #expect(!guide.items.isEmpty, "\(guide.gameID) の遊び方が図入りでない")
         }
@@ -571,15 +571,15 @@ struct PuzzleOtherHowToFiguresTests {
     @Test("画面のヘッダーの「？」と開始シートは図入りの版をつなぐ")
     func viewsWireIllustratedGuide() throws {
         let files: [(String, String, String)] = [
-            ("Game2048/Game2048View.swift", ".howToPlay(HowToPlayGuide.game2048.illustrated(Game2048HowToFigures.items))", "2048"),
-            ("GameMinesweeper/MinesweeperView.swift", ".howToPlay(HowToPlayGuide.minesweeper.illustrated(MinesweeperHowToFigures.items))", "minesweeper"),
-            ("GameSudoku/SudokuView.swift", ".howToPlay(HowToPlayGuide.sudoku.illustrated(SudokuHowToFigures.items))", "sudoku"),
+            ("Game2048/Game2048View.swift", ".howToPlay(HowToPlayGuide.game2048.illustrated(Game2048HowToFigures.items)", "2048"),  // 後ろに .onboarding(...)（#2826）が続く
+            ("GameMinesweeper/MinesweeperView.swift", ".howToPlay(HowToPlayGuide.minesweeper.illustrated(MinesweeperHowToFigures.items)", "minesweeper"),  // 後ろに .onboarding(...)（#2826）が続く
+            ("GameSudoku/SudokuView.swift", ".howToPlay(HowToPlayGuide.sudoku.illustrated(SudokuHowToFigures.items)", "sudoku"),  // 後ろに .onboarding(...)（#2826）が続く
             ("GameBlocks/BlocksView.swift", ".howToPlay(HowToPlayGuide.blocks.illustrated(BlocksHowToFigures.items)", "blocks"),
-            ("GameFifteen/FifteenView.swift", ".howToPlay(HowToPlayGuide.fifteen.illustrated(FifteenHowToFigures.items))", "fifteen"),
-            ("GameAnzan/AnzanView.swift", ".howToPlay(HowToPlayGuide.anzan.illustrated(AnzanHowToFigures.items)", "anzan"),
+            ("GameFifteen/FifteenView.swift", ".howToPlay(HowToPlayGuide.fifteen.illustrated(FifteenHowToFigures.items)", "fifteen"),  // 後ろに .onboarding(...)（#2826）が続く
+            ("GameAnzan/AnzanView.swift", ".howToPlay(HowToPlayGuide.anzan.illustrated(AnzanHowToFigures.items)", "anzan"),  // 後ろに .onboarding(...)（#2826）が続く
             ("GameAkariKeshi/AkariKeshiView.swift", ".howToPlay(HowToPlayGuide.akariKeshi.illustrated(AkariKeshiHowToFigures.items))", "akarikeshi"),
             ("GameTsunagi/TsunagiView.swift", ".howToPlay(HowToPlayGuide.tsunagi.illustrated(TsunagiHowToFigures.items))", "tsunagi"),
-            ("GameDiceCombo/DiceComboView.swift", ".howToPlay(HowToPlayGuide.diceCombo.illustrated(DiceComboHowToFigures.items))", "dicecombo"),
+            ("GameDiceCombo/DiceComboView.swift", ".howToPlay(HowToPlayGuide.diceCombo.illustrated(DiceComboHowToFigures.items)", "dicecombo"),  // 後ろに .onboarding(...)（#2826）が続く
             ("GameShiritori/ShiritoriView.swift", ".howToPlay(model.mode.howToPlayGuide", "shiritori"),
             ("GameShiritori/ShiritoriView.swift", "mode.setupKeyItems", "shiritori の開始シート"),
         ]
@@ -590,14 +590,13 @@ struct PuzzleOtherHowToFiguresTests {
     }
 }
 
-// MARK: - 図がなかった 5 本の図（#2386）
+// MARK: - 図がなかった本の図（#2386）
 
-@Suite("ルーレット・盆栽・いろリレー・バックギャモン・スピードの図入りの遊び方")
+@Suite("盆栽・いろリレー・バックギャモン・スピードの図入りの遊び方")
 @MainActor
 struct LateIllustratedHowToFiguresTests {
     private var pairs: [(name: String, guide: HowToPlayGuide, figures: [@MainActor @Sendable () -> AnyView])] {
         [
-            ("roulette", .roulette, RouletteHowToFigures.items),
             ("fruits", .fruits, FruitsHowToFigures.items),
             ("colorRelay", .colorRelay, ColorRelayHowToFigures.items),
             ("backgammon", .backgammon, BackgammonHowToFigures.items),
@@ -620,7 +619,6 @@ struct LateIllustratedHowToFiguresTests {
     @Test("画面のヘッダーの「？」は図入りの版をつなぐ")
     func viewsWireIllustratedGuide() throws {
         let files: [(String, String, String)] = [
-            ("GameRoulette/RouletteView.swift", "HowToPlayGuide.roulette.illustrated(RouletteHowToFigures.items)", "roulette"),
             ("GameFruits/FruitsView.swift", "HowToPlayGuide.fruits.illustrated(FruitsHowToFigures.items)", "fruits"),
             ("GameColorRelay/ColorRelayView.swift", "HowToPlayGuide.colorRelay.illustrated(ColorRelayHowToFigures.items)", "colorRelay"),
             ("GameBackgammon/BackgammonView.swift", "HowToPlayGuide.backgammon.illustrated(BackgammonHowToFigures.items)", "backgammon"),

@@ -1,10 +1,17 @@
 import SwiftUI
 
-/// リザルトで「一段上の難易度」を勧める提案 1 件（#722）。
+/// リザルトで「一段上（連勝）／一段下（連敗・#2614）の難易度」を勧める提案 1 件（#722）。
 public struct DifficultyLadderOffer: Equatable, Sendable {
-    /// いまの連勝数。
+    /// 勧める向き。
+    public enum Direction: Equatable, Sendable {
+        case up, down
+    }
+
+    /// 勧める向き。連勝なら `.up`、連敗なら `.down`。
+    public let direction: Direction
+    /// いまの連勝数（`.down` のときは連敗数）。
     public let streak: Int
-    /// 勧める難易度の位置（0 始まり。ゲームの難易度の並びでの添字）。
+    /// 勧める難易度の位置（0 始まり。上げるときも下げるときもこの段。ゲームの難易度の並びでの添字）。
     public let nextLevel: Int
     /// 勧める難易度の表示名（「普通」「中級」など。開始シートと同じ呼び名）。
     public let nextLevelLabel: String
@@ -13,7 +20,12 @@ public struct DifficultyLadderOffer: Equatable, Sendable {
     let plays: Int
 
     /// カードの見出し。
-    public var caption: String { tr("%lld連勝中！", streak) }
+    public var caption: String {
+        switch direction {
+        case .up: tr("%lld連勝中！", streak)
+        case .down: tr("%lld連敗中…", streak)
+        }
+    }
     /// カードの本文。
     public var title: String { tr("つぎは「%@」にしてみる？", nextLevelLabel) }
 }
@@ -30,6 +42,9 @@ public enum DifficultyLadder {
 
     /// 勧める提案。勧めないときは nil。
     ///
+    /// 連勝は `streakThreshold` の倍数のとき一段上を、連敗（#2614）は同じ倍数のとき一段下を勧める。
+    /// 連勝と連敗は同時に成り立たない（勝ち以外で連勝が 0 に、勝ちで連敗が 0 に戻る）ので排他になる。
+    ///
     /// - Parameters:
     ///   - result: `GameServices.gameDidFinish` の戻り値（その回の決着を記録した結果）。
     ///   - currentLevel: いま遊んだ難易度の位置（0 始まり）。プリセットに当たらない盤
@@ -41,16 +56,27 @@ public enum DifficultyLadder {
         levelLabels: [String]
     ) -> DifficultyLadderOffer? {
         guard let record = result?.record, let currentLevel else { return nil }
-        let streak = record.currentStreak
-        // 連勝は勝ち以外で 0 に戻るので、streak > 0 はその回が勝ちだったことも意味する。
-        guard streak >= streakThreshold, streak % streakThreshold == 0 else { return nil }
-        let next = currentLevel + 1
-        // 最上級（とそれより上の範囲外）では勧めない。
-        guard currentLevel >= 0, levelLabels.indices.contains(next) else { return nil }
+        guard currentLevel >= 0, levelLabels.indices.contains(currentLevel) else { return nil }
+        // 連勝は勝ち以外で 0 に戻るので、streak > 0 はその回が勝ちだったことも意味する（連敗も同様）。
+        let direction: DifficultyLadderOffer.Direction
+        let streak: Int
+        if record.currentStreak >= streakThreshold, record.currentStreak % streakThreshold == 0 {
+            direction = .up
+            streak = record.currentStreak
+        } else if record.lossStreak >= streakThreshold, record.lossStreak % streakThreshold == 0 {
+            direction = .down
+            streak = record.lossStreak
+        } else {
+            return nil
+        }
+        let target = direction == .up ? currentLevel + 1 : currentLevel - 1
+        // 最上級では上を、最下段では下を勧めない（範囲外も同じ）。
+        guard levelLabels.indices.contains(target) else { return nil }
         return DifficultyLadderOffer(
+            direction: direction,
             streak: streak,
-            nextLevel: next,
-            nextLevelLabel: levelLabels[next],
+            nextLevel: target,
+            nextLevelLabel: levelLabels[target],
             plays: record.plays
         )
     }
@@ -98,7 +124,7 @@ struct DifficultyLadderCard: View {
                         .fill(Theme.Fill.yellow.gradient)
                         .frame(width: RecommendationCard.iconSide, height: RecommendationCard.iconSide)
                         .overlay {
-                            Image(systemName: "arrow.up.right")
+                            Image(systemName: offer.direction == .up ? "arrow.up.right" : "arrow.down.right")
                                 .scaledFont(18, weight: .bold)
                                 .foregroundStyle(Theme.onAccent)
                         }

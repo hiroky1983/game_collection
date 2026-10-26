@@ -98,4 +98,18 @@ public struct BoardHintBudget: Equatable, Sendable {
     public var winLossScore: GameScore {
         GameScore(metric: .winLoss, isLeaderboardEligible: !wasUsed)
     }
+
+    /// CPU の強さ別に分けた成績（チェス・囲碁・五目並べ・オセロ・#2617）。
+    ///
+    /// 強さごとに別の連勝・自己ベストとして数える。**「ふつう」は区分なし**で、それまでの記録をそのまま引き継ぐ
+    /// （大富豪の #2604 と同じ「既定と違うときだけ区分する」作法）。キーと表示名の対応は `RecordVariantLabels`。
+    /// `aiLevel` は各モデルが持つ生の番号（`CPUStrength.rawValue`）。
+    public func winLossScore(gameID: String, aiLevel: Int) -> GameScore {
+        var score = winLossScore
+        let strength = CPUStrength.strength(for: aiLevel)
+        guard strength != .standard else { return score }
+        score.variant = strength.recordVariantKey
+        score.variantLabel = RecordVariantLabels.stored(gameID: gameID, variant: strength.recordVariantKey)
+        return score
+    }
 }

@@ -34,4 +34,16 @@ struct SudokuResumableSnapshotTests {
         model.enter(digit: 1)
         #expect(module.hasResumableSnapshot(in: store))
     }
+
+    @Test("進み具合は空きマスの数（#2870）")
+    func resumeProgressIsEmptyCells() async throws {
+        let store = MemorySnapshotStore()
+        let module = SudokuModule()
+        let model = SudokuModel(services: GameServices(snapshots: store, ads: NoopAdService()), seed: 2026)
+        await model.newGame(difficulty: .easy)
+        let index = try #require(model.board.indices.first { model.board[$0] == 0 })
+        model.select(index: index)
+        model.enter(digit: model.solution[index])
+        #expect(module.resumeProgress(in: store) == "残り\(model.board.filter { $0 == 0 }.count)マス")
+    }
 }

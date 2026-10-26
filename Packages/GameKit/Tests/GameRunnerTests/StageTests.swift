@@ -87,9 +87,9 @@ struct RunnerStageTests {
         let expected = [
             "--1-1n-n1n--",
             "--1-n1-n-1n--",
-            "--1n-2n-n1-2--",
-            "--1n-tn1dk2-t--",
-            "--1sntb-2ndkt1--",
+            "--1n-2--n1-2--",
+            "--1n-t-1dk2-t--",
+            "--1sntb-2-dkt1--",
             "--1sn3-tb2ndkt1--",
             "--1sn3-td2nikt2n--",
             "--2st1dk3tn2t-ni2--",

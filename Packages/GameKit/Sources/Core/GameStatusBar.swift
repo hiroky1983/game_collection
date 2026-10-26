@@ -10,6 +10,11 @@ public enum GameStatusBarStyle {
     public static let minHeight: CGFloat = 44
     public static let horizontalPadding: CGFloat = 12
     public static let verticalPadding: CGFloat = 6
+    /// レイアウトパターン A（全画面・#2531）のヘッダー下の 1 行の札の最小の高さ・上下の余白。
+    /// 帯にトグルボタンを置かない一人用のゲーム（麻雀ソリティア・フリーセル・ソリティア）が、
+    /// モック（#2427〜#2429 の A 案）どおり 44pt の帯より低い札にするのに使う。行が入れ替わっても揺れないよう下限は残す。
+    public static let compactMinHeight: CGFloat = 31
+    public static let compactVerticalPadding: CGFloat = 5
 }
 
 /// 左右に中身を置く共通の枠。左は手番表示（`TurnBadge`）や結果、右は手数・スコアなど。
@@ -17,12 +22,16 @@ public struct GameStatusBar<Leading: View, Trailing: View>: View {
     private let leading: Leading
     private let trailing: Trailing
     private let verticalPadding: CGFloat
+    private let minHeight: CGFloat
 
     /// `verticalPadding` は、44pt のトグルボタンが帯の高さを決めるゲーム（一人用の拡大・旗）が
     /// 盤の高さを食わないよう詰めるための口（#1420）。既定は対戦ゲームと同じ 6。
+    /// `minHeight` は全画面（A・#2531）の低い札にするための口。既定は 44。
     public init(verticalPadding: CGFloat = GameStatusBarStyle.verticalPadding,
+                minHeight: CGFloat = GameStatusBarStyle.minHeight,
                 @ViewBuilder leading: () -> Leading, @ViewBuilder trailing: () -> Trailing) {
         self.verticalPadding = verticalPadding
+        self.minHeight = minHeight
         self.leading = leading()
         self.trailing = trailing()
     }
@@ -37,7 +46,7 @@ public struct GameStatusBar<Leading: View, Trailing: View>: View {
         .padding(.horizontal, GameStatusBarStyle.horizontalPadding)
         .padding(.vertical, verticalPadding)
         // 余白のあとに下限を掛ける。先に掛けると完成した高さが 44 + 6×2 = 56pt になる。
-        .frame(minHeight: GameStatusBarStyle.minHeight)
+        .frame(minHeight: minHeight)
         .popCard(corner: Theme.cornerSmall)
     }
 }

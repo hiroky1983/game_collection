@@ -18,7 +18,8 @@ public struct SudokuView: View {
     /// 「戻す」を使い切ったときの補充の提案と、そのリワード広告の段取り（#1855）。
     @State private var showUndoRefillPrompt = false
     @State private var undoRescue = RewardedRescue()
-    @State private var zoomMode = false
+    /// 拡大モードの ON/OFF。ゲームごとに覚え、新規ゲーム・階段・もう一回・再起動の後も保つ（#2616）。
+    @AppStorage("sudokuZoomMode") private var zoomMode = false
     /// いま光らせているマス（行・列・ブロックが揃った瞬間・#666）。Model の `unitFlash` から作る表示だけの状態。
     @State private var flashingCells: Set<Int> = []
     /// 光を消さずに残す（DEBUG の撮影 hook 専用。光は 0.25 秒で消えるため非対話では撮れない）。
@@ -60,9 +61,10 @@ public struct SudokuView: View {
                     if model.state == .failed { failedOverlay }
                 }
                 // クリアは盤に重ねる共通のカードで示す（#1755）。答えを見た終局は出さない。
+                // ヒントは 0 回でも省かず出す（ヒントを使った局は順位表に送らない = 使わなかった事実に意味がある・#2613）。
                 .gameClearCard(isPresented: model.state == .cleared,
-                               details: [tr("%1$@ / ミス%2$lld回 / タイム %3$@", model.difficulty.label, model.mistakes,
-                                            RecordFormat.time(model.elapsedSeconds))])
+                               details: [tr("%1$@ / ミス%2$lld回 / ヒント%3$lld回 / タイム %4$@", model.difficulty.label, model.mistakes,
+                                            model.hintsUsed, RecordFormat.time(model.elapsedSeconds))])
                 // 広告のロード〜視聴中は盤に触れない。ここが開いていると、
                 // 「広告を見ている間に自分で答えを埋めてしまい、視聴後のヒントが不発になる」
                 // （＝広告だけ消費される）経路ができる。
@@ -74,22 +76,17 @@ public struct SudokuView: View {
             BannerSlot(ads: services.ads)
         }
         .padding(Theme.pad)
+        .operationResultAnnouncement(model.lastResult)
         // 生成中の二度押しで 2 本目の生成が走らないようにする（Model 側でも再入を弾く）。
         // ヒントの広告中も押させない（#815。照合は `applyHint(forGame:at:)` が持つので、ここは
         // 「広告を見たのに入らなかった」を起こさないための緩和）。
         .gameChrome(title: tr("ナンプレ"), review: services.review,
-                    newGame: GameChromeNewGame(.solo, isDisabled: model.isGenerating || hintRescue.isWatching) {
-                        if model.state == .playing {
-                            showConfirmNewGame = true
-                        } else {
-                            showNewGame = true
-                        }
-                    })
-        .howToPlay(HowToPlayGuide.sudoku.illustrated(SudokuHowToFigures.items))
+                    condition: GameChromeCondition([model.difficulty.label]),
+                    newGame: GameChromeNewGame(.solo, isDisabled: model.isGenerating || hintRescue.isWatching) { requestNewGame() })
+        .howToPlay(HowToPlayGuide.sudoku.illustrated(SudokuHowToFigures.items).onboarding(SudokuOnboarding.guide))
         .sheet(isPresented: $showNewGame) {
-            SudokuNewGameSheet { difficulty in
+            SudokuNewGameSheet(playLog: services.playLog) { difficulty in
                 showNewGame = false
-                zoomMode = false
                 Task { await model.newGame(difficulty: difficulty) }
             } onCancel: {
                 showNewGame = false
@@ -240,6 +237,17 @@ public struct SudokuView: View {
         guard !Task.isCancelled, !holdsUnitFlash else { return }
         withGameAnimation(.easeOut(duration: SudokuMetrics.unitFlashFadeDuration)) {
             flashingCells = []
+        }
+    }
+
+    /// 新規対局の入口（ヘッダーの「新規」と条件のチップが共通で呼ぶ・#1690）。
+    private func requestNewGame() {
+        // 生成中・ヒント広告の視聴中は「新規」ボタンと同じく受けつけない。
+        guard !(model.isGenerating || hintRescue.isWatching) else { return }
+        if model.state == .playing {
+            showConfirmNewGame = true
+        } else {
+            showNewGame = true
         }
     }
 
@@ -584,7 +592,8 @@ public struct SudokuView: View {
     }
 
     private func digitButton(_ digit: Int) -> some View {
-        let exhausted = model.isDigitExhausted(digit)
+        let remaining = model.remainingCount(of: digit)
+        let exhausted = remaining == 0
         return Button {
             model.enter(digit: digit)
         } label: {
@@ -598,6 +607,16 @@ public struct SudokuView: View {
                     RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
                         .fill(model.noteMode ? Theme.purple.opacity(0.18) : Theme.surface)
                 )
+                .overlay(alignment: .topTrailing) {
+                    // 残り個数（#2802）。使い切った数字は薄くするだけで数は出さない。
+                    if !exhausted {
+                        Text(verbatim: "\(remaining)")
+                            .scaledFont(10, weight: .semibold, design: .rounded)
+                            .foregroundStyle(Theme.inkSub)
+                            .padding(.top, 3)
+                            .padding(.trailing, 5)
+                    }
+                }
                 .foregroundStyle(exhausted ? Theme.inkSub : Theme.ink)
                 .contentShape(Rectangle())
         }
@@ -764,7 +783,6 @@ public struct SudokuView: View {
         let levels = SudokuDifficulty.allCases
         return DifficultyLadderPrompt(result: model.recordResult, currentLevel: levels.firstIndex(of: model.difficulty),
                                       levelLabels: levels.map(\.label)) { level in
-            zoomMode = false
             Task { await model.newGame(difficulty: levels[level]) }
         }
     }
@@ -772,12 +790,9 @@ public struct SudokuView: View {
     // MARK: - Result Controls
 
     private var resultControls: some View {
-        // 行の高さは数字パッドの 1 ボタンと同じ（対局中の操作列との高さ合わせ）。ボタン自体は他ゲームと同じ大きさ。
+        // ボタンは他ゲームと同じ 44pt（#2360・案3）。数字パッドの 1 ボタンと同じ高さなので、行の高さ合わせの引数は要らない。
         GameReplayBar(
-            contentMinHeight: SudokuMetrics.padButtonMinSide,
-            verticalPadding: 4,
             onReplay: {
-                zoomMode = false
                 Task { await model.newGame(difficulty: model.difficulty) }
             },
             onChangeSettings: { showNewGame = true }
@@ -814,12 +829,26 @@ private struct SudokuShake: GeometryEffect {
 struct SudokuNewGameSheet: View {
     let onStart: (SudokuDifficulty) -> Void
     let onCancel: () -> Void
-    @State private var difficulty: SudokuDifficulty = .normal
+    @State private var difficulty: SudokuDifficulty
+
+    /// 開始条件の記憶（#2611）。初期選択は前回選んだ難易度、記録が無ければ「ふつう」。
+    private let playLog: PlayLog?
+
+    init(playLog: PlayLog?, onStart: @escaping (SudokuDifficulty) -> Void, onCancel: @escaping () -> Void) {
+        self.playLog = playLog
+        self.onStart = onStart
+        self.onCancel = onCancel
+        _difficulty = State(initialValue: playLog?.lastStart(SudokuDifficulty.self, gameID: "sudoku") ?? .normal)
+    }
 
     var body: some View {
         GameSetupSheet(
             kind: .solo,
-            onStart: { onStart(difficulty) }, onCancel: onCancel
+            onboarding: SudokuOnboarding.guide,
+            onStart: {
+                playLog?.saveLastStart(difficulty, gameID: "sudoku")
+                onStart(difficulty)
+            }, onCancel: onCancel
         ) {
             GameSetupSection(tr("難易度")) {
                 HStack(spacing: 6) {

@@ -1,6 +1,84 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "ラスト" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Final"
+          }
+        }
+      }
+    },
+    "出せない札を払うと手札に戻ります（ペナルティはありません）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A card that can't be played slides back to your hand (no penalty)."
+          }
+        }
+      }
+    },
+    "手札の札を、出したい台札のほうへ払うと出せます。台札の上まで動かして離しても出せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flick a card from your hand toward the pile you want to play it on. You can also drag it onto the pile and let go."
+          }
+        }
+      }
+    },
+    "最後の勝負" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Final round"
+          }
+        }
+      }
+    },
+    "最後の勝負、%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Final round, %@"
+          }
+        }
+      }
+    },
+    "残り%lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld card left"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld cards left"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%1$@%2$@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -50,6 +128,29 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld wins in a row!"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld連敗中…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld loss in a row"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld losses in a row"
                 }
               }
             }
@@ -605,17 +706,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pick a card whose reading ends in “n” and you lose on the spot."
-          }
-        }
-      }
-    },
-    "「スピン」でホイールが回り、玉の真下で止まったポケットの数字が出目です。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Press “Spin” to turn the wheel. The pocket the ball lands in is the result."
           }
         }
       }
@@ -1236,13 +1326,13 @@
         }
       }
     },
-    "どちらも出せなくなったら「めくる」で、両方の山札から1枚ずつ台札に置きます。CPU の速さは右上の「速さ」で選べます。あなたの側に制限時間はありません。" : {
+    "どちらも出せなくなったら「めくる」で、両方の山札から1枚ずつ台札に置きます。CPU の速さは右上の「＋」で始めるときに選べます。あなたの側に制限時間はありません。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "When neither side can play, tap “Flip” to put one card from each stock onto the piles. Set the CPU's speed with “Pace” at the top right. There's no time limit on your side."
+            "value" : "When neither side can play, tap “Flip” to put one card from each stock onto the piles. Choose the CPU's pace when you start a game with “+” at the top right. There's no time limit on your side."
           }
         }
       }
@@ -1909,17 +1999,6 @@
         }
       }
     },
-    "チップの額を選び、賭けたい場所（数字・赤黒・奇数偶数・1〜18 / 19〜36・12 個ずつの区分）をタップして置きます。何か所にも置けます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose a chip amount, then tap where to bet: numbers, red/black, odd/even, 1-18 / 19-36, or a group of 12. You can bet on several spots."
-          }
-        }
-      }
-    },
     "チャリンコおじさんの遊び方" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1982,6 +2061,83 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No goal: play until the cards run out. Take every card for a Perfect win."
+          }
+        }
+      }
+    },
+    "おじさんちのねこさがしの遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play Ojisan's Hidden Cats"
+          }
+        }
+      }
+    },
+    "おじさんの家の間取りに、飼い猫が隠れています。部屋・行・列のそれぞれに、猫がちょうど 1 匹ずついます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cats are hiding in Ojisan's house. Each room, row, and column has exactly one cat."
+          }
+        }
+      }
+    },
+    "猫どうしは、ななめも含めて隣り合いません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No two cats are next to each other, not even diagonally."
+          }
+        }
+      }
+    },
+    "部屋・行・列に猫を 1 匹ずつ。隣には置けない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One cat per room, row, and column, never side by side"
+          }
+        }
+      }
+    },
+    "部屋・行・列のそれぞれに、猫がちょうど 1 匹ずついます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each room, row, and column has exactly one cat."
+          }
+        }
+      }
+    },
+    "盤は 6×6・7×7・8×8 の 3 段階で、問題は毎回変わります（答えは 1 通り）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Boards come in 6×6, 7×7, and 8×8, with a new puzzle every time (one unique answer)."
+          }
+        }
+      }
+    },
+    "ヒントは 1 問につき 3 回まで。記録はクリアまでのタイムです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Up to 3 hints per puzzle. Your record is the time to clear."
           }
         }
       }
@@ -2195,6 +2351,39 @@
         }
       }
     },
+    "鳥は近づくと飛び立ちます。跳ばずに走ったまま、下を抜けましょう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Birds take off as you approach. Don't jump — keep running and pass underneath."
+          }
+        }
+      }
+    },
+    "スピードアップのアイテムを取ると、しばらく速くなります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grab a speed-up item to go faster for a while."
+          }
+        }
+      }
+    },
+    "たこ焼きを取ると、3 秒だけ障害にぶつからなくなります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grab a takoyaki to pass through obstacles for 3 seconds."
+          }
+        }
+      }
+    },
     "ポーカーの遊び方" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2334,17 +2523,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Squirrel"
-          }
-        }
-      }
-    },
-    "ルーレットの遊び方" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "How to Play Roulette"
           }
         }
       }
@@ -2734,24 +2912,24 @@
         }
       }
     },
-    "台札と1つ違いの札を重ねよう" : {
+    "1つ違いの札を台札のほうへ払おう" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Play a card one higher or lower than a pile"
+            "value" : "Flick a card one up or down toward a pile"
           }
         }
       }
     },
-    "台札は真ん中の2山。手札から、台札の数字と1つ違い（A と K もつながる）の札を、どちらかの台札に重ねます。順番はなく、CPU も同時に出してきます。" : {
+    "台札は真ん中の2山。台札の数字と1つ違い（A と K もつながる）の手札を、重ねたい台札のほうへ払って出します。順番はなく、CPU も同時に出してきます。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The two piles in the middle are the play piles. Play a card from your hand that's one higher or lower than either pile (A and K connect). There are no turns: the CPU plays at the same time."
+            "value" : "The two piles in the middle are the play piles. Flick a card that's one higher or lower than a pile (A and K connect) toward that pile to play it. There are no turns: the CPU plays at the same time."
           }
         }
       }
@@ -3559,13 +3737,13 @@
         }
       }
     },
-    "手札は 5 枚。残したいカードをタップで選びます。" : {
+    "手札は 5 枚。入れ替えたいカードをタップで選びます。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "You get 5 cards. Tap the ones you want to keep."
+            "value" : "You get 5 cards. Tap the cards you want to swap."
           }
         }
       }
@@ -3900,6 +4078,17 @@
         }
       }
     },
+    "お互い置けなくなって空きマスが残ったときは、残ったマスは勝った方に加算されます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If neither player can move and empty squares remain, they are added to the winner's score."
+          }
+        }
+      }
+    },
     "最後の 1 個が自分のストア（右端）に入ったら、もう一度あなたの番。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4098,13 +4287,13 @@
         }
       }
     },
-    "残すカードをタップしよう" : {
+    "入れ替えるカードをタップしよう" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tap the cards to keep"
+            "value" : "Tap the cards to swap"
           }
         }
       }
@@ -4945,17 +5134,6 @@
         }
       }
     },
-    "賭ける場所をタップしてスピン" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tap where to bet, then spin"
-          }
-        }
-      }
-    },
     "途中の盤面は保存されません。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4978,13 +5156,13 @@
         }
       }
     },
-    "選ばなかったカードは 1 回だけ引き直せます。" : {
+    "選んだカードを引き直せます。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "You can redraw the cards you didn't pick, once."
+            "value" : "The cards you picked are replaced with new ones."
           }
         }
       }
@@ -5007,17 +5185,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Start by discarding every two cards of the same number (a pair) from your hand. The Joker never makes a pair."
-          }
-        }
-      }
-    },
-    "配当は数字 1 点で 35 倍、12 個の区分で 2 倍、赤黒などは 1 倍（元金も戻ります）。0 は緑で、赤黒などの賭けはすべて外れです。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A single number pays 35 to 1, a group of 12 pays 2 to 1, and red/black and the like pay 1 to 1 (your bet comes back too). 0 is green, and all red/black-type bets lose on it."
           }
         }
       }
@@ -5172,50 +5339,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Only Black (who moves first) has forbidden moves: no double three, double four, or overline (6 or more in a row)."
-          }
-        }
-      }
-    },
-    "チップの額を選び、賭けたい場所をタップして置きます。何か所にも置けます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pick a chip amount, then tap the spots you want to bet on. You can bet on several spots at once."
-          }
-        }
-      }
-    },
-    "配当は、数字 1 点で 35 倍、12 個の区分で 2 倍、赤黒などは 1 倍（元金も戻ります）。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Payouts: 35× for a single number, 2× for a dozen, and 1× for red/black and similar bets (your stake comes back too)."
-          }
-        }
-      }
-    },
-    "0 は緑。赤黒・奇数偶数などの賭けは、0 が出るとすべて外れです。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "0 is green. If 0 comes up, red/black, odd/even and similar bets all lose."
-          }
-        }
-      }
-    },
-    "「戻す」で、最後に置いた 1 口を外せます。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tap “Undo” to take back the last bet you placed."
           }
         }
       }
@@ -5473,24 +5596,24 @@
         }
       }
     },
-    "手札も山札も先に出し切ったほうの勝ちです。" : {
+    "手札も山札も先に出し切ったほうの勝ち。山札が無くなったら、めくらずに手札を出し切れば勝ちです。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The first to play out both hand and stock wins."
+            "value" : "The first to play out both hand and stock wins. Once your stock runs out, you no longer flip: play out your hand to win."
           }
         }
       }
     },
-    "CPU の速さは、右上の「速さ」で選べます。あなたの側に制限時間はありません。" : {
+    "CPU の速さは、右上の「＋」で始めるときに選べます。あなたの側に制限時間はありません。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Set the CPU's speed with “Pace” at the top right. There's no time limit on your side."
+            "value" : "Choose the CPU's pace when you start a game with “+” at the top right. There's no time limit on your side."
           }
         }
       }
@@ -5583,13 +5706,13 @@
         }
       }
     },
-    "役の一覧と点数は「くわしいルール」で見られます。" : {
+    "役の一覧は「くわしいルール」、点数は「役の点数表」で見られます。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "See “Detailed Rules” for the list of hands and their points."
+            "value" : "See “Detailed Rules” for the list of hands, and the “Hand Points” table for their points."
           }
         }
       }
@@ -5601,6 +5724,294 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Watch an ad to draw cards one more time, once per 10 rounds."
+          }
+        }
+      }
+    },
+    "マスをタップすると ×（いない）を付け外しし、ダブルタップでそのマスの猫を見つけます。全部の猫を見つけたらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a square to add or remove × (no cat). Double-tap a square to find the cat there. Find every cat to clear the puzzle."
+          }
+        }
+      }
+    },
+    "タップで ×（いない）を付け外し、ダブルタップで猫を見つけます。全部見つけたらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to add or remove × (no cat), double-tap to find a cat. Find them all to clear the puzzle."
+          }
+        }
+      }
+    },
+    "× の付け外しはミスになりません。答えでないマスをダブルタップすると、赤い × が付いてミスになります（赤い × は消せません）。ミスが 3 回になると終わりです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adding or removing × never counts as a miss. Double-tapping a square that isn't part of the answer puts a red × there and counts as a miss (the red × can't be removed). Three misses end the game."
+          }
+        }
+      }
+    },
+    "+%lld点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%lld pts"
+          }
+        }
+      }
+    },
+    "−%lld点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "−%lld pts"
+          }
+        }
+      }
+    },
+    "±0点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "±0 pts"
+          }
+        }
+      }
+    },
+    "%lld点入りました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You scored %lld point"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You scored %lld points"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld点減りました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You lost %lld point"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You lost %lld points"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "点の増減はありません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your points didn't change"
+          }
+        }
+      }
+    },
+    "取った札のハートは 1 枚 1 点、スペードの Q は 13 点。点は少ないほど勝ち、取らないゲームです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each heart you take is 1 point, and the Queen of Spades is 13. The fewest points wins — it's a game of avoiding cards."
+          }
+        }
+      }
+    },
+    "取らないゲームです。点が少ないほど勝ちで、ハートは 1 点、スペードの Q は 13 点です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avoid taking cards. The fewest points wins; each heart is 1 point and the Queen of Spades is 13."
+          }
+        }
+      }
+    },
+    "同じマークが無いときは、どの札でも出せます。点の札を押し付けるチャンス。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you have no card of the suit led, you can play any card. A chance to dump point cards."
+          }
+        }
+      }
+    },
+    "最初に出たマークと同じマークで、いちばん強い札を出した人が 4 枚を取ります。別のマークは A でも勝てません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whoever plays the highest card of the suit that was led takes all 4 cards. A different suit can't win, even an Ace."
+          }
+        }
+      }
+    },
+    "最初に出たマークと同じマークのうち、数字がいちばん大きい人が 4 枚を取ります。A が最強、2 が最弱です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whoever plays the highest card of the suit that was led takes all 4 cards. Ace is highest, 2 is lowest."
+          }
+        }
+      }
+    },
+    "最初はクラブの 2 から。出された札と同じマークを、順に 1 枚ずつ出します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start with the 2 of Clubs. Play one card at a time, following the suit that was led."
+          }
+        }
+      }
+    },
+    "札の強さと点数は、対局中にヘッダーのボタンから見られます。CPU の強さは「新規対局」で選べます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "During a game, open the header button to see card strength and points. Choose the CPU strength in “New Game”."
+          }
+        }
+      }
+    },
+    "札の強さは A がいちばん強く、2 がいちばん弱い。比べるのは同じマークの中だけです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ace is the highest card and 2 is the lowest. Only cards of the same suit are compared."
+          }
+        }
+      }
+    },
+    "・" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · "
+          }
+        }
+      }
+    },
+    "今の条件: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current setup: %@"
+          }
+        }
+      }
+    },
+    "タップで設定を変えます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to change the setup"
+          }
+        }
+      }
+    },
+    "はじめての遊び方（図で見る）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "First-time guide (with pictures)"
+          }
+        }
+      }
+    },
+    "前へ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back"
+          }
+        }
+      }
+    },
+    "次へ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next"
+          }
+        }
+      }
+    },
+    "%1$lld / %2$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld / %2$lld"
           }
         }
       }

@@ -43,7 +43,7 @@ struct DiceComboModuleTests {
         #expect(code.contains("RecommendationArea("))
         #expect(code.contains("BannerSlot("))
         #expect(code.contains("HowToPlayHint(.diceCombo"))
-        #expect(code.contains(".howToPlay(HowToPlayGuide.diceCombo.illustrated(DiceComboHowToFigures.items))"))
+        #expect(code.contains(".howToPlay(HowToPlayGuide.diceCombo.illustrated(DiceComboHowToFigures.items)"))  // 後ろに .onboarding(...)（#2826）が続く
         #expect(!code.contains("showRewardedAd("), "リワード広告は使わない")
         #expect(!code.contains("RewardedRescue("), "救済の広告面は持たない（#1752 は広告を足さない）")
         #expect(!code.contains("withAnimation("), "アニメーションは gameAnimation 経由")
@@ -93,5 +93,14 @@ struct DiceComboModuleTests {
         #expect(Set(names).count == 12)
         #expect(Set(rules).count == 12)
         #expect(DiceComboText.rule(.threes) == "3の目の合計")
+    }
+}
+
+@Suite("サイコロ役づくりの得点表")
+@MainActor
+struct DiceComboScoreRowSizeTests {
+    @Test("役を選ぶと取り消せないので、得点表の行は 44pt 以上（Issue #2491）")
+    func rowHeightIsAtLeast44() {
+        #expect(DiceComboScoreRow.height >= 44)
     }
 }

@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 
 /// スワイプを「何マスぶんの操作か」に翻訳する幾何計算（会長指示 2026-09-17: 左右ボタンは置かない）。
 ///
@@ -42,6 +43,17 @@ public enum OjisanPuzzleDrag {
     /// 下方向に何マスぶん落とすか。上へのスワイプには何も割り当てないので 0 で止める。
     public static func downSteps(_ distance: CGFloat, step: CGFloat) -> Int {
         max(0, steps(distance, step: step))
+    }
+
+    /// 「速く払った」とみなす最小の移動距離（pt）。1 マスずつ刻むつもりの下スワイプを誤判定しない長さ。
+    public static let flickMinDistance: CGFloat = 80
+    /// 「速く払った」とみなす最小の速さ（pt/秒）。指を止めずに払うと 1000 を超え、狙って刻むと 300 前後に収まる。
+    public static let flickMinSpeed: CGFloat = 700
+
+    /// 下へ払う動きが「一気に落とす」速さか。`elapsed` は触れてからの秒数（平均の速さで見る）。
+    public static func isFlickDown(distance: CGFloat, elapsed: TimeInterval) -> Bool {
+        guard distance.isFinite, elapsed.isFinite, elapsed > 0, distance >= flickMinDistance else { return false }
+        return distance / CGFloat(elapsed) >= flickMinSpeed
     }
 
     /// 指を離したときに、それがタップ（＝回す）だったか。

@@ -651,6 +651,259 @@
           }
         }
       }
+    },
+    "%1$@ / ヒント %2$lld回 / タイム %3$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ / Hints: %2$lld / Time %3$@"
+          }
+        }
+      }
+    },
+    "マインスイーパーのはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minesweeper: first steps"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "地雷をよけて、地雷の無いマスを開けていくゲームです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avoid the mines and open the squares that have no mine."
+          }
+        }
+      }
+    },
+    "最初にタップしたマスは、地雷ではありません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The first square you tap is never a mine."
+          }
+        }
+      }
+    },
+    "まわりに地雷が無いマスは、まとめて開きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Squares with no mines around them open all at once."
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What you do on your turn"
+          }
+        }
+      }
+    },
+    "マスをタップして開きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a square to open it."
+          }
+        }
+      }
+    },
+    "数字は、まわり 8 マスにある地雷の数です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A number shows how many mines are in the 8 squares around it."
+          }
+        }
+      }
+    },
+    "旗を立てる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Placing flags"
+          }
+        }
+      }
+    },
+    "地雷がありそうなマスは、長押しで旗を立てます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Long-press a square you think hides a mine to place a flag."
+          }
+        }
+      }
+    },
+    "旗を立てたマスは、タップしても開きません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A flagged square won't open when you tap it."
+          }
+        }
+      }
+    },
+    "「⋯」の「旗モード」をオンにすると、タップで旗を立てられます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn on \"Flag Mode\" in \"⋯\" to place flags with a tap."
+          }
+        }
+      }
+    },
+    "まとめて開ける" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opening several at once"
+          }
+        }
+      }
+    },
+    "数字と同じ数だけ旗を立てたら、その数字をタップします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Once a number has that many flags around it, tap the number."
+          }
+        }
+      }
+    },
+    "まわりの残りのマスが、まとめて開きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The rest of the squares around it open at once."
+          }
+        }
+      }
+    },
+    "旗がまちがっていると、地雷を踏んでしまいます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If a flag is wrong, you'll hit a mine."
+          }
+        }
+      }
+    },
+    "勝ち負けの決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How you win"
+          }
+        }
+      }
+    },
+    "地雷以外のマスをすべて開けたらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open every square that isn't a mine to clear the board."
+          }
+        }
+      }
+    },
+    "地雷を踏むと負けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hit a mine and you lose."
+          }
+        }
+      }
+    },
+    "広告を見ると、1 回だけ続きから遊べます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to continue, once per game."
+          }
+        }
+      }
+    },
+    "角をタップ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a corner"
+          }
+        }
+      }
+    },
+    "まとめて開いた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opened at once"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
