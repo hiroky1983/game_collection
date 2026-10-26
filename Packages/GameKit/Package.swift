@@ -70,6 +70,10 @@ let package = Package(
                 // トランプの効果音 4 種（CC0・出所は docs/design/card-sfx/assets-license.md・#2697）と、
                 // 盤ゲームの着手音 5 種（CC0・出所は docs/design/board-sfx/assets-license.md・#2767）。
                 resources: [.copy("Resources/Localization"), .copy("Resources/Sounds")]),
+        // 具体物カードのドット絵（#1243・#1244）。神経衰弱とカードしりとりだけが使うので、Core から切り出して
+        // 絵を描き足しても他のゲームのテストを走らせない（#2953）。
+        .target(name: "CoreObjectArt",      dependencies: ["Core"],
+                resources: [.copy("Resources/Localization")]),
         .target(name: "Core",               dependencies: ["CoreEngine"],
                 // おじさんの正面顔 3 表情（#2064。Codex 製 64×60・出所は docs/design/ojisan-pixel-pipeline）。
                 resources: [.copy("Resources/Localization"),
@@ -94,7 +98,7 @@ let package = Package(
                 resources: [.copy("Resources/Localization")]),
         .target(name: "GamePoker",          dependencies: ["Core"],
                 resources: [.copy("Resources/Localization")]),
-        .target(name: "GameConcentration",  dependencies: ["Core"],
+        .target(name: "GameConcentration",  dependencies: ["Core", "CoreObjectArt"],
                 resources: [.copy("Resources/Localization")]),
         .target(name: "GameBlackjack",      dependencies: ["Core"],
                 resources: [.copy("Resources/Localization")]),
@@ -120,9 +124,9 @@ let package = Package(
         // 種の事前計算は `swiftc -O` で単体バイナリにして回す（`SpiderDealerTests` に手順）。
         .target(name: "GameSpider",         dependencies: ["Core", "CoreEngine"],
                 resources: [.copy("Resources/Localization")]),
-        // カードしりとり（#1243）。読みの判定・CPU の手は純粋ロジックで、絵は Core の `ObjectCardArt`
-        // （神経衰弱 #1244 と共有するドット絵）を使うので Core だけに依存する。
-        .target(name: "GameShiritori",      dependencies: ["Core"],
+        // カードしりとり（#1243）。読みの判定・CPU の手は純粋ロジックで、絵は `CoreObjectArt` の
+        // `ObjectCardArt`（神経衰弱 #1244 と共有するドット絵）を使う。
+        .target(name: "GameShiritori",      dependencies: ["Core", "CoreObjectArt"],
                 resources: [.copy("Resources/Localization")]),
         .target(name: "GameFifteen",        dependencies: ["Core"],
                 resources: [.copy("Resources/Localization")]),
@@ -297,7 +301,7 @@ let package = Package(
         .testTarget(name: "GameMinesweeperTests", dependencies: ["GameMinesweeper", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameOthelloTests", dependencies: ["GameOthello", "CoreEngine", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GamePokerTests",          dependencies: ["GamePoker", "GameKitTestSupport", "CoreTestSupport"]),
-        .testTarget(name: "GameConcentrationTests",  dependencies: ["GameConcentration", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameConcentrationTests",  dependencies: ["GameConcentration", "CoreObjectArt", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameBlackjackTests",       dependencies: ["GameBlackjack", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameDaifugoTests",         dependencies: ["GameDaifugo", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameSudokuTests",          dependencies: ["GameSudoku", "GameKitTestSupport", "CoreTestSupport"]),
@@ -305,7 +309,7 @@ let package = Package(
         .testTarget(name: "GameBlocksTests",         dependencies: ["GameBlocks", "CoreTestSupport"]),
         .testTarget(name: "GameFreeCellTests",       dependencies: ["GameFreeCell", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameSpiderTests",         dependencies: ["GameSpider", "GameKitTestSupport", "CoreTestSupport"]),
-        .testTarget(name: "GameShiritoriTests",      dependencies: ["GameShiritori", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameShiritoriTests",      dependencies: ["GameShiritori", "CoreObjectArt", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameFifteenTests",        dependencies: ["GameFifteen", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameFruitsTests",         dependencies: ["GameFruits", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameColorRelayTests",     dependencies: ["GameColorRelay", "GameKitTestSupport", "CoreTestSupport"]),

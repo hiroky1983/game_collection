@@ -1,6 +1,7 @@
 import Testing
 import Foundation
 import Core
+import CoreObjectArt
 @testable import GameShiritori
 
 // MARK: - かなの受け方
