@@ -351,7 +351,15 @@ private struct ScaledFigure: View {
                 .frame(width: geo.size.width, height: geo.size.height)
                 .opacity(natural == .zero ? 0 : 1)
         }
-        .onPreferenceChange(NaturalSizeKey.self) { natural = $0 }
+        // 測った大きさが 0.5pt 未満しか変わらないときは書き戻さない。書き戻すたびに図を組み直すので、
+        // 端数の揺れで測り直しが止まらなくなると、ページ送りの間じゅう描き直しが続く（#2905）。
+        .onPreferenceChange(NaturalSizeKey.self) { size in
+            if Self.differs(size, from: natural) { natural = size }
+        }
+    }
+
+    nonisolated static func differs(_ a: CGSize, from b: CGSize) -> Bool {
+        abs(a.width - b.width) >= 0.5 || abs(a.height - b.height) >= 0.5
     }
 
     static func scale(natural: CGSize, available: CGSize) -> CGFloat {
