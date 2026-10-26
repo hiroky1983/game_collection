@@ -1,6 +1,7 @@
 import Testing
 import CoreGraphics
 import Core
+import CoreOjisanPixel
 @testable import GameFruits
 
 /// 縁側に立つおじさんと手元の盆栽の置き場所（#2361）。座標は盤の抽象単位・上が原点（0 = 縁側の上端）。

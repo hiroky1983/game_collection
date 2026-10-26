@@ -1,4 +1,5 @@
 import Core
+import CoreOjisanPixel
 import Foundation
 
 // MARK: - チャリンコおじさんのドット絵（走者以外）

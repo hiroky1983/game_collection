@@ -1,5 +1,6 @@
 import Core
 import CoreGraphics
+import CoreOjisanPixel
 import SwiftUI
 
 /// 図入りの遊び方（#2044）のチャリンコおじさんの図。文言は `HowToPlayGuide.runner.items` /
