@@ -136,6 +136,25 @@ struct SpeedModuleTests {
         #expect(code.contains("SpeedFlight.pileScale(handWidth: metrics.width"), "飛ぶ札の倍率を寸法の幅から上限つきで決めていない")
     }
 
+    /// 会長 QA 2026-10-27（#2955）: 山札から札を出す（補充）動きを、切り替わりではなく滑る動きにする。
+    @Test("補充の札は山札から空いた枠へ滑り、着くまで手札の側では見せない。Reduce Motion では滑らせない")
+    func refillSlides() throws {
+        let card = SpeedCard(id: 1, suit: .hearts, rank: 5)
+        let deal = SpeedFlight(card: card, from: .zero, to: CGPoint(x: 10, y: 10), isToPile: false, isDeal: true, toScale: 1)
+        let toPile = SpeedFlight(card: card, from: .zero, to: .zero, isToPile: true)
+        let bounce = SpeedFlight(card: card, from: .zero, to: .zero, isToPile: false)
+        // 台札へ飛ぶ札と同じ長さ（CPU の飛ぶ札と見た目・速さを揃える）。跳ね返りのばねとは別。
+        #expect(deal.lifetime == toPile.lifetime)
+        #expect(deal.lifetime != bounce.lifetime)
+        let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameSpeed/SpeedView.swift"))
+        #expect(code.contains("flyHumanRefill()"), "自分が出したあとに補充の札を滑らせていない")
+        #expect(code.contains("flyCPURefill(before: hand)"), "CPU が出したあとに補充の札を滑らせていない")
+        #expect(code.contains(".cardDropTarget(SpeedSlot.humanStock"), "自分の山札の位置を測っていない")
+        #expect(code.contains(".cardDropTarget(SpeedSlot.cpuStock"), "CPU の山札の位置を測っていない")
+        #expect(code.contains(".opacity(isDealing(card) ? 0 : 1)"), "CPU の補充の札が着く前から見えている")
+        #expect(code.contains("guard !Motion.isReduceMotionEnabled"), "Reduce Motion でも滑らせている")
+    }
+
     /// 会長 QA 2026-10-23「相手が出したアニメーションが無く、急に札が入れ替わったように感じる」。
     @Test("CPU が出した札も CPU の手札の位置から台札へ飛び、台札は下の札を重ねて見せる")
     func cpuPlayFlies() throws {
