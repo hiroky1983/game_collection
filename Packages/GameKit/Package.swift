@@ -82,7 +82,8 @@ let package = Package(
         // Core から切り出し、絵を直しても他のゲームのテストを走らせない（#2953）。
         .target(name: "CoreOjisanPixel",    dependencies: ["Core"],
                 // おじさんの正面顔 3 表情（#2064。Codex 製 64×60・出所は docs/design/ojisan-pixel-pipeline）。
-                resources: [.copy("Resources/OjisanFace_smile.png"),
+                resources: [.copy("Resources/Localization"),
+                            .copy("Resources/OjisanFace_smile.png"),
                             .copy("Resources/OjisanFace_cheer.png"),
                             .copy("Resources/OjisanFace_frown.png")]),
         .target(name: "Core",               dependencies: ["CoreEngine"],
