@@ -207,6 +207,7 @@ public struct SpeedView: View {
             let tops = model.tops
             withGameAnimation { model.performCPUAction() }
             flyCPUPlay(hand: hand, tops: tops)
+            flyCPURefill(before: hand)
         }
     }
 
@@ -286,6 +287,8 @@ public struct SpeedView: View {
             HStack(spacing: SpeedTableLayout.cpuCardSpacing) {
                 ForEach(model.cpuHand) { card in
                     SpeedCardView(card: card, metrics: cpuMetrics)
+                        // 山札から滑ってくる途中の補充の札は、着くまで見せない。
+                        .opacity(isDealing(card) ? 0 : 1)
                         // 出した札を台札へ飛ばす起点（中心だけ使う。出入りの拡大縮小でも中心は動かない）。
                         .cardDropTarget(SpeedSlot.cpu(card.id), in: Self.tableSpace)
                         .id(card.id)
@@ -293,8 +296,10 @@ public struct SpeedView: View {
                 }
             }
             .gameAnimation(.easeInOut(duration: 0.18), value: model.cpuHand)
+            .cardDropTarget(SpeedSlot.cpuRow, in: Self.tableSpace)
             Spacer(minLength: 0)
             SpeedStockView(metrics: cpuMetrics, count: model.cpuStock.count)
+                .cardDropTarget(SpeedSlot.cpuStock, in: Self.tableSpace)
         }
         // CPU 側は「何を持っていて山があと何枚か」が分かればよいので 1 要素にまとめる（#188）。
         .accessibilityElement(children: .ignore)
@@ -403,6 +408,7 @@ public struct SpeedView: View {
                     }
                 }
                 .frame(width: handMetrics.width, height: handMetrics.height)
+                .cardDropTarget(SpeedSlot.handSlot(position), in: Self.tableSpace)
                 // 札の枠は、補充の札の `.transition(.scale)` の外（動かない枠）で測る。札の側で測ると、出てきた瞬間の
                 // ほぼ 0 倍に縮んだ枠（幅 0.0007pt）が残り、台札へ飛ぶ札の倍率が 14 万倍になって画面全体が白く光った
                 // （会長 QA 2026-10-23「スピードの画面がチカチカフラッシュする」）。
@@ -416,6 +422,7 @@ public struct SpeedView: View {
                 }
             }
             SpeedStockView(metrics: handMetrics, count: model.humanStock.count)
+                .cardDropTarget(SpeedSlot.humanStock, in: Self.tableSpace)
                 .accessibilityLabel(SpeedAccessibility.stockLabel(of: .human, count: model.humanStock.count))
         }
         .frame(maxWidth: .infinity)
@@ -511,6 +518,7 @@ public struct SpeedView: View {
         case .play(let pile):
             if model.swipeCard(card, onto: pile) {
                 fly(card, from: release, toPile: pile)
+                flyHumanRefill()
             } else {
                 bounce(card, from: release, home: home)
             }
@@ -551,6 +559,7 @@ public struct SpeedView: View {
         model.tapHandCard(card)
         if targets.count == 1, let home, model.tops[targets[0]] == card {
             fly(card, from: CGPoint(x: home.midX, y: home.midY), toPile: targets[0])
+            flyHumanRefill()
         }
     }
 
@@ -566,6 +575,7 @@ public struct SpeedView: View {
         withGameAnimation { handled = model.fingerTapPile(index, assistive: assistive) }
         if handled, let card, let home, model.tops[index] == card {
             fly(card, from: CGPoint(x: home.midX, y: home.midY), toPile: index)
+            flyHumanRefill()
         }
     }
 
@@ -584,6 +594,39 @@ public struct SpeedView: View {
         for (index, top) in model.tops.enumerated() where index < tops.count && top != tops[index] {
             guard let top, hand.contains(top), let frame = frames[.cpu(top.id)] else { continue }
             fly(top, from: CGPoint(x: frame.midX, y: frame.midY), toPile: index, fromScale: SpeedTableLayout.cpuCardRatio)
+        }
+    }
+
+    /// 補充の札を飛ばしている途中か（着くまで手札・CPU の札の側では見せない）。
+    private func isDealing(_ card: SpeedCard) -> Bool {
+        flights.contains { $0.card.id == card.id && $0.isDeal }
+    }
+
+    /// 自分が札を出した直後、手札に補充された札を山札から空いた枠へ滑らせる（#2955）。
+    /// `slots` はまだ補充前の並びなので、`arrange` で補充後の枠を先に求める。Reduce Motion では滑らせない。
+    private func flyHumanRefill() {
+        guard !Motion.isReduceMotionEnabled, let stock = frames[.humanStock] else { return }
+        let ids = model.humanHand.map(\.id)
+        let next = SpeedHandLayout.arrange(previous: slots, hand: ids)
+        for card in model.humanHand where !slots.contains(card.id) {
+            guard let position = next.firstIndex(of: card.id), let slot = frames[.handSlot(position)] else { continue }
+            flights.append(SpeedFlight(card: card, from: CGPoint(x: stock.midX, y: stock.midY),
+                                       to: CGPoint(x: slot.midX, y: slot.midY), isToPile: false,
+                                       isDeal: true, toScale: 1))
+        }
+    }
+
+    /// CPU が札を出した直後、CPU の手札に補充された札を CPU の山札から並びの端へ滑らせる（#2955）。
+    /// 着く先は、並びの左端（枚数が変わっても動かない）から札の幅と間隔で数えた位置。
+    private func flyCPURefill(before hand: [SpeedCard]) {
+        guard !Motion.isReduceMotionEnabled, let stock = frames[.cpuStock], let row = frames[.cpuRow] else { return }
+        let before = Set(hand.map(\.id))
+        let width = stock.width
+        for (index, card) in model.cpuHand.enumerated() where !before.contains(card.id) {
+            let x = row.minX + (width + SpeedTableLayout.cpuCardSpacing) * CGFloat(index) + width / 2
+            flights.append(SpeedFlight(card: card, from: CGPoint(x: stock.midX, y: stock.midY),
+                                       to: CGPoint(x: x, y: stock.midY), fromScale: SpeedTableLayout.cpuCardRatio,
+                                       isToPile: false, isDeal: true, toScale: SpeedTableLayout.cpuCardRatio))
         }
     }
 
@@ -799,6 +842,13 @@ enum SpeedSlot: Hashable {
     case hand(Int)
     /// CPU の手札の札（札の ID）。出した札を飛ばす起点。
     case cpu(Int)
+    /// 自分の山札・CPU の山札。補充の札が滑り出す起点。
+    case humanStock
+    case cpuStock
+    /// 手札の枠（左から数えた位置。札の出入りで動かない）。補充の札が着く先。
+    case handSlot(Int)
+    /// CPU の札の並び全体。左端は札の枚数が変わっても動かないので、補充の札が着く先の計算に使う。
+    case cpuRow
 }
 
 /// 指についている札と、つかんだ位置（札の左上からのずれ）。
@@ -818,14 +868,21 @@ struct SpeedFlight: Identifiable, Equatable {
     /// 着く先の札の幅（台札）。nil なら手札の大きさのまま（跳ね返り）。
     var toWidth: CGFloat?
     let isToPile: Bool
+    /// 山札から手札へ滑る補充の札か（#2955）。着くまで手札の側では見せない。
+    var isDeal = false
+    /// 着いたときの倍率。nil なら `toWidth` から決める。
+    var toScale: CGFloat?
 
-    /// 動きの長さ。台札へはすっと速く、跳ね返りはばねで少し揺らす（ミスの手応え）。
+    /// 台札へ・補充で滑る札か（すっと速く動く）。跳ね返りだけが別の動き。
+    private var isSlide: Bool { isToPile || isDeal }
+
+    /// 動きの長さ。台札へ・補充はすっと速く、跳ね返りはばねで少し揺らす（ミスの手応え）。
     var animation: Animation {
-        isToPile ? .easeOut(duration: 0.14) : .spring(response: 0.26, dampingFraction: 0.55)
+        isSlide ? .easeOut(duration: 0.14) : .spring(response: 0.26, dampingFraction: 0.55)
     }
 
     /// 動き終えて消すまでの時間（動きの長さに少し足す）。
-    var lifetime: Duration { isToPile ? .milliseconds(170) : .milliseconds(380) }
+    var lifetime: Duration { isSlide ? .milliseconds(170) : .milliseconds(380) }
 
     /// 台札へ飛ぶ札の着いたときの倍率（台札の枠の幅 ÷ 手札の札の寸法の幅）。以前は手札の札の**測った枠**で割っていて、
     /// 出てくる途中の札（`.transition(.scale)` でほぼ 0 倍）の枠だと 14 万倍になり、札の面が画面全体を覆って白く光った
@@ -844,7 +901,7 @@ private struct SpeedFlightView: View {
 
     var body: some View {
         SpeedCardView(card: flight.card, metrics: metrics)
-            .scaleEffect(arrived ? SpeedFlight.pileScale(handWidth: metrics.width, pileWidth: flight.toWidth) : flight.fromScale)
+            .scaleEffect(arrived ? (flight.toScale ?? SpeedFlight.pileScale(handWidth: metrics.width, pileWidth: flight.toWidth)) : flight.fromScale)
             .shadow(color: .black.opacity(0.25), radius: 6, y: 4)
             .position(arrived ? flight.to : flight.from)
             .onAppear {
