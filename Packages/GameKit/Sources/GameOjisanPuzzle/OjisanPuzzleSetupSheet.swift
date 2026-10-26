@@ -16,7 +16,7 @@ struct OjisanPuzzleSetupSheet: View {
     @State private var showsDetails = false
 
     var body: some View {
-        GameSetupSheet(kind: .solo, onStart: onStart, onCancel: onCancel) {
+        GameSetupSheet(kind: .solo, onboarding: OjisanPuzzleOnboarding.guide(mode: mode), onStart: onStart, onCancel: onCancel) {
             GameSetupSection(tr("遊び方")) {
                 HStack(spacing: 12) {
                     ForEach(OjisanPuzzleMode.allCases) { option in

@@ -13,7 +13,10 @@ enum FruitsHowToFigures {
         { AnyView(LimitFigure()) },
     ]
 
-    private static func icon(_ kind: FruitKind, size: CGFloat = 44) -> some View {
+    /// 合体の図の 2 鉢と、できる 1 鉢（「はじめての遊び方」#2826 と共用。`FruitsOnboardingTests` が `FruitField` に通して確かめる）。
+    static let merge = (from: FruitKind.mikan, into: FruitKind.icho)
+
+    static func icon(_ kind: FruitKind, size: CGFloat = 44) -> some View {
         BonsaiIcon(kind).frame(width: size, height: size)
     }
 
@@ -24,7 +27,7 @@ enum FruitsHowToFigures {
     }
 
     /// 指を左右に動かすと、盆栽を持ったおじさんが付いてくる。
-    private struct MoveFigure: View {
+    struct MoveFigure: View {
         var body: some View {
             VStack(spacing: 4) {
                 HStack(spacing: 10) {
@@ -38,7 +41,7 @@ enum FruitsHowToFigures {
     }
 
     /// 離すと、真下へ落ちる。
-    private struct DropFigure: View {
+    struct DropFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 20) { index in
                 VStack(spacing: 4) {
@@ -58,18 +61,18 @@ enum FruitsHowToFigures {
     }
 
     /// 同じ盆栽が 2 つ触れると、1 つ上の段の盆栽になる。
-    private struct MergeFigure: View {
+    struct MergeFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 18) { index in
                 VStack(spacing: 4) {
                     if index == 0 {
                         HStack(spacing: -4) {
-                            FruitsHowToFigures.icon(.mikan)
-                            FruitsHowToFigures.icon(.mikan)
+                            FruitsHowToFigures.icon(FruitsHowToFigures.merge.from)
+                            FruitsHowToFigures.icon(FruitsHowToFigures.merge.from)
                         }
                         RuleFigureLabel(tr("同じ盆栽が触れる"))
                     } else {
-                        FruitsHowToFigures.icon(.icho, size: 52)
+                        FruitsHowToFigures.icon(FruitsHowToFigures.merge.into, size: 52)
                         RuleFigureLabel(tr("1つ立派に"), color: Theme.coralText)
                     }
                 }
@@ -78,7 +81,7 @@ enum FruitsHowToFigures {
     }
 
     /// 11 種類を小さい順に並べる。いちばん立派なのは金の松。
-    private struct LineupFigure: View {
+    struct LineupFigure: View {
         var body: some View {
             RuleLineup(count: FruitKind.allCases.count, low: tr("小さい"), high: tr("金の松")) { index in
                 BonsaiIcon(FruitKind.allCases[index])
@@ -88,7 +91,7 @@ enum FruitsHowToFigures {
     }
 
     /// 点線より上に盆栽がとどまると、ゲームオーバー。
-    private struct LimitFigure: View {
+    struct LimitFigure: View {
         var body: some View {
             VStack(spacing: 4) {
                 ZStack(alignment: .top) {

@@ -583,7 +583,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld left"
+            "value" : "%lld cells left"
           }
         }
       }
@@ -870,6 +870,226 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "That square is part of the puzzle"
+          }
+        }
+      }
+    },
+    "ナンプレのはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Number Place: first steps"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "空いているマスに、1〜9 の数字を入れていくパズルです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A puzzle where you fill the empty squares with the numbers 1–9."
+          }
+        }
+      }
+    },
+    "盤をすべて埋めたらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fill the whole board to clear it."
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What you do on your turn"
+          }
+        }
+      }
+    },
+    "空いているマスをタップして選びます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap an empty square to select it."
+          }
+        }
+      }
+    },
+    "下の数字パッドで、1〜9 の数字を入れます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter a number from 1 to 9 with the number pad below."
+          }
+        }
+      }
+    },
+    "同じ数字は 1 つまで" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each number only once"
+          }
+        }
+      }
+    },
+    "よこの行・たての列・太線の 3×3 には、1〜9 が 1 つずつ入ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each row, each column and each bold 3×3 box holds 1–9 once each."
+          }
+        }
+      }
+    },
+    "同じ数字は、どれにも 2 つ入りません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No number appears twice in any of them."
+          }
+        }
+      }
+    },
+    "ミスは 3 回まで" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Up to 3 mistakes"
+          }
+        }
+      }
+    },
+    "答えと違う数字を入れると、ミスになります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entering a number that isn't the answer counts as a mistake."
+          }
+        }
+      }
+    },
+    "ミスが 3 回になると、そこで止まります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "At 3 mistakes, the game stops there."
+          }
+        }
+      }
+    },
+    "広告を見るとミスが 0 に戻り、続きから遊べます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to reset mistakes to 0 and keep playing."
+          }
+        }
+      }
+    },
+    "勝ち負けの決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How you win"
+          }
+        }
+      }
+    },
+    "空いているマスを、すべて正しく埋めたらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fill every empty square correctly to clear the puzzle."
+          }
+        }
+      }
+    },
+    "「諦める」と答えが表示され、クリアできなかった記録になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you choose \"Give Up\", the answers are shown and it's recorded as not cleared."
+          }
+        }
+      }
+    },
+    "はじめ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start"
+          }
+        }
+      }
+    },
+    "おわり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "End"
+          }
+        }
+      }
+    },
+    "残り%lldマス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld cells left"
           }
         }
       }

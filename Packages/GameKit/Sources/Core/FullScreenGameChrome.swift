@@ -309,9 +309,9 @@ private struct FullScreenGameHeader<Status: View>: View {
                         ?? proxy.size.width
                     let available = max(0, right - Metrics.headerSpacing - title.minX)
                     ViewThatFits(in: .horizontal) {
-                        GameConditionChip(text: condition.fullText, ink: surface.headerInk, action: condition.action)
+                        GameConditionChip(text: condition.fullText, ink: surface.headerInk)
                         if condition.hasShortForm {
-                            GameConditionChip(text: condition.shortText, ink: surface.headerInk, action: condition.action)
+                            GameConditionChip(text: condition.shortText, ink: surface.headerInk)
                         }
                         Color.clear.frame(width: 0, height: 0)
                     }

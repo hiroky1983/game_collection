@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import GameKitTestSupport
 @testable import GameHomerun
 
 /// 操作の説明（#1763）: 初回の記録・1 球目の前の停止・匂わせの文言。
@@ -61,5 +62,22 @@ struct HomerunTutorialTests {
             let t = HomerunTutorial.text(page: page)
             #expect(t.body.allSatisfy { !$0.isNumber })
         }
+    }
+
+    /// `HomerunTutorial.swift` は `Canvas` の中で文字を描かない（花札の帯の文字と同じ形・#2905・#2945）。
+    /// `TimelineView(.animation)` で毎フレーム描き直す図（`HomerunTutorialFigure.marks`）の中で `ctx.draw(Text)`
+    /// を使うと、描き直すたびに文字の組版をやり直し、主スレッドが詰まる危険がある。「離す」「離す！」の文字と
+    /// 指のアイコンは、Canvas の外（overlay の `Text`/`Image`）に出してある。
+    @Test("HomerunTutorial.swift は Canvas の中で文字を描いていない")
+    func doesNotDrawTextInCanvas() throws {
+        let code = try SourceScan.packageSource("Sources/GameHomerun/HomerunTutorial.swift")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        #expect(!code.contains(".draw(Text"), "Canvas の中で文字を描いている")
+        #expect(!code.contains("resolve(Text"), "Canvas の中で文字を測っている・描いている")
+        // 実際の描画が overlay の Text/Image に移っていること（退行防止の素振り）。
+        #expect(code.contains("Text(released ? tr(\"離す！\") : tr(\"離す\"))"))
+        #expect(code.contains("hand.point.up.left.fill"))
     }
 }

@@ -2291,6 +2291,237 @@
           }
         }
       }
+    },
+    "柵越えおじさんのはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sakugoe Ojisan: first steps"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "飛んでくる球を、10 球打つゲームです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hit 10 pitches as they come at you."
+          }
+        }
+      }
+    },
+    "10 球の合計飛距離を伸ばしましょう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Go for the longest total distance over the 10 pitches."
+          }
+        }
+      }
+    },
+    "1 球でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What you do on each pitch"
+          }
+        }
+      }
+    },
+    "画面の下のほうを押したままずらすと、水色のミートカーソルが動きます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hold and slide near the bottom of the screen to move the light-blue contact cursor."
+          }
+        }
+      }
+    },
+    "カーソルをボールに合わせます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Line the cursor up with the ball."
+          }
+        }
+      }
+    },
+    "指を離して打つ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Let go to swing"
+          }
+        }
+      }
+    },
+    "縮む輪が白い的に重なった瞬間に指を離すと、スイングします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Let go the moment the shrinking ring overlaps the white target to swing."
+          }
+        }
+      }
+    },
+    "ぴったりなほど遠くへ飛びます。早すぎ・遅すぎは空振りです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The better your timing, the farther it flies. Too early or too late is a whiff."
+          }
+        }
+      }
+    },
+    "打球の角度と方向" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Angle and direction"
+          }
+        }
+      }
+    },
+    "カーソルをボールの少し下に置くと、打球が上がります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Put the cursor just under the ball to lift it."
+          }
+        }
+      }
+    },
+    "カーソルの左右と離す早さで、打球の方向が決まります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Where you aim left or right and when you let go set the direction."
+          }
+        }
+      }
+    },
+    "左右に寄せすぎるとファウルです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pull it too far to either side and it's a foul."
+          }
+        }
+      }
+    },
+    "挑戦は 1 日 3 回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3 rounds a day"
+          }
+        }
+      }
+    },
+    "打席に立った時点で 1 回減り、0:00 に戻ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One is used as soon as you step up to bat, and they reset at 0:00."
+          }
+        }
+      }
+    },
+    "回数が 0 のときは、広告を見て 1 回遊べます（1 日の本数に上限があります）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When you're out of rounds, you can watch an ad to play once (there's a daily limit)."
+          }
+        }
+      }
+    },
+    "記録の決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How your record works"
+          }
+        }
+      }
+    },
+    "10 球の合計飛距離が、その挑戦の記録です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your total distance over the 10 pitches is your record for that round."
+          }
+        }
+      }
+    },
+    "空振り・見送り・ファウルは 0 m。柵越えを重ねて自己ベストを目指そう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whiffs, taken pitches and fouls count as 0 m. Stack up homers and go for your best."
+          }
+        }
+      }
+    },
+    "空振り・ファウルは 0 m" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Whiffs and fouls are 0 m"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

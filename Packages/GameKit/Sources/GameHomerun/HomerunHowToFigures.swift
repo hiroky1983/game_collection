@@ -15,7 +15,7 @@ enum HomerunHowToFigures {
     ]
 
     /// 1 回の挑戦は 10 球、合計飛距離で記録。
-    private struct TenBallsFigure: View {
+    struct TenBallsFigure: View {
         var body: some View {
             VStack(spacing: 6) {
                 HStack(spacing: 4) {
@@ -36,7 +36,7 @@ enum HomerunHowToFigures {
     }
 
     /// 打席の「操作の説明」と同じ図解（指の動きのループ。Reduce Motion では止め絵）。
-    private struct TutorialFigure: View {
+    struct TutorialFigure: View {
         let kind: HomerunTutorialFigure.Kind
 
         var body: some View {
@@ -50,7 +50,7 @@ enum HomerunHowToFigures {
     }
 
     /// カーソルをボールの少し下に置くと打球が上がる。
-    private struct LaunchFigure: View {
+    struct LaunchFigure: View {
         var body: some View {
             HStack(spacing: 16) {
                 ZStack {
@@ -79,7 +79,7 @@ enum HomerunHowToFigures {
     }
 
     /// 1 日 3 回。打席に立つと 1 回減り、0:00 に戻る。
-    private struct DailyFigure: View {
+    struct DailyFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 12) { index in
                 VStack(spacing: 6) {

@@ -35,13 +35,12 @@ extension MahjongView {
                     uraDoraRow(ura)
                 }
             } else if let result = model.handResult {
-                Text(
-                    result.tenpaiPlayers.isEmpty
-                        ? tr("全員ノーテンです")
-                        : tr("聴牌: %@", result.tenpaiPlayers.map { model.playerName($0) }.joined(separator: tr("・")))
-                )
-                .scaledFont(13, weight: .semibold, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                // 手牌は卓の上で開けてある（#2872）。ここは罰符の内訳を 1 行で。
+                Text(Self.drawPenaltyLine(result))
+                    .scaledFont(13, weight: .semibold, design: .rounded)
+                    .foregroundStyle(Theme.inkSub)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             scoreTable
         }
@@ -165,11 +164,15 @@ extension MahjongView {
                     Text(model.playerName(player))
                         .scaledFont(12, weight: .semibold, design: .rounded)
                         .foregroundStyle(Theme.inkSub)
+                    if let result = model.handResult, result.kind == .exhaustiveDraw {
+                        drawStatus(player: player, result: result)
+                    }
                     Spacer()
                     if let change = model.handResult?.pointChanges[player], change != 0 {
                         Text(change > 0 ? "+\(change)" : "\(change)")
                             .scaledFont(12, weight: .bold, design: .rounded)
                             .foregroundStyle(change > 0 ? Theme.tealText : Theme.coralText)
+                            .fixedSize()
                     }
                     Text(Self.pointsText(model.scores[player]))
                         .scaledFont(12, weight: .black, design: .rounded)
@@ -183,7 +186,49 @@ extension MahjongView {
         .padding(.top, 4)
     }
 
+    /// 流局の各家の札（テンパイ／ノーテン）と、テンパイの家の待ち牌（小さく。#2872）。
+    private func drawStatus(player: Int, result: MahjongHandResult) -> some View {
+        let isTenpai = result.tenpaiPlayers.contains(player)
+        let waits = isTenpai ? MahjongShanten.waits(model.hands[player], meldCount: model.melds[player].count) : []
+        // 9 面待ちでも iPhone SE の行（増減・持ち点と並ぶ）に収まるよう、多いときは小さくする
+        let tileWidth: CGFloat = waits.count > 6 ? 8 : 10
+        let label = isTenpai ? tr("テンパイ") : tr("ノーテン")
+        return HStack(spacing: 4) {
+            Text(label)
+                .scaledFont(10, weight: .black, design: .rounded)
+                .foregroundStyle(isTenpai ? Theme.tealText : Theme.inkSub)
+                .padding(.horizontal, 5).padding(.vertical, 1)
+                .overlay(Capsule().strokeBorder(isTenpai ? Theme.tealText : Theme.inkSub, lineWidth: 1))
+                .fixedSize()
+            if !waits.isEmpty {
+                HStack(spacing: 1) {
+                    ForEach(Array(waits.enumerated()), id: \.offset) { _, tile in
+                        MahjongTileView(tile: tile, width: tileWidth, height: tileWidth * 1.4)
+                    }
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            waits.isEmpty
+                ? label
+                : tr("%1$@。待ち牌: %2$@", label, waits.map(\.displayName).joined(separator: MahjongAccessibility.listSeparator))
+        )
+    }
+
     // MARK: - 表示用の文言（#2166）
+
+    /// 流局の罰符の内訳 1 行（#2872）。テンパイが 0 人・4 人なら点は動かない。それ以外は 3000 点を
+    /// テンパイの家で分け合ってノーテンの家が払うので、1 人あたりの増減を出す。
+    static func drawPenaltyLine(_ result: MahjongHandResult) -> String {
+        let count = result.tenpaiPlayers.count
+        if count == 0 { return tr("全員ノーテンです") }
+        if count >= MahjongModel.playerCount { return tr("全員テンパイです") }
+        let gain = result.tenpaiPlayers.first.map { result.pointChanges[$0] } ?? 0
+        let loss = (0..<MahjongModel.playerCount).first { !result.tenpaiPlayers.contains($0) }
+            .map { -result.pointChanges[$0] } ?? 0
+        return tr("ノーテン罰符（テンパイ +%1$lld点・ノーテン -%2$lld点）", gain, loss)
+    }
 
     /// 「3飜 30符 満貫」の行。満貫以上の呼び名は保存値（日本語）なので表示言語に直して添える。
     static func hanFuLine(_ result: MahjongHandResult) -> String {

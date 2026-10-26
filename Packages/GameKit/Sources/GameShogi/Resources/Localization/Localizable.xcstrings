@@ -1541,6 +1541,17 @@
           }
         }
       }
+    },
+    "%lld手目" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move %lld"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

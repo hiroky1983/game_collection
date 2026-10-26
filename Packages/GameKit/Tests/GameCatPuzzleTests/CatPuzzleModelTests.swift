@@ -746,6 +746,51 @@ struct CatPuzzleModelTests {
         #expect(!model.continueUsed && !model.isFailed)
     }
 
+    /// ミス 3 回のダイアログが 1 回しか出ないことの再発防止（会長 QA・#2904）。
+    ///
+    /// 「広告で続ける提案」（`isOfferingContinue`）と「負け」（`isFailed`）が同時に真になることは無いのを、
+    /// 「あきらめる」「広告でコンティニュー」どちらの道でも確かめる。画面のカードの出し方は `failCardShowsOnce`。
+    @Test("ミス 3 回の提案と負けの結果は、同時に真にならない（あきらめる／コンティニューのどちらでも）")
+    func offerAndFailedAreMutuallyExclusive() {
+        // あきらめる道: 提案 → あきらめで負け確定。それ以降、提案が生き返ることはない。
+        let (declined, _) = atThirdMistake()
+        #expect(declined.isOfferingContinue && !declined.isFailed, "提案は 1 回だけ")
+        declined.declineContinue()
+        #expect(!declined.isOfferingContinue && declined.isFailed, "あきらめたら提案は消え、負けだけが残る")
+        #expect(!(declined.isOfferingContinue && declined.isFailed), "提案と負けの結果が同時に真にならない")
+        // 負けたあとに盤へ触れても、提案は戻らない（終局後は `isFrozen` が弾く）。
+        declined.toggleCross(cell: declined.puzzle.solutionCells[0])
+        #expect(!declined.isOfferingContinue)
+
+        // コンティニューの道: 提案 → 広告で続行 → もう一度ミス 3 回目で今度こそ負け（2 回目の提案はしない）。
+        let (granted, wrongs) = atThirdMistake()
+        #expect(granted.continueAfterAd())
+        #expect(!granted.isOfferingContinue && !granted.isFailed)
+        placeCat(granted, at: wrongs[3])
+        #expect(!granted.isOfferingContinue && granted.isFailed, "2 回目の負けは提案を挟まず直接負けになる")
+        #expect(!(granted.isOfferingContinue && granted.isFailed), "提案と負けの結果が同時に真にならない")
+    }
+
+    /// 会長 QA build 53: 提案（1 枚目）→ あきらめる → 負けの結果カード（2 枚目）と、順に 2 回出ていた（#2904）。
+    /// カードは提案のときの 1 枚だけで、あきらめたあとは重ねない。コンティニュー済みの負けは 1 回だけ出して閉じられる。
+    @Test("ミス 3 回のダイアログは、あきらめる／コンティニューのどちらでも 1 回だけ")
+    func failCardShowsOnce() {
+        // あきらめる道: 3 回目で 1 枚 → あきらめたら消え、盤に正解を出すだけ。
+        let (declined, _) = atThirdMistake()
+        #expect(CatPuzzleView.showsFailCard(declined, closed: false), "3 回目で 1 枚目を出す")
+        declined.declineContinue()
+        #expect(!CatPuzzleView.showsFailCard(declined, closed: false), "あきらめたあとに 2 枚目を重ねない")
+
+        // コンティニューの道: 3 回目で 1 枚 → 広告で続けたら消える → 次の 3 回目は負けのカードを 1 回だけ。
+        let (granted, wrongs) = atThirdMistake()
+        #expect(CatPuzzleView.showsFailCard(granted, closed: false))
+        #expect(granted.continueAfterAd())
+        #expect(!CatPuzzleView.showsFailCard(granted, closed: false), "続けたら消える")
+        placeCat(granted, at: wrongs[3])
+        #expect(CatPuzzleView.showsFailCard(granted, closed: false), "コンティニュー済みの負けは 1 回出す")
+        #expect(!CatPuzzleView.showsFailCard(granted, closed: true), "閉じたらもう出さない")
+    }
+
     @Test("答えを見たあとはコンティニューできない")
     func noContinueAfterReveal() {
         let (model, _) = atThirdMistake()

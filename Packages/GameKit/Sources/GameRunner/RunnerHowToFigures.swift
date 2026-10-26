@@ -80,7 +80,7 @@ enum RunnerHowToFigures {
     // MARK: 図
 
     /// ステージ制: ゴールまで走ればクリア。
-    private struct StageGoalFigure: View {
+    struct StageGoalFigure: View {
         var body: some View {
             VStack(spacing: 4) {
                 ZStack(alignment: .bottom) {
@@ -106,7 +106,7 @@ enum RunnerHowToFigures {
     }
 
     /// エンドレス: ミスするまで走った距離が記録。
-    private struct EndlessFigure: View {
+    struct EndlessFigure: View {
         var body: some View {
             VStack(spacing: 4) {
                 ZStack(alignment: .bottom) {
@@ -133,7 +133,7 @@ enum RunnerHowToFigures {
     }
 
     /// タップで走り出し、あとは自動で右へ。
-    private struct StartFigure: View {
+    struct StartFigure: View {
         var body: some View {
             HStack(spacing: 14) {
                 Image(systemName: "hand.tap.fill")
@@ -161,7 +161,7 @@ enum RunnerHowToFigures {
     }
 
     /// 短く押すと低く、長く押すと高く跳ぶ。
-    private struct JumpFigure: View {
+    struct JumpFigure: View {
         var body: some View {
             HStack(alignment: .bottom, spacing: 18) {
                 jump(rise: 14, label: tr("ちょんと押す"))
@@ -186,7 +186,7 @@ enum RunnerHowToFigures {
     }
 
     /// 空中でもう一度タップすると二段ジャンプ。
-    private struct DoubleJumpFigure: View {
+    struct DoubleJumpFigure: View {
         var body: some View {
             VStack(spacing: 4) {
                 ZStack(alignment: .bottomLeading) {
@@ -213,7 +213,7 @@ enum RunnerHowToFigures {
     }
 
     /// 穴に落ちたらミス（ステージ制は頭から・エンドレスはおしまい）。
-    private struct MissFigure: View {
+    struct MissFigure: View {
         let isEndless: Bool
 
         var body: some View {

@@ -60,6 +60,12 @@ public struct OnboardingGuide: Sendable, Equatable {
     public var texts: [String] {
         [title] + pages.flatMap { [$0.heading] + $0.lines }
     }
+
+    /// v1.1.14 では入口を出さない（#2944・会長決裁 2026-10-26）。花札でページ送り中に固まって
+    /// 落ちた件（#2905・PR #2943）があり、ほかにも Canvas の中で日本語を描く箇所が残っているため。
+    /// 中身・図・テストは消さず、`OnboardingEntry` の入口だけをこの 1 か所で隠す。
+    /// release/v1.1.15 では出す。release → v1.1.15 の同期でこの行が v1.1.15 に流れたら true に戻すこと。
+    public static let isAvailable = false
 }
 
 // MARK: - 入口のボタン
@@ -94,7 +100,8 @@ public struct OnboardingEntry: View {
     }
 
     public var body: some View {
-        if let guide {
+        // v1.1.14 では入口を出さない（`OnboardingGuide.isAvailable` 参照・#2944）。
+        if let guide, OnboardingGuide.isAvailable {
             Button { isPresented = true } label: {
                 switch style {
                 case .prominent:
@@ -144,6 +151,7 @@ public struct OnboardingGuideView: View {
     private let guide: OnboardingGuide
     private let onClose: () -> Void
     @State private var index: Int
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// - Parameter page: 最初に開くカード（0 始まり）。範囲外は端に丸める。
     public init(_ guide: OnboardingGuide, startingAt page: Int = 0, onClose: @escaping () -> Void) {
@@ -165,21 +173,42 @@ public struct OnboardingGuideView: View {
     }
 
     private var header: some View {
-        ZStack {
-            Text(guide.title).themeBody(17, weight: .bold).foregroundStyle(Theme.ink)
-                .lineLimit(1).minimumScaleFactor(0.7)
-                .padding(.horizontal, 72)
-                .accessibilityAddTraits(.isHeader)
-            HStack {
-                Spacer()
-                Button(tr("閉じる")) { onClose() }
-                    .themeBody(17, weight: .semibold)
-                    .foregroundStyle(Theme.coralText)
-                    .frame(minHeight: 44)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                // 最大サイズでは見出しと「閉じる」を 1 行に並べると重なる・切れるので、縦に積む（#2858）。
+                VStack(spacing: 4) {
+                    HStack {
+                        Spacer()
+                        closeButton
+                    }
+                    title.lineLimit(3)
+                }
+            } else {
+                ZStack {
+                    title.lineLimit(1).minimumScaleFactor(0.7)
+                        .padding(.horizontal, 72)
+                    HStack {
+                        Spacer()
+                        closeButton
+                    }
+                }
             }
         }
         .padding(.horizontal, Theme.pad)
         .padding(.top, 20)
+    }
+
+    private var title: some View {
+        Text(guide.title).themeBody(17, weight: .bold).foregroundStyle(Theme.ink)
+            .multilineTextAlignment(.center)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    private var closeButton: some View {
+        Button(tr("閉じる")) { onClose() }
+            .themeBody(17, weight: .semibold)
+            .foregroundStyle(Theme.coralText)
+            .frame(minHeight: 44)
     }
 
     @ViewBuilder
@@ -247,38 +276,66 @@ private struct OnboardingPageView: View {
     let number: Int
     let total: Int
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
-        VStack(spacing: 14) {
-            VStack(spacing: 4) {
-                Text(tr("%1$lld / %2$lld", number, total))
-                    .scaledFont(12, weight: .black, design: .rounded, maxScale: 1.2)
-                    .foregroundStyle(Theme.inkSub)
-                Text(page.heading).themeBody(20, weight: .black)
+        if dynamicTypeSize.isAccessibilitySize {
+            // 最大サイズでは見出し・言葉が画面の高さを超えるので、縦にスクロールさせ、図は一定の高さで置く（#2858）。
+            ScrollView {
+                VStack(spacing: 14) {
+                    headingBlock
+                    figureCard.frame(height: 220)
+                    linesBlock
+                }
+                .padding(.horizontal, Theme.pad)
+                .padding(.top, 12)
+                .padding(.bottom, 8)
+            }
+        } else {
+            VStack(spacing: 14) {
+                headingBlock
+                figureCard.frame(maxWidth: .infinity, maxHeight: .infinity)
+                linesBlock
+            }
+            .padding(.horizontal, Theme.pad)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
+        }
+    }
+
+    private var headingBlock: some View {
+        VStack(spacing: 4) {
+            Text(tr("%1$lld / %2$lld", number, total))
+                .scaledFont(12, weight: .black, design: .rounded, maxScale: 1.2)
+                .foregroundStyle(Theme.inkSub)
+            Text(page.heading).themeBody(20, weight: .black)
+                .foregroundStyle(Theme.ink)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+        }
+    }
+
+    private var figureCard: some View {
+        ScaledFigure(content: page.figure())
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(12)
+            .popCard(corner: Theme.cornerSmall)
+            // 図は説明の絵なので、読み上げは下の言葉に任せる。
+            .accessibilityHidden(true)
+    }
+
+    private var linesBlock: some View {
+        VStack(spacing: 6) {
+            ForEach(Array(page.lines.enumerated()), id: \.offset) { _, line in
+                Text(line).themeBody(17, weight: .bold)
                     .foregroundStyle(Theme.ink)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityAddTraits(.isHeader)
             }
-            ScaledFigure(content: page.figure())
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(12)
-                .popCard(corner: Theme.cornerSmall)
-                // 図は説明の絵なので、読み上げは下の言葉に任せる。
-                .accessibilityHidden(true)
-            VStack(spacing: 6) {
-                ForEach(Array(page.lines.enumerated()), id: \.offset) { _, line in
-                    Text(line).themeBody(17, weight: .bold)
-                        .foregroundStyle(Theme.ink)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .accessibilityElement(children: .combine)
         }
-        .padding(.horizontal, Theme.pad)
-        .padding(.top, 12)
-        .padding(.bottom, 8)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -301,7 +358,15 @@ private struct ScaledFigure: View {
                 .frame(width: geo.size.width, height: geo.size.height)
                 .opacity(natural == .zero ? 0 : 1)
         }
-        .onPreferenceChange(NaturalSizeKey.self) { natural = $0 }
+        // 測った大きさが 0.5pt 未満しか変わらないときは書き戻さない。書き戻すたびに図を組み直すので、
+        // 端数の揺れで測り直しが止まらなくなると、ページ送りの間じゅう描き直しが続く（#2905）。
+        .onPreferenceChange(NaturalSizeKey.self) { size in
+            if Self.differs(size, from: natural) { natural = size }
+        }
+    }
+
+    nonisolated static func differs(_ a: CGSize, from b: CGSize) -> Bool {
+        abs(a.width - b.width) >= 0.5 || abs(a.height - b.height) >= 0.5
     }
 
     static func scale(natural: CGSize, available: CGSize) -> CGFloat {

@@ -127,7 +127,7 @@ public struct RunnerView: View {
                         openStartSheet(mode: model.mode, stage: 1)
                     })
         // 「？」は走っているモード（ステージ制・エンドレス）に合わせて出し分ける（#2044）。
-        .howToPlay(model.mode.howToPlayGuide) {
+        .howToPlay(model.mode.howToPlayGuide.onboarding(RunnerOnboarding.guide(mode: model.mode))) {
             // 読んでいる間にミスしないよう止める。走り出す前（.ready）は動くものが無いので
             // 止めない（初見の人が遊ぶ前に開く一番多い経路で、余計な「再開」を挟まない）。
             if model.phase == .running { model.pause() }

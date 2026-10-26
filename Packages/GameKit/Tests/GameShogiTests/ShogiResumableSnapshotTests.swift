@@ -46,4 +46,15 @@ struct ShogiResumableSnapshotTests {
         #expect(!module.hasResumableSnapshot(in: store), "CPU の初手だけ")
         #expect(module.hasUntouchedSnapshot(in: store))
     }
+
+    @Test("進み具合は指した手数（#2870）")
+    func resumeProgressIsMoveCount() {
+        let store = MemorySnapshotStore()
+        let module = ShogiModule()
+        let model = ShogiGameModel(services: GameServices(snapshots: store, ads: NoopAdService()))
+        model.newGame()
+        model.tapSquare(Sq.fromUSI("7g")!)
+        model.tapSquare(Sq.fromUSI("7f")!)
+        #expect(module.resumeProgress(in: store) == "\(model.moves.count)手目")
+    }
 }

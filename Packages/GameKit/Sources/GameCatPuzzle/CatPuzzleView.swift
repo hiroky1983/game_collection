@@ -13,7 +13,7 @@ public struct CatPuzzleView: View {
     @State private var showConfirmNewGame = false
     /// 「やり直し」（印を全部消す）の確認。
     @State private var showConfirmClear = false
-    /// ミス上限の終局カードを「盤を見る」で閉じたか（新しい局で開け直す）。
+    /// コンティニュー済みの局の負けカードを「盤を見る」で閉じたか（新しい局で開け直す）。
     @State private var failCardClosed = false
     /// ヒントの広告救済（無料 3 回を使い切った後の 1 回。連打ガード・広告・失敗アラート。15パズル・ナンプレと同じ #526）。
     @State private var hintRescue = RewardedRescue()
@@ -21,8 +21,6 @@ public struct CatPuzzleView: View {
     @State private var continueRescue = RewardedRescue()
     /// 負けたあとの答え合わせで、これまでに盤へ出した「見つけていない猫」の数（1 匹ずつ増やす）。
     @State private var revealedGhosts = 0
-    /// 答え合わせが終わって、結果カードを重ねてよいか。
-    @State private var failCardReady = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(services: GameServices) {
@@ -36,20 +34,23 @@ public struct CatPuzzleView: View {
     }
 
     /// 狙った局面を描くための入口（静止画の確認・テスト用）。
-    /// `showsAnswers` は負けたあとの答え合わせを出し終えた状態（結果カードまで）、`failCardClosed` はそのカードを「盤を見る」で閉じた状態。
-    init(services: GameServices, model: CatPuzzleModel, showNewGame: Bool = false,
-         showsAnswers: Bool = false, failCardClosed: Bool = false) {
+    /// `showsAnswers` は負けたあとの答え合わせ（見つけていない猫）を盤に出し終えた状態。
+    init(services: GameServices, model: CatPuzzleModel, showNewGame: Bool = false, showsAnswers: Bool = false) {
         self.services = services
         _model = State(initialValue: model)
         _showNewGame = State(initialValue: showNewGame)
         _revealedGhosts = State(initialValue: showsAnswers ? model.unfoundCats.count : 0)
-        _failCardReady = State(initialValue: showsAnswers)
-        _failCardClosed = State(initialValue: failCardClosed)
     }
 
     /// 開いたときに開始シートを出すか。中断データから再開した盤（印がある）なら出さずに続きを見せる。
     static func startsWithNewGameSheet(_ model: CatPuzzleModel) -> Bool {
         !model.hasProgressToLose
+    }
+
+    /// ミス 3 回の結果カードを出すか（#2904）。出すのは提案中（中でコンティニューかあきらめるかを選ぶ）と、
+    /// コンティニュー済みの局が提案を挟まずに負けたとき（`closed` まで）だけ。あきらめたあとはもう出さない。
+    static func showsFailCard(_ model: CatPuzzleModel, closed: Bool) -> Bool {
+        model.isOfferingContinue || (model.isFailed && model.continueUsed && !closed)
     }
 
     /// 計時を止めておくか（開始シート・確認を出している間。遊び方・広告・背面は `gameTimerLifecycle` が止める）。
@@ -64,12 +65,8 @@ public struct CatPuzzleView: View {
             // クリアのダイアログは最後の猫が出る演出を見せてから 1 拍（`CatPuzzleModel.clearCardDelay`）おいて重ねる。
             board
                 .gameClearCard(isPresented: model.showsClearCard, title: tr("クリア！"), details: clearDetails)
-                // 負けの結果カードは、見つけていない猫を盤に出し終えてから重ねる（カードの後ろで答えが見えるように・#2780）。
-                .boardGameResultCard(isPresented: model.isFailed && failCardReady && !failCardClosed) { failCard }
-                // 3 回目のミスでは、負けにする前に広告を見て続けるかを選ばせる（盤だけに重ねる）。
-                .overlay {
-                    if model.isOfferingContinue { continueOverlay }
-                }
+                .rewardOffer(continueRescue, for: .continue, isPresented: model.isOfferingContinue,
+                             services: services, gameID: CatPuzzleModel.gameID)
                 // 広告のロード〜視聴中は盤に触れない（ナンプレと同じ。視聴後のヒントは盤の今の形から読み直す）。
                 .disabled(hintRescue.isWatching || continueRescue.isWatching)
                 .layoutPriority(1)
@@ -81,9 +78,13 @@ public struct CatPuzzleView: View {
             BannerSlot(ads: services.ads)
         }
         .padding()
+        // 3 回目のミスで出すダイアログはこの結果カード 1 枚だけ。中に「広告を見てコンティニュー」と
+        // 「あきらめて正解を見る」を並べ、あきらめたら盤に正解を出して終わる（もう 1 枚は重ねない・#2904）。
+        // 盤（正方形）ではなく画面全体に重ねる。盤の高さだけでは SE でボタンまで見えないため（#2931）。
+        .boardGameResultCard(isPresented: Self.showsFailCard(model, closed: failCardClosed)) { failCard }
         .gameChrome(title: tr("おじさんちのねこさがし"), review: services.review,
                     newGame: GameChromeNewGame(.solo, isDisabled: hintRescue.isWatching || continueRescue.isWatching) { requestNewGame() })
-        .howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items))
+        .howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items).onboarding(CatPuzzleOnboarding.guide))
         .sheet(isPresented: $showNewGame) {
             CatPuzzleNewGameSheet(initial: model.size) { size in
                 showNewGame = false
@@ -124,7 +125,7 @@ public struct CatPuzzleView: View {
                 message: tr("広告を見ているあいだに新しいゲームが始まったため、コンティニューできませんでした。")
             )
         )
-        // 答えでないマスに赤い × が付いたら読み上げる（3 回目の終局は結果カードが読み上げる。コンティニューの提案は幕が読み上げる）。
+        // 答えでないマスに赤い × が付いたら読み上げる（3 回目は結果カードが読み上げる）。
         .onChange(of: model.mistakes) { old, new in
             // 増えたときだけ（コンティニューでミスが戻ったときは読み上げない）。
             if new > old, model.lastWrongCell != nil, !model.isFailed, !model.isOfferingContinue {
@@ -133,15 +134,14 @@ public struct CatPuzzleView: View {
                 ).post()
             }
         }
-        // 新しい局が始まったら、次の負けでまたカードが出るよう開け直す。
+        // 新しい局が始まったら、答え合わせで出した猫を片付ける。
         .onChange(of: model.isFailed) { _, failed in
             if !failed {
-                failCardClosed = false
                 revealedGhosts = 0
-                failCardReady = false
+                failCardClosed = false
             }
         }
-        // 負けたら、見つけていない猫を正解の場所に 1 匹ずつ出し、出し終えてから結果カードを重ねる。
+        // 負けたら、見つけていない猫を正解の場所に 1 匹ずつ出す（結果カードはあきらめる前に出し終えている）。
         .task(id: model.isFailed) {
             guard model.isFailed else { return }
             await revealUnfoundCats()
@@ -267,24 +267,20 @@ public struct CatPuzzleView: View {
 
     // MARK: - コンティニュー・答え合わせ
 
-    /// 3 回目のミスの提案。広告を見ればミスが 1 回ぶん戻り、断れば負けを確定して見つけていない猫の場所を見せる。
-    private var continueOverlay: some View {
-        RewardedContinueOverlay(
-            title: tr("ミスが%lld回になりました", CatPuzzleModel.maxMistakes),
-            titleFont: .title3.bold(),
-            cornerRadius: Theme.corner,
-            detail: Text(tr("広告を見ると、ミスが1回ぶん戻ります"))
-                .themeBody(15).foregroundStyle(.white.opacity(0.85)).multilineTextAlignment(.center),
-            rescueLabel: tr("広告を見てコンティニュー"),
-            rescue: continueRescue, services: services, gameID: CatPuzzleModel.gameID,
-            serial: model.gameSerial,
-            grant: { game in model.continueAfterAd(forGame: game) },
-            secondaryTitle: tr("あきらめて答えを見る"),
-            secondaryAction: { model.declineContinue() }
-        )
+    /// 結果カードの「広告を見てコンティニュー」。押したときだけ広告を出し、見終えたらミスを 1 回ぶん戻す（自動再生しない）。
+    /// どの局に対する広告かを出す前に控え、ロード中に入れ替わった局へは乗せない（#729）。
+    private func requestContinue() {
+        guard !continueRescue.isWatching, model.isOfferingContinue else { return }
+        let game = model.gameSerial
+        continueRescue.request(
+            services, gameID: CatPuzzleModel.gameID, purpose: .continue,
+            guardedBy: .checkedByGrant
+        ) {
+            withGameAnimation { model.continueAfterAd(forGame: game) }
+        }
     }
 
-    /// 負けたあとの答え合わせ。見つけていない猫を 1 匹ずつ「ぽん」と出し、出し終えて少し置いてから結果カードを出す。
+    /// 負けたあとの答え合わせ。見つけていない猫を 1 匹ずつ「ぽん」と出す。
     /// 全体で約 1 秒に収まるよう、匹数が多いときは間隔を詰める。Reduce Motion のときは待たずに全部出す。
     private func revealUnfoundCats() async {
         let total = model.unfoundCats.count
@@ -300,7 +296,6 @@ public struct CatPuzzleView: View {
         } else {
             withGameAnimation { revealedGhosts = total }
         }
-        withGameAnimation { failCardReady = true }
         if total > 0 {
             AccessibilityNotification.Announcement(tr("見つけられなかった猫の場所を%lld匹ぶん表示しました", total)).post()
         }
@@ -457,18 +452,38 @@ public struct CatPuzzleView: View {
         ]
     }
 
-    /// ミス上限の終局カード（他のゲームの負けと同じ `BoardGameResultCard`）。
+    /// 3 回目のミスで出す、ただ 1 枚のダイアログ（他のゲームの負けと同じ `BoardGameResultCard`・#2904）。
+    /// 提案中は「広告を見てコンティニュー」でミスが 1 回ぶん戻り、「あきらめて正解を見る」で負けを確定して盤に正解を出す
+    /// （負けはあきらめた時点で確定するので、記録の行はこのカードには出ない）。
+    /// コンティニュー済みの局は負けが確定した状態で出し、「盤を見る」で閉じる（正解はカードの後ろで盤に出る）。
     private var failCard: some View {
-        BoardGameResultCard(
+        let offering = model.isOfferingContinue
+        var details = [
+            tr("%1$@（%2$@）", model.size.label, model.size.sizeLabel),
+            tr("タイム %@", RecordFormat.time(model.elapsedSeconds)),
+            tr("手数 %lld", model.moves),
+        ]
+        if offering { details.append(tr("広告を見ると、ミスが1回ぶん戻ります")) }
+        return BoardGameResultCard(
             verdict: .loss,
             reason: tr("%lld回まちがえた…", CatPuzzleModel.maxMistakes),
-            details: [
-                tr("%1$@（%2$@）", model.size.label, model.size.sizeLabel),
-                tr("タイム %@", RecordFormat.time(model.elapsedSeconds)),
-                tr("手数 %lld", model.moves),
-            ],
-            record: model.recordResult
-        ) { failCardClosed = true }
+            details: details,
+            record: offering ? nil : model.recordResult,
+            secondaryAction: offering
+                ? BoardGameResultCard.SecondaryAction(
+                    title: tr("広告を見てコンティニュー"),
+                    hint: tr("広告を見ると、ミスが1回ぶん戻ります")
+                ) { requestContinue() }
+                : nil,
+            closeTitle: offering ? tr("あきらめて正解を見る") : nil,
+            closeHint: offering ? tr("負けを確定して、猫のいる場所を盤に表示します") : nil
+        ) {
+            if offering {
+                withGameAnimation { model.declineContinue() }
+            } else {
+                failCardClosed = true
+            }
+        }
     }
 
     // MARK: - 新規ゲーム
@@ -518,6 +533,7 @@ struct CatPuzzleNewGameSheet: View {
     var body: some View {
         GameSetupSheet(
             kind: .solo,
+            onboarding: CatPuzzleOnboarding.guide,
             onStart: { onStart(size) }, onCancel: onCancel
         ) {
             Self.sizeSection(selection: $size)

@@ -14,6 +14,8 @@ public struct AnzanView: View {
     @State private var showSetup: Bool
     /// 遊び方のシートを開いているあいだ true（閉じたときに、まだバックグラウンドなら再開しない）。
     @State private var showHowToPlay = false
+    /// 間違えた問題の一覧（#2855）。
+    @State private var showMisses = false
     @Environment(\.scenePhase) private var scenePhase
 
     public init(services: GameServices) {
@@ -65,7 +67,7 @@ public struct AnzanView: View {
                 .disabled(model.phase == .flashing || replayRescue.isWatching)
             }
         }
-        .howToPlay(HowToPlayGuide.anzan.illustrated(AnzanHowToFigures.items), onPresent: {
+        .howToPlay(HowToPlayGuide.anzan.illustrated(AnzanHowToFigures.items).onboarding(AnzanOnboarding.guide), onPresent: {
             // 数が出ているあいだに読むと出題が進んで誤答になるので、止めて頭から出し直す。
             showHowToPlay = true
             model.pauseDisplay()
@@ -96,6 +98,9 @@ public struct AnzanView: View {
             } onCancel: {
                 showSetup = false
             }
+        }
+        .sheet(isPresented: $showMisses) {
+            AnzanMissesSheet(misses: model.misses) { showMisses = false }
         }
         // 見直しの提示（#780）。入力中で見直しボタンが出ているあいだを 1 回の提示として数える。
         .rewardOffer(replayRescue, for: .hint, isPresented: model.canReplay,
@@ -375,8 +380,53 @@ public struct AnzanView: View {
                 Text(tr("難易度を変える")).themeBody(15).frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered).controlSize(.large).tint(Theme.coralText)
+            if !model.misses.isEmpty {
+                Button { showMisses = true } label: {
+                    Text(tr("まちがえた問題を見る（%lld）", model.misses.count))
+                        .themeBody(14).frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Theme.coralText)
+            }
         }
         .padding(.horizontal, 24)
+    }
+}
+
+// MARK: - まちがえた問題のシート
+
+/// この画面を開いてから間違えた問題を、新しい順に「式・自分の答え・正解」で並べる（#2855）。
+struct AnzanMissesSheet: View {
+    let misses: [AnzanMiss]
+    let onClose: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            List {
+                ForEach(Array(misses.reversed().enumerated()), id: \.offset) { _, miss in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(verbatim: miss.expression)
+                            .themeBody(15).foregroundStyle(Theme.ink)
+                        HStack(spacing: 16) {
+                            Text(verbatim: tr("あなたの答え %lld", miss.answer))
+                                .foregroundStyle(Theme.inkSub)
+                            Text(verbatim: tr("正解 %lld", miss.correct))
+                                .foregroundStyle(Theme.coralText)
+                        }
+                        .themeCaption(13)
+                    }
+                    .padding(.vertical, 4)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(tr("%1$@。あなたの答えは%2$lld、正解は%3$lld", miss.expression, miss.answer, miss.correct))
+                }
+            }
+            .navigationTitle(tr("まちがえた問題"))
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(tr("閉じる"), action: onClose)
+                }
+            }
+        }
     }
 }
 
@@ -401,6 +451,7 @@ struct AnzanSetupSheet: View {
     var body: some View {
         GameSetupSheet(
             kind: .solo,
+            onboarding: AnzanOnboarding.guide,
             onStart: { onStart(settings) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("桁数")) {

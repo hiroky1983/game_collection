@@ -981,7 +981,7 @@
         }
       }
     },
-    "あきらめて答えを見る" : {
+    "あきらめて正解を見る" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -1003,25 +1003,13 @@
         }
       }
     },
-    "ミスが%lld回になりました" : {
+    "負けを確定して、猫のいる場所を盤に表示します" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "You've made %lld mistake"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "You've made %lld mistakes"
-                }
-              }
-            }
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ends the game and shows where the cats are on the board"
           }
         }
       }
@@ -1100,6 +1088,248 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Hints: %lld"
+          }
+        }
+      }
+    },
+    "ねこさがしのはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hidden Cats: first steps"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "おじさんの家に隠れている猫を、全部見つけるパズルです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A puzzle where you find every cat hiding in Ojisan's house."
+          }
+        }
+      }
+    },
+    "猫は、部屋の数と同じだけいます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are as many cats as there are rooms."
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What you do on your turn"
+          }
+        }
+      }
+    },
+    "マスをタップすると、×（いない）を付け外しします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a square to add or remove an × (no cat here)."
+          }
+        }
+      }
+    },
+    "ダブルタップで、そのマスの猫を見つけます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double-tap a square to find the cat there."
+          }
+        }
+      }
+    },
+    "部屋・行・列のそれぞれに、猫がちょうど 1 匹ずついます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each room, row, and column has exactly one cat."
+          }
+        }
+      }
+    },
+    "いないと分かったマスに × を付けて、絞り込みましょう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark squares you know are empty with × to narrow it down."
+          }
+        }
+      }
+    },
+    "猫どうしは隣り合わない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cats never touch"
+          }
+        }
+      }
+    },
+    "猫どうしは、ななめも含めて隣り合いません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No two cats are next to each other, not even diagonally."
+          }
+        }
+      }
+    },
+    "猫を見つけたら、まわりの 8 マスにはほかの猫はいません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Once you find a cat, none of the 8 squares around it has another cat."
+          }
+        }
+      }
+    },
+    "ミスは 3 回まで" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Up to 3 mistakes"
+          }
+        }
+      }
+    },
+    "答えでないマスをダブルタップすると、赤い × が付いてミスになります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double-tapping a square with no cat puts a red × there and counts as a mistake."
+          }
+        }
+      }
+    },
+    "赤い × は消せません。× の付け外しはミスになりません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A red × can't be removed. Adding or removing an × is never a mistake."
+          }
+        }
+      }
+    },
+    "勝ち負けの決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How you win"
+          }
+        }
+      }
+    },
+    "全部の猫を見つけたらクリア。記録はクリアまでのタイムです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find every cat to clear the puzzle. Your record is the time it took."
+          }
+        }
+      }
+    },
+    "ミスが 3 回になると負けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You lose when you make 3 mistakes."
+          }
+        }
+      }
+    },
+    "広告を見ると、1 回だけ続きから遊べます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to continue, once per game."
+          }
+        }
+      }
+    },
+    "はじめ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start"
+          }
+        }
+      }
+    },
+    "おわり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "End"
+          }
+        }
+      }
+    },
+    "全部見つけたらクリア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find them all to clear"
           }
         }
       }

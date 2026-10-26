@@ -63,7 +63,7 @@ public struct ShogiView: View {
         }
         .padding(Theme.pad)
         .gameChrome(title: tr("将棋"), review: services.review,
-                    condition: GameChromeCondition(conditionParts) { requestNewGame() },
+                    condition: GameChromeCondition(conditionParts),
                     newGame: GameChromeNewGame(.match) { requestNewGame() })
         // 駒の動きの対応表（漢字の駒 ↔ 名前・動き。#2166）を「くわしいルール」の先に置く。
         .howToPlay(HowToPlayGuide.shogi.illustrated(ShogiHowToFigures.items).onboarding(ShogiOnboarding.guide)) { ShogiPieceGuideSheet() }

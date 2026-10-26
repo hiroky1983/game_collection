@@ -41,6 +41,7 @@ struct RunnerStartSheet: View {
     var body: some View {
         GameSetupSheet(
             kind: .solo,
+            onboarding: RunnerOnboarding.guide(mode: mode),
             onStart: onStart, onCancel: onCancel
         ) {
             GameSetupSection(tr("モード")) {

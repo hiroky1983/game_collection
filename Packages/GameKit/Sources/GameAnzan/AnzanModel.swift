@@ -2,6 +2,17 @@ import Core
 import Foundation
 import Observation
 
+/// 間違えた 1 問（#2855）。出題した数と、自分の答え。正解は数の合計。
+public struct AnzanMiss: Equatable, Sendable {
+    public let numbers: [Int]
+    public let answer: Int
+
+    public var correct: Int { AnzanLogic.sum(numbers) }
+
+    /// 「3 + 8 + 5」（正解は含めない）。
+    public var expression: String { numbers.map(String.init).joined(separator: " + ") }
+}
+
 /// ぱっと暗算（#1321）のゲーム状態。
 ///
 /// 1 問 = 1 プレイ（`game_start` 〜 `game_end`）。数を順に見せ、消えたら合計を入力させ、正誤で決着する。
@@ -49,6 +60,11 @@ public final class AnzanModel {
     public private(set) var replayUsed = false
     /// 表示の並びを頭から回し直す回数。View はこれを `.task(id:)` の鍵にする。
     public private(set) var displayRun = 0
+    /// この画面を開いてから間違えた問題（古い順）。結果画面から見返す用で、保存せず画面を離れれば消える。
+    /// 件数は `maxMisses` まで（超えたら古いものから捨てる）。
+    public private(set) var misses: [AnzanMiss] = []
+    /// 見返しに残す問題数の上限。
+    public static let maxMisses = 30
 
     private let services: GameServices?
     private let elapsedNow: ElapsedClock.Now
@@ -204,6 +220,10 @@ public final class AnzanModel {
         let seconds = max(1, Int(elapsed.rounded(.up)))
         answerSeconds = seconds
         services?.feedback.notify(isCorrect ? .success : .error)
+        if !isCorrect {
+            misses.append(AnzanMiss(numbers: numbers, answer: value))
+            if misses.count > Self.maxMisses { misses.removeFirst(misses.count - Self.maxMisses) }
+        }
         // 決着 1 回につき `gameDidFinish` は 1 回だけ。正解のときだけ回答時間を記録し、
         // 「もう一度見る」を使った回は時間の記録から外す（見直したぶん有利になるため。正解・連続正解には数える）。
         recordResult = services?.gameDidFinish(

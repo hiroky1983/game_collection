@@ -343,6 +343,248 @@
           }
         }
       }
+    },
+    "15パズルのはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "15 Puzzle: first steps"
+          }
+        }
+      }
+    },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
+    "バラバラのタイルを動かして、1〜15 を順に並べるパズルです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slide the scrambled tiles to put 1 to 15 in order."
+          }
+        }
+      }
+    },
+    "空白は 1 マスだけ。そこへタイルを動かしていきます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There is just one empty space. You move tiles into it."
+          }
+        }
+      }
+    },
+    "1 回の番でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What you do on your turn"
+          }
+        }
+      }
+    },
+    "空白の隣にあるタイルをタップします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap a tile next to the empty space."
+          }
+        }
+      }
+    },
+    "タップしたタイルが、空白へスライドします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The tile slides into the empty space."
+          }
+        }
+      }
+    },
+    "まとめて動かせる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move several at once"
+          }
+        }
+      }
+    },
+    "空白と同じ行・列のタイルなら、離れていてもタップできます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can tap any tile in the same row or column as the empty space, even if it's far away."
+          }
+        }
+      }
+    },
+    "間のタイルごと、まとめてスライドします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It slides together with the tiles in between."
+          }
+        }
+      }
+    },
+    "動かせないタイル" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tiles that can't move"
+          }
+        }
+      }
+    },
+    "空白と同じ行・列にないタイルは、タップしても動きません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A tile that isn't in the same row or column as the empty space won't move."
+          }
+        }
+      }
+    },
+    "まず空白を、動かしたいタイルの行か列へ運びましょう。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "First bring the empty space into that tile's row or column."
+          }
+        }
+      }
+    },
+    "勝ち負けの決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How you win"
+          }
+        }
+      }
+    },
+    "1〜15 を左上から順に並べたらクリアです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Line up 1 to 15 in order from the top left to clear the puzzle."
+          }
+        }
+      }
+    },
+    "動かしたタイルの枚数が手数です。少ないほど良い記録です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Each tile you move counts as one move. Fewer moves is a better record."
+          }
+        }
+      }
+    },
+    "負けはありません。困ったらヒントで次の 1 手が分かります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can't lose. If you're stuck, a hint shows your next move."
+          }
+        }
+      }
+    },
+    "はじめ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start"
+          }
+        }
+      }
+    },
+    "おわり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "End"
+          }
+        }
+      }
+    },
+    "同じ行・列にないと動かない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not in the same row or column: can't move"
+          }
+        }
+      }
+    },
+    "盤の大きさ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Board Size"
+          }
+        }
+      }
+    },
+    "盤の大きさ %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Board size %@"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

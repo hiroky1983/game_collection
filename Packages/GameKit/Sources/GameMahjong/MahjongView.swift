@@ -194,6 +194,15 @@ public struct MahjongView: View {
                 model.simulateWinResultForTesting()
                 return
             }
+            // 撮影・動作確認用（DEBUG 限定）: 流局リザルトの手牌開示（#2872）。`-mahjongDrawResult <テンパイの人数>`。
+            let launchArgs = ProcessInfo.processInfo.arguments
+            if let flag = launchArgs.firstIndex(of: "-mahjongDrawResult") {
+                showStartSheet = false
+                let value = launchArgs.indices.contains(flag + 1) ? Int(launchArgs[flag + 1]) : nil
+                model.startGame()
+                model.simulateDrawResultForTesting(tenpaiCount: value ?? 0)
+                return
+            }
             // 撮影・動作確認用（DEBUG 限定）: 一局戦の終了リザルト（見出しが「一局戦終了」に
             // 変わることの確認。#639）。最後まで打たないと到達できない画面で、シミュレータは
             // 自動タップができないため、非対話でこの画面を出す経路が要る。
@@ -438,8 +447,18 @@ public struct MahjongView: View {
             remainingTiles: model.remainingTiles,
             doraIndicators: model.doraIndicators,
             hiddenDiscardSeat: discardFlight?.seat,
-            hiddenDiscardIndex: discardFlight?.index
+            hiddenDiscardIndex: discardFlight?.index,
+            openHands: openHandsForDraw
         )
+    }
+
+    /// 流局のリザルト中だけ、全員の手牌（並べ替え済み）。卓の上で開けて見せる（#2872）。
+    /// テンパイ・ノーテンに関係なく全員ぶん（CPU 相手の一人遊びなので見せても不利はなく、振り返りに役立つ）。
+    private var openHandsForDraw: [[MahjongTile]]? {
+        guard model.phase == .handResult, model.handResult?.kind == .exhaustiveDraw else { return nil }
+        return model.hands.map { hand in
+            hand.tiles.sorted { MahjongTileOrder.index(of: $0) < MahjongTileOrder.index(of: $1) }
+        }
     }
 
     /// 対局中（決着していない）か。「切る牌をタップしよう」のヒントや手牌一覧など、

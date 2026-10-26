@@ -92,7 +92,7 @@ struct OjisanPuzzleHowToTests {
     func setupSheetShowsModeGuideInline() throws {
         let code = SourceScan.strippingComments(
             try SourceScan.packageSource("Sources/GameOjisanPuzzle/OjisanPuzzleSetupSheet.swift"))
-        #expect(code.contains("GameSetupSheet(kind: .solo, onStart: onStart, onCancel: onCancel)"))
+        #expect(code.contains("GameSetupSheet(kind: .solo,"))  // 後ろに onboarding:（#2826）・onStart: が続く
         #expect(code.contains("HowToPlayItemCard(item)"), "遊び方シートと同じカード部品で並べていない")
         #expect(code.contains("mode.setupKeyItems"))
         #expect(code.contains("if showsDetails {"), "操作・れんさの説明を折りたたんでいない")

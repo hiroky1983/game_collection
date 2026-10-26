@@ -68,7 +68,7 @@ public struct ChessView: View {
         }
         .padding(Theme.pad)
         .gameChrome(title: tr("チェス"), review: services.review,
-                    condition: GameChromeCondition(conditionParts) { requestNewGame() },
+                    condition: GameChromeCondition(conditionParts),
                     newGame: GameChromeNewGame(.match) { requestNewGame() })
         .howToPlay(HowToPlayGuide.chess.illustrated(ChessHowToFigures.items).onboarding(ChessOnboarding.guide),
                    onPresent: { isHowToPlayOpen = true }, onDismiss: { isHowToPlayOpen = false }) {
