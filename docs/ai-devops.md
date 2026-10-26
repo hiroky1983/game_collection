@@ -483,6 +483,7 @@ CodeRabbit を必須ステータスチェックにする案は採らない。レ
 | 各ゲーム（feature） | `GameXxx`（ゲーム固有の仕様・小さな部品はここに置く） | そのゲームのテスト + 全ソース走査テスト |
 
 - **どこに置くか**: そのゲームでしか使わない型・部品は `GameXxx` に置く。複数ゲームが使うものだけ `Core`（画面あり）か `CoreEngine`（画面なし）へ。ゲーム固有なのに `Core` にあると、そのゲームの変更が全ゲームのテストを呼ぶ。
+  - 切り出し済み: 具体物カードのドット絵 `ObjectCardArt` は神経衰弱とカードしりとりだけが使うので `CoreObjectArt`（Core に依存する専用モジュール・自前の文言表を持つ）へ出した（#2953）。2〜数本のゲームだけが共有する部品は、このように `Core` の外の小さなモジュールにする。
 - **選別の仕組み**: `Scripts/select-gamekit-tests.py`（PR の `git diff --name-only HEAD^1 HEAD` を入力）が、変更ファイル → 所属ターゲット → `Package.swift` の依存を逆にたどって、影響を受けるテストターゲットを `swift test --filter '^(A|B)\.'` の形で出す。次の 3 つは依存に加わる:
   - テストのソースに別ターゲット名が語として出てくるもの（`Sources/GameX/…` を名指しで読む走査テスト）
   - `SourceScan.packageRoot.appendingPathComponent("Sources")` を丸ごと走査するテスト（ThemeTests・AnalyticsTests 等）は全モジュールに依存するとみなす
