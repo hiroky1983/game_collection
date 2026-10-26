@@ -1,4 +1,5 @@
 import Core
+import CoreMiniCard
 import SwiftUI
 
 /// 図入りの遊び方（#2044）のブラックジャックの図。文言は `HowToPlayGuide.blackjack.items`（Core）と同じ順。

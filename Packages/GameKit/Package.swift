@@ -78,9 +78,13 @@ let package = Package(
         // Core から切り出し、盤を直しても他のゲームのテストを走らせない（#2953）。
         .target(name: "CoreMiniBoard",      dependencies: ["Core"],
                 resources: [.copy("Resources/Localization")]),
+        // 遊び方の図（#2044）でトランプ系ゲームが共通で使う小さな札・列・置き場。
+        // 11 本のゲームだけが使うので Core から切り出し、札を直しても他のゲームのテストを走らせない（#2953）。
+        .target(name: "CoreMiniCard",       dependencies: ["Core"],
+                resources: [.copy("Resources/Localization")]),
         // ソリティア・フリーセル・スパイダーの遊び方の図（#2044）。3 本だけが使うので Core から切り出し、
         // 図を直しても他のゲームのテストを走らせない（#2953）。
-        .target(name: "CoreSolitaireFigures", dependencies: ["Core"],
+        .target(name: "CoreSolitaireFigures", dependencies: ["Core", "CoreMiniCard"],
                 resources: [.copy("Resources/Localization")]),
         // チャリンコおじさんのドット絵（走者のコマ・正面顔。#1092）。ランナー・ねこパズル・盆栽縁側だけが使うので
         // Core から切り出し、絵を直しても他のゲームのテストを走らせない（#2953）。
@@ -112,13 +116,13 @@ let package = Package(
                 resources: [.copy("Resources/Localization")]),
         .target(name: "GameOthello",        dependencies: ["Core", "CoreMiniBoard"],
                 resources: [.copy("Resources/Localization")]),
-        .target(name: "GamePoker",          dependencies: ["Core"],
+        .target(name: "GamePoker",          dependencies: ["Core", "CoreMiniCard"],
                 resources: [.copy("Resources/Localization")]),
-        .target(name: "GameConcentration",  dependencies: ["Core", "CoreObjectArt"],
+        .target(name: "GameConcentration",  dependencies: ["Core", "CoreObjectArt", "CoreMiniCard"],
                 resources: [.copy("Resources/Localization")]),
-        .target(name: "GameBlackjack",      dependencies: ["Core"],
+        .target(name: "GameBlackjack",      dependencies: ["Core", "CoreMiniCard"],
                 resources: [.copy("Resources/Localization")]),
-        .target(name: "GameDaifugo",        dependencies: ["Core"],
+        .target(name: "GameDaifugo",        dependencies: ["Core", "CoreMiniCard"],
                 resources: [.copy("Resources/Localization")]),
         // 数独（#262・元 #5）。生成アルゴリズムは純粋ロジックなので Core だけに依存する。
         // 乱数（`SplitMix64`）・探索の待ち行列（`BestFirstQueue`）は純ロジックのファイルから CoreEngine を
@@ -126,7 +130,7 @@ let package = Package(
         .target(name: "GameSudoku",         dependencies: ["Core", "CoreEngine"],
                 resources: [.copy("Resources/Localization")]),
         // ソリティア（クロンダイク・#397）。ルール・ソルバー・配札生成は純粋ロジックなので Core だけに依存する。
-        .target(name: "GameSolitaire",      dependencies: ["Core", "CoreEngine", "CoreSolitaireFigures"],
+        .target(name: "GameSolitaire",      dependencies: ["Core", "CoreEngine", "CoreSolitaireFigures", "CoreMiniCard"],
                 resources: [.copy("Resources/Localization")]),
         // ブロック崩し（#463）。アクション枠の 1 本目で、**唯一 SpriteKit に依存するターゲット**。
         // ルール・当たり判定・得点は SpriteKit 非依存の純粋ロジックに分けてあるため、
@@ -134,11 +138,11 @@ let package = Package(
         .target(name: "GameBlocks",         dependencies: ["Core"],
                 resources: [.copy("Resources/Localization")]),
         // フリーセル（#492）。ルール・ソルバー・配札生成は純粋ロジックなので Core だけに依存する。
-        .target(name: "GameFreeCell",       dependencies: ["Core", "CoreEngine", "CoreSolitaireFigures"],
+        .target(name: "GameFreeCell",       dependencies: ["Core", "CoreEngine", "CoreSolitaireFigures", "CoreMiniCard"],
                 resources: [.copy("Resources/Localization")]),
         // スパイダーソリティア（#717）。盤・配札・ソルバーは Core すら import しない純粋ロジックで、
         // 種の事前計算は `swiftc -O` で単体バイナリにして回す（`SpiderDealerTests` に手順）。
-        .target(name: "GameSpider",         dependencies: ["Core", "CoreEngine", "CoreSolitaireFigures"],
+        .target(name: "GameSpider",         dependencies: ["Core", "CoreEngine", "CoreSolitaireFigures", "CoreMiniCard"],
                 resources: [.copy("Resources/Localization")]),
         // カードしりとり（#1243）。読みの判定・CPU の手は純粋ロジックで、絵は `CoreObjectArt` の
         // `ObjectCardArt`（神経衰弱 #1244 と共有するドット絵）を使う。
@@ -156,7 +160,7 @@ let package = Package(
                             .copy("Resources/BonsaiOjisan_hold.png")]),
         // いろリレー（#1320・企画倉庫）。色合わせのカードゲーム。出せるかの判定・CPU は純粋ロジックで、
         // 配りの乱数に CoreEngine の `SplitMix64` を使う。CPU の手番は大富豪と同じ `AITurnGuarded` の定石。
-        .target(name: "GameColorRelay",     dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameColorRelay",     dependencies: ["Core", "CoreEngine", "CoreMiniCard"],
                 resources: [.copy("Resources/Localization")]),
         // ぱっと暗算（#1321・企画倉庫）。出題・表示の並び・合計は純粋ロジックで、出題の乱数に CoreEngine の
         // `SplitMix64` を使う。表示の進行は Model が待ち時間を返すだけで、時間は View の `.task` が待つ。
@@ -173,12 +177,12 @@ let package = Package(
         // スピード（#1323・企画倉庫）。手番の無い同時進行のトランプ。出せるかの判定と CPU の選択は純粋ロジックで、
         // 配りと反応の揺らぎに CoreEngine の `SplitMix64` を使う。CPU は `AITurnGuarded` ではなく、Model が
         // 「次に待つ時間」を返して View の `.task` が待つ形（ぱっと暗算と同じ）。
-        .target(name: "GameSpeed",          dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameSpeed",          dependencies: ["Core", "CoreEngine", "CoreMiniCard"],
                 resources: [.copy("Resources/Localization")]),
         // ババ抜き（#1577・企画倉庫）。配り・引き方・終局判定・CPU の選び方・顔の出方は `OldMaidGame`（純粋な値）で、
         // 乱数に CoreEngine の `SplitMix64` を使う。札の絵はトランプ共通基盤（#397・ジョーカー含む）。
         // CPU の手番はいろリレーと同じ `AITurnGuarded` の定石。
-        .target(name: "GameOldMaid",        dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameOldMaid",        dependencies: ["Core", "CoreEngine", "CoreMiniCard"],
                 resources: [.copy("Resources/Localization")]),
         // 明かり消しパズル（#1883・企画倉庫）。押したマスと上下左右が入れ替わる 5×5 の盤。盤の規則・問題の逆生成・
         // 解の数え上げは純粋ロジックで、出題の乱数に CoreEngine の `SplitMix64` を使う。
@@ -237,7 +241,7 @@ let package = Package(
                             .copy("Resources/OjisanLuggage_5_beercase.png")]),
         // ハーツ（#1884・企画倉庫）。出せる札・巡の決着・CPU の選択は純粋ロジックで、配りの乱数に CoreEngine の
         // `SplitMix64` を使う。札の絵は Core のトランプ共通描画（#397）。CPU の手番は大富豪と同じ `AITurnGuarded` の定石。
-        .target(name: "GameHearts",         dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameHearts",         dependencies: ["Core", "CoreEngine", "CoreMiniCard"],
                 resources: [.copy("Resources/Localization")]),
         // 線つなぎ（#2235・企画倉庫）。問題の生成（解が 1 つに絞れたものだけ採る）・解の数え上げ・線の判定は
         // 純粋ロジックで、生成の乱数に CoreEngine の `SplitMix64` を使う。絵はコード描画だけ（画像を持たない）。
@@ -316,7 +320,7 @@ let package = Package(
         .testTarget(name: "GameChessTests",   dependencies: ["GameChess", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameMinesweeperTests", dependencies: ["GameMinesweeper", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameOthelloTests", dependencies: ["GameOthello", "CoreEngine", "GameKitTestSupport", "CoreTestSupport"]),
-        .testTarget(name: "GamePokerTests",          dependencies: ["GamePoker", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GamePokerTests",          dependencies: ["GamePoker", "GameKitTestSupport", "CoreTestSupport", "CoreMiniCard"]),
         .testTarget(name: "GameConcentrationTests",  dependencies: ["GameConcentration", "CoreObjectArt", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameBlackjackTests",       dependencies: ["GameBlackjack", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameDaifugoTests",         dependencies: ["GameDaifugo", "GameKitTestSupport", "CoreTestSupport"]),

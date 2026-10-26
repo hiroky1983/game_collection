@@ -1,4 +1,5 @@
 import Core
+import CoreMiniCard
 import SwiftUI
 
 /// 図で見る「はじめての遊び方」（#2824）の神経衰弱。

@@ -1,4 +1,5 @@
 import Core
+import CoreMiniCard
 import SwiftUI
 
 /// 図入りの遊び方（#2044）の神経衰弱の図。文言は `HowToPlayGuide.concentration.items`（Core）と同じ順。

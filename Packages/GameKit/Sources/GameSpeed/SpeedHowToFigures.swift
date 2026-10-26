@@ -1,4 +1,5 @@
 import Core
+import CoreMiniCard
 import SwiftUI
 
 /// 図入りの遊び方（#2386）のスピードの図。文言は `HowToPlayGuide.speed.items`（Core）と同じ順。
