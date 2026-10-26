@@ -1,3 +1,4 @@
+import Core
 import SwiftUI
 
 /// 図入りの遊び方（#2044）で盤ゲームが共通で使う小さな盤。
