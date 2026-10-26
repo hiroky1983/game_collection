@@ -47,11 +47,14 @@ import GameKitTestSupport
 /// 一致は `testRegistryMatchesAppRegistry` がソース走査で機械的に検証する。
 // blockpuzzle は含めない（#642 で v1.1.4 のハブから外したまま、#603 の差し替え判断が続いている）。
 // hanafuda は #668 で戻した。
+// 2026-10-26 の会長決裁（GA4 の 10/22〜26 の実績を踏まえた見直し）で並びを組み直した
+// （`App/AppGameServices.swift` と同じ並びに追従）。
 private let hubOrder = [
-    "homerun", "poker", "solitaire", "runner", "mahjong4", "sudoku", "othello", "2048", "shogi",
-    "shiritori", "daifugo", "gomoku", "minesweeper", "spider", "blackjack", "ojisanpuzzle", "anzan",
-    "mahjong", "hanafuda", "go", "blocks", "concentration", "chess", "freecell", "fifteen",
-    "colorrelay", "fruits", "dicecombo", "catpuzzle", "speed", "oldmaid", "hearts",
+    "homerun", "colorrelay", "solitaire", "poker", "dicecombo", "mahjong4", "othello", "sudoku",
+    "gomoku", "ojisanpuzzle", "fruits", "2048", "shogi", "shiritori", "daifugo", "minesweeper",
+    "spider", "blackjack", "runner", "anzan", "mahjong", "hanafuda", "go", "blocks",
+    "concentration", "chess", "freecell", "fifteen",
+    "catpuzzle", "speed", "oldmaid", "hearts",
 ]
 
 @MainActor
@@ -59,12 +62,13 @@ private func makeRegistry() -> GameRegistry {
     // BlockPuzzleModule は含めない（#642 / #603。v1.1.5 の `AppEnvironment.registry` と
     // 構成を一致させるため）。HanafudaModule は #668 で戻した。
     GameRegistry([
-        HomerunModule(), PokerModule(), SolitaireModule(), RunnerModule(), MahjongModule(),
-        SudokuModule(), OthelloModule(), Game2048Module(), ShogiModule(), ShiritoriModule(),
-        DaifugoModule(), GomokuModule(), MinesweeperModule(), SpiderModule(), BlackjackModule(),
-        OjisanPuzzleModule(), AnzanModule(), MahjongSolitaireModule(), HanafudaModule(), GoModule(),
-        BlocksModule(), ConcentrationModule(), ChessModule(), FreeCellModule(), FifteenModule(),
-        ColorRelayModule(), FruitsModule(), DiceComboModule(), CatPuzzleModule(), SpeedModule(), OldMaidModule(), HeartsModule(),
+        HomerunModule(), ColorRelayModule(), SolitaireModule(), PokerModule(), DiceComboModule(),
+        MahjongModule(), OthelloModule(), SudokuModule(), GomokuModule(), OjisanPuzzleModule(),
+        FruitsModule(), Game2048Module(), ShogiModule(), ShiritoriModule(), DaifugoModule(),
+        MinesweeperModule(), SpiderModule(), BlackjackModule(), RunnerModule(), AnzanModule(),
+        MahjongSolitaireModule(), HanafudaModule(), GoModule(), BlocksModule(), ConcentrationModule(),
+        ChessModule(), FreeCellModule(), FifteenModule(),
+        CatPuzzleModule(), SpeedModule(), OldMaidModule(), HeartsModule(),
     ])
 }
 
