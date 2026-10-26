@@ -65,9 +65,6 @@ public struct CatPuzzleView: View {
             // クリアのダイアログは最後の猫が出る演出を見せてから 1 拍（`CatPuzzleModel.clearCardDelay`）おいて重ねる。
             board
                 .gameClearCard(isPresented: model.showsClearCard, title: tr("クリア！"), details: clearDetails)
-                // 3 回目のミスで出すダイアログはこの結果カード 1 枚だけ。中に「広告を見てコンティニュー」と
-                // 「あきらめて正解を見る」を並べ、あきらめたら盤に正解を出して終わる（もう 1 枚は重ねない・#2904）。
-                .boardGameResultCard(isPresented: Self.showsFailCard(model, closed: failCardClosed)) { failCard }
                 .rewardOffer(continueRescue, for: .continue, isPresented: model.isOfferingContinue,
                              services: services, gameID: CatPuzzleModel.gameID)
                 // 広告のロード〜視聴中は盤に触れない（ナンプレと同じ。視聴後のヒントは盤の今の形から読み直す）。
@@ -81,6 +78,10 @@ public struct CatPuzzleView: View {
             BannerSlot(ads: services.ads)
         }
         .padding()
+        // 3 回目のミスで出すダイアログはこの結果カード 1 枚だけ。中に「広告を見てコンティニュー」と
+        // 「あきらめて正解を見る」を並べ、あきらめたら盤に正解を出して終わる（もう 1 枚は重ねない・#2904）。
+        // 盤（正方形）ではなく画面全体に重ねる。盤の高さだけでは SE でボタンまで見えないため（#2931）。
+        .boardGameResultCard(isPresented: Self.showsFailCard(model, closed: failCardClosed)) { failCard }
         .gameChrome(title: tr("おじさんちのねこさがし"), review: services.review,
                     newGame: GameChromeNewGame(.solo, isDisabled: hintRescue.isWatching || continueRescue.isWatching) { requestNewGame() })
         .howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items).onboarding(CatPuzzleOnboarding.guide))
