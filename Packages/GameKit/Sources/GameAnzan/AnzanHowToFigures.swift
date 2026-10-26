@@ -11,7 +11,8 @@ enum AnzanHowToFigures {
         { AnyView(LevelFigure()) },
     ]
 
-    private static let numbers = [3, 7, 5]
+    /// 図に出す数（3 → 7 → 5、合計 15）。図で見る「はじめての遊び方」（#2826）も使う。
+    static let numbers = [3, 7, 5]
 
     /// 数を出す画面（四角の中に 1 つの数）。
     private struct Flash: View {
@@ -30,7 +31,7 @@ enum AnzanHowToFigures {
     }
 
     /// 3 → 7 → 5 と 1 つずつ出ては消える。
-    private struct FlashFigure: View {
+    struct FlashFigure: View {
         var body: some View {
             RuleFrames(count: 3, spacing: 8) { index in
                 Flash(text: "\(AnzanHowToFigures.numbers[index])")
@@ -39,13 +40,13 @@ enum AnzanHowToFigures {
     }
 
     /// 頭の中で足す: 3 + 7 + 5 = 15。
-    private struct SumFigure: View {
+    struct SumFigure: View {
         var body: some View {
             HStack(spacing: 8) {
                 Image(systemName: "brain.head.profile")
                     .scaledFont(26, weight: .bold, maxScale: 1.15)
                     .foregroundStyle(Theme.coralText)
-                Text(verbatim: "3 + 7 + 5 = 15")
+                Text(verbatim: AnzanLogic.expression(AnzanHowToFigures.numbers))
                     .scaledFont(20, weight: .black, design: .rounded, maxScale: 1.15)
                     .foregroundStyle(Theme.ink)
             }
@@ -53,7 +54,7 @@ enum AnzanHowToFigures {
     }
 
     /// テンキーで 15 と入れて「決定」。
-    private struct AnswerFigure: View {
+    struct AnswerFigure: View {
         var body: some View {
             HStack(spacing: 12) {
                 Text(verbatim: "15")
@@ -86,7 +87,7 @@ enum AnzanHowToFigures {
     }
 
     /// 桁数・個数・速さを選べる。
-    private struct LevelFigure: View {
+    struct LevelFigure: View {
         var body: some View {
             HStack(spacing: 8) {
                 chip(tr("桁数"), "1")

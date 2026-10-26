@@ -45,6 +45,8 @@ public struct RecordsSummary: Equatable, Sendable {
         public let isWinLoss: Bool
         /// 達成済みの節目（`GameMilestone.allCases` の順）。
         public let milestones: [GameMilestone]
+        /// 最後に遊んだ日時（`PlayLog.lastPlayedAtByGame`・#2871）。日付を持たない旧データは nil。
+        public let lastPlayedAt: Date?
 
         /// 2 段目に出す 1 行。未プレイは「まだ遊んでいない」（受け入れ条件）。
         public var detailText: String {
@@ -67,9 +69,27 @@ public struct RecordsSummary: Equatable, Sendable {
             }
         }
 
+        /// 「最後に遊んだのは今日／昨日／N 日前」（#2871）。暦日で数える（24 時間ではない）。
+        /// 未プレイ・日付を持たない旧データは nil。端末の時計が戻って未来になったときは「今日」に寄せる。
+        public func lastPlayedText(now: Date, calendar: Calendar = .current) -> String? {
+            guard isPlayed, let last = lastPlayedAt else { return nil }
+            let days = calendar.dateComponents(
+                [.day], from: calendar.startOfDay(for: last), to: calendar.startOfDay(for: now)
+            ).day ?? 0
+            switch days {
+            case ...0: return tr("最後に遊んだのは今日")
+            case 1:    return tr("最後に遊んだのは昨日")
+            default:   return tr("最後に遊んだのは%lld日前", days)
+            }
+        }
+
         /// VoiceOver で 1 行ずつ読むためのラベル（受け入れ条件）。必ずゲーム名から読ませる。
-        public var accessibilityLabel: String {
+        public var accessibilityLabel: String { accessibilityLabel(lastPlayedText: nil) }
+
+        /// 最後に遊んだ日つきの読み上げ（#2871）。`lastPlayedText(now:calendar:)` の結果を渡す。
+        public func accessibilityLabel(lastPlayedText: String?) -> String {
             var parts = [title, detailText]
+            if let lastPlayedText { parts.append(lastPlayedText) }
             if plays > 0 { parts.append(tr("%@回あそんだ", RecordFormat.number(plays))) }
             // 10回の節目は直前の回数と同じことを言うので、読み上げでは初勝利だけを添える。
             if milestones.contains(.firstWin) { parts.append(milestoneTitle(.firstWin)) }
@@ -124,11 +144,13 @@ public struct RecordsSummary: Equatable, Sendable {
     ///   - playedGameIDs: `PlayLog.playedGameIDs`。
     ///   - records: ゲーム ID ごとの全区分の記録（`PlayLog.records(gameID:)`）。
     ///   - totalWins: `PlayLog.totalWins`。
+    ///   - lastPlayedAt: `PlayLog.lastPlayedAtByGame`（#2871）。
     public static func make(
         games: [Game],
         playedGameIDs: Set<String>,
         records: [String: [PlayRecord]],
-        totalWins: Int
+        totalWins: Int,
+        lastPlayedAt: [String: Date] = [:]
     ) -> RecordsSummary {
         let rows = games.map { game -> Row in
             let played = (records[game.id] ?? []).filter(\.hasAnyRecord)
@@ -146,7 +168,8 @@ public struct RecordsSummary: Equatable, Sendable {
                 recordLine: RecordFormat.hubLine(played, gameID: game.id),
                 plays: plays,
                 isWinLoss: played.first?.metric == .winLoss,
-                milestones: milestones
+                milestones: milestones,
+                lastPlayedAt: lastPlayedAt[game.id]
             )
         }
         let playedCount = rows.filter(\.isPlayed).count
@@ -184,7 +207,8 @@ public extension PlayLog {
             records: games.reduce(into: [:]) { result, game in
                 result[game.id] = records(gameID: game.id)
             },
-            totalWins: totalWins
+            totalWins: totalWins,
+            lastPlayedAt: lastPlayedAtByGame
         )
     }
 }

@@ -64,9 +64,7 @@ public struct OthelloView: View {
         .padding(Theme.pad)
         .gameChrome(title: tr("オセロ"), review: services.review,
                     condition: GameChromeCondition([CPUStrength.strength(for: model.aiLevel).label,
-                                                    model.humanSide == .black ? tr("先手") : tr("後手")]) {
-                        requestNewGame()
-                    },
+                                                    model.humanSide == .black ? tr("先手") : tr("後手")]),
                     newGame: GameChromeNewGame(.match) { requestNewGame() })
         .howToPlay(HowToPlayGuide.othello.illustrated(OthelloHowToFigures.items).onboarding(OthelloOnboarding.guide))
         .sheet(isPresented: $showNewGame) {

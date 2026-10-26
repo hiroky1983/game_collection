@@ -50,7 +50,8 @@ struct CatPuzzleModuleTests {
         #expect(code.contains("GameReplayBar("))
         #expect(code.contains("BannerSlot("))
         #expect(code.contains("HowToPlayHint(.catPuzzle"))
-        #expect(code.contains(".howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items))"))
+        // 後ろに .onboarding(...)（#2826）が続くので、閉じ括弧の手前までで見る。
+        #expect(code.contains(".howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items)"))
         #expect(code.contains("RecordLabel("))
         #expect(code.contains(".gameClearCard(isPresented:"))
         // ヒントの広告は他のゲームと同じ部品（`RewardedRescue`）で、局ガード・失敗アラート・視聴中の計時停止まで揃える。
@@ -58,8 +59,12 @@ struct CatPuzzleModuleTests {
         #expect(code.contains("hintRescue.request(") && code.contains("purpose: .hint") && code.contains("guardedBy: .checkedByGrant"))
         #expect(code.contains(".rewardedRescueAlerts(\n            hintRescue,"))
         #expect(code.contains("rescues: [hintRescue, continueRescue]"), "広告の視聴中は計時を止める")
-        // 3 回目のミスのコンティニューは数独・マインスイーパーと同じ部品（局ガード・提案の計測つき・#2780）。
-        #expect(code.contains("RewardedContinueOverlay("))
+        // 3 回目のミスで出すのは負けの結果カード 1 枚だけで、その中でコンティニューかあきらめるかを選ぶ（#2904）。
+        // 広告は押したときだけ（局ガードつき）出し、提案の計測も揃える（#2780）。
+        #expect(code.contains(".boardGameResultCard(isPresented: Self.showsFailCard(model, closed: failCardClosed))"))
+        #expect(!code.contains("RewardedContinueOverlay("), "ミス 3 回のダイアログを 2 枚にしない")
+        #expect(code.contains("continueRescue.request(") && code.contains("purpose: .continue"))
+        #expect(code.contains(".rewardOffer(continueRescue, for: .continue, isPresented: model.isOfferingContinue"))
         #expect(code.contains(".rewardedRescueAlerts(\n            continueRescue,"))
         #expect(code.contains(".hint(totalRemaining:"), "ヒントの 2 行目は他のゲームと同じ共通のバッジ")
         #expect(!code.contains("showRewardedAd("), "広告は RewardedRescue 経由だけで出す")

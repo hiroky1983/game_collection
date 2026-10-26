@@ -368,6 +368,15 @@ public final class PlayLog {
         return result
     }
 
+    /// そのゲームを一度でも決着まで遊んだか（ハブのタイルの「未プレイ」の印・#2849）。
+    /// 「きろく」の `isPlayed` と同じ規則で、`playedGameIDs` か記録のどちらかがあれば遊んだとみなす。
+    /// 区分があるゲームの記録キー（`gameID#区分`）も見る。新しく何も保存しない。
+    public func hasPlayed(gameID: String) -> Bool {
+        playedGameIDs.contains(gameID) || records.keys.contains { key in
+            key == gameID || key.hasPrefix(gameID + "#")
+        }
+    }
+
     /// ゲームごとの通算プレイ回数（再エンゲージメント通知 #1193）。区分があるゲームは合算する。
     public var totalPlaysByGame: [String: Int] {
         var result: [String: Int] = [:]

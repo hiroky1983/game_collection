@@ -191,7 +191,7 @@ struct OjisanPuzzleMiniBoard: View {
 
 /// 1 項目 = 1 モードぶんの図。遊んでいるモードの「？」には、そのモードの目的だけを出す
 /// （会長指示 2026-10-12。以前は腰痛モード・パズルモードを常に並べていた）。
-private struct GoalFigure: View {
+struct GoalFigure: View {
     private static let cell: CGFloat = 10.5
 
     let mode: OjisanPuzzleMode
@@ -267,7 +267,7 @@ private struct GoalFigure: View {
 
 // MARK: - 2. そうさ
 
-private struct ControlsFigure: View {
+struct ControlsFigure: View {
     private static let rows = 5
 
     private static let base: [[Int]] = OjisanPuzzleHowToFigures.grid(rows: rows, columns: 4, stacks: [0: [1], 2: [2, 3], 3: [5]])
@@ -334,13 +334,13 @@ private struct ControlsFigure: View {
 
 // MARK: - 3. きえる・れんさ
 
-private struct ChainFigure: View {
-    private static let rows = 7
+struct ChainFigure: View {
+    static let rows = 7
     private static let cell: CGFloat = 12.5
 
-    private typealias Cell = OjisanPuzzleMiniBoard.Cell
+    typealias Cell = OjisanPuzzleMiniBoard.Cell
 
-    private struct Step {
+    struct Step {
         let label: String
         let points: String
         let grid: [[Int]]
@@ -349,7 +349,7 @@ private struct ChainFigure: View {
     }
 
     // 文言は表示言語で引き直すので、計算型にする（static let だと最初の言語で固まる）。
-    private static var steps: [Step] {
+    static var steps: [Step] {
         let rows = Self.rows
         let base = OjisanPuzzleHowToFigures.grid(rows: rows, columns: 6, stacks: [
             0: [1, 3, 5], 1: [2, 4, 4, 4], 2: [5, 3, 1], 3: [2, 3], 4: [1, 5], 5: [2],
@@ -391,7 +391,7 @@ private struct ChainFigure: View {
 
 // MARK: - 4. 荷物の種類
 
-private struct WeightFigure: View {
+struct WeightFigure: View {
     private static var names: [String] { [tr("座布団\nの山"), tr("スイカ"), tr("クーラー\nボックス"), tr("灯油の\nポリタンク"), tr("ビール\nケース")] }
 
     var body: some View {
@@ -420,7 +420,7 @@ private struct WeightFigure: View {
 
 // MARK: - 5. 腰痛ゲージ
 
-private struct GaugeFigure: View {
+struct GaugeFigure: View {
     /// 段階の帯の幅。iPhone SE のカード（幅 315pt 前後）に収める。
     private static let bandWidth: CGFloat = 296
 
@@ -476,7 +476,7 @@ private struct GaugeFigure: View {
 
 /// 終わり方。荷運びモード（旧名・腰痛モード）は入院と積みあがりの両方があるので並べ、パズルモードには
 /// 入院が無いので積みあがりだけを出す（会長指示 2026-10-12。パズルモードの「？」に入院の絵を出さない）。
-private struct EndFigure: View {
+struct EndFigure: View {
     private static let buriedBoard: [[Int]] = OjisanPuzzleHowToFigures.grid(rows: 7, columns: 6, stacks: [
         0: [1, 5, 2], 1: [3, 2, 2, 4, 1], 2: [5, 1, 3, 3, 2, 4, 1], 3: [2, 4, 1, 5, 3], 4: [1, 5, 2], 5: [4, 1],
     ])

@@ -493,8 +493,8 @@ struct OjisanGamesHowToFiguresTests {
     @Test("画面のヘッダーの「？」と開始シートは図入りの版をつなぐ")
     func viewsWireIllustratedGuide() throws {
         let files: [(String, String, String)] = [
-            ("GameHomerun/HomerunView.swift", ".howToPlay(HowToPlayGuide.homerun.illustrated(HomerunHowToFigures.items)", "homerun"),
-            ("GameRunner/RunnerView.swift", ".howToPlay(model.mode.howToPlayGuide)", "runner"),
+            ("GameHomerun/HomerunView.swift", ".howToPlay(HowToPlayGuide.homerun.illustrated(HomerunHowToFigures.items)", "homerun"),  // 後ろに .onboarding(...)（#2826）が続く
+            ("GameRunner/RunnerView.swift", ".howToPlay(model.mode.howToPlayGuide", "runner"),  // 後ろに .onboarding(...)（#2826）が続く
             ("GameRunner/RunnerStartSheet.swift", "mode.setupKeyItems", "runner の開始シート"),
         ]
         for (path, expected, name) in files {
@@ -571,15 +571,15 @@ struct PuzzleOtherHowToFiguresTests {
     @Test("画面のヘッダーの「？」と開始シートは図入りの版をつなぐ")
     func viewsWireIllustratedGuide() throws {
         let files: [(String, String, String)] = [
-            ("Game2048/Game2048View.swift", ".howToPlay(HowToPlayGuide.game2048.illustrated(Game2048HowToFigures.items))", "2048"),
-            ("GameMinesweeper/MinesweeperView.swift", ".howToPlay(HowToPlayGuide.minesweeper.illustrated(MinesweeperHowToFigures.items))", "minesweeper"),
-            ("GameSudoku/SudokuView.swift", ".howToPlay(HowToPlayGuide.sudoku.illustrated(SudokuHowToFigures.items))", "sudoku"),
+            ("Game2048/Game2048View.swift", ".howToPlay(HowToPlayGuide.game2048.illustrated(Game2048HowToFigures.items)", "2048"),  // 後ろに .onboarding(...)（#2826）が続く
+            ("GameMinesweeper/MinesweeperView.swift", ".howToPlay(HowToPlayGuide.minesweeper.illustrated(MinesweeperHowToFigures.items)", "minesweeper"),  // 後ろに .onboarding(...)（#2826）が続く
+            ("GameSudoku/SudokuView.swift", ".howToPlay(HowToPlayGuide.sudoku.illustrated(SudokuHowToFigures.items)", "sudoku"),  // 後ろに .onboarding(...)（#2826）が続く
             ("GameBlocks/BlocksView.swift", ".howToPlay(HowToPlayGuide.blocks.illustrated(BlocksHowToFigures.items)", "blocks"),
-            ("GameFifteen/FifteenView.swift", ".howToPlay(HowToPlayGuide.fifteen.illustrated(FifteenHowToFigures.items))", "fifteen"),
-            ("GameAnzan/AnzanView.swift", ".howToPlay(HowToPlayGuide.anzan.illustrated(AnzanHowToFigures.items)", "anzan"),
+            ("GameFifteen/FifteenView.swift", ".howToPlay(HowToPlayGuide.fifteen.illustrated(FifteenHowToFigures.items)", "fifteen"),  // 後ろに .onboarding(...)（#2826）が続く
+            ("GameAnzan/AnzanView.swift", ".howToPlay(HowToPlayGuide.anzan.illustrated(AnzanHowToFigures.items)", "anzan"),  // 後ろに .onboarding(...)（#2826）が続く
             ("GameAkariKeshi/AkariKeshiView.swift", ".howToPlay(HowToPlayGuide.akariKeshi.illustrated(AkariKeshiHowToFigures.items))", "akarikeshi"),
             ("GameTsunagi/TsunagiView.swift", ".howToPlay(HowToPlayGuide.tsunagi.illustrated(TsunagiHowToFigures.items))", "tsunagi"),
-            ("GameDiceCombo/DiceComboView.swift", ".howToPlay(HowToPlayGuide.diceCombo.illustrated(DiceComboHowToFigures.items))", "dicecombo"),
+            ("GameDiceCombo/DiceComboView.swift", ".howToPlay(HowToPlayGuide.diceCombo.illustrated(DiceComboHowToFigures.items)", "dicecombo"),  // 後ろに .onboarding(...)（#2826）が続く
             ("GameShiritori/ShiritoriView.swift", ".howToPlay(model.mode.howToPlayGuide", "shiritori"),
             ("GameShiritori/ShiritoriView.swift", "mode.setupKeyItems", "shiritori の開始シート"),
         ]

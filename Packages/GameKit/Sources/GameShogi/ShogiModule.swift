@@ -35,4 +35,10 @@ public struct ShogiModule: GameModule {
         let cpuFirst = (goteFirst ? snap.gote : snap.sente) == .ai
         return CPUOpening.humanHasMoved(totalMoves: snap.moves.count, cpuMovesFirst: cpuFirst)
     }
+
+    /// 指した手数（#2870）。駒落ちの CPU の初手も数える（盤の手数と同じ）。
+    public func resumeProgress(in snapshots: SnapshotStore) -> String? {
+        guard let snap = snapshots.load(ShogiSnapshot.self, for: id) else { return nil }
+        return tr("%lld手目", snap.moves.count)
+    }
 }

@@ -1,17 +1,6 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
-    "。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : ". "
-          }
-        }
-      }
-    },
     "%@のルール" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -19,17 +8,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ Rules"
-          }
-        }
-      }
-    },
-    "最大 %lld連鎖" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Best chain: %lld"
           }
         }
       }
@@ -67,6 +45,28 @@
         }
       }
     },
+    "1 組でやること" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What to do with each pair"
+          }
+        }
+      }
+    },
+    "2 つひと組の荷物が落ちてきます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Boxes fall in pairs."
+          }
+        }
+      }
+    },
     "2連鎖" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -85,6 +85,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "4 connected"
+          }
+        }
+      }
+    },
+    "4 つつながると消える" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect 4 to clear"
           }
         }
       }
@@ -118,6 +129,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The ▼\ncolumn is\nblocked"
+          }
+        }
+      }
+    },
+    "▼の列のいちばん上が埋まったら終わり。それまでの得点が記録です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The game ends when the top of the ▼ column fills up. Your score is your record."
+          }
+        }
+      }
+    },
+    "。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". "
           }
         }
       }
@@ -221,6 +254,17 @@
         }
       }
     },
+    "このゲームの目的" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The goal"
+          }
+        }
+      }
+    },
     "せり上がり %lld秒" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -228,6 +272,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rises in %lld s"
+          }
+        }
+      }
+    },
+    "だんだん速くなる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It gets faster"
           }
         }
       }
@@ -250,6 +305,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Boxed in? Tap twice"
+          }
+        }
+      }
+    },
+    "はさまれて回せないときは、もう 1 回タップで上下が入れかわります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the pair is boxed in and can't turn, tap once more to swap top and bottom."
           }
         }
       }
@@ -294,6 +360,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Swipe sideways"
+          }
+        }
+      }
+    },
+    "よこにスワイプで動かし、タップで回し、下にスワイプで落とします。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipe sideways to move them, tap to turn them, and swipe down to drop them."
           }
         }
       }
@@ -349,6 +426,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The gauge is full"
+          }
+        }
+      }
+    },
+    "ゲージが満タンで入院か、▼の列のいちばん上が埋まったら負けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You lose if the gauge fills and he's hospitalized, or the top of the ▼ column fills up."
           }
         }
       }
@@ -452,6 +540,17 @@
         }
       }
     },
+    "ラインより下まで片付けたらクリア。早いほど良い記録です。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear everything below the line to win. The faster, the better your record."
+          }
+        }
+      }
+    },
     "一時停止" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -470,17 +569,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Swipe down"
-          }
-        }
-      }
-    },
-    "速く下に払うと一気に落とせるようになりました" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Flick down fast to drop it all at once"
           }
         }
       }
@@ -540,6 +628,50 @@
         }
       }
     },
+    "勝ち負けの決まり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Winning and losing"
+          }
+        }
+      }
+    },
+    "右へ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move right"
+          }
+        }
+      }
+    },
+    "同じ荷物がたて・よこに 4 つ以上つながると消えます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect 4 or more of the same box up, down, or sideways to clear them."
+          }
+        }
+      }
+    },
+    "回す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rotate"
+          }
+        }
+      }
+    },
     "回せないときは、もう 1 回で上下が入れかわる" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -547,6 +679,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "If it can't turn, tap again to flip top and bottom"
+          }
+        }
+      }
+    },
+    "埋まったときは、広告を見て 1 回だけ続けられます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When it fills up, you can watch an ad to continue once."
+          }
+        }
+      }
+    },
+    "左へ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move left"
           }
         }
       }
@@ -639,6 +793,28 @@
         }
       }
     },
+    "最大 %lld連鎖" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best chain: %lld"
+          }
+        }
+      }
+    },
+    "消えたあとに落ちてきた荷物がまたつながれば「れんさ」。れんさするほど点が増えます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If the boxes that fall after a clear connect again, that's a chain. Longer chains score more."
+          }
+        }
+      }
+    },
     "消すと楽になる" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -705,6 +881,17 @@
         }
       }
     },
+    "空の盤から始まり、ゲージはありません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You start with an empty board, and there's no gauge."
+          }
+        }
+      }
+    },
     "終了して新規ゲーム" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -760,68 +947,13 @@
         }
       }
     },
-    "荷物の盤" : {
+    "腰にくるほど落ちるのが速くなり、操作が遅れます。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Luggage board"
-          }
-        }
-      }
-    },
-    "左へ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Move left"
-          }
-        }
-      }
-    },
-    "右へ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Move right"
-          }
-        }
-      }
-    },
-    "回す" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rotate"
-          }
-        }
-      }
-    },
-    "落とす" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Drop"
-          }
-        }
-      }
-    },
-    "落下中 左から%1$lld列目（%2$@と%3$@）" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Falling: column %1$lld from the left (%2$@ and %3$@)"
+            "value" : "The worse his back, the faster boxes fall and the slower your controls respond."
           }
         }
       }
@@ -892,6 +1024,72 @@
         }
       }
     },
+    "荷物の盤" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Luggage board"
+          }
+        }
+      }
+    },
+    "荷物は 5 種類。同じ種類どうしだけがつながります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are 5 kinds of boxes. Only the same kind connect."
+          }
+        }
+      }
+    },
+    "荷物は 5 種類。重い荷物をかかえるほど腰にきて、消すと楽になります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There are 5 kinds of boxes. Heavy boxes strain his back; clearing boxes eases it."
+          }
+        }
+      }
+    },
+    "荷物は時間がたつと、下から 1 段ずつせり上がってきます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "As time passes, the boxes push up from the bottom one row at a time."
+          }
+        }
+      }
+    },
+    "荷物を 4 つそろえて消して、ラインより下まで片付けるゲームです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Match 4 boxes to clear them, and clear everything down below the line."
+          }
+        }
+      }
+    },
+    "荷物を 4 つそろえて消して、得点をのばすゲームです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Match 4 boxes to clear them and rack up points."
+          }
+        }
+      }
+    },
     "荷物を4つそろえて腰をいたわろう" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -899,6 +1097,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Match 4 boxes and go easy on Ojisan's back"
+          }
+        }
+      }
+    },
+    "荷物を置くほど、少しずつ落ちるのが速くなります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Boxes fall a little faster the more you place."
+          }
+        }
+      }
+    },
+    "荷物運びパズルのはじめての遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Box Puzzle: first steps"
           }
         }
       }
@@ -925,6 +1145,39 @@
         }
       }
     },
+    "落とす" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop"
+          }
+        }
+      }
+    },
+    "落下中 左から%1$lld列目（%2$@と%3$@）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Falling: column %1$lld from the left (%2$@ and %3$@)"
+          }
+        }
+      }
+    },
+    "負けたときは、広告を見て 1 回だけ続けられます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you lose, you can watch an ad to continue once."
+          }
+        }
+      }
+    },
     "途中で終了すると、いまの盤面と得点が失われます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -932,6 +1185,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "If you quit now, your current board and score will be lost."
+          }
+        }
+      }
+    },
+    "速く下に払うと一気に落とせるようになりました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flick down fast to drop it all at once"
           }
         }
       }

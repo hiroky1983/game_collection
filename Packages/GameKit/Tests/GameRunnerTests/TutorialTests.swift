@@ -200,6 +200,6 @@ struct RunnerTutorialWiringTests {
     func reopenableFromHowToPlay() throws {
         let source = try Self.source()
         #expect(source.contains("RunnerTutorialPage()"))
-        #expect(source.contains("howToPlay(model.mode.howToPlayGuide)"))
+        #expect(source.contains("howToPlay(model.mode.howToPlayGuide"))  // 後ろに .onboarding(...)（#2826）が続く
     }
 }

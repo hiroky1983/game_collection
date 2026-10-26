@@ -5,6 +5,7 @@ import GameKitTestSupport
 import GameShogi
 import GameMinesweeper
 import GamePoker
+import GameBlackjack
 import GameMahjong
 import GameSudoku
 import GameSolitaire
@@ -18,6 +19,7 @@ import GameAnzan
 @testable import GameAkariKeshi
 @testable import GameTsunagi
 import GameHanoi
+import GameFifteen
 import GameOjisanPuzzle
 import GameSpeed
 import GameCatPuzzle
@@ -38,7 +40,9 @@ struct RecordVariantLabelCoverageTests {
                 add("shogi", ShogiMatchSetting(handicap: handicap, dropper: dropper).recordVariant)
             }
         }
-        add("poker", PokerModel.recordVariant)
+        // ポーカー・ブラックジャックは 10 回勝負と単発戦（#2860）。
+        for format in PokerSessionFormat.allCases { add("poker", format.recordVariant) }
+        for format in BlackjackMatchFormat.allCases { add("blackjack", format.recordVariant) }
         for length in MahjongGameLength.allCases { add("mahjong4", length.recordVariant) }
         for mode in RunnerMode.allCases { add("runner", mode.recordVariant) }
         for mode in SolitaireDrawMode.allCases { add("solitaire", mode.recordVariant) }
@@ -67,6 +71,7 @@ struct RecordVariantLabelCoverageTests {
         for level in AkariKeshiDifficulty.allCases { add("akarikeshi", level.rawValue) }
         for size in TsunagiSize.allCases { add("tsunagi", size.recordVariant) }
         for disks in HanoiLogic.diskRange { add("hanoi", "\(disks)disks") }
+        for size in FifteenLogic.sizes where size != FifteenLogic.defaultSize { add("fifteen", "\(size)x\(size)") }
         for size in CatPuzzleSize.allCases { add("catpuzzle", size.rawValue) }
         // 大富豪・いろリレーは CPU の強さ別（#2604）。「ふつう」は区分なし（従来の保存先）。
         for strength in CPUStrength.allCases where strength != .standard {
@@ -74,6 +79,16 @@ struct RecordVariantLabelCoverageTests {
             add("colorrelay", strength.recordVariantKey)
             // チェス・囲碁・五目並べ・オセロも CPU の強さ別（#2617）。
             for game in ["chess", "go", "gomoku", "othello", "hearts", "oldmaid"] { add(game, strength.recordVariantKey) }
+        }
+        // 囲碁の 13路は `13`（ふつう）と `13-<強さ>`（#2868）。
+        add("go", "13")
+        for strength in CPUStrength.allCases where strength != .standard { add("go", "13-\(strength.recordVariantKey)") }
+
+        // いろリレーは相手の人数別（#2866）。相手 3 人は上の強さ別のキー、1・2 人は `cpu<人数>[-<強さ>]`。
+        for opponents in 1...2 {
+            for strength in CPUStrength.allCases {
+                add("colorrelay", strength == .standard ? "cpu\(opponents)" : "cpu\(opponents)-\(strength.recordVariantKey)")
+            }
         }
         return result
     }

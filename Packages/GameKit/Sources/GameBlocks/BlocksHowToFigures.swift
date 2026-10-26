@@ -28,7 +28,7 @@ enum BlocksHowToFigures {
         }
     }
 
-    private struct Brick: View {
+    struct Brick: View {
         let color: Color
         var body: some View {
             RoundedRectangle(cornerRadius: Theme.cornerSmall / 4, style: .continuous)
@@ -51,7 +51,7 @@ enum BlocksHowToFigures {
     }
 
     /// 指を横に動かすとパドルが動き、タップで球が出る。
-    private struct PaddleFigure: View {
+    struct PaddleFigure: View {
         var body: some View {
             HStack(spacing: 18) {
                 VStack(spacing: 6) {
@@ -80,7 +80,7 @@ enum BlocksHowToFigures {
     }
 
     /// 球をはね返してブロックに当てる。灰色は壊れない。
-    private struct BounceFigure: View {
+    struct BounceFigure: View {
         var body: some View {
             Field(width: 200, height: 110) {
                 VStack(spacing: 3) {
@@ -112,7 +112,7 @@ enum BlocksHowToFigures {
     }
 
     /// 落ちてくるアイテムを受けると、パドルが伸びたり球が増えたり。
-    private struct ItemFigure: View {
+    struct ItemFigure: View {
         var body: some View {
             RuleFrames(count: 2, spacing: 12) { index in
                 VStack(spacing: 6) {
@@ -154,7 +154,7 @@ enum BlocksHowToFigures {
     }
 
     /// 球を全部落とすと 1 ミス、3 回で終わり。
-    private struct MissFigure: View {
+    struct MissFigure: View {
         var body: some View {
             HStack(spacing: 18) {
                 VStack(spacing: 4) {

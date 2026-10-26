@@ -4,7 +4,8 @@ import Core
 // MARK: - Start Sheet
 
 struct PokerStartSheet: View {
-    let onStart: () -> Void
+    /// 選んだ勝負の形を渡して始める（#2860）。
+    let onStart: (PokerSessionFormat) -> Void
     /// キャンセル（ハブへ戻る）。これが無いと開いたら 1 局遊ぶしかなかった（#1371。麻雀は #352 で対応済み）。
     let onCancel: () -> Void
 
@@ -14,9 +15,30 @@ struct PokerStartSheet: View {
         var id: Self { self }
     }
     @State private var detail: Detail?
+    /// 選んでいる勝負の形。前回の形から始める（呼び出し側が渡す）。
+    @State private var format: PokerSessionFormat
+
+    init(format: PokerSessionFormat = .tenRounds, onStart: @escaping (PokerSessionFormat) -> Void,
+         onCancel: @escaping () -> Void) {
+        _format = State(initialValue: format)
+        self.onStart = onStart
+        self.onCancel = onCancel
+    }
 
     var body: some View {
-        GameSetupSheet(kind: .versus, onboarding: PokerOnboarding.guide, onStart: onStart, onCancel: onCancel) {
+        GameSetupSheet(kind: .versus, onboarding: PokerOnboarding.guide, onStart: { onStart(format) },
+                       onCancel: onCancel) {
+            GameSetupSection(tr("遊び方")) {
+                HStack(spacing: 12) {
+                    GameSetupChooser(title: tr("10回勝負"), subtitle: tr("合計点で CPU と競う"),
+                                     selected: format == .tenRounds, accent: Theme.fillStrong,
+                                     onAccent: .white) { format = .tenRounds }
+                    GameSetupChooser(title: tr("単発戦"), subtitle: tr("1回だけ勝負して終わる"),
+                                     selected: format == .single, accent: Theme.fillStrong,
+                                     onAccent: .white) { format = .single }
+                }
+            }
+
             // 遊び方を図つきでそのまま並べる（#2044・#2268。荷物運びパズル #2132 と同じ型）。
             // カードは「？」の遊び方シートと同じ部品。
             GameSetupSection(tr("ルールの要点")) {
@@ -76,7 +98,7 @@ struct PointsTableSheet: View {
     var body: some View {
         YakuTableSheet(title: tr("役の点数表")) {
             YakuTableSection(
-                footer: tr("10 回勝負の合計点で、CPU より多ければ勝ちです。合計点の自己ベストが記録に残ります。")
+                footer: tr("10 回勝負の合計点で、CPU より多ければ勝ちです。合計点の自己ベストが記録に残ります。単発戦は 1 回の勝負で決まり、別の記録に残ります。")
             ) {
                 Text(tr("その回に勝った側に、自分の役の点が入ります。負け・引き分けは 0 点です。"))
                     .scaledFont(12, weight: .medium, design: .rounded)

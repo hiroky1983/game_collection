@@ -588,6 +588,8 @@ struct HubView: View {
     private func gridTile(_ entry: GridEntry) -> some View {
         let module = entry.module
         let hasResume = isResumable(module.id)
+        // 記録が無い（一度も遊んでいない）ゲームに出す。1 回遊べば消える（#2849）。記録が読めないときは出さない。
+        let isUnplayed = services.playLog.map { !$0.hasPlayed(gameID: module.id) } ?? false
         // 位置は並べ替え設定を反映した**見えている順**の 1 始まり（#659）。
         return NavigationLink(value: HubRoute(
             gameID: module.id, source: .hub, position: entry.position, resume: hasResume
@@ -595,9 +597,11 @@ struct HubView: View {
             GameCard(
                 module: module,
                 hasResume: hasResume,
+                resumeProgress: hasResume ? registry.resumeProgress(gameID: module.id, in: services.snapshots) : nil,
                 isNew: NewGames.currentVersionIDs.contains(module.id),
                 isEvent: HubEventBadge.isShown(gameID: module.id),
                 updateTag: UpdatedGames.tag(for: module.id),
+                isUnplayed: isUnplayed,
                 // 柵越えおじさんだけ、今日の残り回数（#2208。ボールの絵は #2273）。「イベント開催中」と両方出す（#2572）。
                 count: HubCountBadge.isShown(gameID: module.id) ? homerunTally : nil
             )
@@ -686,12 +690,16 @@ struct HubView: View {
 private struct GameCard: View {
     let module: GameModule
     let hasResume: Bool
+    /// 中断データの進み具合（「32手目」等・#2870）。「続きから」の印を出しているときだけ、その下に出す。
+    var resumeProgress: String?
     /// この版の新着ゲームか（#2104）。「続きから」と同じ位置に NEW を常に出す（両方のときは NEW を優先）。
     let isNew: Bool
     /// 「イベント開催中」の印を出すか（#2566）。NEW のほうが優先で、文字の印は左下に 1 つだけ。
     let isEvent: Bool
     /// その版で中身が増えたゲームのタグ（「新ステージ追加」など・#2790）。優先順は NEW ＞ イベント ＞ 更新 ＞ 続きから。
     var updateTag: UpdateTag?
+    /// 一度も遊んでいないゲームか（#2849）。NEW・イベント・続きからのどれも無いときだけ「未プレイ」を出す。
+    let isUnplayed: Bool
     /// 今日の残り回数（柵越えおじさんだけ・#2208）。ボールを上限ぶん並べ、残りは白・使った分は灰色（#2273）。
     /// 「続きから」「NEW」「イベント開催中」と同じ部品（`badgeCapsule`）・同じ大きさで、文字の印と**両方**出す
     /// （#2572。横に並ばない幅では 2 段）。読み上げは「残り n 回」。
@@ -751,14 +759,30 @@ private struct GameCard: View {
         if let count {
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: layout.scaled(6)) {
-                    badge
+                    badgeWithProgress
                     Spacer(minLength: 0)
                     countBadge(count)
                 }
                 VStack(alignment: .leading, spacing: layout.scaled(6)) {
                     countBadge(count)
-                    badge
+                    badgeWithProgress
                 }
+            }
+        } else {
+            badgeWithProgress
+        }
+    }
+
+    /// 「続きから」の印を出す局面か（NEW・イベントが優先）。
+    private var showsResumeBadge: Bool { !isNew && !isEvent && hasResume }
+
+    /// 文字の印。「続きから」を出しているときは、その下に進み具合の印を 1 段足す（#2870）。
+    @ViewBuilder
+    private var badgeWithProgress: some View {
+        if showsResumeBadge, let resumeProgress {
+            VStack(alignment: .leading, spacing: layout.scaled(4)) {
+                badge
+                badgeCapsule(resumeProgress)
             }
         } else {
             badge
@@ -775,6 +799,8 @@ private struct GameCard: View {
             badgeCapsule(updateTag.label)
         } else if hasResume {
             badgeCapsule(tr("続きから"))
+        } else if isUnplayed {
+            badgeCapsule(tr("未プレイ"))
         }
     }
 
@@ -822,9 +848,11 @@ private struct GameCard: View {
     private var accessibilityLabel: String {
         var parts = [module.title]
         if hasResume { parts.append(tr("続きから")) }
+        if showsResumeBadge, let resumeProgress { parts.append(resumeProgress) }
         if isNew { parts.append(tr("新着")) }
         if isEvent { parts.append(tr("イベント開催中")) }
         if let updateTag { parts.append(updateTag.label) }
+        if isUnplayed { parts.append(tr("未プレイ")) }
         if let count { parts.append(count.labelText()) }
         return parts.joined(separator: tr("、"))
     }

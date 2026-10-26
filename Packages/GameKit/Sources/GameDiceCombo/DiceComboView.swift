@@ -47,7 +47,7 @@ public struct DiceComboView: View {
                             withGameAnimation { model.newGame() }
                         }
                     })
-        .howToPlay(HowToPlayGuide.diceCombo.illustrated(DiceComboHowToFigures.items))
+        .howToPlay(HowToPlayGuide.diceCombo.illustrated(DiceComboHowToFigures.items).onboarding(DiceComboOnboarding.guide))
         .dialogs { anchor in
             anchor.confirmationDialog(tr("新規ゲームを始めますか？"), isPresented: $showConfirmReset, titleVisibility: .visible) {
                 Button(tr("終了して新規ゲーム"), role: .destructive) { withGameAnimation { model.newGame() } }

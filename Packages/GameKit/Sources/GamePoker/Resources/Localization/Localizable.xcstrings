@@ -733,17 +733,6 @@
         }
       }
     },
-    "10 回勝負の合計点で、CPU より多ければ勝ちです。合計点の自己ベストが記録に残ります。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Over 10 rounds, you win if your total beats the CPU's. Your best total is saved as your record."
-          }
-        }
-      }
-    },
     "10回勝負に勝ち！" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1349,6 +1338,171 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Watch an ad to draw again, once."
+          }
+        }
+      }
+    },
+    "10 回勝負の合計点で、CPU より多ければ勝ちです。合計点の自己ベストが記録に残ります。単発戦は 1 回の勝負で決まり、別の記録に残ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Over 10 rounds, you win if your total beats the CPU's. Your best total is saved as your record. A single round is decided in one showdown and is recorded separately."
+          }
+        }
+      }
+    },
+    "10回勝負" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "10 Rounds"
+          }
+        }
+      }
+    },
+    "1回だけ勝負して終わる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play just one round"
+          }
+        }
+      }
+    },
+    "合計点で CPU と競う" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beat the CPU on total points"
+          }
+        }
+      }
+    },
+    "1度だけ、広告を見るともう1回カードを交換できます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to draw cards one more time (once only)."
+          }
+        }
+      }
+    },
+    "あなたの役 %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your hand: %@"
+          }
+        }
+      }
+    },
+    "もう一度 単発戦" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play Single Round Again"
+          }
+        }
+      }
+    },
+    "単発戦" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Single Round"
+          }
+        }
+      }
+    },
+    "単発戦、合計%1$@、CPU %2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Single round, total %1$@, CPU %2$@"
+          }
+        }
+      }
+    },
+    "単発戦に勝ち！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You won the single round!"
+          }
+        }
+      }
+    },
+    "単発戦に負け" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You lost the single round"
+          }
+        }
+      }
+    },
+    "単発戦は引き分け" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The single round is a tie"
+          }
+        }
+      }
+    },
+    "遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How to Play"
+          }
+        }
+      }
+    },
+    "遊び方を選ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change Format"
+          }
+        }
+      }
+    },
+    "%1$lld/%2$lld回目" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Round %1$lld/%2$lld"
           }
         }
       }

@@ -13,6 +13,8 @@ public struct GomokuView: View {
     @State private var hintRescue = RewardedRescue()
     /// 結果カードを閉じたか（#1753）。新しい対局が始まる（`gameOver` が偽に戻る）とリセットする。
     @State private var resultCardClosed = false
+    /// 「ここで止めていれば」の局面を盤に出しているか（#2851）。新しい対局が始まるとリセットする。
+    @State private var reviewingMissedBlock = false
 
     public init(services: GameServices) {
         self.services = services
@@ -43,11 +45,11 @@ public struct GomokuView: View {
         }
         .gameAnimation(.none, value: model.gameOver)
         .onChange(of: model.gameOver) { _, over in
-            if !over { resultCardClosed = false }
+            if !over { resultCardClosed = false; reviewingMissedBlock = false }
         }
         .padding(Theme.pad)
         .gameChrome(title: tr("五目並べ"), review: services.review,
-                    condition: GameChromeCondition(conditionParts) { requestNewGame() },
+                    condition: GameChromeCondition(conditionParts),
                     newGame: GameChromeNewGame(.match) { requestNewGame() })
         .howToPlay(GomokuHowToFigures.guide(forbiddenMoves: model.forbiddenMovesEnabled)
             .onboarding(GomokuOnboarding.guide(forbiddenMoves: model.forbiddenMovesEnabled)))
@@ -162,11 +164,11 @@ public struct GomokuView: View {
                     .shadow(color: .black.opacity(0.18), radius: 10, y: 6)
 
                 GomokuBoardCanvas(
-                    board: model.board,
-                    lastMove: model.lastMove,
-                    moveCount: model.moveCount,
+                    board: displayBoard,
+                    lastMove: reviewBlock?.previousMove.map { (row: $0.row, col: $0.col) } ?? (reviewBlock == nil ? model.lastMove : nil),
+                    moveCount: displayBoard.moveCount,
                     pad: pad,
-                    revealedMoves: Double(model.moveCount)
+                    revealedMoves: Double(displayBoard.moveCount)
                 )
                 // 置いた石が現れる演出（#202）。`Canvas` は View が再評価されないと描き直されない
                 // ため、`GomokuBoardCanvas` を `Animatable` にして手数を補間させている。
@@ -189,9 +191,9 @@ public struct GomokuView: View {
                 // 決着した五を光らせる（#665）。盤の前面に重ねるので、タップと VoiceOver の
                 // 交点グリッドを横取りしないよう当たり判定・支援技術の両方から外す。
                 GomokuWinLineCanvas(
-                    line: model.winningLine ?? [],
+                    line: reviewBlock == nil ? (model.winningLine ?? []) : [],
                     pad: pad,
-                    progress: model.winningLine == nil ? 0 : 1
+                    progress: model.winningLine == nil || reviewBlock != nil ? 0 : 1
                 )
                 .gameAnimation(GomokuMotion.winLine, value: model.winningLine)
                 .allowsHitTesting(false)
@@ -201,6 +203,9 @@ public struct GomokuView: View {
                 // タップと VoiceOver の交点グリッドを横取りしないよう両方から外す。
                 hintMark(pad: pad, spacing: spacing)
 
+                // 「ここで止めていれば」の交点（#2851）。ヒントと同じ印で、同じく盤の前面から外す。
+                stopMarks(pad: pad, spacing: spacing)
+
                 // 仮置きの印（#2297）。同じく盤の前面で、タップと VoiceOver を横取りしない。
                 pendingMark(pad: pad, spacing: spacing)
             }
@@ -209,8 +214,89 @@ public struct GomokuView: View {
             .gameAnimation(.linear(duration: 0.32), value: model.rejectedTapCount)
             // 禁じ手の理由は揺れの外に置く（一緒に揺らすと読めない）。
             .overlay(alignment: .top) { forbiddenNotice }
+            .overlay(alignment: reviewBannerAlignment) { reviewBanner }
         }
         .aspectRatio(1, contentMode: .fit)
+    }
+
+    // MARK: - ここで止めていれば（#2851）
+
+    /// 盤に出している局面の確認中だけ有効な「止められた最後の局面」。
+    private var reviewBlock: GomokuMissedBlock? {
+        reviewingMissedBlock && model.gameOver ? model.missedBlock : nil
+    }
+
+    private var displayBoard: GomokuBoard { reviewBlock?.position ?? model.board }
+
+    /// 帯は止める交点と重ならない側（盤の上半分に交点が寄っていれば下）に出す。
+    private var reviewBannerAlignment: Alignment {
+        guard let block = reviewBlock, !block.stopPoints.isEmpty else { return .top }
+        let mean = Double(block.stopPoints.map(\.row).reduce(0, +)) / Double(block.stopPoints.count)
+        return mean < Double(gomokuBoardSize) / 2 ? .bottom : .top
+    }
+
+    private func stopPointsText(_ block: GomokuMissedBlock) -> String {
+        block.stopPoints.map { tr("%1$lld行%2$lld列", $0.row + 1, $0.col + 1) }.joined(separator: tr("、"))
+    }
+
+    private func showMissedBlock() {
+        guard let block = model.missedBlock else { return }
+        reviewingMissedBlock = true
+        resultCardClosed = true
+        AccessibilityNotification.Announcement(tr("ここで止めるなら %@", stopPointsText(block))).post()
+    }
+
+    /// 結果カードの動線。読み終えていない・見つからなかった局では出さない。
+    private var missedBlockAction: BoardGameResultCard.SecondaryAction? {
+        guard model.missedBlock != nil else { return nil }
+        return BoardGameResultCard.SecondaryAction(
+            title: tr("ここで止めていれば"),
+            hint: tr("負けにつながった局面に盤を戻し、止められた交点を示します")
+        ) { showMissedBlock() }
+    }
+
+    /// 確認中の帯。説明と「結果に戻る」。盤への overlay なので高さは変わらない（#148）。
+    @ViewBuilder
+    private var reviewBanner: some View {
+        if let block = reviewBlock {
+            HStack(spacing: 10) {
+                Text(tr("ここで止めるなら %@", stopPointsText(block)))
+                    .themeCaption(13, weight: .bold, maxScale: 1.5)
+                    .foregroundStyle(Theme.onAccent)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    reviewingMissedBlock = false
+                    resultCardClosed = false
+                } label: {
+                    Text(tr("結果に戻る"))
+                        .themeCaption(13, weight: .bold, maxScale: 1.5)
+                        .foregroundStyle(Theme.coralText)
+                        .padding(.horizontal, 12)
+                        .frame(minHeight: 44)
+                        .background(Capsule().fill(Color.white))
+                }
+            }
+            .padding(.leading, 14).padding(.trailing, 4)
+            .background(Capsule().fill(Theme.Fill.coral))
+            .padding(.vertical, 6).padding(.horizontal, 8)
+        }
+    }
+
+    /// 止められた交点の印。ヒントと同じ紫の輪（盤上の「ここへ打つ」を 1 色に揃える）。
+    @ViewBuilder
+    private func stopMarks(pad: CGFloat, spacing: CGFloat) -> some View {
+        if let block = reviewBlock {
+            ForEach(block.stopPoints, id: \.self) { point in
+                Circle()
+                    .stroke(BoardGameHintColor.color, lineWidth: 3)
+                    .background(Circle().fill(BoardGameHintColor.color.opacity(0.22)))
+                    .frame(width: spacing * 0.9, height: spacing * 0.9)
+                    .position(x: pad + spacing * CGFloat(point.col),
+                              y: pad + spacing * CGFloat(point.row))
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+        }
     }
 
     /// ヒントが示す交点の印（#1118）。次に打つと良い 1 点を紫の輪で囲む。
@@ -302,9 +388,12 @@ public struct GomokuView: View {
                         .accessibilityLabel(GomokuAccessibility.pointLabel(
                             row: row,
                             col: col,
-                            stone: model.board[row, col],
-                            isLastMove: model.lastMove.map { $0.row == row && $0.col == col } ?? false,
+                            stone: displayBoard[row, col],
+                            isLastMove: (reviewBlock != nil ? reviewBlock?.previousMove
+                                         : model.lastMove.map { GomokuPoint(row: $0.row, col: $0.col) })
+                                .map { $0 == GomokuPoint(row: row, col: col) } ?? false,
                             isHint: model.hintPoint == GomokuPoint(row: row, col: col)
+                                || (reviewBlock?.stopPoints.contains(GomokuPoint(row: row, col: col)) ?? false)
                         ))
                     }
                 }
@@ -361,7 +450,8 @@ public struct GomokuView: View {
                 reason: model.isDraw ? tr("盤が埋まった") : (model.winningLine != nil ? tr("五連") : tr("投了")),
                 details: GomokuAccessibility.resultCardDetails(
                     moveCount: model.moveCount, winningLine: model.winningLine, lastMove: model.lastMove),
-                record: model.recordResult
+                record: model.recordResult,
+                secondaryAction: model.winner != model.humanSide ? missedBlockAction : nil
             ) { resultCardClosed = true }
         }
     }

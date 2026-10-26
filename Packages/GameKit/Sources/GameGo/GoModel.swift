@@ -33,6 +33,8 @@ public enum GoTapRejection: Equatable, Sendable {
 public struct GoEndgame: Equatable, Sendable {
     public let score: GoScore
     public let dead: Set<GoPoint>
+    /// 盤上で色分けする地の持ち主（`GoScoring.territory`）。
+    public let territory: [GoStone?]
     /// 簡易死活の判定が曖昧か（真なら「対局続行」を強く勧める）。
     public let isUncertain: Bool
 }
@@ -106,6 +108,8 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     private var startedAt: Date
 
     public var board: GoBoard { state.board }
+    /// 今の対局の路数（#2868）。
+    public var boardSize: GoBoardSize { GoBoardSize(rawValue: ruleset.size) ?? .nine }
     public var moveCount: Int { moves.count }
     public var gameOver: Bool { phase == .finished }
     /// CPU が着手すべき状態か。終局の確認中は動かさない（人間が結果を判断する段階のため）。
@@ -128,7 +132,9 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             humanSide = GoStone(rawValue: last.humanSide) ?? .black
             aiLevel = GoLevel(rawValue: last.level) ?? .normal
             let handicap = humanSide == .black && GoRuleset.handicapChoices.contains(last.handicap) ? last.handicap : 0
-            ruleset = GoRuleset(size: GoBoardSize.nine.rawValue, handicap: handicap)
+            // 路数は鍵を持たない旧形式の記録なら 9 路。読めない値も 9 路に倒す。
+            let boardSize = last.boardSize.flatMap(GoBoardSize.init(rawValue:)) ?? .nine
+            ruleset = GoRuleset(size: boardSize.rawValue, handicap: handicap)
         }
         var moves: [GoMove] = []
         var startedAt = Date()
@@ -310,7 +316,8 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             let result = await Task.detached(priority: .userInitiated) {
                 let analysis = GoDeadStones.analyze(state: snapshot, playouts: 600, seed: seed)
                 let score = GoScoring.score(board: snapshot.board, removing: analysis.dead, ruleset: ruleset)
-                return GoEndgame(score: score, dead: analysis.dead, isUncertain: !analysis.isConfident)
+                let territory = GoScoring.territory(of: snapshot.board, removing: analysis.dead)
+                return GoEndgame(score: score, dead: analysis.dead, territory: territory, isUncertain: !analysis.isConfident)
             }.value
 
             await afterEndgameComputeForTesting?()
@@ -377,11 +384,20 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         recordResult = services?.gameDidFinish(
             gameID: gameID,
             outcome: outcome,
-            score: hints.winLossScore(gameID: gameID, aiLevel: aiLevel.rawValue),
+            score: winLossScore(),
             // 評価リクエストの見せ場は「ふつう」以上の CPU に勝ったとき（#1471）。
             isReviewHighlight: CPUStrength.isReviewWorthy(level: aiLevel.rawValue)
         )
         persist()
+    }
+
+    /// 決着に渡す成績。記録は強さ別に加えて盤の大きさでも分ける（#2868。13路は 9路の記録に混ぜない）。
+    private func winLossScore() -> GameScore {
+        var score = hints.winLossScore(gameID: gameID, aiLevel: aiLevel.rawValue)
+        guard let variant = boardSize.recordVariant(strengthVariant: score.variant) else { return score }
+        score.variant = variant
+        score.variantLabel = RecordVariantLabels.stored(gameID: gameID, variant: variant)
+        return score
     }
 
     // MARK: - 待った
@@ -422,16 +438,16 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
 
     // MARK: - 新規対局
 
-    public func newGame(humanSide: GoStone = .black, level: GoLevel = .normal, handicap: Int = 0) {
-        var ruleset = GoRuleset(size: GoBoardSize.nine.rawValue, handicap: handicap)
+    public func newGame(humanSide: GoStone = .black, level: GoLevel = .normal, handicap: Int = 0, boardSize: GoBoardSize = .nine) {
+        var ruleset = GoRuleset(size: boardSize.rawValue, handicap: handicap)
         // 置き石は「黒（人間）がハンデをもらう」ための仕組み。人間が白を選んだときは
         // 置き石なしに倒す（白がハンデをもらう形は 9 路の慣行に無く、表示も破綻する）。
-        if humanSide == .white { ruleset = GoRuleset(size: GoBoardSize.nine.rawValue, handicap: 0) }
+        if humanSide == .white { ruleset = GoRuleset(size: boardSize.rawValue, handicap: 0) }
 
         self.ruleset = ruleset
         self.humanSide = humanSide
         self.aiLevel = level
-        services?.playLog?.saveLastStart(GoStartChoice(humanSide: humanSide.rawValue, level: level.rawValue, handicap: ruleset.handicap), gameID: gameID)
+        services?.playLog?.saveLastStart(GoStartChoice(humanSide: humanSide.rawValue, level: level.rawValue, handicap: ruleset.handicap, boardSize: boardSize.rawValue), gameID: gameID)
         self.moves = []
         self.state = GoState.initial(ruleset: ruleset)
         self.phase = .playing
@@ -641,4 +657,6 @@ struct GoStartChoice: Codable {
     var humanSide: Int
     var level: Int
     var handicap: Int
+    /// 路数（#2868）。鍵を持たない旧形式は 9 路として読む。
+    var boardSize: Int?
 }

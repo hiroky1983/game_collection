@@ -72,7 +72,15 @@ public enum RecordVariantLabels {
             // `round10` は 10 回勝負（#2551）。`bonus` はチップ制の頃の区分で、記録は `PlayLog` が読み飛ばす。
             switch variant {
             case "round10": return tr("10回勝負", language: language)
+            case "single":  return tr("単発戦", language: language)
             case "bonus":   return tr("ボーナスルール", language: language)
+            default:        return nil
+            }
+        case "blackjack":
+            // `match10` は 10 回勝負（#2552）、`single` は 1 回だけの単発戦（#2860）。
+            switch variant {
+            case "match10": return tr("10回勝負", language: language)
+            case "single":  return tr("単発戦", language: language)
             default:        return nil
             }
         case "runner":
@@ -88,6 +96,9 @@ public enum RecordVariantLabels {
             // ハノイの塔（#2003）。キーは `<枚数>disks`（`HanoiModel.recordVariant`）。
             guard variant.hasSuffix("disks"), let count = Int(variant.dropLast(5)) else { return nil }
             return tr("円盤%lld枚", count, language: language)
+        case "fifteen":
+            // 15パズル（#2869）の盤の大きさ。4×4 は区分なし（従来の保存先）。数字と記号だけなので言語で変わらない。
+            return ["3x3": "3×3", "5x5": "5×5"][variant]
         case "catpuzzle":
             // おじさんちのねこさがし（#2250）。キーは盤の大きさ（`CatPuzzleSize.rawValue`: easy / normal / hard）。
             return difficultyWord(variant, language: language)
@@ -95,13 +106,13 @@ public enum RecordVariantLabels {
             // CPU の強さ別（#2604）。「ふつう」は区分なし（これまでの記録）なので、キーは入門・かんたん・むずかしいだけ。
             return cpuStrengthLabel(variant, language: language)
         case "colorrelay":
-            return cpuStrengthLabel(variant, language: language)
+            return colorRelay(variant, language: language)
         // チェス・囲碁・五目並べ・オセロも CPU の強さ別（#2617）。「ふつう」は区分なし（これまでの記録）。
         // 走査テストが `case "<ゲームID>":` の 1 行 1 ゲームで表を読むので、まとめずに並べる。
         case "chess":
             return cpuStrengthLabel(variant, language: language)
         case "go":
-            return cpuStrengthLabel(variant, language: language)
+            return go(variant, language: language)
         case "gomoku":
             return cpuStrengthLabel(variant, language: language)
         case "othello":
@@ -199,6 +210,17 @@ public enum RecordVariantLabels {
         return tr("%1$@・%2$@", handicap, dropper, language: language)
     }
 
+    /// 囲碁。9路は強さのキーだけ（従来の保存先）、13路は `13`（ふつう）か `13-<強さ>`（#2868）。
+    private static func go(_ variant: String, language: AppLanguage?) -> String? {
+        guard variant == "13" || variant.hasPrefix("13-") else {
+            return cpuStrengthLabel(variant, language: language)
+        }
+        let board = tr("%lld路", 13, language: language)
+        guard variant != "13" else { return board }
+        guard let strength = cpuStrengthLabel(String(variant.dropFirst(3)), language: language) else { return nil }
+        return tr("%1$@・%2$@", board, strength, language: language)
+    }
+
     /// CPU の強さ別の区分（`CPUStrength.recordVariantKey`）。花札と同じ「CPU◯◯」の言い方。
     private static func cpuStrengthLabel(_ variant: String, language: AppLanguage?) -> String? {
         let level: String
@@ -209,6 +231,17 @@ public enum RecordVariantLabels {
             level = word
         }
         return tr("CPU%@", level, language: language)
+    }
+
+    /// いろリレー。キーは相手 3 人のとき強さだけ（`CPUStrength.recordVariantKey`）、それ以外は `cpu<人数>[-<強さ>]`（#2866）。
+    private static func colorRelay(_ variant: String, language: AppLanguage?) -> String? {
+        guard variant.hasPrefix("cpu") else { return cpuStrengthLabel(variant, language: language) }
+        let parts = variant.dropFirst(3).split(separator: "-", maxSplits: 1).map(String.init)
+        guard let first = parts.first, let count = Int(first), (1...2).contains(count) else { return nil }
+        let opponents = tr("相手%lld人", count, language: language)
+        guard parts.count == 2 else { return opponents }
+        guard let strength = cpuStrengthLabel(parts[1], language: language) else { return nil }
+        return tr("%1$@・%2$@", opponents, strength, language: language)
     }
 
     private static func difficultyWord(_ raw: String, language: AppLanguage?) -> String? {

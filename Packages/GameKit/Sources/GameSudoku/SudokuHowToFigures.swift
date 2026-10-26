@@ -12,7 +12,7 @@ enum SudokuHowToFigures {
     ]
 
     /// 完成した盤（図の数字はここから取る）。
-    private static let solved: [[Int]] = [
+    static let solved: [[Int]] = [
         [5, 3, 4, 6, 7, 8, 9, 1, 2],
         [6, 7, 2, 1, 9, 5, 3, 4, 8],
         [1, 9, 8, 3, 4, 2, 5, 6, 7],
@@ -25,7 +25,7 @@ enum SudokuHowToFigures {
     ]
 
     /// 9×9 の盤。`shows(r, c)` が false のマスは空き。`tint(r, c)` で背景に色を付ける。
-    private struct Board: View {
+    struct Board: View {
         var cell: CGFloat = 16
         let shows: (Int, Int) -> Bool
         var tint: (Int, Int) -> Color? = { _, _ in nil }
@@ -73,10 +73,10 @@ enum SudokuHowToFigures {
     }
 
     /// 問題として見せる配置（およそ半分を空ける）。
-    private static func given(_ r: Int, _ c: Int) -> Bool { (r * 7 + c * 5) % 9 < 5 }
+    static func given(_ r: Int, _ c: Int) -> Bool { (r * 7 + c * 5) % 9 < 5 }
 
     /// マスを選んで、数字パッドで入れる。
-    private struct InputFigure: View {
+    struct InputFigure: View {
         var body: some View {
             VStack(spacing: 8) {
                 Board(shows: { r, c in SudokuHowToFigures.given(r, c) }, selected: (4, 4))
@@ -96,7 +96,7 @@ enum SudokuHowToFigures {
     }
 
     /// たての列・よこの行・3×3 のどれにも、同じ数字は 1 つまで（5 の入る場所で見せる）。
-    private struct RuleFigure: View {
+    struct RuleFigure: View {
         var body: some View {
             HStack(spacing: 10) {
                 part(tr("よこの行")) { r, _ in r == 4 }
@@ -114,7 +114,7 @@ enum SudokuHowToFigures {
     }
 
     /// 全部埋めたらクリア。
-    private struct ClearFigure: View {
+    struct ClearFigure: View {
         var body: some View {
             HStack(spacing: 12) {
                 Board(cell: 13, shows: { _, _ in true })

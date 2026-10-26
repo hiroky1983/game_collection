@@ -43,7 +43,7 @@ public struct Game2048View: View {
                             withGameAnimation { model.newGame() }
                         }
                     })
-        .howToPlay(HowToPlayGuide.game2048.illustrated(Game2048HowToFigures.items))
+        .howToPlay(HowToPlayGuide.game2048.illustrated(Game2048HowToFigures.items).onboarding(Game2048Onboarding.guide))
         .dialogs { anchor in
             anchor.confirmationDialog(tr("新規ゲームを始めますか？"), isPresented: $showConfirmReset, titleVisibility: .visible) {
                 Button(tr("終了して新規ゲーム"), role: .destructive) { withGameAnimation { model.newGame() } }

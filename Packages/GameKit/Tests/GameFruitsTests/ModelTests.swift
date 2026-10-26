@@ -214,7 +214,7 @@ struct FruitsScoringTests {
         #expect(!model.hasMadeKinmatsu)
     }
 
-    @Test("金の松ができると勝ちの印が立ち、成功の手応えが鳴る")
+    @Test("金の松ができると勝ちの印が立ち、節目の手応えが鳴る")
     func makingAMelonMarksTheWin() {
         let feedback = SpyFeedbackService()
         let r = FruitKind.kuromatsu.radius
@@ -225,8 +225,38 @@ struct FruitsScoringTests {
         advance(model, seconds: 1)
         #expect(model.hasMadeKinmatsu)
         #expect(model.score == FruitKind.kinmatsu.points)
-        #expect(feedback.notices(of: .success) == 1)
+        #expect(feedback.notices(of: .milestone) == 1)
+        #expect(feedback.notices(of: .success) == 0)
         #expect(model.field.fruits.map(\.kind) == [.kinmatsu])
+        #expect(model.highestKind == .kinmatsu)
+    }
+
+    @Test("最高の段は合体でできた段を覚え、はじめからで消える（#2865）")
+    func highestKindTracksLargestMerge() {
+        let r = FruitKind.tsubaki.radius
+        let model = makeModel(
+            fruits: [resting(0, .tsubaki, x: 40, y: r), resting(1, .tsubaki, x: 40 + r * 2 - 0.1, y: r)]
+        )
+        #expect(model.highestKind == nil)
+        advance(model, seconds: 1)
+        #expect(model.highestKind == .fuji)
+        model.newGame()
+        #expect(model.highestKind == nil, "はじめからで消える")
+    }
+
+    @Test("最高の段は中断データから復元でき、鍵の無い古いデータは盤から推定する（#2865）")
+    func highestKindRestores() throws {
+        let store = MemorySnapshotStore()
+        let kuro = FruitKind.kuromatsu.radius
+        let model = makeModel(fruits: [resting(0, .kuromatsu, x: kuro, y: kuro)], store: store)
+        #expect(model.highestKind == .kuromatsu, "鍵無しの中断データは盤の最大の段")
+        let snapshot = FruitsSnapshot(
+            fruits: [], cursorX: 50, score: 0, heldKind: .tsubaki, nextKind: .ume,
+            continueUsed: false, seed: 1, drawCount: 0, dropCount: 0, hasMadeKinmatsu: false,
+            highestKind: .shinpaku
+        )
+        try store.save(snapshot, for: "fruits")
+        #expect(FruitsModel(services: makeServices(store: store)).highestKind == .shinpaku)
     }
 
     @Test("金の松どうしが消えると 100 点と節目の手応え")

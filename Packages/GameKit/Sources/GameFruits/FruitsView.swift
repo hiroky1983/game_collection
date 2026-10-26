@@ -39,7 +39,7 @@ public struct FruitsView: View {
                     newGame: GameChromeNewGame(.restart) {
                         startNewGame()
                     })
-        .howToPlay(HowToPlayGuide.fruits.illustrated(FruitsHowToFigures.items)) { FruitsRuleSheet() }
+        .howToPlay(HowToPlayGuide.fruits.illustrated(FruitsHowToFigures.items).onboarding(FruitsOnboarding.guide)) { FruitsRuleSheet() }
         .onAppear {
             #if DEBUG
             // 撮影・動作確認用: `-simulateFruits <stack|kinmatsu|gameover>`（#1319）。
@@ -225,6 +225,11 @@ public struct FruitsView: View {
             cornerRadius: Theme.cornerSmall,
             detail: VStack(spacing: 6) {
                 RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
+                if let highest = model.highestKind {
+                    Text(tr("最高の段: %@", highest.name))
+                        .scaledFont(14, weight: .bold, design: .rounded)
+                        .foregroundStyle(.white)
+                }
                 if !model.continueUsed {
                     Text(tr("広告を見ると、小さい盆栽と線より上の盆栽を片づけて続けられます"))
                         .scaledFont(12, weight: .medium, design: .rounded)

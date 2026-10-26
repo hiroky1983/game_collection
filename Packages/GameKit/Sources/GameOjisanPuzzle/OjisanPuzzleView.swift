@@ -272,7 +272,10 @@ public struct OjisanPuzzleView: View {
     }
 
     /// 「？」の遊び方。遊んでいるモードに合わせて文言・図を出し分ける（会長指示 2026-10-12）。
-    private var howToPlayGuide: HowToPlayGuide { model.mode.howToPlayGuide }
+    /// 先頭には同じモードの図で見る「はじめての遊び方」（#2826）の入口が付く。
+    private var howToPlayGuide: HowToPlayGuide {
+        model.mode.howToPlayGuide.onboarding(OjisanPuzzleOnboarding.guide(mode: model.mode))
+    }
 
     // MARK: - 見出し（荷運びモード: 腰痛ゲージ／パズルモード: スコア・連鎖）
 

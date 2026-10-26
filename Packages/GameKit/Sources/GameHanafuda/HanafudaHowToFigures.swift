@@ -15,9 +15,11 @@ enum HanafudaHowToFigures {
     private static let cardWidth: CGFloat = 40
 
     static func card(_ id: Int, width: CGFloat = cardWidth, highlighted: Bool = false, dimmed: Bool = false) -> some View {
-        // 高さも固定する（`HanafudaCardFace` は `GeometryReader` なので、高さを詰めて提案されると縮む）。
-        HanafudaCardFace(card: HanafudaCard(id: id), isDimmed: dimmed, isHighlighted: highlighted)
-            .frame(width: width, height: width * HanafudaCardArt.aspectRatio)
+        // 幅をここで決め打ちで渡す（`fixedWidth`）。盤面と違ってここは幅があらかじめ分かっているので、
+        // `HanafudaCardFace` 内の `GeometryReader` を経由させない（#2905。「はじめての遊び方」の
+        // `TabView` でページをめくるたびに GeometryReader を持つ札を何枚も再計測するのが重く、
+        // 花札こいこいで画面が固まってクラッシュしていた）。
+        HanafudaCardFace(card: HanafudaCard(id: id), isDimmed: dimmed, isHighlighted: highlighted, fixedWidth: width)
     }
 
     /// 札の裏（山札）。図のための簡素な裏面。

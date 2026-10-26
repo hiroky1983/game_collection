@@ -146,13 +146,23 @@ struct CatPuzzleRenderTests {
         return model
     }
 
-    /// 3 回目のミスの直後（コンティニューの提案を出している）。
+    /// 3 回目のミスの直後（結果カード 1 枚の中でコンティニューかあきらめるかを選ばせている）。
     private static func offerModel() -> CatPuzzleModel { failedModel() }
 
-    /// コンティニューを断って負けを確定したところ（見つけていない猫が正解の場所に出る）。
+    /// あきらめて負けを確定したところ（見つけていない猫が正解の場所に出る。結果カードはもう重ねない・#2904）。
     private static func revealedModel() -> CatPuzzleModel {
         let model = failedModel()
         model.declineContinue()
+        return model
+    }
+
+    /// 広告でコンティニューしたあと、もう一度ミスが 3 回になったところ（提案は出さず、負けのカードを 1 回だけ出す）。
+    private static func continuedLossModel() -> CatPuzzleModel {
+        let model = failedModel()
+        model.continueAfterAd()
+        let answers = model.puzzle.solutionCells
+        let wrong = (0..<model.puzzle.cellCount).first { !answers.contains($0) && model.marks[$0] == .empty }
+        if let wrong { model.findCat(cell: wrong) }
         return model
     }
 
@@ -284,8 +294,8 @@ struct CatPuzzleRenderTests {
             ("4b-clear-dialog", { Self.clearModel() }),
             ("10-label-cross", Self.labelCrossModel),
             ("11-three-mistakes", Self.offerModel),
-            ("11b-answers-card", Self.revealedModel),
-            ("11c-answers-board", Self.revealedModel),
+            ("11b-answers-board", Self.revealedModel),
+            ("11c-continued-loss", Self.continuedLossModel),
         ]
         let schemes: [(name: String, scheme: ColorScheme)] = [("light", .light), ("dark", .dark)]
         for device in Self.devices {
@@ -293,8 +303,7 @@ struct CatPuzzleRenderTests {
                 for scheme in schemes {
                     let model = scene.make()
                     let view = CatPuzzleView(services: Self.services(), model: model,
-                                             showsAnswers: scene.name.hasPrefix("11b") || scene.name.hasPrefix("11c"),
-                                             failCardClosed: scene.name.hasPrefix("11c"))
+                                             showsAnswers: scene.name.hasPrefix("11b") || scene.name.hasPrefix("11c"))
                         .frame(width: device.size.width, height: device.size.height)
                         .background(Theme.background)
                         .environment(\.colorScheme, scheme.scheme)

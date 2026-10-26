@@ -67,6 +67,29 @@
         }
       }
     },
+    "%1$@・大富豪%2$lld回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@ · Tycoon %2$lld time"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@ · Tycoon %2$lld times"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%1$@・平均%2$@位" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1352,6 +1375,84 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rook handicap"
+          }
+        }
+      }
+    },
+    "単発戦" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Single Round"
+          }
+        }
+      }
+    },
+    "相手%lld人" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld opponent"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld opponents"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld路" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld-line"
+          }
+        }
+      }
+    },
+    "最後に遊んだのは今日" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last played today"
+          }
+        }
+      }
+    },
+    "最後に遊んだのは昨日" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last played yesterday"
+          }
+        }
+      }
+    },
+    "最後に遊んだのは%lld日前" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last played %lld days ago"
           }
         }
       }

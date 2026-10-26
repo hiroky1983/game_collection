@@ -62,19 +62,17 @@ public struct GameChromeNewGame {
     }
 }
 
-/// タイトルの下に出す「今の条件」のチップ（#1690・会長決裁 2026-10-25）。
+/// タイトルの下に出す「今の条件」のチップ（#1690・会長決裁 2026-10-25。#2906 でタップできない表示だけに変更）。
 ///
-/// 対局中も今の条件（例「ふつう・先手」）が分かり、タップで設定シートへ進める。置き場所は全ゲーム共通の
+/// 対局中も今の条件（例「ふつう・先手」）が分かる**表示専用**のチップ。置き場所は全ゲーム共通の
 /// 1 か所（ナビバーのタイトルの下。全画面の枠ではヘッダーの表示名の下）に固定する。
-/// タップは「新規」ボタンと同じ入口（対局中なら確認 → 設定シート）を呼ぶ。条件を変えると新規対局が始まる。
+/// タップでは何も起きない（設定を開く役割は既存の「＋」ボタンとかぶるため、#2906 で外した）。
 public struct GameChromeCondition {
     /// 条件の言葉。**先頭ほど大事**（難易度を先頭に置く）。幅が足りないときは先頭だけに縮める。
     let parts: [String]
-    let action: () -> Void
 
-    public init(_ parts: [String], action: @escaping () -> Void) {
+    public init(_ parts: [String]) {
         self.parts = parts.filter { !$0.isEmpty }
-        self.action = action
     }
 
     /// 全文（「ふつう・先手」）。
@@ -84,30 +82,22 @@ public struct GameChromeCondition {
     var hasShortForm: Bool { parts.count > 1 }
 }
 
-/// 条件のチップ本体。12pt・右に「⌄」。文字色は置き場所の面に合わせて呼び出し側が渡す。
+/// 条件のチップ本体。12pt・タップできない表示専用（#2906。押せる見た目になる「⌄」は付けない）。
+/// 文字色は置き場所の面に合わせて呼び出し側が渡す。
 struct GameConditionChip: View {
     let text: String
     let ink: Color
-    let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 2) {
-                Text(text)
-                    .themeCaption(12, weight: .semibold, maxScale: 1.3)
-                    .lineLimit(1)
-                Image(systemName: "chevron.down")
-                    .scaledFont(9, weight: .bold, maxScale: 1.3)
-                    .accessibilityHidden(true)
-            }
+        Text(text)
+            .themeCaption(12, weight: .semibold, maxScale: 1.3)
+            .lineLimit(1)
             .foregroundStyle(ink)
             .padding(.horizontal, 6)
             .frame(minHeight: 16)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(tr("今の条件: %@", text))
-        .accessibilityHint(tr("タップで設定を変えます"))
+            // ボタンではなく、値を読み上げるだけの表示（#2906）。
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(tr("今の条件: %@", text))
     }
 }
 
@@ -118,9 +108,9 @@ struct GameConditionChipFitting: View {
 
     var body: some View {
         ViewThatFits(in: .horizontal) {
-            GameConditionChip(text: condition.fullText, ink: ink, action: condition.action)
+            GameConditionChip(text: condition.fullText, ink: ink)
             if condition.hasShortForm {
-                GameConditionChip(text: condition.shortText, ink: ink, action: condition.action)
+                GameConditionChip(text: condition.shortText, ink: ink)
             }
         }
     }
