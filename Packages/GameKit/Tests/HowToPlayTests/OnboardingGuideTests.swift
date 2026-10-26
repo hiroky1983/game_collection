@@ -47,4 +47,29 @@ struct OnboardingGuideTests {
             #expect(Core.tr.hasTranslation(key, language: .english), "「\(key)」に英語の訳が無い")
         }
     }
+
+    /// v1.1.14 では入口を出さない（#2944）。中身・図・テストは消さず、切り替えは `isAvailable` の 1 か所だけ。
+    @Test("v1.1.14 では入口を出さない（#2944）")
+    func entryHiddenForV1114() {
+        #expect(!OnboardingGuide.isAvailable)
+    }
+
+    /// 入口が隠れているとき、ガイドを持つゲームでもボタンの場所が余白として残らないこと。
+    /// ガイドが無いゲーム（`OnboardingEntry(nil, ...)`）と同じ、0 サイズで描かれることを確かめる。
+    @Test("入口を隠しているときはガイドがあっても余白が残らない")
+    @MainActor
+    func entryLeavesNoGapWhenHidden() {
+        for style: OnboardingEntry.Style in [.prominent, .compact] {
+            let withGuide = OnboardingEntry(guide(pages: 4), style: style)
+            let withoutGuide = OnboardingEntry(nil, style: style)
+
+            let withGuideRenderer = ImageRenderer(content: withGuide.fixedSize())
+            withGuideRenderer.scale = 1
+            let withoutGuideRenderer = ImageRenderer(content: withoutGuide.fixedSize())
+            withoutGuideRenderer.scale = 1
+
+            #expect(withGuideRenderer.cgImage?.width ?? 0 == withoutGuideRenderer.cgImage?.width ?? 0)
+            #expect(withGuideRenderer.cgImage?.height ?? 0 == withoutGuideRenderer.cgImage?.height ?? 0)
+        }
+    }
 }
