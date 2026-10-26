@@ -18,7 +18,7 @@ public enum UpdateTag: String, Sendable, CaseIterable {
 /// 新作の NEW（`NewGames.currentVersionIDs`）と同じ考え方で、**版を上げるときにここを書き換えるだけ**で
 /// 付け外しできる。次の版で空にすれば消える。並び順には影響しない（NEW のように先頭へ固定しない）。
 public enum UpdatedGames {
-    /// この版のタグ。v1.1.15: チャリンコおじさん（`runner`）に世界 8・9（43〜54 面）が入る。
+    /// この版のタグ。v1.1.15: チャリンコおじさん（`runner`）に世界 8〜10（43〜60 面）が入る。
     public static let currentVersion: [String: UpdateTag] = ["runner": .newStage]
 
     /// ゲームに付けるタグ。一覧に無ければ nil。

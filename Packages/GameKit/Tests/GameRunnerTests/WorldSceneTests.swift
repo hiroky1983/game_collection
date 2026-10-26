@@ -46,8 +46,8 @@ struct RunnerWorldSceneTests {
         }
     }
 
-    @Test("19・25・43・49 面は着せ替えのテクスチャが岩の数だけ貼られ（里山・雪国の高い岩は岩塊のまま）、遠景のタイルに丘以外が載り、走らせても落ちない", arguments: [
-        (19, RunnerWorld.satoyama), (25, RunnerWorld.harbor), (43, RunnerWorld.snow), (49, RunnerWorld.tokyo),
+    @Test("19・25・43・49・55 面は着せ替えのテクスチャが岩の数だけ貼られ（里山・雪国の高い岩は岩塊のまま）、遠景のタイルに丘以外が載り、走らせても落ちない", arguments: [
+        (19, RunnerWorld.satoyama), (25, RunnerWorld.harbor), (43, RunnerWorld.snow), (49, RunnerWorld.tokyo), (55, RunnerWorld.fuji),
     ])
     func dressedStagesBuild(number: Int, world: RunnerWorld) throws {
         let (model, scene) = makeScene(stage: number, suite: "\(number)")

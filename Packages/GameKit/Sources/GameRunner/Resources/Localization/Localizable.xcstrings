@@ -189,6 +189,17 @@
         }
       }
     },
+    "おしまい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The End"
+          }
+        }
+      }
+    },
     "おはなし" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -409,6 +420,17 @@
         }
       }
     },
+    "ほな、帰ろか" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Well then, time to head home."
+          }
+        }
+      }
+    },
     "まだ見ぬ世界が続く予定です" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -537,6 +559,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Endless. Tap to start"
+          }
+        }
+      }
+    },
+    "カモシカにぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a serow"
           }
         }
       }
@@ -794,13 +827,13 @@
         }
       }
     },
-    "タップで跳んで54ステージを走りぬけよう" : {
+    "タップで跳んで60ステージを走りぬけよう" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tap to jump and pedal through all 54 stages"
+            "value" : "Tap to jump and pedal through all 60 stages"
           }
         }
       }
@@ -882,6 +915,17 @@
         }
       }
     },
+    "ブルドーザーにぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a bulldozer"
+          }
+        }
+      }
+    },
     "ミス！" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -900,6 +944,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Mode"
+          }
+        }
+      }
+    },
+    "ラジオで当選番号や。どれどれ……" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Winning numbers on the radio. Let's see..."
           }
         }
       }
@@ -1069,6 +1124,17 @@
         }
       }
     },
+    "初日の出や……ええ眺めやなあ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Year's sunrise... what a view."
+          }
+        }
+      }
+    },
     "前の世界" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1168,6 +1234,28 @@
         }
       }
     },
+    "富士山" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mt. Fuji"
+          }
+        }
+      }
+    },
+    "山頂の鳥居に引っかかっとった！ 取ったで" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snagged on the summit gate! Got it!"
+          }
+        }
+      }
+    },
     "岩にぶつかった" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1208,6 +1296,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Watch an Ad to Continue"
+          }
+        }
+      }
+    },
+    "当たっとる！……300円や" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It's a winner!... for 300 yen."
           }
         }
       }
@@ -1454,6 +1553,17 @@
         }
       }
     },
+    "溶岩の石垣にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into the lava stone wall"
+          }
+        }
+      }
+    },
     "無敵" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1539,6 +1649,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ran into a stone wall"
+          }
+        }
+      }
+    },
+    "石積みにぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into the stone pile"
+          }
+        }
+      }
+    },
+    "砂煙にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into the dust cloud"
           }
         }
       }
@@ -1698,6 +1830,17 @@
         }
       }
     },
+    "落石にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hit by a falling rock"
+          }
+        }
+      }
+    },
     "蒸気にぶつかった" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1805,6 +1948,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ran into scaffolding"
+          }
+        }
+      }
+    },
+    "道標にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a trail signpost"
           }
         }
       }

@@ -796,7 +796,8 @@ public struct RunnerField: Equatable, Sendable {
         // 高さ 18 を落ちるあいだに体 6 つぶん以上進むので、窓（`justLandingWindow` = 8）に
         // 入ることは岩より更に無い（判断を 1 か所に閉じるために対象からは外さない）。
         case .pit, .chasm, .lowBlock, .tallBlock, .shoot, .geyser, .wall: return true
-        case .bird, .dog, .boar:                         return false
+        // 落石（#2729）も向かって来て体の中を通り抜けるので対象外。
+        case .bird, .dog, .boar, .rockfall:              return false
         }
     }
 

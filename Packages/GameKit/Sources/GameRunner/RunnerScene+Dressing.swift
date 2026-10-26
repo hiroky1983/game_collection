@@ -98,6 +98,16 @@ extension RunnerScene {
         )
     }
 
+    /// 火山岩の割れ目の暗がり（`Dressing.Pit.volcanicCrack`・富士山 #2729）。穴と裂け目（`RunnerHazardKind.chasm`）の
+    /// 両方をこれで描く。氷の裂け目と同じ組み立て（底を画面の下端まで塗り、路面の少し下に帯）で、色だけが黒い溶岩と
+    /// 赤みの断面。
+    func addVolcanicCrackFill(_ pit: RunnerHazard, into parent: SKNode) {
+        addWaterFilledPit(
+            pit, into: parent,
+            deep: RunnerWorld.DressingPalette.volcanicCrackDeep, surface: RunnerWorld.DressingPalette.volcanicCrackSurface
+        )
+    }
+
     /// 水の入った穴。丘の楕円は地面より下にも半分伸びている（`addHillBump`）ので、奈落と同じく
     /// **画面の下端まで**塗って穴の中に丘が透けないようにする。水面の帯は路面の 1.6 下——
     /// 「落ちる高さがある」と読める段差。
@@ -153,6 +163,22 @@ extension RunnerScene {
             wall.position = CGPoint(x: edgeX, y: Metrics.groundY)
             parent.addChild(wall)
             let crack = SKSpriteNode(color: RunnerPalette.color(RunnerPixelArt.iceDeep), size: CGSize(width: 0.35, height: 4.2))
+            crack.anchorPoint = CGPoint(x: 0.5, y: 1)
+            crack.position = CGPoint(x: edgeX + inward * 0.55, y: Metrics.groundY - 0.2)
+            parent.addChild(crack)
+        }
+    }
+
+    /// 火山岩の割れ目の両岸（`Dressing.Pit.volcanicCrack`・#2729）。氷の裂け目の両岸（`addIceWalls`）と同じ置き方で、
+    /// 明るい火山礫の縁（路面より明るい）の内側に黒い溶岩の線を 1 本添える。
+    func addVolcanicCrackLips(_ pit: RunnerHazard, into parent: SKNode) {
+        typealias P = RunnerWorld.DressingPalette
+        for (edgeX, inward) in [(pit.start, 1.0), (pit.end, -1.0)] {
+            let lip = SKSpriteNode(color: RunnerPalette.color(P.volcanicCrackLip), size: CGSize(width: 1.1, height: 4.6))
+            lip.anchorPoint = CGPoint(x: 0.5, y: 1)
+            lip.position = CGPoint(x: edgeX, y: Metrics.groundY)
+            parent.addChild(lip)
+            let crack = SKSpriteNode(color: RunnerPalette.color(P.volcanicCrackDeep), size: CGSize(width: 0.35, height: 4.2))
             crack.anchorPoint = CGPoint(x: 0.5, y: 1)
             crack.position = CGPoint(x: edgeX + inward * 0.55, y: Metrics.groundY - 0.2)
             parent.addChild(crack)
@@ -247,6 +273,14 @@ extension RunnerScene {
     func makeSnowBlocks(_ platform: RunnerPlatform) -> SKNode {
         typealias P = RunnerWorld.DressingPalette
         return makeBoxStack(platform, body: P.snowBlockBody, line: P.snowBlockLine, top: P.snowBlockTop, braced: false)
+    }
+
+    /// 山小屋の石積み（`Dressing.Platform.stoneStack`・富士山 #2729）。山小屋の脇に積んだ火山岩の台。木箱の山と
+    /// まったく同じ組み立て（箱の幅・縁・継ぎ目・上面の約束）で、色だけが淡い火山岩と暗い溶岩の目地——斜めの補強材は
+    /// 無い（石に板は無い）。
+    func makeStoneStack(_ platform: RunnerPlatform) -> SKNode {
+        typealias P = RunnerWorld.DressingPalette
+        return makeBoxStack(platform, body: P.stoneStackBody, line: P.stoneStackLine, top: P.stoneStackTop, braced: false)
     }
 
     /// 歩道橋（高い台座 `H`・#2729 東京）。**高さ 16 の台座**で、地面からは二段ジャンプでしか乗れない。
@@ -418,7 +452,14 @@ extension RunnerScene {
         return makePavedFloor(floor, surface: P.iceSheet, edge: P.iceSheetEdge, arrow: P.iceSheetArrow)
     }
 
-    /// 路面を塗り替える加速床（舗装・アイスバーン）。面の色・上下の縁の色・矢印の色だけが違う。
+    /// 砂走り（`Dressing.BoostFloor.sandRun`・富士山 #2729）。火山礫の登山道の中に黒い火山砂の帯を敷き、白い山形の
+    /// 矢印を右へ流す。舗装された農道とまったく同じ組み立てで色だけが砂（登山道と 3:1 以上・`RunnerFujiGimmickTests`）。
+    func makeSandRun(_ floor: RunnerBoostFloor) -> SKNode {
+        typealias P = RunnerWorld.DressingPalette
+        return makePavedFloor(floor, surface: P.sandRunSurface, edge: P.sandRunEdge, arrow: P.sandRunArrow)
+    }
+
+    /// 路面を塗り替える加速床（舗装・アイスバーン・砂走り）。面の色・上下の縁の色・矢印の色だけが違う。
     private func makePavedFloor(_ floor: RunnerBoostFloor, surface: UInt32, edge: UInt32, arrow: UInt32) -> SKNode {
         let node = SKNode()
         node.position = CGPoint(x: floor.start, y: 0)
@@ -497,14 +538,16 @@ extension RunnerScene {
         let freshSnow = world.dressing.sinkFloor == .freshSnow
         // 雨上がりの水たまり（東京・#2729）は足湯と同じ組み立て（面から立つ粒 = 水面に映る街の灯り）で、色だけが宵の水面。
         let puddle = world.dressing.sinkFloor == .puddle
+        // 火山礫のザレ場（富士山・#2729）も足湯と同じ組み立て（面から立つ粒 = 転がる黒い小石）で、色だけが砂礫。
+        let scree = world.dressing.sinkFloor == .scree
         let node = SKNode()
         node.position = CGPoint(x: floor.start, y: 0)
         let height = Self.roadHeight
         let bottom = Metrics.groundY - height
         let surfaceHeight = height * 0.7
-        let deepColor: UInt32 = puddle ? P.puddleDeep : freshSnow ? P.freshSnowDeep
+        let deepColor: UInt32 = scree ? P.screeDeep : puddle ? P.puddleDeep : freshSnow ? P.freshSnowDeep
             : footBath ? P.footBathDeep : (paddy ? P.paddyDeep : P.tidelandDeep)
-        let surfaceColor: UInt32 = puddle ? P.puddleSurface : freshSnow ? P.freshSnowSurface
+        let surfaceColor: UInt32 = scree ? P.screeSurface : puddle ? P.puddleSurface : freshSnow ? P.freshSnowSurface
             : footBath ? P.footBathWater : (paddy ? P.paddyWater : P.tidelandMud)
         addBand(to: node, color: deepColor, x: 0, y: bottom, width: floor.length, height: height)
         addBand(to: node, color: surfaceColor, x: 0, y: Metrics.groundY - surfaceHeight, width: floor.length, height: surfaceHeight)
@@ -521,8 +564,8 @@ extension RunnerScene {
                 // （雪そのものを白で描くと白い丘に溶けて目印にならないので、塊の影を描く）。
                 marks.addEllipse(in: CGRect(x: x - 1.6, y: Metrics.groundY - 0.6, width: 2.6, height: 1.7))
                 marks.addEllipse(in: CGRect(x: x + 0.4, y: Metrics.groundY + 0.6, width: 1.9, height: 1.8))
-            } else if footBath || puddle {
-                // 湯けむり（足湯）／街の灯りの映り込み（水たまり）: 面から立ち上る白い粒を 3 つ（踏み込む前に読める目印）。
+            } else if footBath || puddle || scree {
+                // 湯けむり（足湯）／街の灯りの映り込み（水たまり）／転がる小石（ザレ場）: 面から立ち上る粒を 3 つ（踏み込む前に読める目印）。
                 marks.addEllipse(in: CGRect(x: x - 1.2, y: Metrics.groundY - 0.4, width: 2.0, height: 1.6))
                 marks.addEllipse(in: CGRect(x: x + 0.2, y: Metrics.groundY + 1.0, width: 1.6, height: 1.4))
                 marks.addEllipse(in: CGRect(x: x - 0.6, y: Metrics.groundY + 2.4, width: 1.2, height: 1.1))
@@ -544,7 +587,7 @@ extension RunnerScene {
         }
         let markNode = SKShapeNode(path: marks)
         markNode.fillColor = RunnerPalette.color(
-            puddle ? P.puddleGlint : freshSnow ? P.freshSnowShade
+            scree ? P.screePebble : puddle ? P.puddleGlint : freshSnow ? P.freshSnowShade
                 : footBath ? P.footBathSteam : (paddy ? P.paddySeedling : P.tidelandHole)
         )
         markNode.strokeColor = .clear
@@ -573,13 +616,13 @@ extension RunnerScene {
         let glintSpacing = 9.0
         var gx = 0.0
         while gx < floor.length + glintSpacing {
-            addGlint(to: glints, at: gx, groundY: Metrics.groundY, paddy: paddy || footBath || freshSnow || puddle)
+            addGlint(to: glints, at: gx, groundY: Metrics.groundY, paddy: paddy || footBath || freshSnow || puddle || scree)
             gx += glintSpacing
         }
         let glintNode = SKShapeNode(path: glints)
         // 新雪の照りは雪の白（粉雪のきらめき）、水たまりは水面の照り。
         glintNode.fillColor = RunnerPalette.color(
-            puddle ? P.puddleSheen : freshSnow ? RunnerPixelArt.snowWhite
+            scree ? P.screeSheen : puddle ? P.puddleSheen : freshSnow ? RunnerPixelArt.snowWhite
                 : (paddy || footBath) ? P.waterGlint : P.tidelandSheen
         )
         glintNode.strokeColor = .clear

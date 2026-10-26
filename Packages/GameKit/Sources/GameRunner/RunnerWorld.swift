@@ -62,15 +62,26 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
     /// 台座は工事の足場（元の絵）、加速床は動く歩道、突き上げはマンホールの蒸気、沈む床は雨上がりの水たまり、
     /// 崩れる足場は古い歩道橋の板、高い塀は積まれたネオン看板。背景が暗いので手前は**明るく**する（夜と同じ組み立て）。
     case tokyo
+    /// 55〜60 面。富士山（#2729・会長決裁 2026-10-23。設計書の元案「地獄」から差し替え）。東京のビル風に飛ばされた宝くじを追って
+    /// 五合目から山頂へ登る、夜明け前の登山道。空は**暁の薄紅藤**（地平線に御来光の茜の帯と、昇りかけの朝日）、丘は火山の
+    /// 斜面の淡い赤紫の 2 階調、道は火山礫の登山道。遠景に雲海・山小屋（石積みの壁）・登山道のロープ柵・ハイマツ・
+    /// 山頂の鳥居。背景は淡いので手前は**暗く**して縁取りで締める（朝・雪国と同じ組み立て）。
+    /// 新しい仕掛けは**斜面の上から転がってくる落石**（`RunnerHazardKind.rockfall`）。
+    /// 犬の枠はニホンカモシカ、鳥はホシガラス、高い岩は道標、イノシシの枠は山小屋の荷を運ぶブルドーザー、
+    /// 台座は石積み、加速床は砂走り、突き上げは砂煙、沈む床は火山礫のザレ場、穴と裂け目は火山岩の割れ目、
+    /// 高い塀は溶岩の石垣（低い岩は火山岩＝岩塊のまま・崩れる足場は古い吊り橋のまま）。60 面で物語が完結する
+    /// （山頂で初日の出・「…300円や」）。
+    case fuji
 
     /// 1 つの世界が受け持つ面数。6 面ずつ（30 面 = 5 世界、#1824 で 36 面 = 6 世界、#1938 で 42 面 = 7 世界、
-    /// #2729 で 48 面 = 8 世界 → 54 面 = 9 世界）。
+    /// #2729 で 48 面 = 8 世界 → 54 面 = 9 世界 → 60 面 = 10 世界）。
     public static let stagesPerWorld = 6
 
     /// ステージ番号（1 始まり）が属する世界。1〜6 面は朝、7〜12 面は夕方、13〜18 面は夜、
-    /// 19〜24 面は里山、25〜30 面は港町、31〜36 面は京都・奈良、37〜42 面は温泉街、43〜48 面は雪国、49〜54 面は東京。
+    /// 19〜24 面は里山、25〜30 面は港町、31〜36 面は京都・奈良、37〜42 面は温泉街、43〜48 面は雪国、49〜54 面は東京、
+    /// 55〜60 面は富士山。
     ///
-    /// 範囲外（0 以下と、最後の世界の後ろ＝ 55 以上）は `.night`。面を足して世界を足し忘れた
+    /// 範囲外（0 以下と、最後の世界の後ろ＝ 61 以上）は `.night`。面を足して世界を足し忘れた
     /// ときに落ちずに描けるようにするため（どの世界にも収まらない面を本編に入れないことは
     /// `WorldTests.everyStageHasAWorld` が固定する）。
     ///
@@ -93,6 +104,7 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
         case .onsen: return tr("温泉街")
         case .snow: return tr("雪国")
         case .tokyo: return tr("東京")
+        case .fuji: return tr("富士山")
         }
     }
 
@@ -142,6 +154,8 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
         /// 丘の代わりにビル街の 2 階調（窓の灯り・ネオン）、遠くに高い塔のシルエットと航空灯、道の奥に高架を流れる電車と信号機、
         /// 地平線に茜の帯（#2729）。
         case tokyo
+        /// 丘は火山の斜面、その手前に雲海・山小屋・登山道のロープ柵・ハイマツ・山頂の鳥居、地平線に御来光の帯と朝日（#2729）。
+        case fuji
     }
 
     public var scenery: Scenery {
@@ -155,6 +169,7 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
         case .onsen: return .onsen
         case .snow: return .snow
         case .tokyo: return .tokyo
+        case .fuji: return .fuji
         }
     }
 
@@ -219,6 +234,11 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
             // 明るさ、縁石は歩道の縁、路肩は歩道のタイル、地盤は地下の暗い紫灰。背景が暗いので手前の明るい物が 3:1 以上で
             // 乗る（`WorldTests`）。
             return Road(asphalt: 0x3C3E4E, line: 0xD9DCE6, curb: 0x8A8FA0, shoulder: 0x4E5268, subsoil: 0x262838)
+        case .fuji:
+            // 火山礫の登山道（#2729）。赤みを帯びた淡い灰（相対輝度 0.47。朝・里山の路面と同じ帯）で、暗い手前の物が
+            // 3:1 以上で乗る。白線は登山道の縁の白い目印（路面より 60 以上明るい・`WorldTests`）、縁石は明るい火山岩、
+            // 路肩は崩れたザレの斜面、地盤は黒い溶岩。
+            return Road(asphalt: 0xC9B4AC, line: 0xFFF8F2, curb: 0xE6D8D0, shoulder: 0xB8A39E, subsoil: 0x8A6E68)
         }
     }
 
@@ -401,6 +421,25 @@ public enum RunnerWorld: CaseIterable, Equatable, Sendable {
                 rockBody: 0xE2E6EE,
                 rockDark: 0x565D6B
             )
+        case .fuji:
+            // 富士山（#2729）。夜明け前〜御来光。空は暁の薄紅藤（色相 311°。服の黄 45°・車体の赤 5° から 50° 以上離れ、
+            // 京都・奈良の藤色 263°・東京の宵の藤色 253° より紅に寄る）で、地平線に御来光の茜の帯と昇りかけの朝日
+            // （`SceneryPalette.sunriseGlow` / `sun`・`RunnerScene.buildBackdrop`）。丘は**火山の斜面**の淡い赤紫の 2 階調。
+            // 背景は相対輝度 0.47〜0.85 の淡い帯に沈め（空と 2:1 未満）、手前は**暗く**して縁取りで締める（朝・雪国と同じ
+            // 組み立て。`WorldTests` が 3:1 を固定）。岩（火山岩）は赤みの黒褐色で、落石（`RunnerHazardKind.rockfall`）も
+            // この 3 階調で描く（`RunnerPixelArt.fallingRock`）。
+            return Palette(
+                sky: 0xECD6E8,
+                cloud: 0xFFFFFF,
+                cloudAlpha: 0.9,
+                hillFar: 0xDCCAD6,
+                hillNear: 0xCDB8C2,
+                groundTop: 0xC9B4AC,
+                groundBody: 0x8A6E68,
+                rockLight: 0x9A847E,
+                rockBody: 0x5E4844,
+                rockDark: 0x1E1414
+            )
         }
     }
 }
@@ -558,6 +597,19 @@ public extension RunnerWorld {
                 birdBody: 0xD4D6DE, birdWing: 0xA6A9B6, birdWingFar: 0x7A7D8A, birdBelly: 0xF2F2F6,
                 birdHead: 0xD4D6DE, birdBeak: RunnerPalette.birdBeak
             )
+        case .fuji:
+            // 富士山（#2729）。背景は淡い帯（相対輝度 0.47 以上）なので手前は**暗く**（朝・雪国と同じ向き）。犬の枠は
+            // ニホンカモシカ——暗い灰褐色の毛（`dogBody`）に黒い角・脚（`dogDark`）、喉と頬の白い毛（`dogBelly`）。
+            // イノシシの枠は山小屋へ荷を運ぶブルドーザー——**錆びた橙の車体**（`boarBody`。暗い側に振った橙で、淡い背景の
+            // 全部と 3:1）に黒い履帯（`boarDark`）、鋼の排土板とローラー（`boarSnout`）。鳥はホシガラス——焦げ茶の 3 階調に
+            // 白い星の斑（腹 `birdBelly`）、くちばしは炭色。縁取りは赤みの黒。
+            return Creatures(
+                outline: 0x140E0C,
+                dogBody: 0x4A4038, dogDark: 0x241C16, dogBelly: 0xD8CCBC,
+                boarBody: 0x8A4410, boarDark: 0x1E1A18, boarSnout: 0xA8AEB4,
+                birdBody: 0x3E3028, birdWing: 0x2C221C, birdWingFar: 0x1A1410, birdBelly: 0xE8E0D8,
+                birdHead: 0x3E3028, birdBeak: 0x4A4A52
+            )
         }
     }
 
@@ -706,6 +758,26 @@ public extension RunnerWorld {
         public static let signalGreen: UInt32 = 0x7FE3A0
         /// 信号の赤（止まれ）。
         public static let signalRed: UInt32 = 0xFF6B6B
+
+        // 富士山（`Scenery.fuji`・#2729）。どれも空（0xECD6E8）と 2:1 未満に沈める淡い色（相対輝度 0.47 以上）で、手前の
+        // いちばん明るい暗色（ブルドーザーの錆橙 0x8A4410）とも 3:1 以上離れる（`WorldTests`）。火山の斜面そのものは
+        // 丘の 2 階調（`palette.hillFar` / `hillNear`）で描く。
+        /// 地平線の御来光の帯（茜〜杏）。空と 2:1 未満。
+        public static let sunriseGlow: UInt32 = 0xF4CDB4
+        /// 昇りかけの朝日（淡い金）。地平線の帯の上に半分だけ顔を出す。
+        public static let sun: UInt32 = 0xFFE3B8
+        /// 雲海（斜面の下に広がる白い雲の海）。
+        public static let seaOfClouds: UInt32 = 0xF6F0F4
+        /// 山小屋の石積みの壁。
+        public static let hutWall: UInt32 = 0xCDBDB4
+        /// 山小屋のトタン屋根（淡い紫灰）。
+        public static let hutRoof: UInt32 = 0xB4A6B0
+        /// 山頂の鳥居（淡い朱。京都の鳥居より少し淡い）。
+        public static let summitTorii: UInt32 = 0xE2A694
+        /// 登山道のロープ柵の杭と縄。
+        public static let ropePost: UInt32 = 0xBFA99E
+        /// ハイマツ（斜面に張り付く低い松。淡い緑灰）。
+        public static let haimatsu: UInt32 = 0xAEBCA4
     }
 
     /// 遠景の飾りのタイル幅（`RunnerScene.hillSpacing`）。家並み（`townHouses`）の `dx` はこの幅の中の位置。
@@ -811,6 +883,16 @@ public extension RunnerWorld {
                 "trainStripe": SceneryPalette.trainStripe,
                 "signalPole": SceneryPalette.signalPole,
             ]
+        case .fuji:
+            return [
+                "hillFar": palette.hillFar, "hillNear": palette.hillNear, "asphalt": road.asphalt,
+                "seaOfClouds": SceneryPalette.seaOfClouds,
+                "hutWall": SceneryPalette.hutWall,
+                "hutRoof": SceneryPalette.hutRoof,
+                "summitTorii": SceneryPalette.summitTorii,
+                "ropePost": SceneryPalette.ropePost,
+                "haimatsu": SceneryPalette.haimatsu,
+            ]
         }
     }
 
@@ -827,6 +909,7 @@ public extension RunnerWorld {
         case .onsen: return ["sky": palette.sky]
         case .snow: return ["sky": palette.sky]
         case .tokyo: return ["sky": palette.sky, "duskGlow": SceneryPalette.duskGlow]
+        case .fuji: return ["sky": palette.sky, "sunriseGlow": SceneryPalette.sunriseGlow, "sun": SceneryPalette.sun]
         }
     }
 }
@@ -894,7 +977,7 @@ public extension RunnerWorld {
     }
 
     /// この世界が受け持つステージ番号（1 始まり）の範囲。朝 1…6・夕方 7…12・夜 13…18・里山 19…24・港町 25…30・
-    /// 京都・奈良 31…36・温泉街 37…42・雪国 43…48・東京 49…54。
+    /// 京都・奈良 31…36・温泉街 37…42・雪国 43…48・東京 49…54・富士山 55…60。
     var stageRange: ClosedRange<Int> {
         let first = (number - 1) * RunnerWorld.stagesPerWorld + 1
         return first...(first + RunnerWorld.stagesPerWorld - 1)
@@ -902,13 +985,13 @@ public extension RunnerWorld {
 
     /// 世界の中での面の位置（1 始まり）。ワールドマップの「1-1」の右側。
     ///
-    /// 範囲外（0 以下・55 以上）でも落ちないよう剰余で畳むだけなので、
+    /// 範囲外（0 以下・61 以上）でも落ちないよう剰余で畳むだけなので、
     /// 呼び出し側で番号の妥当性（`contains(stage:)`）を確かめてから使う。
     static func index(ofStage number: Int) -> Int {
         ((number - 1) % stagesPerWorld + stagesPerWorld) % stagesPerWorld + 1
     }
 
-    /// ワールドマップの短い表記「1-1」…「9-6」。
+    /// ワールドマップの短い表記「1-1」…「10-6」。
     ///
     /// 面に付けていた名前（「商店街のあさ」等）は #946 で外した（会長指示「ステージの名前は
     /// いらない。1-1 とか 3-1 とかだけでいい」）。画面・読み上げともこの表記だけを使う。
@@ -916,7 +999,7 @@ public extension RunnerWorld {
         "\(world(forStage: number).number)-\(index(ofStage: number))"
     }
 
-    /// ステージ番号（1 始まり）がどれかの世界に収まるか（1…54）。
+    /// ステージ番号（1 始まり）がどれかの世界に収まるか（1…60）。
     static func contains(stage number: Int) -> Bool {
         number >= 1 && number <= stagesPerWorld * allCases.count
     }
@@ -947,6 +1030,10 @@ public extension RunnerWorld {
         // 東京（#2729）はタクシーの黄（色相 47°）。朝の灰の空では朝・港町・雪国と見分けが付かない。京都・奈良の橙
         // （16°）とは 30° 離れ、里山の緑（115°）とは 70° 離れる（`mapColorsAreDistinguishable`）。
         case .tokyo: return 0xE2C34E
+        // 富士山（#2729）は御来光の桜色（色相 343°）。暁の空の色そのものは京都・奈良の藤色と見分けが付かないので、
+        // 朝日に染まった色で塗る。夕方の桃（322°）とは 20° 以上、京都・奈良の橙（15°）とは 30° 離れる
+        // （`mapColorsAreDistinguishable`）。
+        case .fuji: return 0xE58FA8
         }
     }
 }
@@ -972,6 +1059,8 @@ public extension RunnerWorld {
             case quayGap
             /// 氷の裂け目（雪国・#2729。青白い氷の壁と黒い水面）。穴と、幅の広い裂け目（`RunnerHazardKind.chasm`）の両方に使う。
             case iceCrevasse
+            /// 火山岩の割れ目（富士山・#2729。黒い溶岩の裂け目に明るい火山礫の縁）。穴と裂け目（`RunnerHazardKind.chasm`）の両方に使う。
+            case volcanicCrack
         }
         /// 低い岩・高い岩。
         public enum Block: Equatable, Sendable {
@@ -991,6 +1080,8 @@ public extension RunnerWorld {
             case trafficCone
             /// 自動販売機（東京・#2729。高い岩の 4×9）。
             case vendingMachine
+            /// 登山道の道標（富士山・#2729。高い岩の 4×9）。小さな屋根の付いた木の柱に白い札。
+            case signpost
         }
         /// 犬の枠（画面の右から歩いて来る動物）。
         public enum Walker: Equatable, Sendable {
@@ -1004,6 +1095,8 @@ public extension RunnerWorld {
             case monkey
             /// キタキツネ（雪国・#2729）。犬と同じ格子・同じ動き。
             case fox
+            /// ニホンカモシカ（富士山・#2729）。犬と同じ格子・同じ動き。
+            case serow
         }
         /// イノシシの枠（右から向かってくるもの）。
         public enum Charger: Equatable, Sendable {
@@ -1012,6 +1105,8 @@ public extension RunnerWorld {
             case forklift
             /// タクシー（東京・#2729）。フォークリフトと同じ格子・同じ動きで、黒い車体に黄色い屋根の灯り。
             case taxi
+            /// 山小屋へ荷を運ぶブルドーザー（富士山・#2729）。フォークリフトと同じ格子・同じ動きで、前に排土板・下に履帯。
+            case bulldozer
         }
         /// 台座。
         public enum Platform: Equatable, Sendable {
@@ -1023,6 +1118,8 @@ public extension RunnerWorld {
             case crateStack
             /// 雪のブロック（かまくらの壁・雪国 #2729。木箱の山と同じ組み立てで色だけ雪）。
             case snowBlocks
+            /// 山小屋の石積み（富士山・#2729。木箱の山と同じ組み立てで色だけ火山岩）。
+            case stoneStack
         }
         /// 下から突き上げる障害（#1010）。**動き・当たり判定・寸法は 1 つ**で、絵だけを替える。
         public enum Shoot: Equatable, Sendable {
@@ -1037,6 +1134,8 @@ public extension RunnerWorld {
             case snowSpout
             /// マンホールの蒸気（東京・#2729）。蓋がカタカタ浮く予告 → 灰白の蒸気の柱が噴き上がる。湯柱と同じ格子で色だけ灰白。
             case manholeSteam
+            /// 砂煙（富士山・#2729）。火山礫が舞い上がる予告 → 赤茶の砂煙の柱が立つ。湯柱と同じ格子で色だけ砂礫。
+            case dustSpout
         }
         /// 崩れる足場（#1090）。**動き・当たり判定・長さは 1 つ**で、絵だけを替える。
         public enum CrumblingPlatform: Equatable, Sendable {
@@ -1067,6 +1166,8 @@ public extension RunnerWorld {
             case snowBank
             /// 積まれたネオン看板（東京・#2729）。コンテナと同じ格子で、水色に光る看板を 2 段積み。
             case signboardStack
+            /// 溶岩の石垣（富士山・#2729）。石垣と同じ格子で、黒い溶岩を積んだ山小屋の風よけ。
+            case lavaWall
         }
         /// 沈む床（#1089）。**動き・当たり判定・長さは 1 つ**で、絵だけを替える。
         public enum SinkFloor: Equatable, Sendable {
@@ -1080,6 +1181,8 @@ public extension RunnerWorld {
             case freshSnow
             /// 雨上がりの水たまり（東京・#2729）。宵の空を映した青紫の水面に街の灯りが揺れ、踏むと沈む。
             case puddle
+            /// 火山礫のザレ場（富士山・#2729）。足が埋まる崩れやすい砂礫の斜面で、踏むと沈む。
+            case scree
         }
         /// 加速床。
         public enum BoostFloor: Equatable, Sendable {
@@ -1093,6 +1196,8 @@ public extension RunnerWorld {
             case iceSheet
             /// 動く歩道（東京・#2729）。ベルトコンベアと同じ組み立てで、街灯に照らされた明るい帯に暗い枠、暗い矢印。
             case movingWalkway
+            /// 砂走り（富士山・#2729）。下山道の柔らかい火山砂の帯。舗装の農道と同じ組み立てで、面は黒い砂。
+            case sandRun
         }
 
         public let pit: Pit
@@ -1114,7 +1219,8 @@ public extension RunnerWorld {
             case .tallBlock:                       return tallBlock
             // 突き上げ（#1010）は岩の枠ではなく自分の着せ替え（`shoot`）を持つ。
             // 突き上げ（#1010）・高い塀（#1091）は岩の枠ではなく自分の着せ替え（`shoot` / `wall`）を持つ。
-            case .pit, .chasm, .bird, .dog, .boar, .shoot, .geyser, .wall: return nil
+            // 落石（#2729）は岩の枠ではなく自分の絵（`RunnerPixelArt.fallingRock`）を持つ。
+            case .pit, .chasm, .bird, .dog, .boar, .shoot, .geyser, .wall, .rockfall: return nil
             }
         }
     }
@@ -1199,6 +1305,19 @@ public extension RunnerWorld {
                 dog: .dog, boar: .taxi,
                 platform: .scaffold, boostFloor: .movingWalkway, shoot: .manholeSteam,
                 sinkFloor: .puddle, crumblingPlatform: .oldFootbridge, wall: .signboardStack
+            )
+        case .fuji:
+            // 富士山（#2729・会長決裁 2026-10-23）。新しく描くのは高い岩の**道標**・犬の枠の**ニホンカモシカ**・イノシシの枠の
+            // **ブルドーザー**（フォークリフトの格子を描き替え）と、新しい仕掛けの**落石**（`RunnerPixelArt.fallingRock`）。
+            // 穴と裂け目＝火山岩の割れ目（氷の裂け目の組み立ての色替え）・低い岩＝火山岩（岩塊のまま。色は世界の配色）・
+            // 台座＝山小屋の石積み（木箱の山の色替え）・加速床＝砂走り（農道の舗装の色替え）・突き上げ＝砂煙（雪柱の色替え）・
+            // 沈む床＝火山礫のザレ場（足湯の色替え）・崩れる足場＝古い吊り橋（元の絵）・高い塀＝溶岩の石垣（石垣の色替え）。
+            // 高い台座（歩道橋・`H`）は東京にしか置かない。
+            return Dressing(
+                pit: .volcanicCrack, lowBlock: .boulder, tallBlock: .signpost,
+                dog: .serow, boar: .bulldozer,
+                platform: .stoneStack, boostFloor: .sandRun, shoot: .dustSpout,
+                sinkFloor: .scree, crumblingPlatform: .suspensionBridge, wall: .lavaWall
             )
         }
     }
@@ -1377,5 +1496,38 @@ public extension RunnerWorld {
         public static let footbridgeGirder: UInt32 = 0xB9E4CC
         /// 鉄柵（床板の上に立つ手すり）と階段の段。桁より少し濃い緑（それでも背景と 3:1）。
         public static let footbridgeRail: UInt32 = 0xA3DEB8
+
+        // 富士山（#2729）。路面は火山礫の登山道（0xC9B4AC・相対輝度 0.47）で背景も淡い帯なので、朝・雪国と同じく
+        // **3:1 は暗い側（溶岩の底・黒い砂・石積みの目地・沈む火山礫）が担う**。
+        // 火山岩の割れ目（`Dressing.Pit.volcanicCrack`。穴と `RunnerHazardKind.chasm` で共通）
+        /// 割れ目の底の暗がり（黒い溶岩）。路面と 3:1 以上で「落ちる」と分かる暗さ。
+        public static let volcanicCrackDeep: UInt32 = 0x2A1A1C
+        /// 底の上の帯（赤みの溶岩の断面。底より明るい）。
+        public static let volcanicCrackSurface: UInt32 = 0x6A4A46
+        /// 割れ目の両岸の明るい火山礫（路面より明るく、切れ目の縁を立てる——用水路の壁・氷の壁と同じ約束）。
+        public static let volcanicCrackLip: UInt32 = 0xEADDD6
+        // 山小屋の石積み（`Dressing.Platform.stoneStack`）
+        /// 石の面（淡い火山岩）。
+        public static let stoneStackBody: UInt32 = 0xA89890
+        /// 石の継ぎ目・縁（暗い溶岩）。背景と 3:1 を担う。
+        public static let stoneStackLine: UInt32 = 0x3E2E2A
+        /// 上面（歩く面。いちばん明るい——台座の床板と同じ約束）。
+        public static let stoneStackTop: UInt32 = 0xDCD0C8
+        // 砂走り（`Dressing.BoostFloor.sandRun`）
+        /// 黒い火山砂の面。登山道（0xC9B4AC）と 3:1 以上。
+        public static let sandRunSurface: UInt32 = 0x5A4440
+        /// 砂の帯の縁（暗い）。
+        public static let sandRunEdge: UInt32 = 0x2E2220
+        /// 砂の上の白い矢印。
+        public static let sandRunArrow: UInt32 = 0xFFF4E8
+        // 火山礫のザレ場（`Dressing.SinkFloor.scree`）
+        /// 崩れやすい砂礫の面。登山道と 3:1 以上で「乗る前に沈む床だと分かる」差はここが担う。
+        public static let screeSurface: UInt32 = 0x6E5650
+        /// 砂礫の底（沈む先）。
+        public static let screeDeep: UInt32 = 0x3A2A26
+        /// 面から転がる小石（踏み込む前に読める目印。淡い背景と 3:1 以上の黒い礫）。
+        public static let screePebble: UInt32 = 0x241A16
+        /// 面の照り（乾いた砂礫の光）。
+        public static let screeSheen: UInt32 = 0xD8C8C0
     }
 }

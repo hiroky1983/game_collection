@@ -7,7 +7,7 @@ import Testing
 @Suite("チャリンコおじさん: 世界")
 struct RunnerWorldTests {
 
-    @Test("1〜6 面は朝、7〜12 面は夕方、13〜18 面は夜、19〜24 面は里山、25〜30 面は港町、31〜36 面は京都・奈良、37〜42 面は温泉街、43〜48 面は雪国、49〜54 面は東京（境界を含む）")
+    @Test("1〜6 面は朝、7〜12 面は夕方、13〜18 面は夜、19〜24 面は里山、25〜30 面は港町、31〜36 面は京都・奈良、37〜42 面は温泉街、43〜48 面は雪国、49〜54 面は東京、55〜60 面は富士山（境界を含む）")
     func stageRanges() {
         #expect(RunnerWorld.world(forStage: 1) == .morning)
         #expect(RunnerWorld.world(forStage: 6) == .morning)
@@ -27,21 +27,23 @@ struct RunnerWorldTests {
         #expect(RunnerWorld.world(forStage: 48) == .snow)
         #expect(RunnerWorld.world(forStage: 49) == .tokyo)
         #expect(RunnerWorld.world(forStage: 54) == .tokyo)
+        #expect(RunnerWorld.world(forStage: 55) == .fuji)
+        #expect(RunnerWorld.world(forStage: 60) == .fuji)
     }
 
-    @Test("範囲外は夜（ショーケースの 0 番・最後の世界より後ろの 55 面以降も落ちずに描く）")
+    @Test("範囲外は夜（ショーケースの 0 番・最後の世界より後ろの 61 面以降も落ちずに描く）")
     func outOfRangeIsNight() {
         #expect(RunnerWorld.world(forStage: 0) == .night)
         #expect(RunnerWorld.world(forStage: -1) == .night)
-        #expect(RunnerWorld.world(forStage: 55) == .night)
+        #expect(RunnerWorld.world(forStage: 61) == .night)
         #expect(RunnerWorld.world(forStage: RunnerRules.stageCount + 1) == .night)
     }
 
-    @Test("全 54 面がちょうど 6 面ずつ 9 つの世界に分かれる")
+    @Test("全 60 面がちょうど 6 面ずつ 10 の世界に分かれる")
     func everyStageHasAWorld() {
         let counts = Dictionary(grouping: RunnerStage.all, by: { RunnerWorld.world(forStage: $0.number) })
             .mapValues(\.count)
-        #expect(counts == [.morning: 6, .evening: 6, .night: 6, .satoyama: 6, .harbor: 6, .kyotoNara: 6, .onsen: 6, .snow: 6, .tokyo: 6])
+        #expect(counts == [.morning: 6, .evening: 6, .night: 6, .satoyama: 6, .harbor: 6, .kyotoNara: 6, .onsen: 6, .snow: 6, .tokyo: 6, .fuji: 6])
         #expect(RunnerWorld.stagesPerWorld * RunnerWorld.allCases.count == RunnerRules.stageCount)
     }
 
@@ -211,6 +213,7 @@ struct RunnerWorldTests {
         #expect(RunnerWorld.onsen.scenery == .onsen)
         #expect(RunnerWorld.snow.scenery == .snow)
         #expect(RunnerWorld.tokyo.scenery == .tokyo)
+        #expect(RunnerWorld.fuji.scenery == .fuji)
     }
 
     // MARK: 背景は淡く沈め、手前は縁取る（#929）
@@ -428,12 +431,19 @@ struct RunnerWorldTests {
             platform: .scaffold, boostFloor: .movingWalkway, shoot: .manholeSteam, sinkFloor: .puddle,
             crumblingPlatform: .oldFootbridge, wall: .signboardStack
         ))
+        // 富士山（#2729・会長決裁 2026-10-23）: 新しく描くのは道標・カモシカ・ブルドーザー（と新しい仕掛けの落石）。低い岩は
+        // 火山岩（岩塊のまま）、崩れる足場は古い吊り橋（元の絵）、それ以外は既存の部品の色替え。
+        #expect(RunnerWorld.fuji.dressing == D(
+            pit: .volcanicCrack, lowBlock: .boulder, tallBlock: .signpost, dog: .serow, boar: .bulldozer,
+            platform: .stoneStack, boostFloor: .sandRun, shoot: .dustSpout, sinkFloor: .scree,
+            crumblingPlatform: .suspensionBridge, wall: .lavaWall
+        ))
         // 岩の枠の引き方。岩でない種類は nil（突き上げは自分の着せ替えを持つので岩の枠ではない）。
         #expect(RunnerWorld.harbor.dressing.block(for: .lowBlock) == .ropeCoil)
         #expect(RunnerWorld.harbor.dressing.block(for: .tallBlock) == .drum)
         #expect(RunnerWorld.satoyama.dressing.block(for: .tallBlock) == .boulder)
         #expect(RunnerWorld.snow.dressing.block(for: .lowBlock) == .snowman)
-        for kind in [RunnerHazardKind.pit, .chasm, .bird, .dog, .boar, .shoot, .geyser, .wall] {
+        for kind in [RunnerHazardKind.pit, .chasm, .bird, .dog, .boar, .shoot, .geyser, .wall, .rockfall] {
             #expect(RunnerWorld.harbor.dressing.block(for: kind) == nil, "\(kind)")
         }
     }
@@ -727,6 +737,10 @@ struct RunnerStageCodeTests {
         #expect(RunnerWorld.code(forStage: 48) == "8-6")
         #expect(RunnerWorld.code(forStage: 49) == "9-1")
         #expect(RunnerWorld.code(forStage: 54) == "9-6")
+        #expect(RunnerWorld.code(forStage: 55) == "10-1")
+        #expect(RunnerWorld.code(forStage: 60) == "10-6")
+        #expect(RunnerWorld.fuji.number == 10)
+        #expect(RunnerWorld.fuji.stageRange == 55...60)
 
         // 世界の範囲を順に並べると 1…48 を漏れなく 1 度ずつ覆う。
         let covered = RunnerWorld.allCases.flatMap { Array($0.stageRange) }
@@ -795,6 +809,7 @@ struct RunnerStageCodeTests {
         #expect(RunnerAccessibility.stageSelectLabel(number: 18, state: .locked) == "夜の繁華街、3-6、まだ遊べません")
         #expect(RunnerAccessibility.stageSelectLabel(number: 43, state: .cleared) == "雪国、8-1、クリア済み")
         #expect(RunnerAccessibility.stageSelectLabel(number: 54, state: .locked) == "東京、9-6、まだ遊べません")
+        #expect(RunnerAccessibility.stageSelectLabel(number: 60, state: .current) == "富士山、10-6、今ここ")
     }
 
     @Test("世界の帯の読み上げは「ワールド n / 合計、名前」")
@@ -830,28 +845,35 @@ struct RunnerStageSelectUITests {
         #expect(RunnerStageSelectState.clearedCount(in: .night, reachedStage: 8) == 0)
         #expect(RunnerStageSelectState.clearedCount(in: .satoyama, reachedStage: 20) == 1)
         #expect(RunnerStageSelectState.clearedCount(in: .tokyo, reachedStage: 54) == 5)
+        #expect(RunnerStageSelectState.clearedCount(in: .tokyo, reachedStage: 60) == 6)
+        #expect(RunnerStageSelectState.clearedCount(in: .fuji, reachedStage: 60) == 5)
     }
 
-    @Test("帯は実在の世界 + ティザー 1 枚で、世界の数は RunnerWorld から取る")
+    /// 物語が 60 面（10 世界）で完結した（#2729）ので、最後の世界の次の「？？？ つづく…」のティザーは出さない
+    /// （設計書 §2.3「10 世界で消す」）。帯もつまみも実在の世界の数だけ。
+    @Test("帯は実在の世界の数だけで（物語が完結したのでティザーは出さない）、世界の数は RunnerWorld から取る")
     func pageCount() {
-        #expect(RunnerWorldMap.pageCount == RunnerWorld.allCases.count + 1)
+        #expect(!RunnerWorldMap.showsTeaser)
+        #expect(RunnerWorldMap.pageCount == RunnerWorld.allCases.count)
         #expect(RunnerWorldMap.pageCount == 10)
-        // 最後の帯はティザー（世界が無い）。
-        #expect(RunnerWorldMap.world(at: RunnerWorldMap.pageCount - 1) == nil)
+        // 最後の帯は最後の世界（富士山）。その先には何も無い。
+        #expect(RunnerWorldMap.world(at: RunnerWorldMap.pageCount - 1) == .fuji)
+        #expect(RunnerWorldMap.world(at: RunnerWorldMap.pageCount) == nil)
         #expect(RunnerWorldMap.world(at: 0) == .morning)
         #expect(RunnerWorldMap.world(at: 8) == .tokyo)
         #expect(RunnerWorldMap.world(at: -1) == nil)
     }
 
-    @Test("開いたときに出す帯は選んでいる面の世界（8 面＝世界 2、20 面＝世界 4、54 面＝世界 9）")
+    @Test("開いたときに出す帯は選んでいる面の世界（8 面＝世界 2、20 面＝世界 4、54 面＝世界 9、60 面＝世界 10）")
     func pageForStage() {
         #expect(RunnerWorldMap.page(forStage: 8) == 1)
         #expect(RunnerWorldMap.page(forStage: 20) == 3)
         #expect(RunnerWorldMap.page(forStage: 54) == 8)
+        #expect(RunnerWorldMap.page(forStage: 60) == 9)
         #expect(RunnerWorldMap.page(forStage: 1) == 0)
         // 範囲外は最初の世界に倒す。
         #expect(RunnerWorldMap.page(forStage: 0) == 0)
-        #expect(RunnerWorldMap.page(forStage: 55) == 0)
+        #expect(RunnerWorldMap.page(forStage: 61) == 0)
     }
 
     @Test("帯に写す範囲は道路の帯の下・雲の帯の下端に収まり、丘と道路のタイルが覆う横幅に収まる")
