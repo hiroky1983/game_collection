@@ -231,10 +231,11 @@ public struct SimpleChessEngine: ChessEngine {
 
     /// ヒント専用のエンジン（#1739）。「むずかしい」と同じ設定で、考える時間だけ
     /// `BoardHintBudget.extraThinkingTime` 長い。対局 CPU の「むずかしい」は変えない。
-    static func hint() -> SimpleChessEngine {
+    /// `thinkingScale` はテスト用（広告の回数の検査などで探索時間を実時間で待たないため。#2952）。出荷は 1。
+    static func hint(thinkingScale: Double = 1) -> SimpleChessEngine {
         let base = SimpleChessEngine(level: BoardHintBudget.engineLevel, seed: nil)
         return SimpleChessEngine(level: BoardHintBudget.engineLevel, seed: nil,
-                  timeLimit: base.timeLimit + BoardHintBudget.extraThinkingTime)
+                  timeLimit: (base.timeLimit + BoardHintBudget.extraThinkingTime) * thinkingScale)
     }
 
     /// 反復深化の深さの上限（むずかしい）。実際に止めるのは時間（読み終わる終盤だけ早く終わる）。

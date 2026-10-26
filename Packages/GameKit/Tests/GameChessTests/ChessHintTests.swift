@@ -246,7 +246,10 @@ struct ChessAdHintTests {
     ) -> (ChessGameModel, StubAdService) {
         let ads = StubAdService(rewardEarned: rewardEarned)
         let services = GameServices(snapshots: store, ads: ads, screenGeneration: screenGeneration)
-        return (ChessGameModel(services: services), ads)
+        let model = ChessGameModel(services: services)
+        // 回数・広告の流れを見る検査なので、手の質は問わない。探索を実時間で待たない（#2952）
+        model.hintThinkingScaleForTesting = 0.05
+        return (model, ads)
     }
 
     @Test("無料枠が残っているうちは広告を要求しない")
