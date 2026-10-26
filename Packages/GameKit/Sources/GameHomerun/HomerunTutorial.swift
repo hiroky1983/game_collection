@@ -199,7 +199,16 @@ struct HomerunTutorialFigure: View {
         }
     }
 
+    /// 図形は Canvas、指のアイコンと「離す」は Text/Image を重ねる（Canvas の中で文字を描くと、毎フレームの描き直しで
+    /// 組版が主スレッドで走って固まる・#2945）。
     private func marks(size: CGSize, t: TimeInterval) -> some View {
+        ZStack {
+            shapes(size: size, t: t)
+            glyphs(size: size, t: t)
+        }
+    }
+
+    private func shapes(size: CGSize, t: TimeInterval) -> some View {
         Canvas { ctx, _ in
             let s = size.width / Self.shotWidth
             let zone = CGPoint(x: size.width / 2, y: size.height * Self.zoneFraction)
@@ -239,8 +248,6 @@ struct HomerunTutorialFigure: View {
                 ctx.stroke(ring, with: .color(.white.opacity(0.8)), lineWidth: 2)
                 Self.doubleArrow(&ctx, from: CGPoint(x: pad.x - 110 * s, y: pad.y + 52 * s),
                                  to: CGPoint(x: pad.x + 110 * s, y: pad.y + 52 * s), color: Theme.yellow, lineWidth: 4 * s)
-                ctx.draw(Text(Image(systemName: "hand.point.up.left.fill")).font(.system(size: 44 * s)).foregroundColor(.white), // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
-                         at: CGPoint(x: finger.x + 10 * s, y: finger.y + 12 * s))
                 Self.cursor(&ctx, at: CGPoint(x: zone.x + swing, y: zone.y), scale: s)
                 Self.doubleArrow(&ctx, from: CGPoint(x: zone.x - 62 * s, y: zone.y + 64 * s),
                                  to: CGPoint(x: zone.x + 62 * s, y: zone.y + 64 * s), color: Theme.teal, lineWidth: 3 * s)
@@ -262,7 +269,6 @@ struct HomerunTutorialFigure: View {
                     ctx.stroke(Path(ellipseIn: CGRect(x: ball.x - fr, y: ball.y - fr, width: fr * 2, height: fr * 2)),
                                with: .color(Theme.yellow.opacity(1 - k)), lineWidth: 6 * s * (1 - k) + 1)
                 }
-                let lift = released ? CGFloat(min((t - 1.2) / 0.3, 1)) * 34 * s : 0
                 let finger = CGPoint(x: pad.x, y: pad.y - 4 * s)
                 if !released {
                     let r = 30 * s
@@ -270,14 +276,43 @@ struct HomerunTutorialFigure: View {
                     ctx.fill(ring, with: .color(.white.opacity(0.25)))
                     ctx.stroke(ring, with: .color(.white.opacity(0.8)), lineWidth: 2)
                 }
-                ctx.draw(Text(Image(systemName: "hand.point.up.fill")).font(.system(size: 44 * s)).foregroundColor(.white), // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
-                         at: CGPoint(x: finger.x + 6 * s, y: finger.y + 14 * s - lift))
                 Self.arrow(&ctx, from: CGPoint(x: finger.x - 36 * s, y: finger.y + 26 * s),
                            to: CGPoint(x: finger.x - 36 * s, y: finger.y - 36 * s), color: Theme.yellow, lineWidth: 4 * s, dash: [])
-                ctx.draw(Text(released ? tr("離す！") : tr("離す")).font(.system(size: 15 * s, weight: .black, design: .rounded)).foregroundColor(.white), // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
-                         at: CGPoint(x: finger.x + 50 * s, y: finger.y - 30 * s))
             }
         }
+    }
+
+    /// 指のアイコンと「離す」。座標は `shapes` と同じ計算（縮尺 `s`・指の位置）で出す。
+    private func glyphs(size: CGSize, t: TimeInterval) -> some View {
+        let s = size.width / Self.shotWidth
+        let padTop = size.height * Self.padFraction
+        let pad = CGPoint(x: size.width / 2, y: (padTop + size.height) / 2)
+        return ZStack {
+            switch kind {
+            case .aim:
+                let swing = sin(t / 2.4 * 2 * .pi) * 70 * s
+                let finger = CGPoint(x: pad.x + swing, y: pad.y - 4 * s)
+                Image(systemName: "hand.point.up.left.fill")
+                    .font(.system(size: 44 * s)) // fixed-size: 図の座標・寸法と一体
+                    .foregroundColor(.white)
+                    .position(x: finger.x + 10 * s, y: finger.y + 12 * s)
+            case .swing:
+                let released = t > 1.2
+                let lift = released ? CGFloat(min((t - 1.2) / 0.3, 1)) * 34 * s : 0
+                let finger = CGPoint(x: pad.x, y: pad.y - 4 * s)
+                Image(systemName: "hand.point.up.fill")
+                    .font(.system(size: 44 * s)) // fixed-size: 図の座標・寸法と一体
+                    .foregroundColor(.white)
+                    .position(x: finger.x + 6 * s, y: finger.y + 14 * s - lift)
+                Text(released ? tr("離す！") : tr("離す"))
+                    .font(.system(size: 15 * s, weight: .black, design: .rounded)) // fixed-size: 図の座標・寸法と一体
+                    .foregroundColor(.white)
+                    .fixedSize()
+                    .position(x: finger.x + 50 * s, y: finger.y - 30 * s)
+            }
+        }
+        .frame(width: size.width, height: size.height)
+        .allowsHitTesting(false)
     }
 
     // MARK: 描画の部品

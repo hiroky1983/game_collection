@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import GameKitTestSupport
 @testable import GameHomerun
 
 /// 操作の説明（#1763）: 初回の記録・1 球目の前の停止・匂わせの文言。
@@ -61,5 +62,14 @@ struct HomerunTutorialTests {
             let t = HomerunTutorial.text(page: page)
             #expect(t.body.allSatisfy { !$0.isNumber })
         }
+    }
+
+    /// 操作の説明の図は、毎フレームの描き直しで組版が走らないよう、文字・アイコンを Canvas の外に置く（#2945）。
+    @Test func 操作の説明の図は_Canvasの中でTextを描かない() throws {
+        let code = try SourceScan.packageSource("Sources/GameHomerun/HomerunTutorial.swift")
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        #expect(!code.contains("ctx.draw(Text"), "Canvas の中で Text を描いている")
     }
 }
