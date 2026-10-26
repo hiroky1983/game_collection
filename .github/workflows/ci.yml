@@ -135,8 +135,8 @@ jobs:
 
           echo "検査対象:"
           echo "$pngs"
-          readarray -t png_array <<< "$pngs"
-          python3 Scripts/compress-images.py --check "${png_array[@]}"
+          # macOS の bash 3.2 には readarray が無い（exit 127 で落ちる）ので xargs で渡す
+          printf '%s\n' "$pngs" | tr '\n' '\0' | xargs -0 python3 Scripts/compress-images.py --check
 
       # 将棋の自己対戦テスト（SelfPlayTests）は決定的だがCIの中で最も重い1本（実測304秒）で、
       # 将棋AI強化は中止済み（2026-08-10決裁）のためソースが変わる見込みが低い。
