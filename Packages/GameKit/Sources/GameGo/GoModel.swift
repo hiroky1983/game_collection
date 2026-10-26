@@ -497,6 +497,8 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     @ObservationIgnored var hintThinkingGate: (@MainActor () async -> Void)?
     /// ヒントの読みに使うエンジンの種（テスト専用）。nil なら CPU の着手と同じ式で決める。
     @ObservationIgnored var hintSeedForTesting: UInt64?
+    /// ヒントを読む強さ（テスト用。回数・広告の流れの検査で、強い読みを何度も実時間で回さない・#2952）。出荷は `.hard`。
+    @ObservationIgnored var hintLevelForTesting: GoLevel = .hard
     /// ヒントの読みの結果を差し替える（テスト専用）。パスや非合法手など、探索では狙って出せない手を通すのに使う。
     @ObservationIgnored var hintMoveForTesting: GoMove?
 
@@ -521,12 +523,13 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     private func readHint() async -> GoMove {
         let snapshot = state
         let ruleset = ruleset
+        let level = hintLevelForTesting
         let seed = hintSeedForTesting
             ?? UInt64(gameSerial &* 1_000_003 &+ moves.count) &* 0x9E37_79B9 &+ 0xA50_B1BA
         await hintThinkingGate?()
         if let hintMoveForTesting { return hintMoveForTesting }
         return await Task.detached(priority: .userInitiated) {
-            GoEngine(level: .hard, ruleset: ruleset, seed: seed).bestMove(state: snapshot)
+            GoEngine(level: level, ruleset: ruleset, seed: seed).bestMove(state: snapshot)
         }.value
     }
 

@@ -205,10 +205,11 @@ public struct SimpleMinimaxEngine: ShogiEngine {
 
     /// ヒント専用のエンジン（#1739）。「むずかしい」と同じ設定で、考える時間だけ
     /// `BoardHintBudget.extraThinkingTime` 長い。対局 CPU の「むずかしい」は変えない。
-    static func hint() -> SimpleMinimaxEngine {
+    /// `thinkingScale` はテスト用（広告の回数の検査などで探索時間を実時間で待たないため。#2952）。出荷は 1。
+    static func hint(thinkingScale: Double = 1) -> SimpleMinimaxEngine {
         let base = SimpleMinimaxEngine(level: BoardHintBudget.engineLevel, seed: nil)
         return SimpleMinimaxEngine(level: BoardHintBudget.engineLevel, seed: nil,
-                  timeLimit: base.timeLimit + BoardHintBudget.extraThinkingTime)
+                  timeLimit: (base.timeLimit + BoardHintBudget.extraThinkingTime) * thinkingScale)
     }
 
     /// ヒントの答え（#2779）。

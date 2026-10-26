@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import GameKitTestSupport
 import Core
 @testable import GameGomoku
 
@@ -48,7 +49,13 @@ struct GomokuIterativeDeepeningTests {
         try #require(depth2.calls > depth1.calls + 4, "前提が崩れている: 深さ2の探索が短すぎる")
 
         var mismatches: [Int] = []
-        for n in depth1.calls..<depth2.calls {
+        // 切れる呼び出しの位置を 1 つずつ全部試すと数百回探索する（Debug で 50 秒超）。CI は等間隔の約 24 点と
+        // 最後の 5 点（最後の根手の途中で切れる境目）だけ、夜間は全部（#2952）。
+        let span = depth2.calls - depth1.calls
+        let stepBy = NightlyScale.isNightly ? 1 : max(1, span / 24)
+        let sampled = Set(stride(from: depth1.calls, to: depth2.calls, by: stepBy))
+            .union(max(depth1.calls, depth2.calls - 5)..<depth2.calls)
+        for n in sampled.sorted() {
             let r = await run(maxDepth: 2, expireAfter: n)
             if r.move?.row != r1.row || r.move?.col != r1.col { mismatches.append(n) }
         }

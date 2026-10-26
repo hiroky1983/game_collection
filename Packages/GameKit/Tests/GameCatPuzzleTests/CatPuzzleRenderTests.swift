@@ -1,4 +1,5 @@
 import Testing
+import GameKitTestSupport
 import Foundation
 import SwiftUI
 import Core
@@ -203,7 +204,11 @@ struct CatPuzzleRenderTests {
     func labelAvoidsAnswerCells() {
         var checkedRooms = 0
         // 問題作りはデバッグビルドだと 1 問 1 秒ほどかかるので、大きい盤は種を絞る。
-        for (size, seeds) in [(CatPuzzleSize.easy, UInt64(1)...30), (.normal, 1...30), (.hard, 1...6)] {
+        let plan = NightlyScale.value(
+            ci: [(CatPuzzleSize.easy, UInt64(1)...6), (.normal, 1...6), (.hard, 1...2)],
+            nightly: [(CatPuzzleSize.easy, UInt64(1)...30), (.normal, 1...30), (.hard, 1...6)]
+        )
+        for (size, seeds) in plan {
             for seed in seeds {
                 let puzzle = CatPuzzleModel(services: Self.services(), size: size, seed: seed).puzzle
                 let n = puzzle.side
@@ -233,7 +238,7 @@ struct CatPuzzleRenderTests {
                 }
             }
         }
-        #expect(checkedRooms == 30 * 6 + 30 * 7 + 6 * 8)
+        #expect(checkedRooms == plan.reduce(0) { $0 + $1.1.count * $1.0.side })
     }
 
     /// iPhone SE の遊び方のカードで図に使える幅（画面幅 375 − シートの余白 16×2 − カードの内側 14×2）。
