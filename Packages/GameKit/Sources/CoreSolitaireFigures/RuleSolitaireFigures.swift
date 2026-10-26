@@ -1,4 +1,5 @@
 import SwiftUI
+import Core
 
 /// ソリティア・フリーセル・スパイダーが共通で使う図入りの遊び方の図（#2044）。
 /// 札は `RuleMiniCard`。文言は各ゲームの `HowToPlayGuide` が持ち、ここは図だけ。

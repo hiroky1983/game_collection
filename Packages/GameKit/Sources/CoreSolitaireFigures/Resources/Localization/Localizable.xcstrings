@@ -1,0 +1,72 @@
+{
+  "sourceLanguage" : "ja",
+  "strings" : {
+    "① 選ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "① Select"
+          }
+        }
+      }
+    },
+    "② 置き先" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "② Destination"
+          }
+        }
+      }
+    },
+    "置けた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Placed"
+          }
+        }
+      }
+    },
+    "空" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empty"
+          }
+        }
+      }
+    },
+    "空いた列" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empty column"
+          }
+        }
+      }
+    },
+    "4 つのスートぶん" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For all 4 suits"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

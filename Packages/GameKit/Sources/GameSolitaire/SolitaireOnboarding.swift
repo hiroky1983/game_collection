@@ -1,4 +1,5 @@
 import Core
+import CoreSolitaireFigures
 import SwiftUI
 
 /// 図で見る「はじめての遊び方」（#2824）のソリティア（クロンダイク）。
