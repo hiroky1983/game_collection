@@ -200,83 +200,110 @@ struct HomerunTutorialFigure: View {
     }
 
     private func marks(size: CGSize, t: TimeInterval) -> some View {
-        Canvas { ctx, _ in
-            let s = size.width / Self.shotWidth
-            let zone = CGPoint(x: size.width / 2, y: size.height * Self.zoneFraction)
-            let padTop = size.height * Self.padFraction
-            let pad = CGPoint(x: size.width / 2, y: (padTop + size.height) / 2)
-            // ゾーン（9 分割）。元のスクショはゾーン・カーソル無しで撮ってある。
-            let half = HomerunZoneGeometry.zoneSize / 2 * s
-            let zoneRect = CGRect(x: zone.x - half, y: zone.y - half, width: half * 2, height: half * 2)
-            ctx.fill(Path(zoneRect), with: .color(.white.opacity(0.12)))
-            ctx.stroke(Path(zoneRect), with: .color(.white.opacity(0.85)), lineWidth: 1.5 * s)
-            var grid = Path()
-            for k in 1...2 {
-                let d = CGFloat(k) * HomerunZoneGeometry.cellSize * s
-                grid.move(to: CGPoint(x: zoneRect.minX + d, y: zoneRect.minY)); grid.addLine(to: CGPoint(x: zoneRect.minX + d, y: zoneRect.maxY))
-                grid.move(to: CGPoint(x: zoneRect.minX, y: zoneRect.minY + d)); grid.addLine(to: CGPoint(x: zoneRect.maxX, y: zoneRect.minY + d))
-            }
-            ctx.stroke(grid, with: .color(.white.opacity(0.45)), lineWidth: 0.75 * s)
-            // 押せる帯を光らせる（スクショでは透明なので、ここで見せる）。
-            let band = Path(roundedRect: CGRect(x: 6, y: padTop + 4, width: size.width - 12, height: size.height - padTop - 10),
-                            cornerRadius: 16 * s)
-            ctx.fill(band, with: .color(Theme.yellow.opacity(0.18)))
-            ctx.stroke(band, with: .color(Theme.yellow.opacity(0.9)), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
-            switch kind {
-            case .aim:
-                // 指は左右に揺れ、カーソルが同じだけ動く（指 1 pt = カーソル 1 pt）。
-                let swing = sin(t / 2.4 * 2 * .pi) * 70 * s
-                let finger = CGPoint(x: pad.x + swing, y: pad.y - 4 * s)
-                for k in 1...3 {
-                    let ghost = CGPoint(x: pad.x + sin((t - Double(k) * 0.12) / 2.4 * 2 * .pi) * 70 * s, y: finger.y)
-                    let r = 30 * s
-                    ctx.fill(Path(ellipseIn: CGRect(x: ghost.x - r, y: ghost.y - r, width: r * 2, height: r * 2)),
-                             with: .color(.white.opacity(0.14)))
+        ZStack {
+            Canvas { ctx, _ in
+                let s = size.width / Self.shotWidth
+                let zone = CGPoint(x: size.width / 2, y: size.height * Self.zoneFraction)
+                let padTop = size.height * Self.padFraction
+                let pad = CGPoint(x: size.width / 2, y: (padTop + size.height) / 2)
+                // ゾーン（9 分割）。元のスクショはゾーン・カーソル無しで撮ってある。
+                let half = HomerunZoneGeometry.zoneSize / 2 * s
+                let zoneRect = CGRect(x: zone.x - half, y: zone.y - half, width: half * 2, height: half * 2)
+                ctx.fill(Path(zoneRect), with: .color(.white.opacity(0.12)))
+                ctx.stroke(Path(zoneRect), with: .color(.white.opacity(0.85)), lineWidth: 1.5 * s)
+                var grid = Path()
+                for k in 1...2 {
+                    let d = CGFloat(k) * HomerunZoneGeometry.cellSize * s
+                    grid.move(to: CGPoint(x: zoneRect.minX + d, y: zoneRect.minY)); grid.addLine(to: CGPoint(x: zoneRect.minX + d, y: zoneRect.maxY))
+                    grid.move(to: CGPoint(x: zoneRect.minX, y: zoneRect.minY + d)); grid.addLine(to: CGPoint(x: zoneRect.maxX, y: zoneRect.minY + d))
                 }
-                let r = 30 * s
-                let ring = Path(ellipseIn: CGRect(x: finger.x - r, y: finger.y - r, width: r * 2, height: r * 2))
-                ctx.fill(ring, with: .color(.white.opacity(0.25)))
-                ctx.stroke(ring, with: .color(.white.opacity(0.8)), lineWidth: 2)
-                Self.doubleArrow(&ctx, from: CGPoint(x: pad.x - 110 * s, y: pad.y + 52 * s),
-                                 to: CGPoint(x: pad.x + 110 * s, y: pad.y + 52 * s), color: Theme.yellow, lineWidth: 4 * s)
-                ctx.draw(Text(Image(systemName: "hand.point.up.left.fill")).font(.system(size: 44 * s)).foregroundColor(.white), // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
-                         at: CGPoint(x: finger.x + 10 * s, y: finger.y + 12 * s))
-                Self.cursor(&ctx, at: CGPoint(x: zone.x + swing, y: zone.y), scale: s)
-                Self.doubleArrow(&ctx, from: CGPoint(x: zone.x - 62 * s, y: zone.y + 64 * s),
-                                 to: CGPoint(x: zone.x + 62 * s, y: zone.y + 64 * s), color: Theme.teal, lineWidth: 3 * s)
-            case .swing:
-                let p = HomerunZoneGeometry.ballPoint(zone: HomerunTutorial.figureZone)
-                let ball = CGPoint(x: zone.x + p.x * s, y: zone.y + p.y * s)
-                // 0〜1.2 秒: 輪が縮む。1.2 秒: 離す（指が上がり、球のまわりが光る）。その後は止めて見せる。
-                let shrink = min(t, 1.2)
-                let released = t > 1.2
-                let ring = HomerunZoneGeometry.ringDiameter(elapsed: shrink)
-                Self.arrow(&ctx, from: CGPoint(x: zone.x + 10 * s, y: zone.y - 8 * s),
-                           to: CGPoint(x: ball.x + 22 * s, y: ball.y + 20 * s),
-                           color: Theme.teal.opacity(0.9), lineWidth: 3 * s, dash: [6 * s, 5 * s])
-                Self.target(&ctx, at: ball, ringDiameter: ring, scale: s)
-                Self.cursor(&ctx, at: ball, scale: s)
-                if released {
-                    let k = min((t - 1.2) / 0.4, 1)
-                    let fr = (40 + 50 * k) * s
-                    ctx.stroke(Path(ellipseIn: CGRect(x: ball.x - fr, y: ball.y - fr, width: fr * 2, height: fr * 2)),
-                               with: .color(Theme.yellow.opacity(1 - k)), lineWidth: 6 * s * (1 - k) + 1)
-                }
-                let lift = released ? CGFloat(min((t - 1.2) / 0.3, 1)) * 34 * s : 0
-                let finger = CGPoint(x: pad.x, y: pad.y - 4 * s)
-                if !released {
+                ctx.stroke(grid, with: .color(.white.opacity(0.45)), lineWidth: 0.75 * s)
+                // 押せる帯を光らせる（スクショでは透明なので、ここで見せる）。
+                let band = Path(roundedRect: CGRect(x: 6, y: padTop + 4, width: size.width - 12, height: size.height - padTop - 10),
+                                cornerRadius: 16 * s)
+                ctx.fill(band, with: .color(Theme.yellow.opacity(0.18)))
+                ctx.stroke(band, with: .color(Theme.yellow.opacity(0.9)), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                switch kind {
+                case .aim:
+                    // 指は左右に揺れ、カーソルが同じだけ動く（指 1 pt = カーソル 1 pt）。
+                    let swing = sin(t / 2.4 * 2 * .pi) * 70 * s
+                    let finger = CGPoint(x: pad.x + swing, y: pad.y - 4 * s)
+                    for k in 1...3 {
+                        let ghost = CGPoint(x: pad.x + sin((t - Double(k) * 0.12) / 2.4 * 2 * .pi) * 70 * s, y: finger.y)
+                        let r = 30 * s
+                        ctx.fill(Path(ellipseIn: CGRect(x: ghost.x - r, y: ghost.y - r, width: r * 2, height: r * 2)),
+                                 with: .color(.white.opacity(0.14)))
+                    }
                     let r = 30 * s
                     let ring = Path(ellipseIn: CGRect(x: finger.x - r, y: finger.y - r, width: r * 2, height: r * 2))
                     ctx.fill(ring, with: .color(.white.opacity(0.25)))
                     ctx.stroke(ring, with: .color(.white.opacity(0.8)), lineWidth: 2)
+                    Self.doubleArrow(&ctx, from: CGPoint(x: pad.x - 110 * s, y: pad.y + 52 * s),
+                                     to: CGPoint(x: pad.x + 110 * s, y: pad.y + 52 * s), color: Theme.yellow, lineWidth: 4 * s)
+                    Self.cursor(&ctx, at: CGPoint(x: zone.x + swing, y: zone.y), scale: s)
+                    Self.doubleArrow(&ctx, from: CGPoint(x: zone.x - 62 * s, y: zone.y + 64 * s),
+                                     to: CGPoint(x: zone.x + 62 * s, y: zone.y + 64 * s), color: Theme.teal, lineWidth: 3 * s)
+                case .swing:
+                    let p = HomerunZoneGeometry.ballPoint(zone: HomerunTutorial.figureZone)
+                    let ball = CGPoint(x: zone.x + p.x * s, y: zone.y + p.y * s)
+                    // 0〜1.2 秒: 輪が縮む。1.2 秒: 離す（指が上がり、球のまわりが光る）。その後は止めて見せる。
+                    let shrink = min(t, 1.2)
+                    let released = t > 1.2
+                    let ring = HomerunZoneGeometry.ringDiameter(elapsed: shrink)
+                    Self.arrow(&ctx, from: CGPoint(x: zone.x + 10 * s, y: zone.y - 8 * s),
+                               to: CGPoint(x: ball.x + 22 * s, y: ball.y + 20 * s),
+                               color: Theme.teal.opacity(0.9), lineWidth: 3 * s, dash: [6 * s, 5 * s])
+                    Self.target(&ctx, at: ball, ringDiameter: ring, scale: s)
+                    Self.cursor(&ctx, at: ball, scale: s)
+                    if released {
+                        let k = min((t - 1.2) / 0.4, 1)
+                        let fr = (40 + 50 * k) * s
+                        ctx.stroke(Path(ellipseIn: CGRect(x: ball.x - fr, y: ball.y - fr, width: fr * 2, height: fr * 2)),
+                                   with: .color(Theme.yellow.opacity(1 - k)), lineWidth: 6 * s * (1 - k) + 1)
+                    }
+                    let finger = CGPoint(x: pad.x, y: pad.y - 4 * s)
+                    if !released {
+                        let r = 30 * s
+                        let ring = Path(ellipseIn: CGRect(x: finger.x - r, y: finger.y - r, width: r * 2, height: r * 2))
+                        ctx.fill(ring, with: .color(.white.opacity(0.25)))
+                        ctx.stroke(ring, with: .color(.white.opacity(0.8)), lineWidth: 2)
+                    }
+                    Self.arrow(&ctx, from: CGPoint(x: finger.x - 36 * s, y: finger.y + 26 * s),
+                               to: CGPoint(x: finger.x - 36 * s, y: finger.y - 36 * s), color: Theme.yellow, lineWidth: 4 * s, dash: [])
                 }
-                ctx.draw(Text(Image(systemName: "hand.point.up.fill")).font(.system(size: 44 * s)).foregroundColor(.white), // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
-                         at: CGPoint(x: finger.x + 6 * s, y: finger.y + 14 * s - lift))
-                Self.arrow(&ctx, from: CGPoint(x: finger.x - 36 * s, y: finger.y + 26 * s),
-                           to: CGPoint(x: finger.x - 36 * s, y: finger.y - 36 * s), color: Theme.yellow, lineWidth: 4 * s, dash: [])
-                ctx.draw(Text(released ? tr("離す！") : tr("離す")).font(.system(size: 15 * s, weight: .black, design: .rounded)).foregroundColor(.white), // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
-                         at: CGPoint(x: finger.x + 50 * s, y: finger.y - 30 * s))
             }
+            markOverlays(size: size, t: t)
+        }
+    }
+
+    /// 指のアイコン・「離す」の文字（Canvas の外）。`TimelineView(.animation)` で毎フレーム動くが、
+    /// `Canvas` の `ctx.draw(Text)` では描き直すたびに文字の組版をやり直すため、`Image`/`Text` の
+    /// 普通の `View` として重ねる（花札の帯の文字と同じ形・#2905・#2945）。座標は `marks` の `Canvas` と同じ計算。
+    @ViewBuilder
+    private func markOverlays(size: CGSize, t: TimeInterval) -> some View {
+        let s = size.width / Self.shotWidth
+        let padTop = size.height * Self.padFraction
+        let pad = CGPoint(x: size.width / 2, y: (padTop + size.height) / 2)
+        switch kind {
+        case .aim:
+            let swing = sin(t / 2.4 * 2 * .pi) * 70 * s
+            let finger = CGPoint(x: pad.x + swing, y: pad.y - 4 * s)
+            Image(systemName: "hand.point.up.left.fill")
+                .font(.system(size: 44 * s))
+                .foregroundColor(.white)
+                .position(x: finger.x + 10 * s, y: finger.y + 12 * s)
+        case .swing:
+            let released = t > 1.2
+            let lift = released ? CGFloat(min((t - 1.2) / 0.3, 1)) * 34 * s : 0
+            let finger = CGPoint(x: pad.x, y: pad.y - 4 * s)
+            Image(systemName: "hand.point.up.fill")
+                .font(.system(size: 44 * s))
+                .foregroundColor(.white)
+                .position(x: finger.x + 6 * s, y: finger.y + 14 * s - lift)
+            Text(released ? tr("離す！") : tr("離す"))
+                .font(.system(size: 15 * s, weight: .black, design: .rounded))
+                .foregroundColor(.white)
+                .position(x: finger.x + 50 * s, y: finger.y - 30 * s)
         }
     }
 

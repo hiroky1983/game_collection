@@ -1,5 +1,8 @@
 import SwiftUI
 import Core
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// 盤の絵（家の間取り・印・猫）。本番と遊び方の図で同じものを使う（#2250）。
 ///
@@ -66,10 +69,9 @@ struct CatPuzzleBoardCanvas: View {
             }
             // 部屋の札。×（通常・ヒント・赤）より上に重ねる（札の背景で × の一部が隠れてよい・会長 QA 2026-10-21・build 43）。
             // 猫より下に敷く（間違えて札のマスに猫を置いても、猫の顔が札に隠れない）。
+            // 文字は `Canvas` の `resolve(Text)` ではなく overlay の `Text` で置く（#2905 の花札と同じ形・#2945）。
             if showsRoomLabels {
-                Canvas { context, _ in
-                    drawLabels(&context, rooms: rooms)
-                }
+                roomLabels(rooms: rooms)
             }
             // 猫（弾む・縮む・跳ねる）。クリアで大きくなった猫は壁に少しかぶる。
             CatPuzzleCatLayer(puzzle: puzzle, marks: marks, isSolved: isSolved, cellSide: cellSide, rooms: rooms)
@@ -77,12 +79,13 @@ struct CatPuzzleBoardCanvas: View {
             if !ghostCats.isEmpty {
                 CatPuzzleGhostLayer(puzzle: puzzle, cells: ghostCats, cellSide: cellSide)
             }
-            // 上の層: 矛盾の「！」・ヒントの印と枠（猫より前に出す）。
+            // 上の層: 矛盾の輪・ヒントの枠（図形だけ。猫より前に出す）。
             Canvas { context, _ in
-                drawConflictBadges(&context)
-                drawHintBadges(&context)
                 drawLastHint(&context)
             }
+            // 矛盾の「！」・ヒントの電球は overlay（印の文字・アイコンを Canvas で描かない・#2945）。
+            conflictBadges()
+            hintBadges()
         }
         .frame(width: boardSide, height: boardSide)
         .accessibilityHidden(true)
@@ -285,71 +288,119 @@ struct CatPuzzleBoardCanvas: View {
 
     /// 部屋の名前の札。`labelPlacement` のマスの左上に置き、隣の部屋のマスにははみ出さない。
     /// × より上の層に描く（× の一部が札の背景で隠れてよい）。
-    private func drawLabels(_ context: inout GraphicsContext, rooms: [CatPuzzleHouse.Room]) {
+    ///
+    /// 文字・札の面は `Canvas` ではなく通常の `View`（`RoundedRectangle` + `Text`）の overlay で描く。
+    /// `Canvas` の `resolve(Text)`/`draw` は描き直すたびに文字の組版をやり直すので、猫を置く・消す・ヒント・
+    /// ミスのたびに盤を描き直すこのゲームでは、和文の代替フォント探しで主スレッドが詰まる危険がある
+    /// （花札の帯の文字と同じ形・#2905・#2945）。札の大きさを決めるための文字幅の見積もりだけ
+    /// `NSString.size(withAttributes:)` を使う（`Canvas` の中ではないので、描き直しのたびに走っても軽い）。
+    @ViewBuilder
+    private func roomLabels(rooms: [CatPuzzleHouse.Room]) -> some View {
         let n = puzzle.side
-        let baseFont = max(8, cellSide * 0.22)
-        let margin = max(cellSide * 0.06, CatPuzzleHouse.wallWidth / 2 + 1)
-        let padding = CGSize(width: cellSide * 0.1, height: cellSide * 0.04)
-        func resolved(_ name: String, size: CGFloat) -> GraphicsContext.ResolvedText {
-            context.resolve(
-                Text(name)
-                    .font(.system(size: size, weight: .bold, design: .rounded)) // fixed-size: 盤のマスの寸法に比例させる札の文字（図形のジオメトリに従う）
-                    .foregroundColor(Theme.Fixed.ink)
-            )
-        }
-        for room in 0..<n {
-            let name = rooms[room % rooms.count].name
-            var text = resolved(name, size: baseFont)
-            var measured = text.measure(in: CGSize(width: cellSide * 4, height: cellSide))
-            let wide = measured.width + padding.width * 2 > cellSide - margin * 2
-            guard let placement = Self.labelPlacement(room: room, in: puzzle, wide: wide) else { continue }
-            let available = (placement.spansRight ? cellSide * 2 : cellSide) - margin * 2
-            if measured.width + padding.width * 2 > available {
-                let size = max(6, baseFont * (available - padding.width * 2) / measured.width)
-                text = resolved(name, size: size)
-                measured = text.measure(in: CGSize(width: available, height: cellSide))
-            }
-            let origin = rect(of: placement.cell).origin.applying(.init(translationX: margin, y: margin))
-            let chip = CGRect(x: origin.x, y: origin.y,
-                              width: measured.width + padding.width * 2, height: measured.height + padding.height * 2)
-            context.fill(Path(roundedRect: chip, cornerRadius: chip.height / 2), with: .color(.white.opacity(0.9)))
-            context.draw(text, at: CGPoint(x: chip.minX + padding.width, y: chip.minY + padding.height), anchor: .topLeading)
+        ForEach(0..<n, id: \.self) { room in
+            roomLabel(room: room, rooms: rooms)
         }
     }
 
-    /// 矛盾の「！」の丸（赤い面と合わせ、色と印の両方で示す）。
-    private func drawConflictBadges(_ context: inout GraphicsContext) {
-        guard !isSolved else { return }
-        for cell in conflicts where marks.indices.contains(cell) && marks[cell] == .cat {
-            let r = rect(of: cell)
-            let radius = cellSide * 0.15
-            let center = CGPoint(x: r.maxX - radius - 2, y: r.minY + radius + 2)
-            context.fill(Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)),
-                         with: .color(Theme.coralText))
-            let bang = context.resolve(
-                Text(verbatim: "!")
-                    .font(.system(size: radius * 1.6, weight: .heavy, design: .rounded)) // fixed-size: 矛盾の印の丸に合わせる記号（図形のジオメトリに従う）
-                    .foregroundColor(.white)
-            )
-            context.draw(bang, at: center, anchor: .center)
+    @ViewBuilder
+    private func roomLabel(room: Int, rooms: [CatPuzzleHouse.Room]) -> some View {
+        let name = rooms[room % rooms.count].name
+        if let layout = Self.roomLabelLayout(room: room, name: name, puzzle: puzzle, cellSide: cellSide) {
+            ZStack(alignment: .topLeading) {
+                RoundedRectangle(cornerRadius: layout.chipSize.height / 2, style: .continuous)
+                    .fill(Color.white.opacity(0.9))
+                Text(name)
+                    .font(.system(size: layout.fontSize, weight: .bold, design: .rounded)) // fixed-size: 盤のマスの寸法に比例させる札の文字（図形のジオメトリに従う）
+                    .foregroundColor(Theme.Fixed.ink)
+                    .lineLimit(1)
+                    .fixedSize()
+                    .padding(.leading, layout.padding.width)
+                    .padding(.top, layout.padding.height)
+            }
+            .frame(width: layout.chipSize.width, height: layout.chipSize.height, alignment: .topLeading)
+            .position(x: layout.origin.x + layout.chipSize.width / 2, y: layout.origin.y + layout.chipSize.height / 2)
+        }
+    }
+
+    /// 部屋の札の位置・大きさ（レイアウトの計算だけ。`Canvas`/`View` のどちらにも依らない）。
+    private struct RoomLabelLayout {
+        let origin: CGPoint
+        let chipSize: CGSize
+        let padding: CGSize
+        let fontSize: CGFloat
+    }
+
+    private static func roomLabelLayout(room: Int, name: String, puzzle: CatPuzzle, cellSide: CGFloat) -> RoomLabelLayout? {
+        let baseFont = max(8, cellSide * 0.22)
+        let margin = max(cellSide * 0.06, CatPuzzleHouse.wallWidth / 2 + 1)
+        let padding = CGSize(width: cellSide * 0.1, height: cellSide * 0.04)
+        var measured = measureLabel(name, fontSize: baseFont)
+        let wide = measured.width + padding.width * 2 > cellSide - margin * 2
+        guard let placement = labelPlacement(room: room, in: puzzle, wide: wide) else { return nil }
+        let available = (placement.spansRight ? cellSide * 2 : cellSide) - margin * 2
+        var fontSize = baseFont
+        if measured.width + padding.width * 2 > available {
+            fontSize = max(6, baseFont * (available - padding.width * 2) / measured.width)
+            measured = measureLabel(name, fontSize: fontSize)
+        }
+        let origin = rect(of: placement.cell, side: puzzle.side, cellSide: cellSide).origin
+            .applying(.init(translationX: margin, y: margin))
+        let chipSize = CGSize(width: measured.width + padding.width * 2, height: measured.height + padding.height * 2)
+        return RoomLabelLayout(origin: origin, chipSize: chipSize, padding: padding, fontSize: fontSize)
+    }
+
+    /// 札の文字の大きさの見積もり（レイアウトの判断にだけ使う。実際の描画は `Text` が行う）。
+    private static func measureLabel(_ name: String, fontSize: CGFloat) -> CGSize {
+        #if canImport(UIKit)
+        let size = (name as NSString).size(withAttributes: [.font: UIFont.systemFont(ofSize: fontSize, weight: .bold)])
+        return CGSize(width: ceil(size.width), height: ceil(size.height))
+        #else
+        return CGSize(width: CGFloat(name.count) * fontSize * 0.62, height: fontSize * 1.2)
+        #endif
+    }
+
+    /// 矛盾の「！」の丸（赤い面と合わせ、色と印の両方で示す）。Canvas の外（overlay）に出す（#2945）。
+    @ViewBuilder
+    private func conflictBadges() -> some View {
+        if !isSolved {
+            ForEach(conflicts.sorted(), id: \.self) { cell in
+                if marks.indices.contains(cell), marks[cell] == .cat {
+                    let r = rect(of: cell)
+                    let radius = cellSide * 0.15
+                    let center = CGPoint(x: r.maxX - radius - 2, y: r.minY + radius + 2)
+                    ZStack {
+                        Circle().fill(Theme.coralText)
+                        Text(verbatim: "!")
+                            .font(.system(size: radius * 1.6, weight: .heavy, design: .rounded)) // fixed-size: 矛盾の印の丸に合わせる記号（図形のジオメトリに従う）
+                            .foregroundColor(.white)
+                    }
+                    .frame(width: radius * 2, height: radius * 2)
+                    .position(center)
+                }
+            }
         }
     }
 
     /// ヒントで置いた猫の印（右下の黄色い丸に電球）。消せない猫だと分かるよう、クリアまで出し続ける。
-    private func drawHintBadges(_ context: inout GraphicsContext) {
-        guard !isSolved else { return }
-        for cell in hintCells.sorted() where marks.indices.contains(cell) && marks[cell] == .cat {
-            let r = rect(of: cell)
-            let radius = cellSide * 0.15
-            let center = CGPoint(x: r.maxX - radius - 2, y: r.maxY - radius - 2)
-            context.fill(Path(ellipseIn: CGRect(x: center.x - radius, y: center.y - radius, width: radius * 2, height: radius * 2)),
-                         with: .color(Theme.yellow))
-            let bulb = context.resolve(
-                Text(Image(systemName: "lightbulb.fill"))
-                    .font(.system(size: radius * 1.3, weight: .bold)) // fixed-size: ヒントの印の丸に合わせる記号（図形のジオメトリに従う）
-                    .foregroundColor(Theme.Fixed.ink)
-            )
-            context.draw(bulb, at: center, anchor: .center)
+    /// Canvas の外（overlay）に出す（#2945）。
+    @ViewBuilder
+    private func hintBadges() -> some View {
+        if !isSolved {
+            ForEach(hintCells.sorted(), id: \.self) { cell in
+                if marks.indices.contains(cell), marks[cell] == .cat {
+                    let r = rect(of: cell)
+                    let radius = cellSide * 0.15
+                    let center = CGPoint(x: r.maxX - radius - 2, y: r.maxY - radius - 2)
+                    ZStack {
+                        Circle().fill(Theme.yellow)
+                        Image(systemName: "lightbulb.fill")
+                            .font(.system(size: radius * 1.3, weight: .bold)) // fixed-size: ヒントの印の丸に合わせる記号（図形のジオメトリに従う）
+                            .foregroundColor(Theme.Fixed.ink)
+                    }
+                    .frame(width: radius * 2, height: radius * 2)
+                    .position(center)
+                }
+            }
         }
     }
 
