@@ -5,7 +5,7 @@ import json, os, re, sys
 OUT = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(OUT, "..", "..", ".."))
 
-src = open(f"{REPO}/Packages/GameKit/Sources/Core/ObjectCardArt.swift", encoding="utf-8").read()
+src = open(f"{REPO}/Packages/GameKit/Sources/CoreObjectArt/ObjectCardArt.swift", encoding="utf-8").read()
 sprites = {}
 order = []
 for m in re.finditer(r"static let (\w+) = PixelSprite\(\s*rows: \[(.*?)\],\s*palette: \[(.*?)\]\s*\)", src, re.S):
