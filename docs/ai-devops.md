@@ -467,6 +467,9 @@ CodeRabbit を必須ステータスチェックにする案は採らない。レ
   変わっていた）。会長の「使いどころないなら消す」を受けてターゲットごと削除した（コード PR は release/v1.1.12）。
   画面の確認は起動引数（`-startGame` 等）＋シミュレータのスクリーンショットで行う。
 - 将棋の自己対戦などの重い検証は通常の PR の CI とは別枠（nightly・#1737）で回す。
+- **`web/`（LP）は `.github/workflows/web-check.yml` が `npm ci` → `npm run lint` → `npx tsc --noEmit` → `npm run build` を回す**（#2885）。
+  `web/**` を触る PR / main への push だけで動く。LP は main マージが即本番公開なので、`ci.yml` がスキップする `web/` だけの PR の保険になる。
+  paths 付きのため必須チェックには加えない（`scripts-tests.yml` と同じ理由）。
 
 ### 実装ループ（Phase 2・ローカル当番方式）
 

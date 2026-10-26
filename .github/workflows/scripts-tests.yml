@@ -42,6 +42,14 @@ jobs:
         with:
           persist-credentials: false
 
+      # test-compress-images.sh は Pillow が無いと skip（成功扱い）になるので、CI では必ず入れて実行させる（#2838）
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Pillow をインストール
+        run: python3 -m pip install Pillow
+
       - name: Scripts/tests/*.sh を全本実行
         run: |
           set -uo pipefail
