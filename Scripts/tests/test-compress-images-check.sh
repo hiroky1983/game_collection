@@ -13,7 +13,13 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TARGET="$SCRIPT_DIR/../compress-images.py"
 FIXTURES="$SCRIPT_DIR/fixtures/make-compress-images-fixtures.py"
-PY() { env -u NODE_OPTIONS /usr/bin/python3 "$@"; }
+PY() { env -u NODE_OPTIONS python3 "$@"; }
+
+# Pillow が無い環境は skip する（test-compress-images.sh と同じ流儀。CI は scripts-tests.yml で入れる）
+if ! PY -c "import PIL" 2>/dev/null; then
+  echo "SKIP: Pillow が無いため compress-images.py の --check テストを飛ばします"
+  exit 0
+fi
 PASS=0
 FAIL=0
 
