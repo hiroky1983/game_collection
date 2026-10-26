@@ -289,7 +289,7 @@ struct HomerunTutorialFigure: View {
             let swing = sin(t / 2.4 * 2 * .pi) * 70 * s
             let finger = CGPoint(x: pad.x + swing, y: pad.y - 4 * s)
             Image(systemName: "hand.point.up.left.fill")
-                .font(.system(size: 44 * s))
+                .font(.system(size: 44 * s)) // fixed-size: 図の寸法（s）に比例させる文字・アイコン（図形のジオメトリに従う）
                 .foregroundColor(.white)
                 .position(x: finger.x + 10 * s, y: finger.y + 12 * s)
         case .swing:
@@ -297,11 +297,11 @@ struct HomerunTutorialFigure: View {
             let lift = released ? CGFloat(min((t - 1.2) / 0.3, 1)) * 34 * s : 0
             let finger = CGPoint(x: pad.x, y: pad.y - 4 * s)
             Image(systemName: "hand.point.up.fill")
-                .font(.system(size: 44 * s))
+                .font(.system(size: 44 * s)) // fixed-size: 図の寸法（s）に比例させる文字・アイコン（図形のジオメトリに従う）
                 .foregroundColor(.white)
                 .position(x: finger.x + 6 * s, y: finger.y + 14 * s - lift)
             Text(released ? tr("離す！") : tr("離す"))
-                .font(.system(size: 15 * s, weight: .black, design: .rounded))
+                .font(.system(size: 15 * s, weight: .black, design: .rounded)) // fixed-size: 図の寸法（s）に比例させる文字・アイコン（図形のジオメトリに従う）
                 .foregroundColor(.white)
                 .position(x: finger.x + 50 * s, y: finger.y - 30 * s)
         }
