@@ -20,6 +20,7 @@ struct GomokuRewardedUndoTests {
     @Test("広告のあいだに新規対局を始めたら、前の対局の待ったは新しい対局に乗らない")
     func undoForReplacedGameIsRejected() async throws {
         let model = GomokuModel(services: nil)
+        model.hintThinkingScaleForTesting = 0.05   // 待ったの検査なので手の質は問わない（#2952）
         let turn = model.aiTurnKey
         model.newGame()
         // 新しい対局でも 1 往復打ち、「戻せる手が無い」という状態の確認だけでは弾けない形にする。
@@ -35,6 +36,7 @@ struct GomokuRewardedUndoTests {
     @Test("広告のあいだに同じ対局で 1 往復進めたら、広告を出したときとは別の 1 往復を戻さない")
     func undoForAdvancedPositionIsRejected() async throws {
         let model = GomokuModel(services: nil)
+        model.hintThinkingScaleForTesting = 0.05   // 待ったの検査なので手の質は問わない（#2952）
         try await playExchange(model)
         let turn = model.aiTurnKey
         try await playExchange(model)
@@ -47,6 +49,7 @@ struct GomokuRewardedUndoTests {
     @Test("ヒントの読み中は待ったできない（古い局面のヒントを適用しない・#2236）")
     func undoIsRefusedWhileHintThinking() async throws {
         let model = GomokuModel(services: nil)
+        model.hintThinkingScaleForTesting = 0.05   // 待ったの検査なので手の質は問わない（#2952）
         try await playExchange(model)
         try #require(model.canUndo)
         var duringRead: (canUndo: Bool, undid: Bool, adUndid: Bool)?
@@ -71,6 +74,7 @@ struct GomokuRewardedUndoTests {
     @Test("広告ヒントの読み中も待ったできない（古い局面のヒントを適用しない・#2287）")
     func undoIsRefusedWhileAdHintThinking() async throws {
         let model = GomokuModel(services: nil)
+        model.hintThinkingScaleForTesting = 0.05   // 待ったの検査なので手の質は問わない（#2952）
         try await playExchange(model)
         try #require(model.canUndo)
         // 無料枠を使い切り、次のヒントを広告経由（requestAdHint）にする。

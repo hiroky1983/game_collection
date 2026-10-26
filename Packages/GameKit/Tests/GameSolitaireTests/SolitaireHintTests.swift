@@ -1,4 +1,5 @@
 import Testing
+import GameKitTestSupport
 import Foundation
 import Core
 @testable import GameSolitaire
@@ -34,7 +35,8 @@ struct SolitaireHintSearchTests {
 
     @Test("ヒントの手だけを打ち続けて、検証済みの配りを勝ち切れる")
     func playingOnlyHintsWins() throws {
-        for seed in SolitaireDealer.verifiedSeeds.prefix(2) {
+        // 1 配りで数十秒（Debug）。CI は 1 配り、夜間は 2 配り（#2952）
+        for seed in SolitaireDealer.verifiedSeeds.prefix(NightlyScale.value(ci: 1, nightly: 2)) {
             var board = SolitaireDealer.deal(seed: seed)
             var trail: SolitaireHintTrail?
             var steps = 0

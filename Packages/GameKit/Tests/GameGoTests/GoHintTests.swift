@@ -36,6 +36,8 @@ struct GoHintTests {
         let services = GameServices(snapshots: store, ads: ads, screenGeneration: screenGeneration)
         let model = GoModel(services: services)
         model.newGame(humanSide: .black, level: .easy)
+        // 回数・広告の流れを見る検査なので、手の質は問わない。強い読みを何度も回さない（#2952）
+        model.hintLevelForTesting = .easy
         return (model, ads)
     }
 
@@ -44,6 +46,7 @@ struct GoHintTests {
     /// （打たなければ白に黒 40 子を取られる）。合法手は (4,4) とパスだけで、答えは 1 つに決まる。
     private func makeCaptureModel() -> GoModel {
         let (model, _) = makeModel()
+        model.hintLevelForTesting = .hard   // 取る手を示せるかを見る検査は出荷の強さで読む
         for row in 0..<9 {
             for col in 0..<4 {
                 model.applyMoveForTesting(.play(row: row, col: col))       // 黒
