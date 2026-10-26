@@ -471,6 +471,26 @@ CodeRabbit を必須ステータスチェックにする案は採らない。レ
   `web/**` を触る PR / main への push だけで動く。LP は main マージが即本番公開なので、`ci.yml` がスキップする `web/` だけの PR の保険になる。
   paths 付きのため必須チェックには加えない（`scripts-tests.yml` と同じ理由）。
 
+#### テストの層と、PR で走らせるテストの自動選別（2026-10-27 会長方針・#2953）
+
+変えた場所に応じて必要なテストだけ走らせる。**層を手で書かない**（ゲームを足しても設定は要らない）。
+
+| 層 | 置き場所 | 変更時に走るテスト |
+|---|---|---|
+| アプリ | `App/`（ハブ・並び・外部サービスのつなぎ込み） | 全部 |
+| 共通の処理（画面なし） | `CoreEngine` | 全部（ほぼ全ターゲットが依存） |
+| 共通の画面部品・呼び出し口 | `Core`（画面部品を `CoreUI`（仮）へ切り出すのは別 PR で段階的に） | `Core` を使うテスト（ほぼ全部） |
+| 各ゲーム（feature） | `GameXxx`（ゲーム固有の仕様・小さな部品はここに置く） | そのゲームのテスト + 全ソース走査テスト |
+
+- **どこに置くか**: そのゲームでしか使わない型・部品は `GameXxx` に置く。複数ゲームが使うものだけ `Core`（画面あり）か `CoreEngine`（画面なし）へ。ゲーム固有なのに `Core` にあると、そのゲームの変更が全ゲームのテストを呼ぶ。
+- **選別の仕組み**: `Scripts/select-gamekit-tests.py`（PR の `git diff --name-only HEAD^1 HEAD` を入力）が、変更ファイル → 所属ターゲット → `Package.swift` の依存を逆にたどって、影響を受けるテストターゲットを `swift test --filter '^(A|B)\.'` の形で出す。次の 3 つは依存に加わる:
+  - テストのソースに別ターゲット名が語として出てくるもの（`Sources/GameX/…` を名指しで読む走査テスト）
+  - `SourceScan.packageRoot.appendingPathComponent("Sources")` を丸ごと走査するテスト（ThemeTests・AnalyticsTests 等）は全モジュールに依存するとみなす
+  - テスト支援（`GameKitTestSupport`・`CoreTestSupport`）を使うテスト
+- **全部回す変更**: `App/`・`Config/`・`project.yml`・`Package.swift`（ターゲットに属さない `Packages/` の変更）・`ci.yml`・選別スクリプト自身。push（main・release）も全部回す。選別に失敗したときも全部回す。
+- **選別の漏れを防ぐ**: 新しい走査テストが「ソースの根を取らず、モジュール名も書かずに他モジュールを読む」形だと選別が追えない。`SourceScan.moduleSources("GameX")` のようにモジュール名を文字列で書くか、`SourceScan.packageRoot.appendingPathComponent("Sources")` で根から走査すること。
+- 検証: `bash Scripts/tests/test-select-gamekit-tests.sh`（変更ファイルの例 → 走るターゲットの期待値）。`--filter` は 0 件マッチでも緑になるため、CI は 1 件も走らなかったら落とす。
+
 ### 実装ループ（Phase 2・ローカル当番方式）
 
 起点は **launchd による3分ごとのチェック**（`Scripts/ai-duty.sh`。2026-09-13 に毎時から短縮）。Mac がスリープ中は動かない（許容済み・稟議#5）。
