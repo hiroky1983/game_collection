@@ -166,11 +166,14 @@ struct HubCategoryTests {
         #expect(source.contains("ForEach(shownGridEntries, id: \\.module.id)"))
     }
 
-    @Test("「イベント開催中」の印は週間ランキングが有効なあいだだけ柵越えおじさんに出し、NEW を優先する（#2566）")
+    @Test("「イベント開催中」の印は eventGameID（v1.1.15 は将棋）のタイルにだけ出し、柵越えおじさんには出さず、NEW を優先する（#2566・#2958）")
     func eventBadge() throws {
         let source = try SourceScan.appSources()
-        #expect(source.contains(#"gameID == "homerun" && weeklyLeaderboardID != nil"#))
-        #expect(source.contains("weeklyLeaderboardID: String? = GameCenterLeaderboard.homerunWeekly"))
+        #expect(source.contains(#"static let eventGameID = "shogi""#))
+        #expect(source.contains("gameID == eventGameID"))
+        #expect(!source.contains("weeklyLeaderboardID"), "週間ランキングの有無で印を出さない（#2958）")
+        let ids = SourceScan.matchCount(of: #"HubEventBadge\.isShown\(gameID: module\.id\)"#, in: source)
+        #expect(ids == 1, "印の判定は HubEventBadge 経由の 1 か所だけ")
         let start = try #require(source.range(of: "private var badge: some View {"))
         let end = try #require(source.range(of: "\n    }\n", range: start.upperBound..<source.endIndex))
         let badge = String(source[start.lowerBound..<end.upperBound])
