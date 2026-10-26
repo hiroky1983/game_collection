@@ -461,6 +461,15 @@ CodeRabbit を必須ステータスチェックにする案は採らない。レ
   必ず全テストを回す**。判定は `Scripts/tests/test-ci-detect-app-changes.sh` で固定。release 側の `ci.yml` は main と別物なので、
   直すときは両方に入れる（実装は release/v1.1.14 以降）。**社長の運用ルール**: TestFlight へ上げる前に、その release コミットの
   push の全テストが緑であることを確認する。
+- **重い総当たりのテストは CI では代表だけ・夜間に全数**（#2952・2026-10-27）。Debug ビルドで 1 件 20 秒前後かかる
+  「全盤を解く・数百種を回す」検査（15 パズルのヒント・チャリンコおじさんのエンドレス・ねこさがしなど）は、
+  `GameKitTestSupport` の `NightlyScale`（`range(ci:nightly:)` / `value(ci:nightly:)`）で件数を切り替える。
+  環境変数 `GAMEKIT_NIGHTLY=1` のとき（`.github/workflows/nightly-gamekit-full.yml`・毎晩 03:30 JST・main のみ）だけ全数で、
+  CI は代表の少数。**検査の式・不変条件は同じに保ち、件数だけを変える**（CI 用に別の検査を書かない）。新しく重い総当たりを
+  足すときも同じ形にする。ヒントの探索時間を実時間で待つ広告・回数のテストは、Model の `hintThinkingScaleForTesting`
+  （出荷は 1）で探索時間を絞る。
+  なお swift-testing の「passed after N seconds」は**並列実行のキュー待ちを含む壁時計**で、軽いテストでも数百秒と出る。
+  重いテストを探すときは `swift test --no-parallel` の所要時間を見る。
 - 実行環境は **GitHub ホステッド macOS ランナー**（パブリックリポジトリのため無料。2026-08-10 に self-hosted から変更）。
 - **UI テスト（XCUITest）は持たない**（#2046・2026-10-12）。`GameCollectionUITests`（ホームラン E2E 4 本）は CI にも
   fastlane にも繋がっておらず、手元で試走したところ全 4 本が失敗（ボタン名「打席に立つ」が「打席に立つ。今日の残り N 回」に

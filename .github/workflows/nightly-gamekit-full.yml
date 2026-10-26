@@ -1,0 +1,33 @@
+name: Nightly GameKit Full
+
+# 総当たり・多数の種を回す重いテストは、CI（ci.yml の「GameKit 全テスト」）では代表の少数だけを回し、
+# ここで毎晩だけ全数を回す（#2952）。切り替えは環境変数 GAMEKIT_NIGHTLY=1 で、テスト側は
+# `GameKitTestSupport` の `NightlyScale` が読む（検査の式・不変条件は CI と夜間で同じ。件数だけが違う）。
+# 15 パズルのヒントで全 12 盤を解き直す・チャリンコおじさんのエンドレス 1,000 種・ねこさがしの全種など。
+# schedule はデフォルトブランチ（main）でのみ実行される GitHub Actions の仕様。release ブランチの変更は
+# main へ取り込まれた翌晩から全数の検査に掛かる（将棋の自己対戦 nightly-shogi-selfplay.yml と同じ）。
+# 将棋の自己対戦（GameShogiTests.SelfPlayTests）は専用の夜間ワークフローが回すのでここでは skip する。
+on:
+  schedule:
+    - cron: '30 18 * * *' # 03:30 JST（nightly-shogi-selfplay の 30 分後）
+  pull_request:
+    paths:
+      - '.github/workflows/nightly-gamekit-full.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full:
+    runs-on: macos-latest
+    timeout-minutes: 90
+    env:
+      GAMEKIT_NIGHTLY: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: GameKit 全テスト（夜間の全数）
+        run: swift test --package-path Packages/GameKit --skip '^GameShogiTests\.SelfPlayTests/'
