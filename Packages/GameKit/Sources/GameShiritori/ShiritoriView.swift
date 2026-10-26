@@ -1,5 +1,6 @@
 import SwiftUI
 import Core
+import CoreObjectArt
 
 public struct ShiritoriView: View {
     @State private var model: ShiritoriModel

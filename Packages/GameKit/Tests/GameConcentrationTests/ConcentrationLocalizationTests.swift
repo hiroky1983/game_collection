@@ -1,5 +1,6 @@
 import Testing
 @testable import Core
+@testable import CoreObjectArt
 @testable import GameConcentration
 
 /// 英語の表示（多言語⑥ #2169）。`swift test` は日本語で動くので、英語は `language: .english` を明示して引く。
@@ -16,12 +17,12 @@ struct ConcentrationLocalizationTests {
         #expect(GameConcentration.tr("%@（一致しませんでした）", "Apple", language: .english) == "Apple (no match)")
     }
 
-    /// 絵柄の名前（`ObjectCardKind.displayName`）は Core の表で引く。しりとりの読みとは別物なので英語にしてよい。
-    @Test("絵柄の名前は Core の表に英語の訳がある")
+    /// 絵柄の名前（`ObjectCardKind.displayName`）は CoreObjectArt の表で引く。しりとりの読みとは別物なので英語にしてよい。
+    @Test("絵柄の名前は CoreObjectArt の表に英語の訳がある")
     func figureNames() {
-        #expect(Core.tr("りんご", language: .english) == "Apple")
-        #expect(Core.tr("クマ", language: .english) == "Bear")
-        #expect(Core.tr("すいとう", language: .english) == "Water bottle")
+        #expect(CoreObjectArt.tr("りんご", language: .english) == "Apple")
+        #expect(CoreObjectArt.tr("クマ", language: .english) == "Bear")
+        #expect(CoreObjectArt.tr("すいとう", language: .english) == "Water bottle")
         // 日本語では従来の読み上げ文のまま。
         #expect(ObjectCardKind.apple.displayName == "りんご")
     }

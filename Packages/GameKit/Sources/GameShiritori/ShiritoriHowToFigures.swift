@@ -1,4 +1,5 @@
 import Core
+import CoreObjectArt
 import SwiftUI
 
 /// 図入りの遊び方（#2044）のカードしりとりの図。文言は `HowToPlayGuide.shiritori.items` /
