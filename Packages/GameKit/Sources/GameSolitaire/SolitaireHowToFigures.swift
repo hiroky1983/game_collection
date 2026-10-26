@@ -1,4 +1,5 @@
 import Core
+import CoreSolitaireFigures
 import SwiftUI
 
 /// 図入りの遊び方（#2044）のソリティアの図。文言は `HowToPlayGuide.solitaire.items`（Core）と同じ順。

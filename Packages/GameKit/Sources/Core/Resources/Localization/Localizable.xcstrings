@@ -445,17 +445,6 @@
         }
       }
     },
-    "4 つのスートぶん" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "For all 4 suits"
-          }
-        }
-      }
-    },
     "52 枚すべて最初から見えています。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -596,28 +585,6 @@
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "① 選ぶ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "① Select"
-          }
-        }
-      }
-    },
-    "② 置き先" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "② Destination"
           }
         }
       }
@@ -4056,28 +4023,6 @@
         }
       }
     },
-    "空" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Empty"
-          }
-        }
-      }
-    },
-    "空いた列" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Empty column"
-          }
-        }
-      }
-    },
     "空いた列があると、山札は配れません。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4338,17 +4283,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Let go the moment the shrinking ring overlaps the white target to swing. Put the cursor just under the ball to lift it; where you aim and when you let go set the direction."
-          }
-        }
-      }
-    },
-    "置けた" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Placed"
           }
         }
       }

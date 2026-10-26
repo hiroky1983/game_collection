@@ -74,6 +74,10 @@ let package = Package(
         // 絵を描き足しても他のゲームのテストを走らせない（#2953）。
         .target(name: "CoreObjectArt",      dependencies: ["Core"],
                 resources: [.copy("Resources/Localization")]),
+        // ソリティア・フリーセル・スパイダーの遊び方の図（#2044）。3 本だけが使うので Core から切り出し、
+        // 図を直しても他のゲームのテストを走らせない（#2953）。
+        .target(name: "CoreSolitaireFigures", dependencies: ["Core"],
+                resources: [.copy("Resources/Localization")]),
         .target(name: "Core",               dependencies: ["CoreEngine"],
                 // おじさんの正面顔 3 表情（#2064。Codex 製 64×60・出所は docs/design/ojisan-pixel-pipeline）。
                 resources: [.copy("Resources/Localization"),
@@ -110,7 +114,7 @@ let package = Package(
         .target(name: "GameSudoku",         dependencies: ["Core", "CoreEngine"],
                 resources: [.copy("Resources/Localization")]),
         // ソリティア（クロンダイク・#397）。ルール・ソルバー・配札生成は純粋ロジックなので Core だけに依存する。
-        .target(name: "GameSolitaire",      dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameSolitaire",      dependencies: ["Core", "CoreEngine", "CoreSolitaireFigures"],
                 resources: [.copy("Resources/Localization")]),
         // ブロック崩し（#463）。アクション枠の 1 本目で、**唯一 SpriteKit に依存するターゲット**。
         // ルール・当たり判定・得点は SpriteKit 非依存の純粋ロジックに分けてあるため、
@@ -118,11 +122,11 @@ let package = Package(
         .target(name: "GameBlocks",         dependencies: ["Core"],
                 resources: [.copy("Resources/Localization")]),
         // フリーセル（#492）。ルール・ソルバー・配札生成は純粋ロジックなので Core だけに依存する。
-        .target(name: "GameFreeCell",       dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameFreeCell",       dependencies: ["Core", "CoreEngine", "CoreSolitaireFigures"],
                 resources: [.copy("Resources/Localization")]),
         // スパイダーソリティア（#717）。盤・配札・ソルバーは Core すら import しない純粋ロジックで、
         // 種の事前計算は `swiftc -O` で単体バイナリにして回す（`SpiderDealerTests` に手順）。
-        .target(name: "GameSpider",         dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameSpider",         dependencies: ["Core", "CoreEngine", "CoreSolitaireFigures"],
                 resources: [.copy("Resources/Localization")]),
         // カードしりとり（#1243）。読みの判定・CPU の手は純粋ロジックで、絵は `CoreObjectArt` の
         // `ObjectCardArt`（神経衰弱 #1244 と共有するドット絵）を使う。
@@ -305,10 +309,10 @@ let package = Package(
         .testTarget(name: "GameBlackjackTests",       dependencies: ["GameBlackjack", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameDaifugoTests",         dependencies: ["GameDaifugo", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameSudokuTests",          dependencies: ["GameSudoku", "GameKitTestSupport", "CoreTestSupport"]),
-        .testTarget(name: "GameSolitaireTests",       dependencies: ["GameSolitaire", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameSolitaireTests",       dependencies: ["GameSolitaire", "CoreSolitaireFigures", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameBlocksTests",         dependencies: ["GameBlocks", "CoreTestSupport"]),
-        .testTarget(name: "GameFreeCellTests",       dependencies: ["GameFreeCell", "GameKitTestSupport", "CoreTestSupport"]),
-        .testTarget(name: "GameSpiderTests",         dependencies: ["GameSpider", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameFreeCellTests",       dependencies: ["GameFreeCell", "CoreSolitaireFigures", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameSpiderTests",         dependencies: ["GameSpider", "CoreSolitaireFigures", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameShiritoriTests",      dependencies: ["GameShiritori", "CoreObjectArt", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameFifteenTests",        dependencies: ["GameFifteen", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameFruitsTests",         dependencies: ["GameFruits", "GameKitTestSupport", "CoreTestSupport"]),
