@@ -6,6 +6,9 @@ name: Scripts のテスト
 # どの CI からも実行されておらず、main で3本が落ちたまま誰も気づいていなかった。当番の巡回が短くなり
 # ai-duty.sh を触る頻度が上がっているのに、回帰に気づく経路が手動実行しかなかった。
 #
+# ゲーム追加 PR は Scripts/** に触れないため、test-ai-qa-duty.sh が実物の registry と各 Module を読むのに
+# 回らず、ゲーム ID を引けなくなっても CI が緑のままになる（#2985）。registry と Module も paths に入れて塞ぐ。
+#
 # 個別ワークフローで回っている3本（duty-input-filter / lp-game-list / pr-base-guard）もここで重ねて回す。
 # グロブで全本を拾えば、テストを足したときにワークフローの書き足しを忘れても漏れない。重複は数秒。
 #
@@ -19,11 +22,15 @@ on:
   pull_request:
     paths:
       - 'Scripts/**'
+      - 'App/AppGameServices.swift'
+      - 'Packages/GameKit/Sources/**/*Module.swift'
       - '.github/workflows/scripts-tests.yml'
   push:
     branches: [main]
     paths:
       - 'Scripts/**'
+      - 'App/AppGameServices.swift'
+      - 'Packages/GameKit/Sources/**/*Module.swift'
       - '.github/workflows/scripts-tests.yml'
 
 concurrency:
