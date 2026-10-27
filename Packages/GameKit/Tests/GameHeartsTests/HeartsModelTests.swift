@@ -257,7 +257,7 @@ struct HeartsSnapshotTests {
         let broken = HeartsSnapshot(
             phase: .playing, hands: [[c(.club, 2)], [], [], []], currentTrick: [], currentPlayer: 0,
             heartsBroken: false, trickNumber: 0, takenPoints: [0, 0, 0, 0], totals: [0, 0, 0, 0], handNumber: 1,
-            playedIDs: [], lastTrick: [], lastTrickWinner: nil, receivedIDs: [], aiLevel: 1, turnSerial: 0
+            playedIDs: [], lastTrick: [], lastTrickWinner: nil, receivedIDs: [], aiLevel: 1, turnSerial: 0, hintsUsed: nil
         )
         try store.save(broken, for: HeartsModel.gameID)
         let model = makeModel(store: store)

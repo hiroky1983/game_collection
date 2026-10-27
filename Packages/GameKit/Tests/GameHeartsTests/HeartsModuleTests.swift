@@ -55,7 +55,7 @@ struct HeartsModuleTests {
         #expect(module.hasResumableSnapshot(in: store))
     }
 
-    @Test("画面は共通の枠・レコメンド枠・開始シート・トランプ共通描画を使い、広告を足していない")
+    @Test("画面は共通の枠・レコメンド枠・開始シート・トランプ共通描画を使い、リワード広告は渡す場面のヒントだけ")
     func viewUsesSharedParts() throws {
         let source = try SourceScan.moduleSources("GameHearts")
         let code = SourceScan.strippingComments(source)
@@ -68,8 +68,9 @@ struct HeartsModuleTests {
         #expect(code.contains("GameSetupSheet(") && code.contains("CPUStrengthPicker(level: $level"))
         #expect(code.contains("PlayingCardSurface(") && code.contains("PlayingCardFace("), "札の絵はトランプ共通描画で描く")
         #expect(code.contains("RecordLabel("))
-        #expect(!code.contains("Rescue.request(") && !code.contains("showRewardedAd(") && !code.contains(".rewardOffer("),
-                "リワード広告は足さない（広告は共通のバナー枠だけ）")
+        // リワード広告は渡す場面のヒント（無料 3 回を使い切った後・#3003）の 1 面だけ。
+        #expect(code.components(separatedBy: "Rescue.request(").count - 1 == 1 && !code.contains("showRewardedAd(") && !code.contains(".rewardOffer("),
+                "リワード広告はヒントの 1 面だけ（ほかは共通のバナー枠だけ）")
         #expect(!code.contains("withAnimation("), "アニメーションは gameAnimation 経由")
         #expect(!code.contains("Image(\"") && !code.contains("UIImage(") && !code.contains("AsyncImage("), "外部の画像を使わない")
         #expect(code.contains("level: CPUStrength.analyticsLevel"), "CPU の強さを game_start に載せる")
