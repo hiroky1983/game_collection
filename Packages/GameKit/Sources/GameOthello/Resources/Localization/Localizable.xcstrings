@@ -78,6 +78,28 @@
         }
       }
     },
+    "打てる場所の表示" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show legal moves"
+          }
+        }
+      }
+    },
+    "置ける升に白い点を出す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mark squares you can play with a dot"
+          }
+        }
+      }
+    },
     "CPUの強さ" : {
       "extractionState" : "manual",
       "localizations" : {
