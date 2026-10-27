@@ -48,6 +48,28 @@ public enum PlayDayStreak {
         return count
     }
 
+    /// 保存している日の中で最も長かった連続日数（#2886）。途切れた過去の連続も含む。
+    ///
+    /// - `today` より未来の日は無視する（`current` と同じ）。
+    /// - 保存は直近 `maxStoredDays` 日ぶんだけなので、それより古い連続は数えられない。
+    public static func longest(days: [Int], today: Int) -> Int {
+        let sorted = Set(days.filter { $0 <= today }).sorted()
+        var best = 0
+        var run = 0
+        var previous: Int?
+        for day in sorted {
+            run = (previous == day - 1) ? run + 1 : 1
+            best = max(best, run)
+            previous = day
+        }
+        return best
+    }
+
+    /// きろく画面の「最長 N 日」を添えるか。今の連続が最長に並んでいるときと、最長が 1 日以下のときは出さない。
+    public static func showsLongest(current: Int, longest: Int) -> Bool {
+        longest > current && longest >= hubMinimumDays
+    }
+
     /// ハブの 1 行。連続日数が `hubMinimumDays` 未満なら nil（出さない）。
     public static func hubText(streak: Int) -> String? {
         streak >= hubMinimumDays ? tr("連続 %@ 日あそび中", RecordFormat.number(streak)) : nil

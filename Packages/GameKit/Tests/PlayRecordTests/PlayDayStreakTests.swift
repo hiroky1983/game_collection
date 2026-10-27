@@ -33,6 +33,37 @@ struct PlayDayStreakTests {
         #expect(PlayDayStreak.current(days: [100, 101], today: 95) == 0)
     }
 
+    @Test("最長の連続: 途切れをまたぐ・空・1日だけ")
+    func longestStreak() {
+        #expect(PlayDayStreak.longest(days: [], today: 100) == 0)
+        #expect(PlayDayStreak.longest(days: [50], today: 100) == 1)
+        #expect(PlayDayStreak.longest(days: [10, 11, 12, 13, 50, 51, 99, 100], today: 100) == 4, "途切れた過去の連続が最長")
+        #expect(PlayDayStreak.longest(days: [97, 98, 99, 100], today: 100) == 4, "今の連続が最長")
+        #expect(PlayDayStreak.longest(days: [3, 1, 2, 2], today: 100) == 3, "順不同・重複でも数える")
+    }
+
+    @Test("最長の連続: 今日より未来の日は無視する")
+    func longestIgnoresFuture() {
+        #expect(PlayDayStreak.longest(days: [98, 99, 100, 101, 102, 103], today: 100) == 3)
+        #expect(PlayDayStreak.longest(days: [101, 102], today: 100) == 0)
+    }
+
+    @Test("最長の連続: 保存上限 366 日で頭打ち")
+    func longestBoundedByStorage() {
+        var days: [Int] = []
+        for d in 0..<400 { days = PlayDayStreak.inserting(d, into: days) }
+        #expect(PlayDayStreak.longest(days: days, today: 399) == PlayDayStreak.maxStoredDays)
+    }
+
+    @Test("「最長 N 日」を添える条件: 今が最長なら出さない・今が0日でも最長が2日以上なら出す")
+    func showsLongest() {
+        #expect(!PlayDayStreak.showsLongest(current: 3, longest: 3))
+        #expect(PlayDayStreak.showsLongest(current: 1, longest: 4))
+        #expect(PlayDayStreak.showsLongest(current: 0, longest: 2))
+        #expect(!PlayDayStreak.showsLongest(current: 0, longest: 1))
+        #expect(!PlayDayStreak.showsLongest(current: 0, longest: 0))
+    }
+
     @Test("日番号: 深夜をまたぐ前後で日が変わり、同じ日の朝夕は同じ")
     func dayBoundary() {
         let tokyo = calendar("Asia/Tokyo")
