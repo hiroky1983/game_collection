@@ -111,6 +111,8 @@ public final class SpeedModel {
     private var navigationSince: Date?
     /// タイムが終わる時刻。
     private var timeoutEndsAt: Date?
+    /// CPU を止め始めた時刻。解いたとき、止めていたぶんを `timeoutEndsAt` に足す（タイムを止めているあいだに減らさない。#3001）。
+    private var holdStartedAt: Date?
     /// 勝利タイムの計時。CPU を止めている間（シート・背面・広告）は進めないので、止める前までを `playedBefore` に積み、
     /// 動いている間だけ `playClock` が数える。
     private var playedBefore: Duration = .zero
@@ -478,8 +480,15 @@ public final class SpeedModel {
         stuckSince = nil
         // 止めているあいだは数えない。解いたらそこから 5 秒を数え直す（広告・シート・背面の時間で案内を出さない）。
         restartPlayableNavigation()
-        if !wasHeld && isCPUHeld { pausePlayClock() }
+        if !wasHeld && isCPUHeld {
+            holdStartedAt = now()
+            pausePlayClock()
+        }
         if wasHeld && !isCPUHeld {
+            if let started = holdStartedAt, let ends = timeoutEndsAt {
+                timeoutEndsAt = ends.addingTimeInterval(max(0, now().timeIntervalSince(started)))
+            }
+            holdStartedAt = nil
             if phase == .playing { playClock = ElapsedClock(now: elapsedNow) }
             cpuRun += 1
         }
@@ -495,6 +504,8 @@ public final class SpeedModel {
         guard serial == gameSerial, canUseTimeout else { return false }
         timeoutUsed = true
         timeoutEndsAt = now().addingTimeInterval(SpeedRules.timeoutDuration.timeInterval)
+        // 広告の視聴中に付与される場合、止めた時刻はタイムの開始より前なので数え直す。
+        if isCPUHeld { holdStartedAt = now() }
         cpuArmedAt = nil
         stuckSince = nil
         cpuRun += 1

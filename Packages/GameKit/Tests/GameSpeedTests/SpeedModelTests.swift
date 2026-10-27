@@ -657,6 +657,30 @@ struct SpeedModelTests {
         #expect(model.piles[0].last == card(.spades, 5))
     }
 
+    @Test("タイム中に CPU を止めたあいだはタイムが進まず、戻ってから残りの秒数だけ休む（#3001）")
+    func timeoutDoesNotRunWhileHeld() {
+        let clock = ManualClock()
+        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now)
+        model.configureForTesting(
+            humanHand: [card(.hearts, 9), card(.hearts, 11)],
+            humanStock: [card(.diamonds, 10), card(.diamonds, 2)],
+            cpuHand: [card(.spades, 5)], cpuStock: [card(.clubs, 2)],
+            piles: [[card(.spades, 6)], [card(.clubs, 3)]],
+            settings: SpeedSettings(level: .fast)
+        )
+        #expect(model.grantTimeoutAfterAd(forGame: model.gameSerial))
+        clock.advance(5)
+        model.holdCPU(.inactive, true)
+        clock.advance(20)
+        model.holdCPU(.inactive, false)
+        #expect(model.isTimeoutActive)
+        let wait = model.nextCPUWait()!
+        let expected: Duration = .seconds(3)
+        #expect(wait <= expected && wait > expected - .milliseconds(10), "復帰時点で残り 3 秒")
+        model.performCPUAction()
+        #expect(model.piles[0].last == card(.spades, 6), "復帰直後は出さない")
+    }
+
     // MARK: - あなたが出せないあいだの CPU（#2690）
 
     @Test("あなたが出せる札を持たないあいだだけ、CPU の反応の間が半分になり、出せるようになったら元に戻る")
