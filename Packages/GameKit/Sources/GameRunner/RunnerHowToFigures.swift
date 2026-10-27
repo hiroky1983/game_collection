@@ -90,7 +90,7 @@ enum RunnerHowToFigures {
                         RunnerHowToFigures.rider(.ride0, height: 40)
                         Image(systemName: "arrow.right")
                             .scaledFont(14, weight: .black, maxScale: 1.2)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                             .padding(.horizontal, 10).padding(.bottom, 16)
                         Spacer(minLength: 0)
                         Image(systemName: "flag.checkered")
@@ -142,7 +142,7 @@ enum RunnerHowToFigures {
                     .foregroundStyle(Theme.coralText)
                 Image(systemName: "arrow.right")
                     .scaledFont(12, weight: .black, maxScale: 1.2)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 VStack(spacing: 4) {
                     ZStack(alignment: .bottom) {
                         Ground(width: 150)
@@ -150,7 +150,7 @@ enum RunnerHowToFigures {
                             RunnerHowToFigures.rider(.ride0, height: 36)
                             Image(systemName: "chevron.right.2")
                                 .scaledFont(14, weight: .black, maxScale: 1.2)
-                                .foregroundStyle(Theme.inkSub)
+                                .foregroundStyle(Theme.inkSubText)
                                 .padding(.bottom, 12)
                         }
                         .padding(.bottom, 12)
@@ -181,7 +181,7 @@ enum RunnerHowToFigures {
                     RunnerHowToFigures.rider(.jump, height: 30)
                         .padding(.bottom, 14 + rise)
                 }
-                RuleFigureLabel(label, color: rise > 20 ? Theme.coralText : Theme.inkSub)
+                RuleFigureLabel(label, color: rise > 20 ? Theme.coralText : Theme.inkSubText)
             }
         }
     }

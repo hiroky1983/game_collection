@@ -32,7 +32,7 @@ public struct MancalaView: View {
                 }
             Text(statusMessage)
                 .themeBody(14, weight: .semibold)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 .lineLimit(2)
                 .minimumScaleFactor(0.75)
                 .multilineTextAlignment(.center)
@@ -241,7 +241,7 @@ public struct MancalaView: View {
         switch model.reviewOutcome {
         case .win:  return Theme.tealText
         case .loss: return Theme.coralText
-        case .draw: return Theme.inkSub
+        case .draw: return Theme.inkSubText
         }
     }
 

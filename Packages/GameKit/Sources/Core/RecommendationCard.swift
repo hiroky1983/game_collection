@@ -48,7 +48,7 @@ public struct RecommendationCard: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(caption)
                             .themeCaption(Self.captionSize, weight: .semibold)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                             .lineLimit(1)
                         Text(module.title)
                             .themeBody(16)
@@ -137,7 +137,7 @@ struct RecommendationDismissButton: View {
         Button(action: action) {
             Image(systemName: "xmark")
                 .scaledFont(12, weight: .bold)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 .frame(minWidth: Self.side, minHeight: Self.side)
                 .contentShape(Rectangle())
         }

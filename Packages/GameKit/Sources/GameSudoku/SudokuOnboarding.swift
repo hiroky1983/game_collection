@@ -72,7 +72,7 @@ enum SudokuOnboarding {
                 VStack(spacing: 4) {
                     SudokuHowToFigures.Board(cell: 13, shows: { r, c in index == 1 || SudokuHowToFigures.given(r, c) })
                     RuleFigureLabel(index == 0 ? tr("はじめ") : tr("おわり"),
-                                    color: index == 0 ? Theme.inkSub : Theme.coralText)
+                                    color: index == 0 ? Theme.inkSubText : Theme.coralText)
                 }
             }
         }

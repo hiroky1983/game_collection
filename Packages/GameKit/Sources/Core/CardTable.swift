@@ -98,7 +98,7 @@ public struct CardTableInk: Sendable {
         slotMark: Theme.inkSub.opacity(0.45),
         divider: Theme.inkSub.opacity(0.5),
         label: Theme.ink,
-        labelSub: Theme.inkSub
+        labelSub: Theme.inkSubText
     )
 
     /// フェルトの上。

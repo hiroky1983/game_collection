@@ -125,7 +125,7 @@ struct RunnerWorldMap: View {
         VStack(spacing: 2) {
             Text(title)
                 .scaledFont(11, weight: .bold, design: .rounded).monospacedDigit()
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
             Text(name)
                 .scaledFont(16, weight: .heavy, design: .rounded)
                 .foregroundStyle(Theme.ink)
@@ -147,7 +147,7 @@ struct RunnerWorldMap: View {
             VStack(spacing: 4) {
                 Text(tr("？？？"))
                     .scaledFont(12, weight: .bold, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 HStack(spacing: 6) {
                     Image(systemName: "sparkles")
                         .scaledFont(13, weight: .bold)
@@ -244,7 +244,7 @@ struct RunnerWorldMap: View {
             )
             Text(verbatim: "\(index + 1)")
                 .scaledFont(11, weight: selected ? .heavy : .bold, design: .rounded).monospacedDigit()
-                .foregroundStyle(selected ? Theme.ink : Theme.inkSub)
+                .foregroundStyle(selected ? Theme.ink : Theme.inkSubText)
         }
         // 絵と番号で 40pt ほどしかないので、当たりは縦に 44pt（iOS の最小のタップ寸）まで広げる。
         .frame(maxWidth: .infinity, minHeight: GameButtonMetrics.minTapTarget)
@@ -273,7 +273,7 @@ struct RunnerWorldMap: View {
                 // 数値の桁区切りが入らないよう verbatim で出す。
                 Text(verbatim: RunnerWorld.code(forStage: number))
                     .scaledFont(16, weight: .heavy, design: .rounded).monospacedDigit()
-                    .foregroundStyle(selected ? Theme.onAccent : (reached ? Theme.ink : Theme.inkSub))
+                    .foregroundStyle(selected ? Theme.onAccent : (reached ? Theme.ink : Theme.inkSubText))
                 stageStatus(state, selected: selected)
             }
             // 上下の余白 6pt と合わせて 46pt（iOS の最小のタップ寸 44pt 以上）。
@@ -322,7 +322,7 @@ struct RunnerWorldMap: View {
                 Image(systemName: "lock.fill").scaledFont(11, weight: .bold)
             }
         }
-        .foregroundStyle(selected ? Theme.onAccent : (state == .locked ? Theme.inkSub : Theme.ink.opacity(0.7)))
+        .foregroundStyle(selected ? Theme.onAccent : (state == .locked ? Theme.inkSubText : Theme.ink.opacity(0.7)))
         .frame(height: 14)
     }
 
@@ -331,7 +331,7 @@ struct RunnerWorldMap: View {
         let cleared = RunnerStageSelectState.clearedCount(in: world, reachedStage: reachedStage)
         return Text(tr("この世界: %1$lld / %2$lld クリア", cleared, RunnerWorld.stagesPerWorld))
             .scaledFont(12, weight: .medium, design: .rounded).monospacedDigit()
-            .foregroundStyle(Theme.inkSub)
+            .foregroundStyle(Theme.inkSubText)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -344,7 +344,7 @@ struct RunnerWorldMap: View {
             Text(tr("つづく…"))
                 .scaledFont(13, weight: .bold, design: .rounded)
         }
-        .foregroundStyle(Theme.inkSub)
+        .foregroundStyle(Theme.inkSubText)
         .frame(maxWidth: .infinity, minHeight: 100)
         .background(
             RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)

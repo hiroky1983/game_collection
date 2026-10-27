@@ -121,13 +121,13 @@ public struct BackgammonView: View {
                 }
                 .scaledFont(12, weight: .semibold, design: .rounded)
                 .monospacedDigit()
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(tr("ピップカウント、あなた%1$lld、CPU%2$lld", model.humanPips, model.cpuPips))
             }
             Text(statusMessage)
                 .themeBody(13)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -278,7 +278,7 @@ public struct BackgammonView: View {
                     Text(tr("あがり あなた %1$lld – CPU %2$lld", model.board.off(for: .white), model.board.off(for: .black)))
                         .scaledFont(15, weight: .semibold, design: .rounded)
                         .monospacedDigit()
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(resultAccessibilityLabel)

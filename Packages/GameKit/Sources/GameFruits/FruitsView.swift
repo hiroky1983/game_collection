@@ -102,7 +102,7 @@ public struct FruitsView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(tr("スコア"))
                     .scaledFont(12, weight: .bold, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 Text(verbatim: RecordFormat.number(model.score))
                     .scaledFont(28, weight: .heavy, design: .rounded).monospacedDigit()
                     .lineLimit(1).minimumScaleFactor(0.6)
@@ -118,7 +118,7 @@ public struct FruitsView: View {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(tr("つぎ"))
                         .scaledFont(12, weight: .bold, design: .rounded)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                     Text(model.nextKind.name)
                         .scaledFont(13, weight: .bold, design: .rounded)
                         .foregroundStyle(Theme.ink)

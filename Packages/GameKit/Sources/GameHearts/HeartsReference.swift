@@ -99,7 +99,7 @@ struct HeartsReferenceSheet: View {
         } icon: {
             Image(systemName: "circle.fill")
                 .scaledFont(5, maxScale: 1.15)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
         }
     }
 }

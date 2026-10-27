@@ -27,7 +27,7 @@ enum HeartsHowToFigures {
         var body: some View {
             VStack(spacing: 4) {
                 RuleMiniCard(rank, suit: suit, isHighlighted: highlighted, isDimmed: dimmed)
-                RuleFigureLabel(who, color: highlighted ? Theme.coralText : Theme.inkSub)
+                RuleFigureLabel(who, color: highlighted ? Theme.coralText : Theme.inkSubText)
             }
         }
     }
@@ -49,7 +49,7 @@ enum HeartsHowToFigures {
                 VStack(spacing: 2) {
                     Image(systemName: "cpu")
                         .scaledFont(18, weight: .bold, maxScale: 1.15)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                     RuleFigureLabel(tr("左のCPU1"))
                 }
             }
@@ -139,14 +139,14 @@ enum HeartsHowToFigures {
                     HStack(spacing: 6) {
                         Image(systemName: index == 0 ? "crown.fill" : "circle.fill")
                             .scaledFont(index == 0 ? 11 : 4, weight: .bold, maxScale: 1.15)
-                            .foregroundStyle(index == 0 ? Theme.yellowText : Theme.inkSub)
+                            .foregroundStyle(index == 0 ? Theme.yellowText : Theme.inkSubText)
                             .frame(width: 14)
                         RuleFigureLabel(row.0, color: index == 0 ? Theme.coralText : Theme.ink)
                             .frame(width: 52, alignment: .leading)
                         Capsule()
                             .fill(row.1 >= HeartsRules.targetScore ? Theme.Fill.coral : Theme.inkSub.opacity(0.35))
                             .frame(width: CGFloat(row.1) * 1.6, height: 8)
-                        RuleFigureLabel(tr("%lld点", row.1), color: row.1 >= HeartsRules.targetScore ? Theme.coralText : Theme.inkSub)
+                        RuleFigureLabel(tr("%lld点", row.1), color: row.1 >= HeartsRules.targetScore ? Theme.coralText : Theme.inkSubText)
                         Spacer(minLength: 0)
                     }
                 }

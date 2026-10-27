@@ -88,7 +88,7 @@ enum MinesweeperOnboarding {
                         })
                     }
                     RuleFigureLabel(index == 0 ? tr("角をタップ") : tr("まとめて開いた"),
-                                    color: index == 0 ? Theme.inkSub : Theme.coralText)
+                                    color: index == 0 ? Theme.inkSubText : Theme.coralText)
                 }
             }
         }
@@ -111,7 +111,7 @@ enum MinesweeperOnboarding {
                         ], highlight: [1])
                     }
                     RuleFigureLabel(index == 0 ? tr("クリア！") : tr("ゲームオーバー"),
-                                    color: index == 0 ? Theme.coralText : Theme.inkSub)
+                                    color: index == 0 ? Theme.coralText : Theme.inkSubText)
                 }
             }
         }

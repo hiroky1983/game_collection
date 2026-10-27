@@ -52,6 +52,19 @@ struct ThemeContrastTests {
         #expect(WCAG.contrast(Theme.Hex.dialogTint.light, darkGlass) < WCAG.contrast(Theme.Hex.dialogTint.dark, darkGlass))
     }
 
+    /// 補助文字を文字として使う色（#2937）。ライトは白・クリームの両方で AA、ダークは `inkSub` のまま。
+    @Test func subtleInkTextMeetsAAInBothModes() {
+        for (light, dark) in [
+            (Theme.Hex.background.light, Theme.Hex.background.dark),
+            (Theme.Hex.surface.light, Theme.Hex.surface.dark),
+        ] {
+            #expect(WCAG.contrast(Theme.Hex.inkSubText.light, light) >= Self.aa)
+            #expect(WCAG.contrast(Theme.Hex.inkSubText.dark, dark) >= Self.aa)
+        }
+        #expect(Theme.Hex.inkSubText.dark == Theme.Hex.inkSub.dark)
+        #expect(Theme.Hex.inkSub.light == 0x9A8A80)   // 線・面の `inkSub` / `fillMuted` は触らない
+    }
+
     // MARK: - 受け入れ条件 1 / 2: ダークでもコントラストが不足しない
 
     @Test func inkIsReadableInBothModes() {

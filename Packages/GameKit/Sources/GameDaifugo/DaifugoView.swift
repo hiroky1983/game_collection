@@ -592,7 +592,7 @@ public struct DaifugoView: View {
             HStack(spacing: 8) {
                 Image(systemName: model.playerPlace == 0 ? "crown.fill" : "flag.checkered")
                     .scaledFont(20)
-                    .foregroundStyle(model.playerPlace == 0 ? Theme.yellowText : Theme.inkSub)
+                    .foregroundStyle(model.playerPlace == 0 ? Theme.yellowText : Theme.inkSubText)
                 Text(tr("あなたは %@", model.playerTitle))
                     .scaledFont(17, weight: .black, design: .rounded)
                     .foregroundStyle(model.playerPlace == 0 ? Theme.tealText : Theme.ink)
@@ -648,7 +648,7 @@ public struct DaifugoView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text(exchangeNote)
                 .scaledFont(11, weight: .medium, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         // 縦の余りをここで吸い、リザルトの下にフェルトの空白を残さない（#193）。
@@ -909,7 +909,7 @@ struct DaifugoNewGameSheet: View {
         Toggle(isOn: isOn) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).themeBody(16, weight: .bold).foregroundStyle(Theme.ink)
-                Text(detail).themeCaption(12).foregroundStyle(Theme.inkSub)
+                Text(detail).themeCaption(12).foregroundStyle(Theme.inkSubText)
                     .lineLimit(2).minimumScaleFactor(0.8)
             }
         }

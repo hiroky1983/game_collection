@@ -68,7 +68,7 @@ enum OldMaidHowToFigures {
                 example(face: .smile, label: tr("にやり→ジョーカーかも"), color: Theme.coralText) {
                     OldMaidCardFaceView(card: .joker, highlighted: true)
                 }
-                example(face: .worried, label: tr("ひやり→ほかの札かも"), color: Theme.inkSub) {
+                example(face: .worried, label: tr("ひやり→ほかの札かも"), color: Theme.inkSubText) {
                     RuleMiniCard("", isFaceDown: true, isHighlighted: true)
                 }
             }

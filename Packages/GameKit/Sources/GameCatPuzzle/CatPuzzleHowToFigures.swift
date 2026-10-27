@@ -98,7 +98,7 @@ enum CatPuzzleHowToFigures {
                 // 説明の無いコマも同じ高さにして、3 コマの盤の高さを揃える。
                 Text(caption ?? " ")
                     .scaledFont(10, weight: .bold, design: .rounded, maxScale: 1.2)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
@@ -107,7 +107,7 @@ enum CatPuzzleHowToFigures {
         private func arrow(_ systemImage: String) -> some View {
             Image(systemName: systemImage)
                 .scaledFont(12, weight: .black, maxScale: 1.2)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 // 盤（4 マス＋余白）の縦の真ん中に合わせる。
                 .frame(height: CatPuzzleHowToFigures.frameCellSide * 4 + 6)
         }

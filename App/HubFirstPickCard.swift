@@ -33,7 +33,7 @@ struct HubFirstPickCard: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(tr("はじめてなら、これ"))
                     .themeCaption(layout.scaled(11), weight: .semibold)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                     // 英語（#2109）は日本語より横に長い。右の「あそぶ」に押されて切れる前に縮める。
                     .minimumScaleFactor(0.8)

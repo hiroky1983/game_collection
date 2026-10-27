@@ -86,7 +86,7 @@ public enum BlackjackOnboarding {
                         .scaledFont(14, weight: .black, design: .rounded, maxScale: 1.15)
                         .foregroundStyle(index == 0 ? Theme.ink : Theme.coralText)
                     RuleFigureLabel(index == 0 ? tr("17 未満なので引く") : tr("17 以上なので止まる"),
-                                    color: index == 0 ? Theme.inkSub : Theme.coralText)
+                                    color: index == 0 ? Theme.inkSubText : Theme.coralText)
                 }
             }
         }
@@ -103,7 +103,7 @@ public enum BlackjackOnboarding {
             }
         }
 
-        private func column(cards: [RuleMiniCard], caption: String, color: Color = Theme.inkSub) -> some View {
+        private func column(cards: [RuleMiniCard], caption: String, color: Color = Theme.inkSubText) -> some View {
             VStack(spacing: 4) {
                 HStack(spacing: 3) {
                     ForEach(Array(cards.enumerated()), id: \.offset) { _, card in card }

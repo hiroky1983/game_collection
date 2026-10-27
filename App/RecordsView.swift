@@ -137,13 +137,13 @@ struct RecordsView: View {
                 .minimumScaleFactor(0.6)
             Text(title)
                 .themeCaption(11)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 .minimumScaleFactor(0.7)
             if let note {
                 Text(verbatim: note)
                     .themeCaption(11)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
@@ -162,14 +162,14 @@ struct RecordsView: View {
         HStack(spacing: 12) {
             Image(systemName: milestone.isAchieved ? "checkmark.seal.fill" : "seal")
                 .scaledFont(20, weight: .semibold)
-                .foregroundStyle(milestone.isAchieved ? Theme.coralText : Theme.inkSub)
+                .foregroundStyle(milestone.isAchieved ? Theme.coralText : Theme.inkSubText)
             Text(milestone.title)
                 .themeBody(16)
                 .foregroundStyle(Theme.ink)
             Spacer(minLength: 8)
             Text(verbatim: milestone.isAchieved ? tr("達成") : milestone.progressText)
                 .themeCaption(13)
-                .foregroundStyle(milestone.isAchieved ? Theme.coralText : Theme.inkSub)
+                .foregroundStyle(milestone.isAchieved ? Theme.coralText : Theme.inkSubText)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(milestone.accessibilityLabel)
@@ -206,13 +206,13 @@ struct RecordsView: View {
                     .minimumScaleFactor(0.7)
                 Text(verbatim: row.detailText)
                     .themeCaption(12)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                     .minimumScaleFactor(0.7)
                 if let lastPlayedText {
                     Text(verbatim: lastPlayedText)
                         .themeCaption(12)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                 }
@@ -235,7 +235,7 @@ struct RecordsView: View {
             if let plays = row.playsText {
                 Text(verbatim: plays)
                     .themeCaption(13)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
             } else {
                 // まだ遊んでいない行は「あそぶ」を出して、押せると分かるようにする（#1974）。
                 Text(tr("あそぶ"))
@@ -245,7 +245,7 @@ struct RecordsView: View {
             }
             Image(systemName: "chevron.right")
                 .scaledFont(12, weight: .semibold)
-                .foregroundStyle(Theme.inkSub.opacity(0.6))
+                .foregroundStyle(Theme.inkSubText.opacity(0.6))
                 .accessibilityHidden(true)
         }
         .contentShape(Rectangle())

@@ -144,7 +144,7 @@ enum MancalaHowToFigures {
                         }
                     }
                     RuleFigureLabel(index == 0 ? tr("空の穴へ 1 個") : tr("向かいの 5 個と合わせて 6 個"),
-                                    color: index == 0 ? Theme.coralText : Theme.inkSub)
+                                    color: index == 0 ? Theme.coralText : Theme.inkSubText)
                 }
             }
         }
@@ -162,7 +162,7 @@ enum MancalaHowToFigures {
         private func tally(_ who: String, _ seeds: Int, isWinner: Bool) -> some View {
             VStack(spacing: 4) {
                 Plate { MiniStore(seeds: seeds, gained: isWinner) }
-                RuleFigureLabel(who, color: isWinner ? Theme.coralText : Theme.inkSub)
+                RuleFigureLabel(who, color: isWinner ? Theme.coralText : Theme.inkSubText)
                 if isWinner { RuleFigureLabel(tr("多いほうの勝ち"), color: Theme.coralText) }
             }
         }

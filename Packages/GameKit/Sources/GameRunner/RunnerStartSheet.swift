@@ -57,7 +57,7 @@ struct RunnerStartSheet: View {
                 }
                 Text(mode.summary)
                     .scaledFont(12, weight: .medium, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             if mode == .stages {
@@ -109,7 +109,7 @@ struct RunnerStartSheet: View {
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.down")
                     .scaledFont(13, weight: .bold)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .rotationEffect(.degrees(showsDetails ? 180 : 0))
             }
             .padding(12)

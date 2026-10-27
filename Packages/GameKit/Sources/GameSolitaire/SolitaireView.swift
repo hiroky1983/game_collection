@@ -256,7 +256,7 @@ public struct SolitaireView: View {
                 if model.rules.drawMode != .one {
                     Text(model.rules.drawMode.label)
                         .themeCaption(11, maxScale: 1.3)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                         .lineLimit(1)
                 }
             }

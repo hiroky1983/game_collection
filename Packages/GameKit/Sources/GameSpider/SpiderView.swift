@@ -218,7 +218,7 @@ public struct SpiderView: View {
             // 数値の桁区切りを避けるため文字列にしてから渡す（フリーセル #492 の実測）。
             Text(verbatim: model.rules.suitCount.label + " #" + String(model.dealNumber))
                 .scaledFont(10, weight: .bold, design: .monospaced)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
 
             GameClockLabel(RecordFormat.time(model.elapsedSeconds))
         }
@@ -787,7 +787,7 @@ struct SpiderSetupSheet: View {
                 }
                 Text(Self.footer(for: draft.suitCount))
                     .scaledFont(12, weight: .semibold, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
             }
             if discardsProgress {
                 Label(tr("途中で終了すると今の盤面が失われ、この配札は「クリアできなかった」として記録されます。"),

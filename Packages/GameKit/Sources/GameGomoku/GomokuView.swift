@@ -430,10 +430,10 @@ public struct GomokuView: View {
                 .frame(width: 18, height: 18)
             Text(isYou ? tr("あなた") : "CPU")
                 .themeCaption(13, weight: .bold, maxScale: 1.5)
-                .foregroundStyle(isYou ? Theme.tealText : Theme.inkSub)
+                .foregroundStyle(isYou ? Theme.tealText : Theme.inkSubText)
             Text(stone == .black ? tr("黒・先手") : tr("白・後手"))
                 .themeCaption(13, weight: .regular, maxScale: 1.5)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
         }
         .lineLimit(1)
         .minimumScaleFactor(0.8)
@@ -467,13 +467,13 @@ public struct GomokuView: View {
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else if model.isDraw {
                 Label(BoardGameResultCard.Verdict.draw.title, systemImage: BoardGameResultCard.Verdict.draw.bandSymbol)
-                    .themeBody(16).foregroundStyle(Theme.inkSub)
+                    .themeBody(16).foregroundStyle(Theme.inkSubText)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
                 TurnBadge(isYourTurn: model.currentStone == model.humanSide)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
-                    Text(tr("CPU思考中…")).themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text(tr("CPU思考中…")).themeBody(13).foregroundStyle(Theme.inkSubText)
                 }
             }
         } trailing: {
@@ -484,7 +484,7 @@ public struct GomokuView: View {
                 RecordLabel(model.recordResult)
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
-            Text(tr("%lld手", model.moveCount)).themeBody(13).foregroundStyle(Theme.inkSub)
+            Text(tr("%lld手", model.moveCount)).themeBody(13).foregroundStyle(Theme.inkSubText)
         }
     }
 

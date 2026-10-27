@@ -136,7 +136,7 @@ public struct OthelloView: View {
                 TurnBadge(isYourTurn: !model.isAITurn)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
-                    Text(tr("CPU思考中…")).themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text(tr("CPU思考中…")).themeBody(13).foregroundStyle(Theme.inkSubText)
                 }
             }
         } trailing: {
@@ -150,7 +150,7 @@ public struct OthelloView: View {
                     .foregroundStyle(Theme.ink)
                 Text("–")
                     .themeCaption(13, weight: .semibold, maxScale: 1.5)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 Text("\(model.whiteScore)")
                     .themeBody(15, weight: .black, maxScale: 1.5)
                     .foregroundStyle(Theme.ink)
@@ -315,10 +315,10 @@ public struct OthelloView: View {
                     } else {
                         Image(systemName: "equal.circle.fill")
                             .scaledFont(40, maxScale: 1.2)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                         Text(tr("引き分け"))
                             .themeBody(24, weight: .bold)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                     }
                     HStack(spacing: 10) {
                         Circle()
@@ -329,7 +329,7 @@ public struct OthelloView: View {
                             .foregroundStyle(Theme.ink)
                         Text("–")
                             .themeBody(22, weight: .semibold)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                         Text("\(shownScore.white)")
                             .themeBody(30, weight: .black)
                             .foregroundStyle(Theme.ink)

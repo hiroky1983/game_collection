@@ -87,7 +87,7 @@ enum MahjongOnboarding {
                     HStack(spacing: 10) {
                         Text(tr("%lld位", index + 1))
                             .scaledFont(14, weight: .black, design: .rounded, maxScale: 1.15)
-                            .foregroundStyle(index == 0 ? Theme.coralText : Theme.inkSub)
+                            .foregroundStyle(index == 0 ? Theme.coralText : Theme.inkSubText)
                             .frame(width: 44, alignment: .leading)
                         Text(verbatim: "\(score)")
                             .scaledFont(16, weight: .black, design: .rounded, maxScale: 1.15)

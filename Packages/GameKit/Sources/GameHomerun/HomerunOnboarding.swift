@@ -98,14 +98,14 @@ enum HomerunOnboarding {
             return HStack(spacing: 8) {
                 Image(systemName: isHomer ? "star.fill" : "baseball.fill")
                     .scaledFont(14, weight: .bold, maxScale: 1.15)
-                    .foregroundStyle(isHomer ? Theme.coralText : Theme.inkSub)
+                    .foregroundStyle(isHomer ? Theme.coralText : Theme.inkSubText)
                 Text(HomerunText.kind(ball.kind))
                     .scaledFont(15, weight: .black, design: .rounded, maxScale: 1.15)
                     .foregroundStyle(isHomer ? Theme.coralText : Theme.ink)
                 Spacer(minLength: 8)
                 Text(verbatim: HomerunText.meters(ball.distance))
                     .scaledFont(17, weight: .heavy, design: .rounded, maxScale: 1.15).monospacedDigit()
-                    .foregroundStyle(isHomer ? Theme.coralText : Theme.inkSub)
+                    .foregroundStyle(isHomer ? Theme.coralText : Theme.inkSubText)
             }
             .padding(.horizontal, 10).padding(.vertical, 6)
             .background(RoundedRectangle(cornerRadius: Theme.cornerSmall / 2, style: .continuous)

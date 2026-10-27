@@ -97,7 +97,7 @@ public struct DiceComboView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(tr("ターン"))
                     .scaledFont(12, weight: .bold, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 Text(verbatim: "\(model.turn) / \(DiceComboCategory.allCases.count)")
                     .scaledFont(22, weight: .heavy, design: .rounded, maxScale: 1.2).monospacedDigit()
                     .foregroundStyle(Theme.ink)
@@ -111,7 +111,7 @@ public struct DiceComboView: View {
             VStack(alignment: .trailing, spacing: 2) {
                 Text(tr("合計"))
                     .scaledFont(12, weight: .bold, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 Text(verbatim: "\(model.total)")
                     .scaledFont(30, weight: .heavy, design: .rounded, maxScale: 1.2).monospacedDigit()
                     .lineLimit(1).minimumScaleFactor(0.6)
@@ -175,7 +175,7 @@ public struct DiceComboView: View {
                     .foregroundStyle(Theme.ink)
                 Text(tr("小計 %1$lld / %2$lld", model.upperSubtotal, DiceComboLogic.upperBonusThreshold))
                     .scaledFont(10, weight: .semibold, design: .rounded, maxScale: 1.15)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .monospacedDigit()
             }
             .lineLimit(1)
@@ -183,7 +183,7 @@ public struct DiceComboView: View {
             Spacer(minLength: 2)
             Text(verbatim: model.bonus > 0 ? "+\(model.bonus)" : "0")
                 .scaledFont(17, weight: .heavy, design: .rounded, maxScale: 1.15).monospacedDigit()
-                .foregroundStyle(model.bonus > 0 ? Theme.coralText : Theme.inkSub)
+                .foregroundStyle(model.bonus > 0 ? Theme.coralText : Theme.inkSubText)
         }
         .padding(.horizontal, 8)
         .frame(maxWidth: .infinity, minHeight: DiceComboScoreRow.height)
@@ -372,7 +372,7 @@ struct DiceComboScoreRow: View {
                     .foregroundStyle(Theme.ink)
                 Text(rule)
                     .scaledFont(9, weight: .semibold, design: .rounded, maxScale: 1.15)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
             }
             .lineLimit(1)
             .minimumScaleFactor(0.6)
@@ -404,11 +404,11 @@ struct DiceComboScoreRow: View {
         } else if let preview {
             Text(verbatim: "\(preview)")
                 .scaledFont(17, weight: .heavy, design: .rounded, maxScale: 1.15).monospacedDigit()
-                .foregroundStyle(preview > 0 ? Theme.coralText : Theme.inkSub)
+                .foregroundStyle(preview > 0 ? Theme.coralText : Theme.inkSubText)
         } else {
             Text(verbatim: "–")
                 .scaledFont(15, weight: .bold, design: .rounded, maxScale: 1.15)
-                .foregroundStyle(Theme.inkSub.opacity(0.6))
+                .foregroundStyle(Theme.inkSubText.opacity(0.6))
         }
     }
 

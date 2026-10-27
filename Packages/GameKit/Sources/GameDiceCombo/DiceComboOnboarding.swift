@@ -83,7 +83,7 @@ enum DiceComboOnboarding {
                     stat(tr("ターン"), "\(count) / \(count)", color: Theme.ink)
                     Text(verbatim: "→")
                         .scaledFont(16, weight: .black, design: .rounded, maxScale: 1.15)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                     stat(tr("合計"), "\(DiceComboLogic.total(DiceComboOnboarding.finishedScores))", color: Theme.coralText)
                 }
                 RuleFigureLabel(tr("12 役を埋めたら終わり"), color: Theme.coralText)
@@ -94,7 +94,7 @@ enum DiceComboOnboarding {
             VStack(spacing: 2) {
                 Text(title)
                     .scaledFont(12, weight: .bold, design: .rounded, maxScale: 1.15)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 Text(verbatim: value)
                     .scaledFont(24, weight: .heavy, design: .rounded, maxScale: 1.15).monospacedDigit()
                     .foregroundStyle(color)

@@ -168,7 +168,7 @@ public struct Game2048View: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(tr("スコア"))
                     .themeCaption(12, weight: .bold, maxScale: 1.5)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 Text("\(model.score)")
                     .themeBody(30, weight: .heavy, maxScale: 1.5).monospacedDigit()
                     .lineLimit(1).minimumScaleFactor(0.5)

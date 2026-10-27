@@ -188,14 +188,14 @@ public struct CatPuzzleView: View {
                 // ミスの残量。1 回目から色を変える（ナンプレの「ミス 1/3」と同じ形）。
                 Text(tr("ミス %1$lld/%2$lld", model.mistakes, CatPuzzleModel.maxMistakes))
                     .scaledFont(13, weight: .bold, design: .rounded, maxScale: 1.3).monospacedDigit()
-                    .foregroundStyle(model.mistakes > 0 ? Theme.coralText : Theme.inkSub)
+                    .foregroundStyle(model.mistakes > 0 ? Theme.coralText : Theme.inkSubText)
                     .accessibilityLabel(tr("ミス %1$lld回、あと%2$lld回で終わり", model.mistakes, model.mistakesRemaining))
-                Text(tr("・")).foregroundStyle(Theme.inkSub).accessibilityHidden(true)
+                Text(tr("・")).foregroundStyle(Theme.inkSubText).accessibilityHidden(true)
                 Text(model.size.label)
                     .scaledFont(13, weight: .bold, design: .rounded, maxScale: 1.3)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .accessibilityLabel(tr("難易度 %@", model.size.label))
-                Text(tr("・")).foregroundStyle(Theme.inkSub).accessibilityHidden(true)
+                Text(tr("・")).foregroundStyle(Theme.inkSubText).accessibilityHidden(true)
                 GameClockLabel(RecordFormat.time(model.elapsedSeconds))
             }
             .fixedSize()
@@ -335,7 +335,7 @@ public struct CatPuzzleView: View {
             } else {
                 Text(tr("タップで ×、ダブルタップで猫"))
                     .scaledFont(14, weight: .semibold, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
             }
         }
         .frame(minHeight: 36)

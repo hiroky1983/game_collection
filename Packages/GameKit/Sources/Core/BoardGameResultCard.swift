@@ -86,7 +86,7 @@ public struct BoardGameResultCard: View {
         switch verdict {
         case .win: return Theme.tealText
         case .loss: return Theme.coralText
-        case .draw: return Theme.inkSub
+        case .draw: return Theme.inkSubText
         }
     }
 
@@ -94,7 +94,7 @@ public struct BoardGameResultCard: View {
         switch verdict {
         case .win: return ("trophy.fill", Theme.yellowText)
         case .loss: return ("flag.fill", Theme.coralText)
-        case .draw: return ("equal.circle.fill", Theme.inkSub)
+        case .draw: return ("equal.circle.fill", Theme.inkSubText)
         }
     }
 

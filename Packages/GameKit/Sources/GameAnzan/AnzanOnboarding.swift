@@ -84,7 +84,7 @@ enum AnzanOnboarding {
                 RuleVerdictMark(isCorrect)
                 Text(isCorrect ? tr("せいかい！") : tr("ざんねん…"))
                     .scaledFont(16, weight: .black, design: .rounded, maxScale: 1.15)
-                    .foregroundStyle(isCorrect ? Theme.coralText : Theme.inkSub)
+                    .foregroundStyle(isCorrect ? Theme.coralText : Theme.inkSubText)
             }
         }
     }

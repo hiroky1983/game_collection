@@ -233,7 +233,7 @@ public struct PokerView: View {
                 .themeCaption(12, weight: .semibold, maxScale: 1.5)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
         }
         .padding(.horizontal, 14).padding(.vertical, 8)
         .popCard(corner: Theme.cornerSmall)
@@ -599,25 +599,25 @@ public struct PokerView: View {
                         .themeCaption(12, weight: .semibold, maxScale: 1.5)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                     if model.format == .single {
                         Text(tr("あなたの役 %@", model.playerHandRank.description))
                             .themeCaption(12, weight: .semibold, maxScale: 1.5)
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                     } else {
                         Text(tr("この勝負の最高連勝 %lld", model.bestStreak))
                             .themeCaption(12, weight: .semibold, maxScale: 1.5)
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                         Text(tr("勝ち %1$lld回・いちばん強い役 %2$@",
                                 model.playerWins, (model.bestRank ?? .highCard).description))
                             .themeCaption(12, weight: .semibold, maxScale: 1.5)
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                     }
                 }
                 Spacer()

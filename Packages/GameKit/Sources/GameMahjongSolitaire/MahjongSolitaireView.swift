@@ -321,7 +321,7 @@ public struct MahjongSolitaireView: View {
                         if model.phase == .playing {
                             Text(tr("取れる組 %lld", model.availablePairCount))
                                 .scaledFont(14, weight: .bold)
-                                .foregroundStyle(Theme.inkSub)
+                                .foregroundStyle(Theme.inkSubText)
                         }
                     }
                 }

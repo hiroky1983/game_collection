@@ -78,7 +78,7 @@ enum BlackjackHowToFigures {
                     .padding(.top, 4)
                     BlackjackHowToFigures.total(index == 0 ? tr("合計 14") : tr("合計 19"), color: index == 0 ? Theme.ink : Theme.coralText)
                     RuleFigureLabel(index == 0 ? tr("いま") : tr("ヒット（+1 枚）\nここで止めるのがスタンド"),
-                                    color: index == 0 ? Theme.inkSub : Theme.coralText)
+                                    color: index == 0 ? Theme.inkSubText : Theme.coralText)
                 }
             }
         }

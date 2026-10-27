@@ -64,7 +64,7 @@ enum MahjongHowToFigures {
                     }
                     .padding(.top, 5)
                     RuleFigureLabel(index == 0 ? tr("1 枚引く") : tr("タップで切る"),
-                                    color: index == 1 ? Theme.coralText : Theme.inkSub)
+                                    color: index == 1 ? Theme.coralText : Theme.inkSubText)
                 }
             }
         }
@@ -90,7 +90,7 @@ enum MahjongHowToFigures {
                                     MahjongHowToFigures.tile(t)
                                 }
                             }
-                            RuleFigureLabel(group.label, color: group.tiles.count == 2 ? Theme.coralText : Theme.inkSub)
+                            RuleFigureLabel(group.label, color: group.tiles.count == 2 ? Theme.coralText : Theme.inkSubText)
                                 .lineLimit(1).minimumScaleFactor(0.7)
                                 .frame(width: MahjongHowToFigures.tileWidth * CGFloat(group.tiles.count) + 4)
                         }
@@ -131,7 +131,7 @@ enum MahjongHowToFigures {
                         .background(Capsule().fill(Theme.Fill.coral))
                     Image(systemName: "arrow.right")
                         .scaledFont(12, weight: .black, maxScale: 1.2)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                     RuleFigureLabel(tr("役が付く"), color: Theme.coralText)
                 }
             }

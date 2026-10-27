@@ -129,7 +129,7 @@ public struct AnzanView: View {
     private var header: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(tr("難易度")).themeCaption(11).foregroundStyle(Theme.inkSub)
+                Text(tr("難易度")).themeCaption(11).foregroundStyle(Theme.inkSubText)
                 Text(model.settings.variantLabel)
                     .themeBody(15)
                     .foregroundStyle(Theme.ink)
@@ -148,7 +148,7 @@ public struct AnzanView: View {
 
     private func stat(_ title: String, value: String) -> some View {
         VStack(spacing: 2) {
-            Text(title).themeCaption(11).foregroundStyle(Theme.inkSub)
+            Text(title).themeCaption(11).foregroundStyle(Theme.inkSubText)
             Text(verbatim: value)
                 .scaledFont(22, weight: .heavy, design: .rounded).monospacedDigit()
                 .foregroundStyle(Theme.ink)
@@ -303,7 +303,7 @@ public struct AnzanView: View {
             case .flashing:
                 Text(tr("出た数をぜんぶ足そう"))
                     .themeBody(15)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
             case .answering:
                 EmptyView()
             case .result:
@@ -409,7 +409,7 @@ struct AnzanMissesSheet: View {
                             .themeBody(15).foregroundStyle(Theme.ink)
                         HStack(spacing: 16) {
                             Text(verbatim: tr("あなたの答え %lld", miss.answer))
-                                .foregroundStyle(Theme.inkSub)
+                                .foregroundStyle(Theme.inkSubText)
                             Text(verbatim: tr("正解 %lld", miss.correct))
                                 .foregroundStyle(Theme.coralText)
                         }

@@ -468,7 +468,7 @@ public struct HeartsView: View {
                     .frame(width: 64, alignment: .trailing)
             }
             .scaledFont(11, weight: .semibold, design: .rounded)
-            .foregroundStyle(Theme.inkSub)
+            .foregroundStyle(Theme.inkSubText)
             .accessibilityHidden(true)
             VStack(spacing: 6) {
                 ForEach(order, id: \.self) { player in
@@ -483,7 +483,7 @@ public struct HeartsView: View {
             } else {
                 Text(tr("だれかが%lld点に届いたら終了。合計の少ない人が勝ちです", HeartsRules.targetScore))
                     .scaledFont(11, weight: .semibold, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -515,7 +515,7 @@ public struct HeartsView: View {
             Spacer()
             Text(tr("%lld点", model.takenPoints[player]))
                 .scaledFont(13, weight: .bold, design: .rounded)
-                .foregroundStyle(model.takenPoints[player] > 0 ? Theme.coralText : Theme.inkSub)
+                .foregroundStyle(model.takenPoints[player] > 0 ? Theme.coralText : Theme.inkSubText)
                 .frame(width: 64, alignment: .trailing)
             Text(tr("%lld点", model.totals[player]))
                 .scaledFont(13, weight: .black, design: .rounded)

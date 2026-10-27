@@ -174,7 +174,7 @@ public struct HanafudaView: View {
                     Text(model.round > model.options.rounds ? tr("延長戦") : tr("%1$lld / %2$lld局", model.round, model.options.rounds))
                         .themeCaption(13, weight: .bold, maxScale: 1.5)
                         .fitOneLine()
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                 }
             }
             .padding(.horizontal, GameStatusBarStyle.horizontalPadding)
@@ -221,18 +221,18 @@ public struct HanafudaView: View {
                 Text(tr("CPUの取り札"))
                     .themeCaption(13, weight: .bold, maxScale: 1.5)
                     .fitOneLine()
-                    .foregroundStyle(model.turn == .cpu ? Theme.coralText : Theme.inkSub)
+                    .foregroundStyle(model.turn == .cpu ? Theme.coralText : Theme.inkSubText)
                 Text(yakuLine(for: .cpu))
                     .themeCaption(13, weight: .semibold, maxScale: 1.5)
                     .fitOneLine()
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 Spacer()
                 Text(tr("手札%lld枚", model.cpuHand.count))
                     .themeCaption(13, weight: .semibold, maxScale: 1.5)
                     .fitOneLine()
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
             }
             capturedGroups(model.cpuCaptured, height: fit.stripHeight)
         }
@@ -300,7 +300,7 @@ public struct HanafudaView: View {
                 Text(tr("場"))
                     .themeCaption(13, weight: .bold, maxScale: 1.5)
                     .fitOneLine()
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 Spacer()
                 if let drawn = model.drawnCard {
                     HStack(spacing: 4) {
@@ -315,7 +315,7 @@ public struct HanafudaView: View {
                 Text(tr("山札%lld枚", model.deck.count))
                     .themeCaption(14, weight: .heavy, maxScale: 1.5)
                     .fitOneLine()
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
             }
             LazyVGrid(columns: fit.columns, spacing: HanafudaFit.gap) {
                 ForEach(model.field) { card in
@@ -356,11 +356,11 @@ public struct HanafudaView: View {
                 Text(tr("あなたの取り札"))
                     .themeCaption(13, weight: .bold, maxScale: 1.5)
                     .fitOneLine()
-                    .foregroundStyle(model.isPlayerTurn ? Theme.tealText : Theme.inkSub)
+                    .foregroundStyle(model.isPlayerTurn ? Theme.tealText : Theme.inkSubText)
                 Text(yakuLine(for: .human))
                     .themeCaption(13, weight: .semibold, maxScale: 1.5)
                     .fitOneLine()
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 Spacer()
@@ -487,7 +487,7 @@ public struct HanafudaView: View {
                 if !result.hits.isEmpty {
                     Text(result.hits.map { tr("%@ %lld文", $0.name, $0.points) }.joined(separator: tr("・")))
                         .themeCaption(13, weight: .semibold, maxScale: 1.5)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                         .multilineTextAlignment(.center)
                 }
                 if !result.reasons.isEmpty {
@@ -518,10 +518,10 @@ public struct HanafudaView: View {
                 .foregroundStyle(matchTitleColor)
             Text(tr("あなた %1$lld文 ・ CPU %2$lld文", model.humanTotal, model.cpuTotal))
                 .themeBody(15, weight: .semibold, maxScale: 1.5)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
             Text(tr("こいこい あなた %1$lld回 ・ CPU %2$lld回", model.humanMatchKoiKoiCount, model.cpuMatchKoiKoiCount))
                 .themeBody(13, maxScale: 1.5)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
             RecordLabel(model.recordResult)
         }
         .frame(maxWidth: .infinity)

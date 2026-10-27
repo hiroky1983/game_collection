@@ -80,7 +80,7 @@ struct PokerStartSheet: View {
                 Spacer()
                 Image(systemName: "chevron.right")
                     .scaledFont(13, weight: .semibold)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
             }
             .foregroundStyle(Theme.coralText)
             .padding(16)
@@ -102,7 +102,7 @@ struct PointsTableSheet: View {
             ) {
                 Text(tr("その回に勝った側に、自分の役の点が入ります。負け・引き分けは 0 点です。"))
                     .scaledFont(12, weight: .medium, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 ForEach(PokerScoreTable.table) { entry in
                     HStack(spacing: 8) {
                         Text(entry.rank.description)
