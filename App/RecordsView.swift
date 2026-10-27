@@ -100,7 +100,7 @@ struct RecordsView: View {
                     HStack(spacing: 8) {
                         ForEach(0..<columns, id: \.self) { column in
                             let tile = tiles[row * columns + column]
-                            statTile(title: tile.title, value: tile.value)
+                            statTile(title: tile.title, value: tile.value, note: tile.note)
                         }
                     }
                 }
@@ -109,20 +109,25 @@ struct RecordsView: View {
         .padding(.vertical, 4)
     }
 
-    private func statTiles(_ summary: RecordsSummary) -> [(title: String, value: String)] {
-        [
-            (tr("遊んだ種類"), "\(summary.playedCount)/\(summary.gameCount)"),
-            (tr("通算勝利"), RecordFormat.number(summary.totalWins)),
-            (tr("最高連勝"), RecordFormat.number(summary.bestStreak)),
-            (tr("総プレイ回数"), tr("%@回", RecordFormat.number(playLog?.totalFinishes ?? 0))),
+    private func statTiles(_ summary: RecordsSummary) -> [(title: String, value: String, note: String?)] {
+        let streak = playLog?.playStreak() ?? 0
+        let longest = playLog?.longestPlayStreak() ?? 0
+        return [
+            (tr("遊んだ種類"), "\(summary.playedCount)/\(summary.gameCount)", nil),
+            (tr("通算勝利"), RecordFormat.number(summary.totalWins), nil),
+            (tr("最高連勝"), RecordFormat.number(summary.bestStreak), nil),
+            (tr("総プレイ回数"), tr("%@回", RecordFormat.number(playLog?.totalFinishes ?? 0)), nil),
             // `playDays` は直近 366 日ぶんだけ保存している（上限を超えた古い日は数えない）。
-            (tr("遊んだ日数"), tr("%@日", RecordFormat.number(playLog?.playDays.count ?? 0))),
+            (tr("遊んだ日数"), tr("%@日", RecordFormat.number(playLog?.playDays.count ?? 0)), nil),
             // 日をまたぐ連続（#1625）。勝敗の連勝とは別物。0 日のときも 0 で出す（タイルの数は固定）。
-            (tr("連続日数"), tr("%@日", RecordFormat.number(playLog?.playStreak() ?? 0))),
+            // 途切れても最長が残るよう「最長 N 日」を添える（#2886）。
+            (tr("連続日数"), tr("%@日", RecordFormat.number(streak)),
+             PlayDayStreak.showsLongest(current: streak, longest: longest)
+                ? tr("最長 %@ 日", RecordFormat.number(longest)) : nil),
         ]
     }
 
-    private func statTile(title: String, value: String) -> some View {
+    private func statTile(title: String, value: String, note: String?) -> some View {
         VStack(spacing: 2) {
             // 数値は整形済みの文字列で渡す（`Text` の補間に Int を渡すと桁区切りが勝手に入る）。
             Text(verbatim: value)
@@ -135,6 +140,13 @@ struct RecordsView: View {
                 .foregroundStyle(Theme.inkSub)
                 .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 .minimumScaleFactor(0.7)
+            if let note {
+                Text(verbatim: note)
+                    .themeCaption(11)
+                    .foregroundStyle(Theme.inkSub)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.vertical, 8)
@@ -143,7 +155,7 @@ struct RecordsView: View {
                 .fill(Theme.coral.opacity(0.1))
         )
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(tr("%1$@、%2$@", title, value))
+        .accessibilityLabel(note.map { tr("%1$@、%2$@、%3$@", title, value, $0) } ?? tr("%1$@、%2$@", title, value))
     }
 
     private func milestoneRow(_ milestone: RecordsSummary.Milestone) -> some View {

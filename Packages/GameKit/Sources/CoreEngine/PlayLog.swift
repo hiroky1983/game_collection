@@ -426,6 +426,11 @@ public final class PlayLog {
         PlayDayStreak.current(days: playDays, today: PlayDayStreak.dayNumber(for: now, calendar: calendar))
     }
 
+    /// 保存している範囲での最長の連続プレイ日数（#2886）。
+    public func longestPlayStreak(now: Date = Date(), calendar: Calendar = .current) -> Int {
+        PlayDayStreak.longest(days: playDays, today: PlayDayStreak.dayNumber(for: now, calendar: calendar))
+    }
+
     /// リワード広告のコンティニューで「その負けが無かったことになった」ときに呼ぶ。
     ///
     /// 2048・マインスイーパーは**同じ盤面のまま**再開するため、先に記録した敗北をそのままにすると
