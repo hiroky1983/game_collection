@@ -1167,18 +1167,21 @@ CPU と役の強さで比べる流れは変えない。
 - **規則は Core の `ReengagementReminderService` / `ReengagementReminderPolicy`**、OS へ渡す部分は App の
   `UserNotificationReengagementScheduler`（`UNUserNotificationCenter`）
 - **複数ゲームのスレッドが並行しうる**（上限なし・会長決裁 2026-09-21・#1229）。新しい対象が選ばれても、既存の
-  アクティブなスレッドはキャンセルしない。同じゲームが再度選ばれても、既にアクティブなスレッドがあれば何もしない
+  アクティブなスレッドはキャンセルしない。同じゲームが再度選ばれたとき、アクティブなスレッドの起点（最終プレイ日時）が変わっていなければ何もせず、
+  変わっていれば（遊んだ後など）7・30・60日後を起点から組み直す（#2939）
 - **状態は端末内の `UserDefaults` に永続化する**（`ReengagementReminderStore`。サーバ送信なし）。OS の予約一覧だけでは
   「60日後通知が発火した」という過去の事実を確定できないため、スレッドの起点（そのスレッドを作った時点の最終プレイ日時）を
   ここに永続化する:
   - `reengagement_activeThreads_v1` — アクティブなスレッド（ゲームID → 起点になった最終プレイ日時）
   - `reengagement_lastThreadAddedAt_v1` — 最後に新しいスレッドを追加した日時（ゲームごとではなく全体で1つ）
   - `reengagement_permanentlyStopped_v1` — ユーザー全体の永続停止フラグ
-- **対象判定**: アプリがバックグラウンドに入るたびに判定し直す。**最終プレイから`ReengagementReminderPolicy.minimumIdleDays`
-  （7）日以上**経っているゲームのうち、**通算プレイ回数が最も多いもの1件**を新規スレッドの候補にする。同率はハブの並び順
-  （先頭）で決める
-- **新規スレッドのクールダウン**: 直近のスレッド追加から `newThreadCooldownDays`（3）日以上経つまでは、新しい対象が
-  選ばれてもスレッド化を見送る（通知が増えすぎるのを防ぐ・会長決裁 2026-09-21）
+- **対象判定**: アプリがバックグラウンドに入るたびに判定し直す。**判定時点での未プレイ日数は問わず**（#2939。遊んだその日に
+  離脱した人にも予約するため。以前の「7日以上未プレイ」条件 `minimumIdleDays` は廃止）、プレイ回数が1回以上で最終プレイ日時のある
+  ゲームのうち**通算プレイ回数が最も多いもの1件**を候補にする。同率はハブの並び順（先頭）で決める
+- **新規スレッドのクールダウン**: 「他のゲームのスレッドがアクティブなまま別のゲームのスレッドを足す」ときだけ、直近のスレッド追加から
+  `newThreadCooldownDays`（3）日以上経つまで見送る（通知が増えすぎるのを防ぐ・会長決裁 2026-09-21。#2939 で対象を限定）。
+  同じゲームの組み直しと、他にアクティブなスレッドが無いときの追加には掛けない。`reengagement_lastThreadAddedAt_v1` は
+  新しいスレッドを足したときだけ更新する
 - **発火**: 各スレッドの起点になった最終プレイ日時の7日後・30日後・60日後の`deliveryHour`時（19時。過去に落ちるものは予約しない）
 - **同日衝突の解決**: 複数スレッドの発火予定が同じ暦日に重なったら、日数が大きい方（より切迫している方）だけ残す。
   小さい方はその回だけスキップする（スレッド自体は他の予定日が残っていれば続く）
@@ -1186,7 +1189,9 @@ CPU と役の強さで比べる流れは変えない。
   この機能を永続的に停止する（会長決裁 2026-09-21）
 - **取り消し**: そのゲームを開くと、**そのゲームのスレッドだけ**止める（`gameDidOpen`。他のゲームのスレッドは続く）。
   設定の「お知らせ」トグルをオフにする・「プレイ記録を消去」する（#1269）と、全スレッド・状態を消す
-- **許諾**: 標準の許可ダイアログで明示的に求める。**`.provisional` は使わない**（会長決裁 2026-09-21。#663 も #1219 で同じ方式に揃え済み）
+- **許諾**: 判定は背面へ入る処理から呼ばれるため、**許諾が未決定のときは許可ダイアログを求めず、予約もしない**（#2938。続きのお知らせ #1951 と
+  同じ。許可済みのときだけ予約する）。許可ダイアログは前面の導線（続きのお知らせ・挑戦回数のお知らせ）で出る。**`.provisional` は使わない**
+  （会長決裁 2026-09-21。#663 も #1219 で同じ方式に揃え済み）。そのため `notification_permission` の `trigger=reengagement` は現在発火しない
 - **対象外**: 設定で非表示にしたゲーム
 - **タップ**: `AppDelegate` が受け、ハブが `game_open{source: "reengagement"}`（#1950 で `notification` から分離） の導線でそのゲームを開く
 - **止める経路**: 撮影モード・DEBUG ビルドでは予約しない。設定の「お知らせ」トグル
@@ -1285,7 +1290,7 @@ v1.1.4 までの公開版は3種）。
 | `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`（前面にいた秒数。バックグラウンド・ハブでの休憩は除き、上限 7200・#1373）、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal\|sink・最後のミスの原因。#796・#1089)、将棋・チェス・五目並べ・オセロ・マインスイーパー・15パズルでヒントを 1 回でも使ったプレイのみ `hints_used`（使った回数。無料・広告の合計・#1326）、開始に `credit` を付けたプレイのみ同じ `credit`（#1685）、開始に `level` を付けたプレイのみ同じ `level`（#1888）、ミスしたプレイのみ `miss_count`（ミス回数）・`miss_at`（最後のミスの進行率 %・5 刻み）、ミス直後に離脱した quit のみ `exit`(after_miss)（#2848） |
 | `clear_exit` | 面をクリアした直後の画面を、次の面にも「もう一度」にも進まず離れた（チャリンコおじさんのステージ制。`GameAnalytics.leaveGame` の1か所・#2848） | `game_id` / `level`(`stage-N`) |
 | `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の8値） |
-| `notification_permission` | 通知の許可ダイアログを**実際に出した** 1 回につき 1 回（すでに許可 / 拒否が決まっている状態の問い合わせでは送らない。各 `UserNotification*Scheduler.requestExplicitAuthorization` の1か所・#2008） | `result`(granted\|denied) / `trigger`(resume\|challenge\|reengagement)。ゲーム ID は載せない。GA4 のカスタムディメンション登録が要る（会長操作） |
+| `notification_permission` | 通知の許可ダイアログを**実際に出した** 1 回につき 1 回（すでに許可 / 拒否が決まっている状態の問い合わせでは送らない。各 `UserNotification*Scheduler.requestExplicitAuthorization` の1か所・#2008） | `result`(granted\|denied) / `trigger`(resume\|challenge\|reengagement。`reengagement` は #2938 以降は発火しない)。ゲーム ID は載せない。GA4 のカスタムディメンション登録が要る（会長操作） |
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
 | `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick\|quick_action\|hero\|resume_reminder\|reengagement\|challenge_return\|records\|deeplink) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり）。`hero` はハブ先頭の特別枠（柵越えおじさん・#1761）だったが、v1.1.14（#2566）で通常のタイル（`hub`・位置あり）になり発火点は無い（GA4 の既存値のため語彙には残す）。`records` は「きろく」画面のゲーム行をタップして開いたとき（#1974。`position` は持たない）。`notification` は通知を種類別に分ける前の旧値で、#1950 以降は送らない |
 | `reward_offer` | リワード広告の**提示**が終わった（1 回の提示につき 1 回。下の定義） | `game_id` / `purpose`（上表の8値） / `result`(accepted\|declined\|not_ready) |
