@@ -8,6 +8,9 @@ public struct DiceComboView: View {
     private let services: GameServices
     @State private var model: DiceComboModel
     @State private var showConfirmReset = false
+    /// 「役選びを戻す」の回数補充のリワード広告の段取り（#2940）。
+    @State private var undoRescue = RewardedRescue()
+    @State private var showUndoRefillPrompt = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(services: GameServices) {
@@ -31,7 +34,11 @@ public struct DiceComboView: View {
                     .gameAnimation(.easeOut(duration: 0.25), value: model.isFinished)
                 }
             diceRow
-            rollButton
+            // 縦に 1 段足さない（iPhone SE では 52pt 増えるとサイコロの段が潰れる）。振るボタンの右に「戻す」を並べる。
+            HStack(spacing: 8) {
+                rollButton
+                undoControl
+            }
             // 初回だけ出す 1 行（以降は `?` ボタンからいつでも読める）。
             HowToPlayHint(.diceCombo, playLog: services.playLog)
             RecommendationArea(services: services, isFinished: model.isFinished)
@@ -55,7 +62,23 @@ public struct DiceComboView: View {
             } message: {
                 Text(tr("途中で終了すると、いまの得点表が失われます。"))
             }
+            anchor.alert(tr("無料の「戻す」を使い切りました"), isPresented: $showUndoRefillPrompt) {
+                Button(tr("広告を見て%lld回補充する", DiceComboUndoBudget.refill)) { requestUndoRefill() }
+                Button(tr("キャンセル"), role: .cancel) {}
+            } message: {
+                Text(tr("広告を最後まで視聴すると「戻す」を%lld回ぶん補充します。\n得点表はそのままです。", DiceComboUndoBudget.refill))
+            }
         }
+        .rewardOffer(undoRescue, for: .undo, isPresented: showUndoRefillPrompt,
+                     services: services, gameID: DiceComboModel.gameID)
+        .rewardedRescueAlerts(
+            undoRescue,
+            notEarned: tr("「戻す」を補充できませんでした"),
+            unavailable: RewardUnavailableAlert(
+                title: tr("「戻す」を補充できませんでした"),
+                message: tr("広告を見ているあいだに新しいゲームが始まったため、補充できませんでした。\n新しい局の「戻す」は無料の回数まで戻っています。")
+            )
+        )
         .task {
             #if DEBUG
             // 撮影・動作確認用: `-dicecomboScenario rolled|late|result` で局面を差し替える。
@@ -246,11 +269,59 @@ public struct DiceComboView: View {
         } label: {
             Label(rollTitle, systemImage: "dice.fill")
                 .scaledFont(17, weight: .heavy, design: .rounded, maxScale: 1.2)
+                .lineLimit(1).minimumScaleFactor(0.7)  // 「戻す」と並べるぶん狭い
         }
         .buttonStyle(.game(.primary, shape: .block))
         // 転がっている間の連打は Model が黙って捨てる。ボタンは薄くしない（振るたびに点滅して見えるため）。
         .disabled(!model.canRoll && !model.isRolling)
         .accessibilityLabel(DiceComboAccessibility.rollLabel(remaining: model.rollsRemaining))
+    }
+
+    // MARK: - 役選びを戻す（#2940）
+
+    /// 振るボタンの右の「戻す」。広告の絡む操作の部品（`GameActionItem`）を 1 つだけ置く（2048 と同じ部品）。
+    private var undoControl: some View {
+        GameOverflowBar(actions: [
+            GameActionItem(
+                id: "undo", title: tr("戻す"), systemImage: "arrow.uturn.backward", role: .undo,
+                badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(gain: RewardedUndoBudget.refill),
+                isEnabled: model.canUndo && !undoRescue.isWatching,
+                // 専用の読み上げ文を渡すと 2 行目（▶ 広告を見て）は読まれないので、使い切ったら広告が要ることを文に含める。
+                accessibilityLabel: model.undosRemaining > 0
+                    ? tr("役選びを戻す（残り%lld回）", model.undosRemaining)
+                    : tr("役選びを戻す（広告を見て補充）"),
+                accessibilityHint: model.canUndo
+                    ? tr("直前に選んだ役を取り消して、選ぶ前の出目に戻します")
+                    : tr("戻せる役選びがありません")
+            ) { requestUndo() },
+        ], verticalPadding: 0)
+        .lineLimit(1)
+        .frame(width: Self.undoControlWidth)
+    }
+
+    /// 「戻す」のカプセルの幅。使い切ったときの「0回 ▶ 広告を見て +3」も 2 行目で縮めて収まる幅。
+    private static let undoControlWidth: CGFloat = 124
+
+    /// 「戻す」の入口。残りがあればそのまま戻し、使い切っていたら**提案を出すだけ**にする（押した瞬間に広告を出さない）。
+    private func requestUndo() {
+        guard !undoRescue.isWatching else { return }
+        if model.needsUndoRefill {
+            showUndoRefillPrompt = true
+        } else {
+            withGameAnimation { _ = model.undoChoice() }
+        }
+    }
+
+    /// リワード広告 → 「戻す」の補充。どの局かを広告を出す前に控え、ロード中に始めた新しい局へは乗せない。
+    private func requestUndoRefill() {
+        guard !undoRescue.isWatching else { return }
+        let game = model.gameSerial
+        undoRescue.request(
+            services, gameID: DiceComboModel.gameID, purpose: .undo,
+            guardedBy: .checkedByGrant
+        ) {
+            model.grantUndos(forGame: game)
+        }
     }
 
     private var rollTitle: String {

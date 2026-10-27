@@ -1,5 +1,15 @@
 import Core
+import CoreEngine
 import Observation
+
+/// サイコロ役づくりの「役選びを戻す」の回数制（#2940）。値は `RewardedUndoBudget` が持ち、ここは
+/// このゲームの文脈に名前を残すための転送（`Game2048UndoBudget` と同じ作り）。
+public enum DiceComboUndoBudget {
+    /// 1 局につき無料で戻せる回数。
+    public static let free = RewardedUndoBudget.free
+    /// リワード広告 1 本の視聴完了で補充する回数。
+    public static let refill = RewardedUndoBudget.refill
+}
 
 /// サイコロ役づくり（#1752）のゲーム状態。1 人用で、12 役ぜんぶに点を入れたら 1 局の決着。
 ///
@@ -33,6 +43,12 @@ public final class DiceComboModel {
     /// サイコロが転がっている演出の最中か（#2365）。出目は振った瞬間に `dice` へ確定済みで、
     /// これは「まだ見せていない」だけの印。永続化しない（中断から戻ったら止まった目を出す）。
     public private(set) var isRolling = false
+    /// 「役選びを戻す」の残り回数（#2940）。1 局の無料枠から始まり、広告の視聴完了で補充される。
+    public private(set) var undosRemaining = DiceComboUndoBudget.free
+    /// 何局目か。広告を出す前に控え、ロード中に始めた新しい局へ補充を乗せないための印。永続化しない。
+    public private(set) var gameSerial = 0
+    /// 直前の役選び。次のターンを振るまで（`rollsUsed == 0` のあいだ）だけ戻せる。
+    private var lastChoice: DiceComboSnapshot.Choice?
 
     private let services: GameServices?
     private var generator: SplitMix64?
@@ -54,6 +70,8 @@ public final class DiceComboModel {
             held = restored.held
             rollsUsed = restored.rollsUsed
             scores = restored.scores
+            undosRemaining = restored.undosRemaining
+            lastChoice = restored.lastChoice
         } else {
             // 中断からの復元は「新しいプレイ」ではないので開始は数えない。
             services?.gameDidStart(gameID: Self.gameID)
@@ -117,6 +135,8 @@ public final class DiceComboModel {
         rollsUsed += 1
         rollSerial += 1
         lastFilled = nil
+        // 次の出目を見たあとには戻せない（覗いてから戻す抜け道を作らない）。
+        lastChoice = nil
         // 振った = 捨てたら途中離脱として数える局（冪等）。
         services?.gameDidProgress(gameID: Self.gameID)
         services?.feedback.impact(.medium)
@@ -162,6 +182,9 @@ public final class DiceComboModel {
             return
         }
         let points = DiceComboLogic.score(category, dice: dice)
+        lastChoice = DiceComboSnapshot.Choice(
+            category: category.rawValue, dice: dice, held: held, rollsUsed: rollsUsed
+        )
         scores[category] = points
         lastFilled = category
         if points >= Self.bigScoreThreshold { services?.feedback.notify(.milestone) }
@@ -169,6 +192,8 @@ public final class DiceComboModel {
         held = []
         rollsUsed = 0
         if DiceComboLogic.isComplete(scores) {
+            // 最後の役で決着したら戻せない（記録が確定する）。
+            lastChoice = nil
             finish()
         } else {
             if points < Self.bigScoreThreshold { services?.feedback.impact(.light) }
@@ -176,8 +201,54 @@ public final class DiceComboModel {
         }
     }
 
+    // MARK: - 役選びを戻す（#2940）
+
+    /// 戻せる役選びがあるか。直前に役を選んで、まだ次のターンを振っていないあいだだけ。
+    public var canUndo: Bool { !isFinished && !isRolling && rollsUsed == 0 && lastChoice != nil }
+
+    /// 残り回数があるか。
+    public var hasUndoCredit: Bool { undosRemaining > 0 }
+
+    /// 押せるが回数を使い切っている（View は広告の提案を出す）。
+    public var needsUndoRefill: Bool { canUndo && !hasUndoCredit }
+
+    /// 直前の役選びを 1 回戻す。役の点を消し、選ぶ前の出目・キープ・振った回数に戻す（続けて振り直せる）。
+    /// **1 局につき無料 `DiceComboUndoBudget.free` 回まで**（使い切ったら `grantUndos(forGame:)` で補充）。
+    @discardableResult
+    public func undoChoice() -> Bool {
+        guard canUndo, hasUndoCredit, let choice = lastChoice,
+              let category = DiceComboCategory(rawValue: choice.category) else { return false }
+        undosRemaining -= 1
+        scores[category] = nil
+        dice = choice.dice
+        held = choice.held
+        rollsUsed = choice.rollsUsed
+        lastFilled = nil
+        lastChoice = nil
+        services?.feedback.impact(.medium)
+        persist()
+        return true
+    }
+
+    /// リワード広告の**視聴完了後**に「戻す」を補充する。
+    ///
+    /// - Parameter serial: 広告を出す前に控えた `gameSerial`。広告のロード中に新しいゲームを始めたら補充しない
+    ///   （`newGame` は残数を無料枠へ戻すので、そのまま足すと無料 + 補充から始まる）。
+    /// - Returns: 補充できたか。false のとき View は「補充できなかった」と伝える。
+    @discardableResult
+    public func grantUndos(forGame serial: Int) -> Bool {
+        guard serial == gameSerial else { return false }
+        undosRemaining += DiceComboUndoBudget.refill
+        services?.feedback.notify(.success)
+        persist()
+        return true
+    }
+
     /// 新しいゲーム。
     public func newGame() {
+        gameSerial += 1
+        undosRemaining = DiceComboUndoBudget.free
+        lastChoice = nil
         rollTask?.cancel()
         rollTask = nil
         isRolling = false
@@ -224,14 +295,17 @@ public final class DiceComboModel {
             dice: dice,
             held: held,
             rollsUsed: rollsUsed,
-            scores: Dictionary(uniqueKeysWithValues: scores.map { ($0.key.rawValue, $0.value) })
+            scores: Dictionary(uniqueKeysWithValues: scores.map { ($0.key.rawValue, $0.value) }),
+            undosRemaining: undosRemaining,
+            lastChoice: lastChoice
         )
         try? services?.snapshots.save(snap, for: Self.gameID)
     }
 
     /// 中断データを検証して局面に戻す。壊れたデータ・終わった局は nil（新規で始める）。
     static func restore(_ snap: DiceComboSnapshot) -> (
-        dice: [Int], held: [Bool], rollsUsed: Int, scores: [DiceComboCategory: Int]
+        dice: [Int], held: [Bool], rollsUsed: Int, scores: [DiceComboCategory: Int],
+        undosRemaining: Int, lastChoice: DiceComboSnapshot.Choice?
     )? {
         guard (0...DiceComboLogic.maxRolls).contains(snap.rollsUsed) else { return nil }
         if snap.rollsUsed == 0 {
@@ -246,7 +320,16 @@ public final class DiceComboModel {
             scores[category] = value
         }
         guard !DiceComboLogic.isComplete(scores) else { return nil }
-        return (snap.dice, snap.held, snap.rollsUsed, scores)
+        // 戻す関連は後から足した鍵（optional）。鍵が無い旧データは無料枠・戻せる手なしで読む。
+        let undos = min(max(0, snap.undosRemaining ?? DiceComboUndoBudget.free), 99)
+        var choice: DiceComboSnapshot.Choice?
+        if let saved = snap.lastChoice, snap.rollsUsed == 0,
+           let category = DiceComboCategory(rawValue: saved.category), scores[category] != nil,
+           (0...DiceComboLogic.maxRolls).contains(saved.rollsUsed), saved.rollsUsed > 0,
+           DiceComboLogic.isValidDice(saved.dice), saved.held.count == DiceComboLogic.diceCount {
+            choice = saved
+        }
+        return (snap.dice, snap.held, snap.rollsUsed, scores, undos, choice)
     }
 
     #if DEBUG

@@ -36,7 +36,7 @@ struct DiceComboModuleTests {
         }
     }
 
-    @Test("画面は共通の枠・レコメンド枠・図入りの遊び方を使い、広告の面を足していない")
+    @Test("画面は共通の枠・レコメンド枠・図入りの遊び方を使い、広告は「戻す」の補充（#2940）だけに置く")
     func viewUsesSharedParts() throws {
         let code = SourceScan.strippingComments(try SourceScan.moduleSources("GameDiceCombo"))
         #expect(code.components(separatedBy: ".gameChrome(title:").count - 1 == 1)
@@ -44,8 +44,11 @@ struct DiceComboModuleTests {
         #expect(code.contains("BannerSlot("))
         #expect(code.contains("HowToPlayHint(.diceCombo"))
         #expect(code.contains(".howToPlay(HowToPlayGuide.diceCombo.illustrated(DiceComboHowToFigures.items)"))  // 後ろに .onboarding(...)（#2826）が続く
-        #expect(!code.contains("showRewardedAd("), "リワード広告は使わない")
-        #expect(!code.contains("RewardedRescue("), "救済の広告面は持たない（#1752 は広告を足さない）")
+        // #1752 は広告なしで導入したが、#2940 で「役選びを戻す」の補充だけに置いた（purpose は既存の .undo）。
+        #expect(!code.contains("showRewardedAd("), "広告は RewardedRescue 経由（押したときだけ・自動再生しない）")
+        #expect(code.components(separatedBy: "RewardedRescue()").count - 1 == 1, "救済の広告面は「戻す」の 1 つだけ")
+        #expect(code.contains("purpose: .undo") && !code.contains("purpose: .continue"), "リワードは「戻す」の補充だけ")
+        #expect(code.contains(".rewardOffer(undoRescue, for: .undo"), "提案を出してから広告（押した瞬間に流さない）")
         #expect(!code.contains("withAnimation("), "アニメーションは gameAnimation 経由")
         #expect(!code.contains("Image(\""), "絵はコードで描く（外部の画像を使わない）")
         #expect(code.contains("gameDidStart(") && code.contains("gameDidRestart(")
