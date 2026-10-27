@@ -7,6 +7,8 @@ struct SettingsView: View {
     let settings: GameSettings
     /// プレイ記録。注入されないとき（プレビュー等）は消去の導線を出さない。
     var playLog: PlayLog?
+    /// 消去の完了を伝える触覚（#2936）。注入されないとき（プレビュー等）は何もしない。
+    var feedback: FeedbackService = NoopFeedbackService()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
@@ -179,6 +181,9 @@ struct SettingsView: View {
                                     // 久しぶり通知（#1193）はプレイ記録の最終プレイ日時を基準に予約するため、
                                     // 記録を消したのにスレッドや予約だけ残らないよう合わせて取り消す（#1269）。
                                     AppEnvironment.reengagement.cancelAll()
+                                    // 結果を表示する場所が無いので、完了を VoiceOver と触覚で伝える（#2936）。
+                                    feedback.notify(.success)
+                                    AccessibilityNotification.Announcement(tr("プレイ記録を消去しました")).post()
                                 }
                                 Button(tr("キャンセル"), role: .cancel) {}
                             } message: {
