@@ -913,6 +913,61 @@
           }
         }
       }
+    },
+    "ハブの並びを初期に戻す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset hub order to default"
+          }
+        }
+      }
+    },
+    "ハブの並びを初期に戻しますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset the hub order to default?"
+          }
+        }
+      }
+    },
+    "初期に戻す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset"
+          }
+        }
+      }
+    },
+    "ハブの並びを初期に戻しました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hub order reset to default"
+          }
+        }
+      }
+    },
+    "並べ替えた順番を、アプリ初期の並びに戻します。非表示にしたあそびもすべて表示に戻ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This restores the original order of games. Any games you hid will also be shown again."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
