@@ -335,6 +335,9 @@ public final class BlackjackModel {
         // ディーラーが引いている途中で中断していたら、その続きから引く（#667）。
         if phase == .dealerTurn {
             runDealer()
+        } else if phase == .playerTurn, hands.count == 1, isBlackjack(playerHand) || isBlackjack(dealerHand) {
+            // 21 が出た回の演出中に離れていたら、その回は配った時点で決着済みとして結果から始める（#2973）。
+            resolveAll()
         }
     }
 
@@ -441,6 +444,8 @@ public final class BlackjackModel {
             return
         }
         isRevealingNatural = true
+        // 演出の待ちの間に離れても配った札とフェーズを失わない。保存が直前の回のままだと、復元で前の結果画面に戻る（#2973）。
+        persist()
         let wait = Duration.seconds(BlackjackMotion.dealTotalDuration) + dealerDrawInterval
         dealerTask = Task { [weak self] in
             try? await Task.sleep(for: wait)
