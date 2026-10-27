@@ -14,6 +14,7 @@ struct SettingsView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var legalURL: IdentifiableURL?
     @State private var showClearPlayLogConfirm = false
+    @State private var showResetOrderConfirm = false
     /// 通知の許諾状態（#1603）。開いたとき・設定アプリから戻ったときに読む。未確認の間は表示を変えない。
     @State private var notificationAuthorization: ReminderAuthorization?
 
@@ -57,6 +58,27 @@ struct SettingsView: View {
                         }
                     }
                     .onMove { settings.move(from: $0, to: $1) }
+                    Button {
+                        showResetOrderConfirm = true
+                    } label: {
+                        Label(tr("ハブの並びを初期に戻す"), systemImage: "arrow.counterclockwise")
+                    }
+                    .foregroundStyle(Theme.ink)
+                    .dialogs { anchor in
+                        anchor.confirmationDialog(
+                            tr("ハブの並びを初期に戻しますか？"),
+                            isPresented: $showResetOrderConfirm,
+                            titleVisibility: .visible
+                        ) {
+                            Button(tr("初期に戻す"), role: .destructive) {
+                                settings.resetToDefault()
+                                AccessibilityNotification.Announcement(tr("ハブの並びを初期に戻しました")).post()
+                            }
+                            Button(tr("キャンセル"), role: .cancel) {}
+                        } message: {
+                            Text(tr("並べ替えた順番を、アプリ初期の並びに戻します。非表示にしたあそびもすべて表示に戻ります。"))
+                        }
+                    }
                 } header: {
                     Text(tr("あそび"))
                 } footer: {

@@ -10,6 +10,8 @@ import GameHomerun
 final class GameSettings {
     private(set) var orderedIDs: [String]
     private(set) var hiddenIDs: Set<String>
+    /// 現在登録されているゲームの ID（登録順）。並びを初期に戻すときの基準（#3006）。
+    private let registeredIDs: [String]
     /// 触覚フィードバックのオン / オフ。既定はオン。
     var hapticsEnabled: Bool {
         didSet { Self.haptics.isEnabled = hapticsEnabled }
@@ -88,6 +90,7 @@ final class GameSettings {
     private static var slowMode: FeedbackPreference { .actionSlowMode }
 
     init(registeredIDs: [String]) {
+        self.registeredIDs = registeredIDs
         let stored = UserDefaults.standard.stringArray(forKey: Self.orderKey) ?? []
         self.orderedIDs = GameOrderMerge.mergedOrder(stored: stored, registered: registeredIDs)
 
@@ -160,6 +163,15 @@ final class GameSettings {
             AppEnvironment.reminders.gameDidHide(gameID: id)
         }
         save()
+    }
+
+    /// 並びを登録順に、非表示をすべて表示に戻す（#3006）。保存した並びと非表示は消す。
+    /// 柵越えおじさんの先頭移動は登録順で先頭になるので、フラグは立てたままでよい。
+    func resetToDefault() {
+        orderedIDs = registeredIDs
+        hiddenIDs = []
+        UserDefaults.standard.removeObject(forKey: Self.orderKey)
+        UserDefaults.standard.removeObject(forKey: Self.hiddenKey)
     }
 
     private func save() {
