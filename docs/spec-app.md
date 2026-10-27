@@ -1264,8 +1264,8 @@ CPU と役の強さで比べる流れは変えない。
 
 ## 解析仕様（Analytics・#158 / #500 / #659 / #780 / #1043 / #1348）
 
-`CoreEngine/Analytics.swift` に**送信するイベントを7種だけに閉じた**（`release/v1.1.11` 以降は `notification_permission`（#2008）を足した8種） `AnalyticsEvent` enum がある
-（`reward_request` / `game_open` の2種は #659 で `release/v1.1.5` に、`share_tap` は #1043 で `release/v1.1.6` に、`reward_offer` は #780 で `release/v1.1.7` に。`survey_answer` は #1348 で足したが、アンケートの削除（#1956）で廃止。
+`CoreEngine/Analytics.swift` に**送信するイベントを下の表の9種だけに閉じた** `AnalyticsEvent` enum がある
+（`reward_request` / `game_open` の2種は #659 で `release/v1.1.5` に、`share_tap` は #1043 で `release/v1.1.6` に、`reward_offer` は #780 で `release/v1.1.7` に。`notification_permission` は #2008 で `release/v1.1.11` に、`clear_exit` は #2848 で `release/v1.1.14` に。`survey_answer` は #1348 で足したが、アンケートの削除（#1956）で廃止。
 main のコード（v1.1.9・v1.1.10 の公開版）には `surveyAnswer` のケース・`recordSurveyAnswer` / `gameDidAnswerSurvey`・`HomerunModel.submitSurvey` が互換のため残っているが、
 入口が `HomerunSurvey.isOffered = false` で画面に出ないので実際には送信されない。#1956 を含む `release/v1.1.11` 以降ではケースごと削除済み。
 v1.1.4 までの公開版は3種）。
