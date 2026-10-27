@@ -36,8 +36,6 @@ public protocol ReengagementReminderScheduler: AnyObject {
 
 /// いつ・どのゲームに知らせるかの規則。状態を持たない。
 public enum ReengagementReminderPolicy {
-    /// 対象になるための最低の未プレイ日数（会長決裁 2026-09-20）。
-    public static let minimumIdleDays = 7
     /// 最終プレイからの発火オフセット（長期スパン。会長決裁 2026-09-20）。
     public static let offsetDays = [7, 30, 60]
     /// 送信時刻（端末の現地時刻の「時」。会長決裁 2026-09-20）。
@@ -46,7 +44,8 @@ public enum ReengagementReminderPolicy {
     /// 経つまでは、新しい対象が選ばれてもスレッド化を見送る（通知が増えすぎるのを防ぐ）。
     public static let newThreadCooldownDays = 3
 
-    /// `minimumIdleDays` 日以上遊んでいないゲームのうち、プレイ回数が最も多いもの 1 件を選ぶ。
+    /// プレイ回数が最も多いゲーム 1 件を選ぶ。**判定時点での未プレイ日数は問わない**（#2939: 遊んだその日に
+    /// 離脱した人にも、最終プレイ日時を起点に 7・30・60 日後の通知を予約するため）。
     /// 同率は `availableIDs`（ハブの並び順）の先頭を採る（会長決裁 2026-09-20）。
     ///
     /// - Parameters:
@@ -54,15 +53,11 @@ public enum ReengagementReminderPolicy {
     ///   - availableIDs: ハブに並んでいるゲーム（非表示を除く、ハブの並び順）。
     public static func candidate(
         games: [ReengagementCandidateInput],
-        availableIDs: [String],
-        now: Date,
-        calendar: Calendar = .current
+        availableIDs: [String]
     ) -> String? {
         let available = Set(availableIDs)
         let eligible = games.filter { input in
-            guard available.contains(input.gameID), input.plays > 0, let last = input.lastPlayedAt else { return false }
-            guard let eligibleAt = calendar.date(byAdding: .day, value: minimumIdleDays, to: last) else { return false }
-            return now >= eligibleAt
+            available.contains(input.gameID) && input.plays > 0 && input.lastPlayedAt != nil
         }
         guard let maxPlays = eligible.map(\.plays).max() else { return nil }
         let topGameIDs = Set(eligible.filter { $0.plays == maxPlays }.map(\.gameID))
@@ -241,7 +236,7 @@ public final class ReengagementReminderService {
     /// アプリがバックグラウンドに入った（`GameCollectionApp` の `scenePhase` から呼ぶ）。
     public func applicationDidEnterBackground(games: [ReengagementCandidateInput], availableIDs: [String]) {
         guard !isSuppressed, isEnabled(), !store.isPermanentlyStopped else { return }
-        let target = ReengagementReminderPolicy.candidate(games: games, availableIDs: availableIDs, now: now(), calendar: calendar)
+        let target = ReengagementReminderPolicy.candidate(games: games, availableIDs: availableIDs)
         epoch += 1
         let token = epoch
         let previous = pendingWork
@@ -311,9 +306,16 @@ public final class ReengagementReminderService {
         //    「候補」にする。**ここではまだ永続化しない**: 許諾確認は OS への問い合わせを挟むため、
         //    待っている間に中断されると記録だけが残って実体の予約が無い状態になってしまう
         //    （PR #697・#1223 と同型の競合）。実際に記録するのは許諾が確認できてから（4）。
-        guard let target, activeThreads[target] == nil,
+        //    同じゲームの起点が変わっていなければ何もしない。起点が変わっていれば（遊んだ後など）予約し直す。
+        guard let target,
               let newLastPlayedAt = currentLastPlayed[target] ?? nil,
-              ReengagementReminderPolicy.canAddNewThread(lastThreadAddedAt: store.lastThreadAddedAt, now: now(), calendar: calendar)
+              activeThreads[target] != newLastPlayedAt
+        else { return }
+        // クールダウンは「他のゲームのスレッドがアクティブなまま別のゲームを足す」ときだけ（#2939）。
+        let isNewThread = activeThreads[target] == nil
+        let hasOtherActiveThread = activeThreads.keys.contains { $0 != target }
+        guard !(isNewThread && hasOtherActiveThread)
+                || ReengagementReminderPolicy.canAddNewThread(lastThreadAddedAt: store.lastThreadAddedAt, now: now(), calendar: calendar)
         else { return }
 
         // 3. 許諾確認。判定はバックグラウンドへ入る処理から呼ばれるため、未決定でも**要求しない**
@@ -326,7 +328,7 @@ public final class ReengagementReminderService {
         let previousLastThreadAddedAt = store.lastThreadAddedAt
         let addedAt = now()
         activeThreads[target] = newLastPlayedAt
-        store.lastThreadAddedAt = addedAt
+        if isNewThread { store.lastThreadAddedAt = addedAt }
         store.activeThreads = activeThreads
 
         var perThreadSchedule: [String: [(days: Int, date: Date)]] = [:]
@@ -346,12 +348,17 @@ public final class ReengagementReminderService {
             // 追加の完了を待つ間に判定がやり直された・設定を切られたなら、入った予約を取り消す
             // （取り消しが追加より先に処理されると残ってしまうため。PR #697 の CodeRabbit 指摘と同型）。
             guard epoch == token, isEnabled(), !store.isPermanentlyStopped else {
-                scheduler.cancel(gameID: gameID)
                 // 新規スレッドの記録だけが残ると、次の判定で「既にアクティブ」と見なされ永久に予約されない。
                 // 巻き戻して次の判定でやり直せるようにする（記録が別の処理で書き換わっていれば触らない）。
-                scheduler.cancel(gameID: target)
-                store.activeThreads.removeValue(forKey: target)
-                if store.lastThreadAddedAt == addedAt { store.lastThreadAddedAt = previousLastThreadAddedAt }
+                if isNewThread {
+                    store.activeThreads.removeValue(forKey: target)
+                    if store.lastThreadAddedAt == addedAt { store.lastThreadAddedAt = previousLastThreadAddedAt }
+                }
+                // 取り消すのは記録が無いゲームだけ。開かれた・設定オフ・永続停止で記録が消えたものは、後から入った
+                // 予約を消す。記録が残る既存スレッドの予約は残す（消すと実体の無い記録が未反応と誤判定されうる）。
+                for id in [gameID, target] where store.activeThreads[id] == nil {
+                    scheduler.cancel(gameID: id)
+                }
                 return
             }
         }
