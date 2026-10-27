@@ -302,6 +302,9 @@ Issue番号」を明記し、倉庫段階であることが一目で分かるよ
     main 直」はこの失敗により廃止）。例外として、**`comingSoon: true`（「配信予定」表示）を付ければ
     main の LP に先行掲載してよい**（公開前に検索インデックスを付ける #176 の利点を残すため）。
     ラベル無しの未リリース掲載は CI（lp-game-list）が検出して落とす。リリース時にラベルを外す。
+    あわせて同ワークフローは、LP の `tagline` / `taglineEn` がアプリの `GameModule.description`（ja）と
+    `Localizable.xcstrings` の en 値に一致するかも `Scripts/check-lp-game-text.py` で見る（#2941。アプリ側が正。
+    意図した差は同スクリプトの `ALLOW` に理由付きで足す。Module の無い comingSoon は対象外）。
   - アプリコードと `web/` を同時に触る Issue は、`web/` の変更を上の基準で振り分けて PR を分離する。
 
 ### マージ規則（マージは全リスク階層で AI が行う。会長の責務から除外）
