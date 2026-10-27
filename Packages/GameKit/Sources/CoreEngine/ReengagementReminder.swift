@@ -316,11 +316,9 @@ public final class ReengagementReminderService {
               ReengagementReminderPolicy.canAddNewThread(lastThreadAddedAt: store.lastThreadAddedAt, now: now(), calendar: calendar)
         else { return }
 
-        // 3. 許諾確認。
-        var status = await scheduler.authorization()
-        if status == .notDetermined {
-            status = await scheduler.requestExplicitAuthorization()
-        }
+        // 3. 許諾確認。判定はバックグラウンドへ入る処理から呼ばれるため、未決定でも**要求しない**
+        //    （背面で出したダイアログは戻ったときに唐突に現れ拒否されやすい。#1951・#2938）。
+        let status = await scheduler.authorization()
         guard status.allowsScheduling, epoch == token, isEnabled(), !store.isPermanentlyStopped else { return }
 
         // 4. 許諾が確認できたので新しいスレッドとして記録し、既存スレッドとあわせて発火予定を
