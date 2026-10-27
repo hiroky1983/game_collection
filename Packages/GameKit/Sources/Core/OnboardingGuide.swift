@@ -61,11 +61,10 @@ public struct OnboardingGuide: Sendable, Equatable {
         [title] + pages.flatMap { [$0.heading] + $0.lines }
     }
 
-    /// v1.1.14 では入口を出さない（#2944・会長決裁 2026-10-26）。花札でページ送り中に固まって
-    /// 落ちた件（#2905・PR #2943）があり、ほかにも Canvas の中で日本語を描く箇所が残っているため。
-    /// 中身・図・テストは消さず、`OnboardingEntry` の入口だけをこの 1 か所で隠す。
-    /// release/v1.1.15 では出す。release → v1.1.15 の同期でこの行が v1.1.15 に流れたら true に戻すこと。
-    public static let isAvailable = false
+    /// 入口を出すか。v1.1.14 では隠していた（#2944・会長決裁 2026-10-26。花札でページ送り中に固まって
+    /// 落ちた件 #2905・PR #2943 などのため）が、Canvas の直し（#2905・#2943・#2945・#2948）が入った
+    /// v1.1.15 では出し直す（#3002）。中身・図・テストは消さず、`OnboardingEntry` の入口をこの 1 か所で切り替える。
+    public static let isAvailable = true
 }
 
 // MARK: - 入口のボタン
@@ -100,7 +99,7 @@ public struct OnboardingEntry: View {
     }
 
     public var body: some View {
-        // v1.1.14 では入口を出さない（`OnboardingGuide.isAvailable` 参照・#2944）。
+        // `OnboardingGuide.isAvailable` が false の版では入口を出さない（#2944）。
         if let guide, OnboardingGuide.isAvailable {
             Button { isPresented = true } label: {
                 switch style {
