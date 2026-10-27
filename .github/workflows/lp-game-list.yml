@@ -17,6 +17,9 @@ on:
       - 'web/app/lib/games.ts'
       - 'App/AppGameServices.swift'
       - 'Scripts/check-lp-game-list.sh'
+      - 'Scripts/check-lp-game-text.py'
+      - 'Packages/GameKit/Sources/*/*Module.swift'
+      - 'Packages/GameKit/Sources/*/Resources/Localization/Localizable.xcstrings'
       - '.github/workflows/lp-game-list.yml'
   push:
     branches: [main]
@@ -24,6 +27,9 @@ on:
       - 'web/app/lib/games.ts'
       - 'App/AppGameServices.swift'
       - 'Scripts/check-lp-game-list.sh'
+      - 'Scripts/check-lp-game-text.py'
+      - 'Packages/GameKit/Sources/*/*Module.swift'
+      - 'Packages/GameKit/Sources/*/Resources/Localization/Localizable.xcstrings'
       - '.github/workflows/lp-game-list.yml'
 
 concurrency:
@@ -48,3 +54,12 @@ jobs:
 
       - name: check-lp-game-list.sh 自身の検証
         run: bash Scripts/tests/test-check-lp-game-list.sh
+
+      # 顔ぶれだけでなく文言も見る（#2941）。LP の tagline / taglineEn は「アプリの
+      # GameModule.description に合わせる」と決めてあるが、人手の守りだけだったためチャリンコおじさんが
+      # LP 内で 30 / 42 ステージに割れた。アプリ側を正として ja（Module）と en（xcstrings）を照合する。
+      - name: LP の1行紹介がアプリの description と一致するか
+        run: python3 Scripts/check-lp-game-text.py
+
+      - name: check-lp-game-text.py 自身の検証
+        run: bash Scripts/tests/test-check-lp-game-text.sh

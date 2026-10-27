@@ -38,7 +38,7 @@ export const games: Game[] = [
     slug: "homerun",
     name: "柵越えおじさん",
     emoji: "⚾",
-    tagline: "1日3回、10球勝負。狙って離して柵の向こうへ",
+    tagline: "1日3回、10球勝負。押したまま狙って離して振り、柵の向こうへ",
     nameEn: "Sakugoe Ojisan",
     taglineEn: "3 rounds a day, 10 pitches each. Hold to aim, let go to swing, and send it over the fence",
     pageTitle: "柵越えおじさん - 1日3回遊べる無料の一人用バッティングゲーム",
@@ -63,7 +63,7 @@ export const games: Game[] = [
     emoji: "🎴",
     tagline: "色か数字をつないで手札を出し切ろう。CPU3人と対戦",
     nameEn: "Color Relay",
-    taglineEn: "Match colors or numbers and empty your hand against 3 CPUs",
+    taglineEn: "Match the color or number and empty your hand first. Play against 3 CPUs",
     pageTitle: "いろリレー - 色と数字をつないで手札を出し切る無料のカードゲーム",
     description:
       "場の札と同じ色か同じ数字・記号の札を出していき、先に手札をなくした人が勝ちのカードゲーム。CPU3人との4人対戦で、とばし・ぎゃく・+2・いろがえ・いろがえ+4の特殊札で流れが変わります。出せる札がなければ山から1枚引きます。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -85,7 +85,7 @@ export const games: Game[] = [
     emoji: "🃏",
     tagline: "クロンダイク。52枚を組札に積み上げよう",
     nameEn: "Solitaire",
-    taglineEn: "The classic. Build all 52 cards onto the foundations",
+    taglineEn: "Classic Klondike. Build all 52 cards onto the foundations",
     pageTitle: "ソリティア（クロンダイク） - 無料でオフラインで遊べる定番のトランプ1人遊び",
     description:
       "トランプ52枚を ♠♥♦♣ ごとに A から K まで積み上げる、定番のソリティア（クロンダイク）。出題する配札はすべて事前に解いてクリアできることを確かめてあります。「戻す」は1局につき3回まで無料。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -109,7 +109,7 @@ export const games: Game[] = [
     emoji: "♠️",
     tagline: "5カードドロー。10回勝負で役の点を競おう！",
     nameEn: "Poker",
-    taglineEn: "Five-card draw. Score points with your hands over 10 rounds!",
+    taglineEn: "5-card draw. Score points with your hands over 10 rounds!",
     pageTitle: "ポーカー - 5カードドローを CPU と対戦できる無料アプリ",
     description:
       "CPU と1対1で戦う5カードドローポーカー。10回勝負で、勝った回に作った役の点を合計して自己ベストを目指します。役一覧と点数表がアプリ内で確認できるので、ルールを知らなくても始められます。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -131,7 +131,7 @@ export const games: Game[] = [
     emoji: "🎲",
     tagline: "サイコロ5個を3回まで振って、12の役に点を入れていこう",
     nameEn: "Dice Combos",
-    taglineEn: "Roll five dice up to 3 times and fill in 12 combos",
+    taglineEn: "Roll 5 dice up to 3 times and fill all 12 combos",
     pageTitle: "サイコロ役づくり - サイコロ5個で役を作る無料のダイスゲーム",
     description:
       "サイコロ5個を1ターンに3回まで振り、残したい目をキープしながら12の役に1回ずつ点を入れていく一人用のダイスゲーム。1〜6の目の小計が63点以上ならボーナス+35点。12の役をぜんぶ埋めたら終わりで、合計点の自己ベストを目指します。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -176,7 +176,7 @@ export const games: Game[] = [
     emoji: "⚪",
     tagline: "石を挟んでひっくり返せ！CPU に挑戦",
     nameEn: "Osero",
-    taglineEn: "Sandwich discs to flip them! Take on the CPU",
+    taglineEn: "Sandwich stones to flip them! Take on the CPU",
     pageTitle: "オセロ - CPU と対戦できる無料のオセロ",
     description:
       "8×8のオセロを CPU と一人で対戦。黒・白を選べて、待った・投了に対応。石数はリアルタイムに表示されます。通信不要・登録不要で、iPhone アプリ「あそびば」に無料で収録。",
@@ -267,7 +267,7 @@ export const games: Game[] = [
     emoji: "🪴",
     tagline: "同じ盆栽をくっつけて、立派に育てよう",
     nameEn: "Ojisan no Bonsai",
-    taglineEn: "Merge matching bonsai and grow them grand",
+    taglineEn: "Merge matching bonsai to grow them grander",
     pageTitle: "おじさんの盆栽 - 同じ盆栽をくっつけて育てる無料の落ちものパズル",
     description:
       "縁側のおじさんが持つ盆栽を庭へ落とし、同じ盆栽どうしが触れるとくっついて1つ上の盆栽になる一人用の落ちものパズル。桜から始まって金の松まで11段。大きい盆栽ほど高得点で、上の点線より上に盆栽がとどまるとゲームオーバーです。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -422,9 +422,9 @@ export const games: Game[] = [
     slug: "blackjack",
     name: "ブラックジャック",
     emoji: "♣️",
-    tagline: "ディーラーと10回勝負。勝ち数で自己ベストを狙おう！",
+    tagline: "ディーラーと10回勝負。勝ち点の合計で自己ベストを狙おう！",
     nameEn: "Blackjack",
-    taglineEn: "10 rounds against the dealer. Win as many as you can!",
+    taglineEn: "10 rounds against the dealer. Score as many points as you can!",
     pageTitle: "ブラックジャック - ディーラーと対決できる無料のカードゲーム",
     description:
       "21 を超えずにディーラーより強い手を作るブラックジャック。ディーラーと10回勝負して、勝ち点の合計で自己ベストを目指します。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -446,12 +446,12 @@ export const games: Game[] = [
     emoji: "🚲",
     // おじさんの正面顔（アプリの Core/OjisanPixel と同じ 16×15 ドットを 8 倍で書き出したもの、#700）
     icon: { src: "/games/ojisan-face.png", width: 16, height: 15 },
-    tagline: "タップで跳んで30ステージを走りぬけよう",
+    tagline: "タップで跳んで42ステージを走りぬけよう",
     nameEn: "Charinko Ojisan",
     taglineEn: "Tap to jump and pedal through all 42 stages",
-    pageTitle: "チャリンコおじさん - 全30ステージの無料ワンタップ横スクロールランナー",
+    pageTitle: "チャリンコおじさん - 全42ステージの無料ワンタップ横スクロールランナー",
     description:
-      "自転車のおじさんが自動で右へ走っていくのを、タップひとつで操作する横スクロールアクション。長く押すほど高く跳べるので、穴と障害物を跳び越えて30ステージのゴールを目指します。ミスしても待ち時間なしですぐやり直せるので、失敗しながら覚えるタイプのゲームです。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
+      "自転車のおじさんが自動で右へ走っていくのを、タップひとつで操作する横スクロールアクション。長く押すほど高く跳べるので、穴と障害物を跳び越えて42ステージのゴールを目指します。ミスしても待ち時間なしですぐやり直せるので、失敗しながら覚えるタイプのゲームです。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
     howTo: [
       "画面をタップするとおじさんが走り出します。あとは自動で右へ進みます",
       "タップでジャンプ。長く押すほど高く跳べます",
@@ -460,7 +460,7 @@ export const games: Game[] = [
     ],
     features: [
       "操作はタップだけ。ボタンもスティックも無く、片手で遊べます",
-      "30ステージ。進むごとに速くなり、コースも長く手強くなります。後半は乗れる台座で高低差のあるコースに",
+      "42ステージ。進むごとに速くなり、コースも長く手強くなります。後半は乗れる台座で高低差のあるコースに",
       "ミスからのやり直しに広告も読み込みも挟みません。テンポを落とさずに何度でも挑戦できます",
       "コース半ばのチェックポイントまで進んでいれば、広告を見てそこから再開できます（1ステージに1回・使わなくてもクリアできます）",
       "進みを遅くする「ゆっくりモード」を設定と一時停止画面から切り替えられます。いつでも一時停止できます",
@@ -470,9 +470,9 @@ export const games: Game[] = [
     slug: "anzan",
     name: "ぱっと暗算",
     emoji: "➕",
-    tagline: "パッと出て消える数を、頭の中で足していこう",
+    tagline: "パッと出て消える数を足していこう。桁数・個数・速さを選べる",
     nameEn: "Quick Mental Math",
-    taglineEn: "Add up numbers that pop up and vanish. Choose the digits, count and speed",
+    taglineEn: "Add up numbers that flash and vanish. Choose the digits, count and speed",
     pageTitle: "ぱっと暗算 - 出ては消える数を足す無料の暗算ゲーム",
     description:
       "数が1つずつパッと出ては消えるので、頭の中でぜんぶ足して合計をテンキーで答える一人用の暗算ゲーム。桁数・個数・速さをそれぞれ選べて、1桁・5個のやさしい問題から始められます。正解が続くほど連続正解が伸び、回答の速さも記録に残ります。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -538,9 +538,9 @@ export const games: Game[] = [
     slug: "go",
     name: "囲碁",
     emoji: "⚫",
-    tagline: "9路盤で CPU と対局。ルールも読める",
+    tagline: "9路・13路盤で CPU と対局。ルールも読める",
     nameEn: "Go",
-    taglineEn: "Play the CPU on a 9x9 board. Rules included",
+    taglineEn: "Play the CPU on a 9x9 or 13x13 board. Rules included",
     pageTitle: "囲碁 - 9路盤で CPU と対局できる無料の囲碁アプリ",
     description:
       "9路盤で CPU と一人対局できる囲碁。中国ルール（面積計算）なので終局の数え方が単純で、初めてでも 1 局を最後まで打ち切れます。CPU の強さは3段階、置き石は2〜5子から選べます。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
