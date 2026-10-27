@@ -6,6 +6,8 @@ public struct OthelloView: View {
     private let services: GameServices
     @State private var showNewGame = false
     @State private var showConfirmNewGame = false
+    /// 打てる場所の印を盤に出すか（既定オン）。新規対局シートで切り替える。
+    @AppStorage(OthelloLegalMoveHint.key) private var showsLegalMoves = true
     /// 出ている「パス」の札（#2797）。モデルの `passEventID` をそのまま入れ、一定時間後に nil へ戻す。
     @State private var passBannerID: Int?
     /// 結果カードを閉じたか（#2797）。新しい対局が始まる（`gameOver` が偽に戻る）とリセットする。
@@ -68,7 +70,9 @@ public struct OthelloView: View {
                     newGame: GameChromeNewGame(.match) { requestNewGame() })
         .howToPlay(HowToPlayGuide.othello.illustrated(OthelloHowToFigures.items).onboarding(OthelloOnboarding.guide))
         .sheet(isPresented: $showNewGame) {
-            OthelloNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel) { side, level in
+            OthelloNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel,
+                                showsLegalMoves: showsLegalMoves) { side, level, shows in
+                showsLegalMoves = shows
                 model.newGame(humanSide: side, aiLevel: level)
                 showNewGame = false
             } onCancel: { showNewGame = false }
@@ -195,7 +199,7 @@ public struct OthelloView: View {
 
                 OthelloBoardCanvas(
                     board: model.board,
-                    validSet: validSet,
+                    validSet: showsLegalMoves ? validSet : [],
                     lastMove: model.lastMove,
                     flippedCells: model.flippedCells,
                     placementCount: model.placementCount,
@@ -633,17 +637,24 @@ private struct OthelloBoardCanvas: View, Animatable {
 
 // MARK: - New Game Sheet
 
+/// 打てる場所の印の表示設定（`UserDefaults` に Bool 1 つだけ保存する）。
+enum OthelloLegalMoveHint {
+    static let key = "othelloShowLegalMoves"
+}
+
 struct OthelloNewGameSheet: View {
     @State private var side: OthelloStone
     @State private var level: Int
-    let onStart: (OthelloStone, Int) -> Void
+    @State private var showsLegalMoves: Bool
+    let onStart: (OthelloStone, Int, Bool) -> Void
     let onCancel: () -> Void
 
-    init(humanSide: OthelloStone, aiLevel: Int,
-         onStart: @escaping (OthelloStone, Int) -> Void,
+    init(humanSide: OthelloStone, aiLevel: Int, showsLegalMoves: Bool,
+         onStart: @escaping (OthelloStone, Int, Bool) -> Void,
          onCancel: @escaping () -> Void) {
         _side  = State(initialValue: humanSide)
         _level = State(initialValue: aiLevel)
+        _showsLegalMoves = State(initialValue: showsLegalMoves)
         self.onStart  = onStart
         self.onCancel = onCancel
     }
@@ -652,7 +663,7 @@ struct OthelloNewGameSheet: View {
         GameSetupSheet(
             kind: .versus,
             onboarding: OthelloOnboarding.guide,
-            onStart: { onStart(side, level) }, onCancel: onCancel
+            onStart: { onStart(side, level, showsLegalMoves) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("あなたの石")) {
                 HStack(spacing: 12) {
@@ -669,6 +680,15 @@ struct OthelloNewGameSheet: View {
                 CPUStrengthPicker(level: $level, details: [
                     tr("1手先だけ読む"), tr("3手先まで読む"), tr("5手先まで読む"), tr("終盤は最後まで読む"),
                 ])
+            }
+            GameSetupSection(tr("打てる場所の表示")) {
+                Toggle(isOn: $showsLegalMoves) {
+                    Text(tr("置ける升に白い点を出す")).themeBody(16, weight: .bold).foregroundStyle(Theme.ink)
+                }
+                .tint(Theme.fillStrong)
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .frame(minHeight: 44)
+                .background(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous).fill(Theme.fillMuted.opacity(0.12)))
             }
         }
     }
