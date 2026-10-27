@@ -5,6 +5,8 @@ public enum HeartsCardHint: Equatable, Sendable {
     case none
     case playable
     case unplayable
+    /// 渡す場面でヒントが示した、渡すとよい札（#3003）。
+    case recommendedPass
 }
 
 /// ハーツのルールを**乱数も状態も持たない純粋関数**として閉じ込めた層（Issue #1884）。

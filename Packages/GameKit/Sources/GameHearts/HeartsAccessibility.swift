@@ -26,8 +26,15 @@ public enum HeartsAccessibility {
         case .none:       break
         case .playable:   parts.append(tr("出せます"))
         case .unplayable: parts.append(tr("いまは出せません"))
+        case .recommendedPass: parts.append(tr("渡すのがおすすめ"))
         }
         return parts.joined(separator: tr("、"))
+    }
+
+    /// 渡す場面のヒントボタンの読み上げ文。使い切ったあとは広告が要ることまで読む。
+    public static func passHintLabel(remaining: Int, needsAd: Bool) -> String {
+        if needsAd { return tr("ヒント、無料の回数は使い切りました。広告を見ると1回追加") }
+        return remaining > 0 ? tr("ヒント、残り%lld回", remaining) : tr("ヒント、残りなし")
     }
 
     /// 場の読み上げ文。出た順に「誰が何を出したか」と、いま取りそうな人。
