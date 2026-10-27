@@ -1,4 +1,5 @@
 import Core
+import CoreMiniCard
 import SwiftUI
 
 /// 図入りの遊び方（#2044）のハーツの図。文言は `HowToPlayGuide.hearts.items`（Core）と同じ順。

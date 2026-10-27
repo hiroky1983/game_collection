@@ -1,5 +1,6 @@
 import Testing
 import Core
+import CoreMiniCard
 @testable import GamePoker
 
 /// 図で見る「はじめての遊び方」（#2824）の中身が、実装のルールと食い違っていないこと。

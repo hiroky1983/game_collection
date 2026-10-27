@@ -1,4 +1,5 @@
 import Core
+import CoreMiniCard
 import SwiftUI
 
 /// 対局中に開ける早見表（#2788）の中身のうち、**ルールの値から作るもの**。
