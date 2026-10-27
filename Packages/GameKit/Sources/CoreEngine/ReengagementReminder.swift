@@ -329,7 +329,6 @@ public final class ReengagementReminderService {
         //    組み直す。同じ暦日に重なったら日数の大きい方だけ残してから反映する。
         let previousLastThreadAddedAt = store.lastThreadAddedAt
         let addedAt = now()
-        let previousBaseline = activeThreads[target]
         activeThreads[target] = newLastPlayedAt
         if isNewThread { store.lastThreadAddedAt = addedAt }
         store.activeThreads = activeThreads
@@ -351,18 +350,17 @@ public final class ReengagementReminderService {
             // 追加の完了を待つ間に判定がやり直された・設定を切られたなら、入った予約を取り消す
             // （取り消しが追加より先に処理されると残ってしまうため。PR #697 の CodeRabbit 指摘と同型）。
             guard epoch == token, isEnabled(), !store.isPermanentlyStopped else {
-                scheduler.cancel(gameID: gameID)
                 // 新規スレッドの記録だけが残ると、次の判定で「既にアクティブ」と見なされ永久に予約されない。
                 // 巻き戻して次の判定でやり直せるようにする（記録が別の処理で書き換わっていれば触らない）。
-                scheduler.cancel(gameID: target)
-                // 既存スレッドの組み直しなら元の起点へ戻す。ただし途中で開かれて記録が消えていたら蘇らせない
-                // （実体の予約が無いのに記録だけ残ると、未反応と誤判定されて永続停止しうる）。
                 if isNewThread {
                     store.activeThreads.removeValue(forKey: target)
-                } else if store.activeThreads[target] == newLastPlayedAt {
-                    store.activeThreads[target] = previousBaseline
+                    if store.lastThreadAddedAt == addedAt { store.lastThreadAddedAt = previousLastThreadAddedAt }
                 }
-                if isNewThread, store.lastThreadAddedAt == addedAt { store.lastThreadAddedAt = previousLastThreadAddedAt }
+                // 取り消すのは記録が無いゲームだけ。開かれた・設定オフ・永続停止で記録が消えたものは、後から入った
+                // 予約を消す。記録が残る既存スレッドの予約は残す（消すと実体の無い記録が未反応と誤判定されうる）。
+                for id in [gameID, target] where store.activeThreads[id] == nil {
+                    scheduler.cancel(gameID: id)
+                }
                 return
             }
         }
