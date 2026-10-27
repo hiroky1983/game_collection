@@ -102,7 +102,7 @@ public struct HanoiView: View {
                                 .fill(isCurrent ? Theme.Fill.teal : Theme.fillMuted)
                         )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pop)
                 .accessibilityLabel(tr("円盤%lld枚", count))
                 .accessibilityAddTraits(isCurrent ? .isSelected : [])
             }

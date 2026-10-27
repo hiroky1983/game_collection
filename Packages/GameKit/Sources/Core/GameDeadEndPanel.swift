@@ -98,7 +98,7 @@ public struct GameDeadEndActionButton: View {
                 .background(tint, in: RoundedRectangle(cornerRadius: 14))
                 .foregroundStyle(Theme.onAccent)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pop)
         .disabled(isDisabled)
         .opacity(isDisabled ? 0.5 : 1)
     }
@@ -139,7 +139,7 @@ public struct GameDeadEndDismissButton: View {
                         .strokeBorder(Theme.ink.opacity(0.3), lineWidth: 1.5)
                 )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pop)
         .disabled(isDisabled)
         .opacity(isDisabled ? 0.5 : 1)
     }

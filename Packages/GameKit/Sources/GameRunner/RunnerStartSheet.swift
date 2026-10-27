@@ -117,7 +117,7 @@ struct RunnerStartSheet: View {
             .popCard(corner: Theme.cornerSmall)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pop)
         .foregroundStyle(Theme.ink)
         .accessibilityValue(showsDetails ? tr("開いている") : tr("閉じている"))
     }

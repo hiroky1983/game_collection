@@ -193,7 +193,7 @@ public struct ChessView: View {
                                 .frame(width: 66, height: 76)
                                 .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.pop)
                             .accessibilityLabel(tr("%@に成る", type.displayName))
                         }
                     }

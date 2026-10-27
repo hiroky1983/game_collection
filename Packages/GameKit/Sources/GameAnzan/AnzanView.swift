@@ -248,7 +248,7 @@ public struct AnzanView: View {
                 .padding(.horizontal, 12).padding(.vertical, 7)
                 .background(Capsule().fill(replayRescue.isWatching ? Theme.inkSub.opacity(0.5) : Theme.Fill.yellow))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pop)
         .disabled(replayRescue.isWatching)
     }
 
@@ -355,7 +355,7 @@ public struct AnzanView: View {
             )
             .opacity(enabled ? 1 : 0.5)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pop)
         .disabled(!enabled)
         .accessibilityLabel(AnzanAccessibility.keyLabel(key))
     }
@@ -385,7 +385,7 @@ public struct AnzanView: View {
                     Text(tr("まちがえた問題を見る（%lld）", model.misses.count))
                         .themeBody(14).frame(maxWidth: .infinity, minHeight: 44)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pop)
                 .foregroundStyle(Theme.coralText)
             }
         }

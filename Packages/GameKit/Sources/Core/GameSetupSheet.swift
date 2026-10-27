@@ -271,7 +271,7 @@ public struct GameSetupChooser: View {
                     .shadow(color: .black.opacity(selected ? 0.15 : 0.06), radius: 6, y: 3)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pop)
         // 選択中であることを VoiceOver にも伝える（面の色だけでは読み上げに出ない）。
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }

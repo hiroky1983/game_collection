@@ -148,7 +148,7 @@ struct DifficultyLadderCard: View {
                         .background(Capsule().fill(Theme.Fill.yellow))
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pop)
             .accessibilityLabel(tr("%1$@%2$@", offer.caption, offer.title))
             .accessibilityHint(tr("「%@」で新しく始めます", offer.nextLevelLabel))
 

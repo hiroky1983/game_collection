@@ -361,7 +361,7 @@ private struct FullScreenHeaderButton: View {
                 .contentShape(Circle())
                 .opacity(isEnabled ? 1 : 0.45)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pop)
         .accessibilityLabel(label)
     }
 }

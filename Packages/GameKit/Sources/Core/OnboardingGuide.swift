@@ -126,7 +126,7 @@ public struct OnboardingEntry: View {
                         .background(Capsule().strokeBorder(Theme.coralText.opacity(0.5), lineWidth: 1.5))
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pop)
             #if DEBUG
             // 撮影用（DEBUG 限定・#2827）: `-showOnboarding` で入口のボタンが現れた直後に案内を開く
             // （シミュレータはタップを自動化できないため）。「？」のシートの入口は `-showHowToPlay`、
@@ -245,7 +245,7 @@ public struct OnboardingGuideView: View {
                             .background(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
                                 .strokeBorder(Theme.coralText.opacity(0.5), lineWidth: 1.5))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pop)
                 }
                 Button {
                     if isLast { onClose() } else { step(1) }
@@ -256,7 +256,7 @@ public struct OnboardingGuideView: View {
                         .background(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
                             .fill(Theme.Fill.coral))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pop)
             }
         }
         .padding(.horizontal, Theme.pad)
