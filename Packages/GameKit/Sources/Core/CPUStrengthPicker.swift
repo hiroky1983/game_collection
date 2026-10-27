@@ -101,7 +101,7 @@ public struct CPUStrengthPicker: View {
             // 段を選び直しても高さが変わらないよう 1 行に固定する（シートが伸び縮みしない）。
             Text(selectedDetail)
                 .themeBody(13)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .frame(maxWidth: .infinity, alignment: .leading)

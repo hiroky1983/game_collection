@@ -46,7 +46,7 @@ enum PokerHowToFigures {
                     hand(0)
                     Image(systemName: "arrow.down")
                         .scaledFont(12, weight: .black, maxScale: 1.2)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                     hand(1)
                 }
             }

@@ -90,7 +90,7 @@ public enum PokerOnboarding {
                 }
                 HStack(spacing: 6) {
                     RuleFigureLabel(label)
-                    RuleFigureLabel(result, color: isWinner ? Theme.coralText : Theme.inkSub)
+                    RuleFigureLabel(result, color: isWinner ? Theme.coralText : Theme.inkSubText)
                     RuleVerdictMark(isWinner)
                 }
             }
@@ -111,7 +111,7 @@ public enum PokerOnboarding {
                 Text(tr("%lld点", points))
                     .scaledFont(22, weight: .black, design: .rounded, maxScale: 1.15)
                     .foregroundStyle(isWinner ? Theme.coralText : Theme.ink)
-                RuleFigureLabel(label, color: isWinner ? Theme.coralText : Theme.inkSub)
+                RuleFigureLabel(label, color: isWinner ? Theme.coralText : Theme.inkSubText)
                 RuleVerdictMark(isWinner)
             }
         }

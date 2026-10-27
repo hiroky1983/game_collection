@@ -90,7 +90,7 @@ public enum ConcentrationOnboarding {
                     }
                     .padding(.top, 4)
                     RuleFigureLabel(index == 0 ? tr("🍎 の場所を覚える") : tr("覚えた場所をめくってペア"),
-                                    color: index == 0 ? Theme.inkSub : Theme.coralText)
+                                    color: index == 0 ? Theme.inkSubText : Theme.coralText)
                 }
             }
         }

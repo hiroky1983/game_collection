@@ -551,7 +551,7 @@ public struct OldMaidView: View {
                         } else {
                             Text(tr("あがり"))
                                 .scaledFont(12, weight: .semibold, design: .rounded)
-                                .foregroundStyle(Theme.inkSub)
+                                .foregroundStyle(Theme.inkSubText)
                         }
                     }
                     .accessibilityElement(children: .combine)

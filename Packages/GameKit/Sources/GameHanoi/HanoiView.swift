@@ -64,7 +64,7 @@ public struct HanoiView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(tr("手数"))
                     .scaledFont(12, weight: .bold, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 Text("\(model.moves)")
                     .scaledFont(30, weight: .heavy, design: .rounded, maxScale: 1.2).monospacedDigit()
                     .foregroundStyle(Theme.ink)
@@ -72,7 +72,7 @@ public struct HanoiView: View {
             }
             Text(tr("最少 %lld手", model.minimumMoves))
                 .scaledFont(13, weight: .bold, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
             Spacer()
             GameClockLabel(RecordFormat.time(model.elapsedSeconds))
         }
@@ -86,7 +86,7 @@ public struct HanoiView: View {
         HStack(spacing: 6) {
             Text(tr("円盤"))
                 .scaledFont(13, weight: .bold, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
             ForEach(Array(HanoiLogic.diskRange), id: \.self) { count in
                 let isCurrent = count == model.disks
                 Button {
@@ -172,7 +172,7 @@ public struct HanoiView: View {
             } else {
                 Text(model.selectedPeg == nil ? tr("柱をタップして円盤を取ろう") : tr("置きたい柱をタップしよう"))
                     .scaledFont(14, weight: .semibold, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
             }
         }
         .frame(minHeight: 36)

@@ -81,7 +81,7 @@ struct MahjongMeldRow: View {
             if showsBadge {
                 Text(Self.badge(meld))
                     .scaledFont(8, weight: .black, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     // 英語（"Closed Kan" 等）は日本語より長い。折り返して副露の行の高さを変えない。
                     .lineLimit(1).minimumScaleFactor(0.7)
             }

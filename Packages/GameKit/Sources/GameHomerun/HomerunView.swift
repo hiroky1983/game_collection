@@ -180,7 +180,7 @@ struct HomerunLobbyView: View {
             HomerunRecordsLink(model: model, ads: services.ads)
             Text(tr("挑戦回数は打席に立った時点で1つ減ります"))
                 .themeCaption(11)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
             Toggle(isOn: Bindable(model).showsDirectionMeter) {
                 Text(tr("方向メーターを表示")).themeBody(14).foregroundStyle(Theme.ink)
             }
@@ -210,7 +210,7 @@ struct HomerunLobbyView: View {
                     .foregroundStyle(Theme.ink)
                 Text(tr("押したまま狙って、離して振る。方向と角度は自分で決める。アウトは無い。"))
                     .themeBody(13)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 0)
@@ -317,7 +317,7 @@ struct HomerunResultView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(verbatim: model.challenge?.isMoonBroken == true
                      ? tr("%lld 球で終了（月が割れた）", balls.count)
-                     : tr("%lld 球の結果", HomerunChallenge.pitchCount)).themeCaption(13).foregroundStyle(Theme.inkSub)
+                     : tr("%lld 球の結果", HomerunChallenge.pitchCount)).themeCaption(13).foregroundStyle(Theme.inkSubText)
                 Text(verbatim: HomerunText.meters(total))
                     .scaledFont(44, weight: .black, design: .rounded, maxScale: 1.2).monospacedDigit()
                     .foregroundStyle(Theme.ink)
@@ -360,7 +360,7 @@ struct HomerunResultView: View {
                 Text(verbatim: detail).themeBody(14, weight: .heavy).foregroundStyle(Theme.ink)
                     .multilineTextAlignment(.trailing)
                 if let delta, delta > 0 { ChipText(text: "↑ \(delta)", fill: Theme.Fill.pink) }
-                Image(systemName: "chevron.right").scaledFont(13, weight: .bold).foregroundStyle(Theme.inkSub)
+                Image(systemName: "chevron.right").scaledFont(13, weight: .bold).foregroundStyle(Theme.inkSubText)
             }
             .padding(14)
             .frame(minHeight: 44)
@@ -387,7 +387,7 @@ struct HomerunResultView: View {
                         Text(tr("挑戦はここで終わり。プレイ回数 +%lld をプレゼント", HomerunLedger.moonBonus))
                             .themeCaption(12).foregroundStyle(Theme.coralText)
                     } else {
-                        Text(tr("記録には 180 m として数えます")).themeCaption(11).foregroundStyle(Theme.inkSub)
+                        Text(tr("記録には 180 m として数えます")).themeCaption(11).foregroundStyle(Theme.inkSubText)
                     }
                 }
                 Spacer(minLength: 0)
@@ -422,7 +422,7 @@ struct HomerunResultView: View {
                 .foregroundStyle(Theme.ink)
             Text(tr("★ 柵越え　● 当たり（赤は直撃）　F ファウル　× 空振り"))
                 .themeCaption(10)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 .accessibilityHidden(true)
         }
         .padding(14)
@@ -444,7 +444,7 @@ struct HomerunResultView: View {
                 Text(verbatim: tr("最長 %1$@（%2$lld 球目・%3$@・%4$@）", HomerunText.distance(of: longest.element), longest.offset + 1,
                                    HomerunText.place(longest.element), HomerunText.timing(longest.element.timing)))
                     .themeCaption(11)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
             }
         }
         .padding(14)
@@ -601,7 +601,7 @@ struct HomerunBallTile: View {
                 .lineLimit(1).minimumScaleFactor(0.6)
             Text(verbatim: HomerunText.place(ball))
                 .scaledFont(10, weight: .semibold, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 .lineLimit(1).minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity, minHeight: 60)
@@ -624,7 +624,7 @@ struct HomerunBallTile: View {
         case .homer: Theme.yellowText
         case .fenceHit: Theme.coralText
         case .inPlay: Theme.tealText
-        case .foul, .miss: Theme.inkSub
+        case .foul, .miss: Theme.inkSubText
         }
     }
 }
@@ -686,7 +686,7 @@ struct HomerunStartLabel: View {
                                       lit: Theme.inkSub, unlit: Theme.inkSub.opacity(0.35))
                 }
                 .frame(maxWidth: .infinity)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 // 押せないボタンでも、VoiceOver で残りが分かるように（下の残りの文字は読み上げから外している）。
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(Text(verbatim: tr("%1$@。%2$@", title, remaining)))
@@ -738,7 +738,7 @@ struct HomerunReturnReminderToggle: View {
             .tint(Theme.coral) // accent-text-ok: トグルのトラック（面）
             .disabled(!service.isNotificationsEnabled)
             if let note = service.isNotificationsEnabled ? reminderNote : tr("設定の「通知」をオンにすると使えます。") {
-                Text(note).themeCaption(12).foregroundStyle(Theme.inkSub)
+                Text(note).themeCaption(12).foregroundStyle(Theme.inkSubText)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -815,7 +815,7 @@ struct HomerunRecoveryButton: View {
                         .themeBody(16)
                         .lineLimit(1).minimumScaleFactor(0.7)
                         .frame(maxWidth: .infinity)
-                        .foregroundStyle(challengeRescue.isWatching ? Theme.inkSub : Theme.onAccent)
+                        .foregroundStyle(challengeRescue.isWatching ? Theme.inkSubText : Theme.onAccent)
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large)
                 .tint(challengeRescue.isWatching ? Theme.inkSub.opacity(0.3) : Theme.Fill.teal)
@@ -824,7 +824,7 @@ struct HomerunRecoveryButton: View {
                 // 上限の本数は画面に出さない（会長決裁 2026-10-02）。達したときだけ知らせる。
                 Text(tr("今日はここまで。0:00 に %lld 回に戻ります", HomerunLedger.freePerDay))
                     .themeCaption(12)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
             }
         }
     }

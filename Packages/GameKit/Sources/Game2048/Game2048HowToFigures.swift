@@ -66,11 +66,11 @@ enum Game2048HowToFigures {
                 TileView(value: 1024, size: 40)
                 Image(systemName: "plus")
                     .scaledFont(12, weight: .black, maxScale: 1.2)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 TileView(value: 1024, size: 40)
                 Image(systemName: "arrow.right")
                     .scaledFont(12, weight: .black, maxScale: 1.2)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 VStack(spacing: 4) {
                     TileView(value: 2048, size: 48)
                     RuleFigureLabel(tr("クリア！"), color: Theme.coralText)

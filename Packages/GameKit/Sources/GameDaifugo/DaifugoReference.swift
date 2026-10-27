@@ -46,7 +46,7 @@ struct DaifugoReferenceSheet: View {
                 strengthRow(title: tr("革命中（逆になる）"), isRevolution: true)
                 Text(tr("ジョーカーは、革命中も最強です。"))
                     .themeCaption(12, weight: .medium)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
             }
             YakuTableSection(header: tr("革命・8切り")) {
                 ruleRow(tr("同じ数字を %lld 枚以上まとめて出すと革命。強さが逆になります（もう一度出すと元に戻ります）。",
@@ -103,7 +103,7 @@ struct DaifugoReferenceSheet: View {
         } icon: {
             Image(systemName: "circle.fill")
                 .scaledFont(5, maxScale: 1.15)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
         }
     }
 }

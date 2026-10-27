@@ -139,7 +139,7 @@ public struct RuleFoundationFigure: View {
                 }
                 Text("…")
                     .scaledFont(16, weight: .black, design: .rounded, maxScale: 1.15)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 RuleMiniCard("K", suit: .spade)
             }
             HStack(spacing: 6) {

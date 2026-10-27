@@ -18,11 +18,11 @@ public struct HeaderBestStat: View {
         VStack(alignment: .trailing, spacing: 2) {
             Text(title)
                 .themeCaption(12, weight: .bold, maxScale: 1.5)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
             Text(value)
                 .themeBody(20, weight: .heavy, maxScale: 1.5).monospacedDigit()
                 .lineLimit(1).minimumScaleFactor(0.5)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 .contentTransition(.numericText())
         }
     }

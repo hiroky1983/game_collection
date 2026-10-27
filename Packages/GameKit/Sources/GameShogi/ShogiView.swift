@@ -205,7 +205,7 @@ public struct ShogiView: View {
                     }
                     Button(tr("やめる")) { model.cancelPromotion() }
                         .themeBody(14)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                         // 押せる範囲を 44pt にする（#2487）。増えた高さ（文字 1 行ぶん ≒ 26pt）は
                         // 上の隙間と下の余白から半分ずつ引いて、札の外寸を変えない。
                         // 上は VStack の中（隙間 20 pt 以内）に収まるので当たり判定は枠の外へ出ない。
@@ -515,7 +515,7 @@ public struct ShogiView: View {
                     .gameAnimation(ShogiMotion.turnChange, value: model.position.sideToMove)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
-                    Text(tr("CPU思考中…")).themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text(tr("CPU思考中…")).themeBody(13).foregroundStyle(Theme.inkSubText)
                 } else if let last = model.highlightedMoveText {
                     Text(tr("直前 %@", last)).themeBody(14).foregroundStyle(Theme.ink)
                 }
@@ -530,7 +530,7 @@ public struct ShogiView: View {
                 // 駒落ちは手合いを添える（平手は従来どおり手数だけ）。
                 Text(model.matchSetting.displayName.map { tr("%1$@・%2$@", $0, tr("%lld手", model.moves.count)) }
                      ?? tr("%lld手", model.moves.count))
-                    .themeBody(13).foregroundStyle(Theme.inkSub)
+                    .themeBody(13).foregroundStyle(Theme.inkSubText)
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
         }
@@ -743,9 +743,9 @@ private struct HandAreaView: View {
                     .themeCaption(11, weight: .bold, maxScale: 1.5)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
-                    .foregroundStyle(isYou ? Theme.tealText : Theme.inkSub)
+                    .foregroundStyle(isYou ? Theme.tealText : Theme.inkSubText)
                 Text(color == .black ? "☗" : "☖")
-                    .themeCaption(12, weight: .regular, maxScale: 1.5).foregroundStyle(Theme.inkSub)
+                    .themeCaption(12, weight: .regular, maxScale: 1.5).foregroundStyle(Theme.inkSubText)
             }
             .frame(width: 38, alignment: .leading)
 
@@ -754,7 +754,7 @@ private struct HandAreaView: View {
                 if owned.isEmpty {
                     Text(tr("持ち駒なし"))
                         .themeCaption(12, weight: .regular, maxScale: 1.5)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                 } else {
                     // 駒の板は幅 scaled(32)+10 で 44pt に届かないので、ボタンの枠を 44pt まで広げて
                     // 当たり判定に入れ、増えたぶんは並べる間隔から引いて見た目を変えない（#1715）。
@@ -784,7 +784,7 @@ private struct HandAreaView: View {
                                         }
                                     Text("×\(count)")
                                         .themeCaption(10, weight: .black, maxScale: 1.5)
-                                        .foregroundStyle(selected ? Theme.coralText : Theme.inkSub)
+                                        .foregroundStyle(selected ? Theme.coralText : Theme.inkSubText)
                                 }
                                 .frame(minWidth: tapWidth)
                                 .contentShape(Rectangle())

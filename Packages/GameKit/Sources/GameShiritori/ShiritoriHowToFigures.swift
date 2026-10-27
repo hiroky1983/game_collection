@@ -44,7 +44,7 @@ enum ShiritoriHowToFigures {
                     ForEach(0..<6, id: \.self) { i in
                         Image(systemName: i < 4 ? "rectangle.portrait.fill" : "rectangle.portrait")
                             .scaledFont(20, weight: .bold, maxScale: 1.15)
-                            .foregroundStyle(i < 4 ? Theme.tealText : Theme.inkSub.opacity(0.5))
+                            .foregroundStyle(i < 4 ? Theme.tealText : Theme.inkSubText.opacity(0.5))
                     }
                     Image(systemName: "flag.checkered")
                         .scaledFont(20, weight: .bold, maxScale: 1.15)
@@ -84,7 +84,7 @@ enum ShiritoriHowToFigures {
                 }
                 Image(systemName: "arrow.right")
                     .scaledFont(12, weight: .black, maxScale: 1.2)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .padding(.top, 30)
                 VStack(spacing: 4) {
                     HStack(spacing: 6) {
@@ -110,7 +110,7 @@ enum ShiritoriHowToFigures {
                 }
                 Image(systemName: "arrow.right")
                     .scaledFont(12, weight: .black, maxScale: 1.2)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 VStack(spacing: 4) {
                     Image(systemName: "cpu")
                         .scaledFont(26, weight: .bold, maxScale: 1.15)
@@ -150,7 +150,7 @@ enum ShiritoriHowToFigures {
                 side(symbol: "person.fill", label: tr("あなた"), win: true)
                 Text(verbatim: "vs")
                     .scaledFont(13, weight: .black, design: .rounded, maxScale: 1.15)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 side(symbol: "cpu", label: tr("CPU が続けられない"), win: false)
             }
         }
@@ -159,7 +159,7 @@ enum ShiritoriHowToFigures {
             VStack(spacing: 4) {
                 Image(systemName: symbol)
                     .scaledFont(24, weight: .bold, maxScale: 1.15)
-                    .foregroundStyle(win ? Theme.tealText : Theme.inkSub)
+                    .foregroundStyle(win ? Theme.tealText : Theme.inkSubText)
                     .overlay(alignment: .topTrailing) {
                         if win {
                             Image(systemName: "crown.fill")
@@ -168,7 +168,7 @@ enum ShiritoriHowToFigures {
                                 .offset(x: 8, y: -8)
                         }
                     }
-                RuleFigureLabel(win ? tr("勝ち") : label, color: win ? Theme.coralText : Theme.inkSub)
+                RuleFigureLabel(win ? tr("勝ち") : label, color: win ? Theme.coralText : Theme.inkSubText)
             }
         }
     }

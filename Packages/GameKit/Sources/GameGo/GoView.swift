@@ -175,19 +175,19 @@ public struct GoView: View {
             if model.endgame == nil {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text(tr("終局の計算中…")).themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text(tr("終局の計算中…")).themeBody(13).foregroundStyle(Theme.inkSubText)
                 }
                 .frame(maxWidth: .infinity)
             } else if let endgame = model.endgame {
                 Text(endgame.score.summary)
                     .themeBody(16).foregroundStyle(Theme.coralText)
                 Text(tr("黒 %1$lld 目 / 白 %2$lld 目 + コミ %3$@", endgame.score.blackArea, endgame.score.whiteArea, komiText(endgame.score)))
-                    .themeBody(12).foregroundStyle(Theme.inkSub)
+                    .themeBody(12).foregroundStyle(Theme.inkSubText)
                     .lineLimit(1).minimumScaleFactor(0.7)
                 if endgame.isUncertain {
                     Label(tr("死活の判定があいまいです。続けて打って決着させることもできます。"),
                           systemImage: "exclamationmark.triangle.fill")
-                        .themeBody(11).foregroundStyle(Theme.inkSub)
+                        .themeBody(11).foregroundStyle(Theme.inkSubText)
                         .multilineTextAlignment(.leading)
                 }
             }
@@ -409,14 +409,14 @@ public struct GoView: View {
                 .frame(width: 18, height: 18)
             Text(isYou ? tr("あなた") : "CPU")
                 .scaledFont(13, weight: .bold, design: .rounded)
-                .foregroundStyle(isYou ? Theme.tealText : Theme.inkSub)
+                .foregroundStyle(isYou ? Theme.tealText : Theme.inkSubText)
             Text(stone == .black ? tr("黒・先番") : tr("白・後番"))
                 .scaledFont(13, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
             Spacer()
             Text(tr("取った石 %lld", stone == model.humanSide ? model.capturedByHuman : model.capturedByCPU))
                 .scaledFont(12, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(minHeight: 30)
@@ -435,13 +435,13 @@ public struct GoView: View {
                     .lineLimit(1).minimumScaleFactor(0.7)
             case .scoring:
                 Label(tr("終局の確認"), systemImage: "list.bullet.clipboard")
-                    .themeBody(15).foregroundStyle(Theme.inkSub)
+                    .themeBody(15).foregroundStyle(Theme.inkSubText)
                     .lineLimit(1).minimumScaleFactor(0.7)
             case .playing:
                 TurnBadge(isYourTurn: model.state.sideToMove == model.humanSide)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
-                    Text(tr("CPU思考中…")).themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text(tr("CPU思考中…")).themeBody(13).foregroundStyle(Theme.inkSubText)
                 }
             }
             passBanner
@@ -450,7 +450,7 @@ public struct GoView: View {
                 RecordLabel(model.recordResult)
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
-            Text(tr("%lld手", model.moveCount)).themeBody(13).foregroundStyle(Theme.inkSub)
+            Text(tr("%lld手", model.moveCount)).themeBody(13).foregroundStyle(Theme.inkSubText)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(GoAccessibility.statusLabel(
@@ -761,7 +761,7 @@ struct GoNewGameSheet: View {
             onStart: { onStart(side, level, side == .black ? handicap : 0, boardSize) }, onCancel: onCancel
         ) {
             Text(tr("中国ルール（面積計算）"))
-                .themeBody(13).foregroundStyle(Theme.inkSub)
+                .themeBody(13).foregroundStyle(Theme.inkSubText)
 
             GameSetupSection(tr("碁盤の大きさ")) {
                 HStack(spacing: 12) {

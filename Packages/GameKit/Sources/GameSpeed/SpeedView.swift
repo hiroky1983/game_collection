@@ -216,7 +216,7 @@ public struct SpeedView: View {
     private var statsBar: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 0) {
-                Text(tr("CPU の速さ")).themeCaption(11).foregroundStyle(Theme.inkSub)
+                Text(tr("CPU の速さ")).themeCaption(11).foregroundStyle(Theme.inkSubText)
                 Text(model.settings.level.label)
                     .themeBody(15)
                     .foregroundStyle(Theme.ink)
@@ -235,7 +235,7 @@ public struct SpeedView: View {
 
     private func stat(_ title: String, value: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text(title).themeCaption(11).foregroundStyle(Theme.inkSub)
+            Text(title).themeCaption(11).foregroundStyle(Theme.inkSubText)
             Text(verbatim: value)
                 .scaledFont(20, weight: .heavy, design: .rounded).monospacedDigit()
                 .foregroundStyle(Theme.ink)
@@ -273,7 +273,7 @@ public struct SpeedView: View {
             HStack(spacing: 4) {
                 Image(systemName: "cpu")
                     .scaledFont(12, weight: .bold)
-                    .foregroundStyle(model.isTimeoutActive ? Theme.inkSub : Theme.coralText)
+                    .foregroundStyle(model.isTimeoutActive ? Theme.inkSubText : Theme.coralText)
                 Text(model.isTimeoutActive ? tr("タイム中") : "CPU")
                     .scaledFont(12, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.ink)
@@ -757,7 +757,7 @@ public struct SpeedView: View {
                 .padding(.vertical, 10)
                 .background(timeoutRescue.isWatching ? Theme.inkSub.opacity(0.3) : Theme.Fill.teal,
                             in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(timeoutRescue.isWatching ? Theme.inkSub : Theme.onAccent)
+                .foregroundStyle(timeoutRescue.isWatching ? Theme.inkSubText : Theme.onAccent)
         }
         .buttonStyle(.pop)
         .disabled(timeoutRescue.isWatching)
@@ -784,7 +784,7 @@ public struct SpeedView: View {
             HStack(spacing: 8) {
                 Image(systemName: model.winner == .human ? "crown.fill" : "flag.checkered")
                     .scaledFont(20)
-                    .foregroundStyle(model.winner == .human ? Theme.yellowText : Theme.inkSub)
+                    .foregroundStyle(model.winner == .human ? Theme.yellowText : Theme.inkSubText)
                 Text(statusText)
                     .scaledFont(17, weight: .black, design: .rounded)
                     .foregroundStyle(model.winner == .human ? Theme.tealText : Theme.ink)
@@ -799,7 +799,7 @@ public struct SpeedView: View {
                 // 「自己ベスト更新！」の中身がここで分かるように添える。
                 Text(verbatim: model.recordResult?.update.seconds == true ? tr("所要 %lld秒（最速！）", seconds) : tr("所要 %lld秒", seconds))
                     .themeCaption(12)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             // 「今回の結果」を上、「通算」を下に置く。
@@ -826,7 +826,7 @@ public struct SpeedView: View {
             Spacer()
             Text(remaining == 0 ? tr("出し切り") : tr("残り%lld枚", remaining))
                 .scaledFont(12, weight: .semibold, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
         }
         .accessibilityElement(children: .combine)
     }
@@ -1152,7 +1152,7 @@ struct SpeedSetupSheet: View {
                 }
                 Text(tr("あなたに制限時間はありません。設定の「ゆっくりモード」をオンにすると、CPU はさらにゆっくりになります。"))
                     .themeCaption(11)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.top, 8)
             }

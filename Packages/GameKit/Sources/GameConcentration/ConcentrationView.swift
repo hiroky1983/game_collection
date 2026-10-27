@@ -208,7 +208,7 @@ public struct ConcentrationView: View {
                         .scaledFont(12, weight: .bold, design: .rounded, maxScale: Self.headerTextMaxScale)
                 }
             }
-            .foregroundStyle(isActive ? Theme.onAccent : Theme.inkSub)
+            .foregroundStyle(isActive ? Theme.onAccent : Theme.inkSubText)
             // 幅はこの盤の最高点の桁数ぶん先に取る。点が 9 → 10 に増えたときに札の幅が変わり、
             // 文字 ↔ 印の切り替え（`scoreChips`）が局の途中で起きないようにする。
             ZStack {
@@ -386,28 +386,28 @@ public struct ConcentrationView: View {
                 } else {
                     Image(systemName: "equal.circle.fill")
                         .scaledFont(52, maxScale: 1.2)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                     Text(tr("引き分け"))
                         .scaledFont(26, weight: .black, design: .rounded)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                 }
             }
 
             HStack(spacing: 20) {
                 VStack {
-                    Text(tr("あなた")).themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text(tr("あなた")).themeBody(13).foregroundStyle(Theme.inkSubText)
                     Text("\(model.playerScore)").themeTitle(36).foregroundStyle(Theme.tealText)
                 }
-                Text("–").themeTitle(24).foregroundStyle(Theme.inkSub)
+                Text("–").themeTitle(24).foregroundStyle(Theme.inkSubText)
                 VStack {
-                    Text("CPU").themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text("CPU").themeBody(13).foregroundStyle(Theme.inkSubText)
                     Text("\(model.cpuScore)").themeTitle(36).foregroundStyle(Theme.coralText)
                 }
             }
 
             // ヒントは 0 回でも省かず出す（#2613・#2801）。
             Text(tr("ヒント %lld回", model.hints.used))
-                .themeBody(14).foregroundStyle(Theme.inkSub)
+                .themeBody(14).foregroundStyle(Theme.inkSubText)
 
             RecordLabel(model.recordResult)
 

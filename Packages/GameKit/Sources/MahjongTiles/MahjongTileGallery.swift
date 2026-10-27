@@ -29,7 +29,7 @@ public struct MahjongTileGallery: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("牌の幅 \(Int(width))pt")
                             .scaledFont(13, weight: .bold, design: .rounded)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                         tiles(width: width)
                     }
                 }

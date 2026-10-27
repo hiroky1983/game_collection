@@ -31,7 +31,7 @@ enum ConcentrationHowToFigures {
                     }
                     .padding(.top, 4)
                     RuleFigureLabel([tr("2 枚めくる"), tr("同じ絵柄"), tr("ペア！もう一度")][index],
-                                    color: index == 0 ? Theme.inkSub : Theme.coralText)
+                                    color: index == 0 ? Theme.inkSubText : Theme.coralText)
                 }
             }
         }
@@ -52,7 +52,7 @@ enum ConcentrationHowToFigures {
                         }
                     }
                     .padding(.top, 4)
-                    RuleFigureLabel(index == 0 ? tr("ちがう絵柄") : tr("伏せて CPU の番"), color: index == 0 ? Theme.inkSub : Theme.coralText)
+                    RuleFigureLabel(index == 0 ? tr("ちがう絵柄") : tr("伏せて CPU の番"), color: index == 0 ? Theme.inkSubText : Theme.coralText)
                 }
             }
         }
@@ -78,8 +78,8 @@ enum ConcentrationHowToFigures {
                 .frame(height: RuleMiniCard.height * 0.6)
                 Text(tr("%lld ペア", pairs))
                     .scaledFont(16, weight: .black, design: .rounded, maxScale: 1.15)
-                    .foregroundStyle(isWinner ? Theme.coralText : Theme.inkSub)
-                RuleFigureLabel(isWinner ? tr("%@（勝ち）", name) : name, color: isWinner ? Theme.coralText : Theme.inkSub)
+                    .foregroundStyle(isWinner ? Theme.coralText : Theme.inkSubText)
+                RuleFigureLabel(isWinner ? tr("%@（勝ち）", name) : name, color: isWinner ? Theme.coralText : Theme.inkSubText)
             }
         }
     }

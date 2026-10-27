@@ -295,7 +295,7 @@ struct SettingsView: View {
                     .accessibilityHidden(true)
                 Text(module.title)
                     .themeBody(16)
-                    .foregroundStyle(isVisible ? Theme.ink : Theme.inkSub)
+                    .foregroundStyle(isVisible ? Theme.ink : Theme.inkSubText)
             }
         }
         .tint(Theme.coral) // accent-text-ok: トグルのトラック（面）

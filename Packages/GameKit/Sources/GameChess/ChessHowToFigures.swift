@@ -31,7 +31,7 @@ enum ChessHowToFigures {
                         }
                     }
                     RuleFigureLabel(index == 0 ? tr("駒をタップ → 光るマス") : tr("タップで移動"),
-                                    color: index == 0 ? Theme.coralText : Theme.inkSub)
+                                    color: index == 0 ? Theme.coralText : Theme.inkSubText)
                 }
             }
         }

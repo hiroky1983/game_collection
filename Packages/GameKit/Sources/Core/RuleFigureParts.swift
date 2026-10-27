@@ -5,7 +5,7 @@ public struct RuleFigureLabel: View {
     private let text: String
     private let color: Color
 
-    public init(_ text: String, color: Color = Theme.inkSub) {
+    public init(_ text: String, color: Color = Theme.inkSubText) {
         self.text = text
         self.color = color
     }

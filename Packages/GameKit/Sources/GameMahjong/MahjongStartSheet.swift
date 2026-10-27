@@ -29,7 +29,7 @@ struct MahjongStartSheet: View {
                 }
                 Text(length.summary)
                     .scaledFont(12, weight: .medium, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
@@ -61,7 +61,7 @@ struct MahjongStartSheet: View {
                     Spacer()
                     Image(systemName: "chevron.right")
                         .scaledFont(13, weight: .semibold)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                 }
                 .foregroundStyle(Theme.coralText)
                 .padding(16)
@@ -94,7 +94,7 @@ struct MahjongStartSheet: View {
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.down")
                     .scaledFont(13, weight: .bold)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .rotationEffect(.degrees(showsDetails ? 180 : 0))
             }
             .padding(12)

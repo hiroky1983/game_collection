@@ -295,7 +295,7 @@ public struct OjisanPuzzleView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(tr("スコア"))
                     .scaledFont(12, weight: .bold, design: .rounded, maxScale: 1.2)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 Text("\(model.score)")
                     .scaledFont(26, weight: .heavy, design: .rounded, maxScale: 1.2).monospacedDigit()
                     // 桁が増えても折り返さない（見出しの高さ＝盤の大きさが揺れるため・#2063）。
@@ -362,12 +362,12 @@ public struct OjisanPuzzleView: View {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(tr("腰痛ゲージ"))
                     .scaledFont(12, weight: .bold, design: .rounded, maxScale: 1.15)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .fixedSize()
                 Text(caption)
                     .scaledFont(12, weight: .bold, design: .rounded, maxScale: 1.15).monospacedDigit()
                     .lineLimit(1).minimumScaleFactor(0.7)
-                    .foregroundStyle(stage == .easy ? Theme.inkSub : Theme.coralText)
+                    .foregroundStyle(stage == .easy ? Theme.inkSubText : Theme.coralText)
                 Spacer(minLength: 0)
                 Text("\(model.pain)")
                     .scaledFont(20, weight: .heavy, design: .rounded, maxScale: 1.15).monospacedDigit()
@@ -446,7 +446,7 @@ public struct OjisanPuzzleView: View {
         VStack(spacing: 2) {
             Text(tr("スコア"))
                 .scaledFont(11, weight: .bold, design: .rounded, maxScale: 1.15)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
             Text("\(model.score)")
                 .scaledFont(20, weight: .heavy, design: .rounded, maxScale: 1.15).monospacedDigit()
                 .lineLimit(1).minimumScaleFactor(0.6)
@@ -462,7 +462,7 @@ public struct OjisanPuzzleView: View {
                 Text(tr("せり上がり %lld秒", (remaining + 999) / 1000))
                     .scaledFont(10, weight: .bold, design: .rounded, maxScale: 1.15).monospacedDigit()
                     .lineLimit(1).minimumScaleFactor(0.7)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
             }
         }
         .frame(width: Self.sideWidth)
@@ -572,7 +572,7 @@ public struct OjisanPuzzleView: View {
     private func spawnColumnMark(cell: CGFloat, origin: CGPoint) -> some View {
         let warn = model.outcome == .buried || OjisanPuzzleBoard.isSpawnColumnNearTop(model.board)
         let tint = warn ? Theme.coral : Theme.inkSub
-        let iconTint = warn ? Theme.coralText : Theme.inkSub
+        let iconTint = warn ? Theme.coralText : Theme.inkSubText
         return ZStack(alignment: .top) {
             RoundedRectangle(cornerRadius: max(1, cell * 0.2), style: .continuous)
                 .fill(tint.opacity(warn ? 0.22 : 0.10))
@@ -719,7 +719,7 @@ public struct OjisanPuzzleView: View {
                     Text(model.painStage.caption)
                         .scaledFont(10, weight: .bold, design: .rounded, maxScale: 1.15)
                         .lineLimit(1).minimumScaleFactor(0.7)
-                        .foregroundStyle(model.painStage == .easy ? Theme.inkSub : Theme.coralText)
+                        .foregroundStyle(model.painStage == .easy ? Theme.inkSubText : Theme.coralText)
                 }
             }
             .frame(width: Self.sideWidth)
@@ -731,7 +731,7 @@ public struct OjisanPuzzleView: View {
             VStack(spacing: 6) {
                 Text(tr("つぎ"))
                     .scaledFont(12, weight: .bold, design: .rounded, maxScale: 1.3)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 VStack(spacing: 2) {
                     // 一時停止中は「つぎ」も空の枠にする（盤と同じ理由・#2135）。
                     let next = Self.visibleNextKinds(child: model.next.childKind, axis: model.next.axisKind,
@@ -759,7 +759,7 @@ public struct OjisanPuzzleView: View {
             hintItem(tr("下スワイプ"), systemImage: "arrow.down")
         }
         .scaledFont(11, weight: .bold, design: .rounded, maxScale: 1.3)
-        .foregroundStyle(Theme.inkSub)
+        .foregroundStyle(Theme.inkSubText)
     }
 
     /// 初回だけ、操作のヒント行の代わりに出す案内（共通の `HowToPlayHint` を流用・#2810）。
@@ -816,7 +816,7 @@ public struct OjisanPuzzleView: View {
                 .foregroundStyle(Theme.ink)
             Text(resultMessage)
                 .scaledFont(14, weight: .semibold, design: .rounded, maxScale: 1.4)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 .multilineTextAlignment(.center)
             if model.outcome == .cleared {
                 Text(tr("タイム %@", Self.timeText(model.elapsedMilliseconds / 1000)))

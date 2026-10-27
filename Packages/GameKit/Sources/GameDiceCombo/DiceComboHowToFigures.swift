@@ -104,7 +104,7 @@ enum DiceComboHowToFigures {
                 Dice(values: values, side: 22)
                 Text(verbatim: "→")
                     .scaledFont(14, weight: .black, design: .rounded, maxScale: 1.15)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 RuleFigureLabel(tr("%1$@ %2$lld点", name, points), color: Theme.coralText)
             }
         }
@@ -122,7 +122,7 @@ enum DiceComboHowToFigures {
                 }
                 Text(verbatim: "→")
                     .scaledFont(16, weight: .black, design: .rounded, maxScale: 1.15)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 Text(verbatim: "+\(DiceComboLogic.upperBonus)")
                     .scaledFont(22, weight: .black, design: .rounded, maxScale: 1.15)
                     .foregroundStyle(Theme.coralText)

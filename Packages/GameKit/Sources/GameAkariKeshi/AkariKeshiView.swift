@@ -83,7 +83,7 @@ public struct AkariKeshiView: View {
                 } else {
                     Text(tr("難易度を選んで始めましょう"))
                         .themeBody(14)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                 }
             }
             .lineLimit(1)

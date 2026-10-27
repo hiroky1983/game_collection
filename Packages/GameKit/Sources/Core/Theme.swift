@@ -29,7 +29,11 @@ public enum Theme {
         public static let background: Pair = (0xFFF6EC, 0x1B1613)   // 温かいクリーム / 温かい暗色
         public static let surface: Pair = (0xFFFFFF, 0x2C2522)      // カードの面
         public static let ink: Pair = (0x4A3B33, 0xF4ECE5)          // 文字（こげ茶 / 生成り）
-        public static let inkSub: Pair = (0x9A8A80, 0xB9ABA2)       // 補助文字
+        public static let inkSub: Pair = (0x9A8A80, 0xB9ABA2)       // 補助文字（線・薄い面・アイコン用。文字には `inkSubText`）
+        /// 補助文字を**文字色**として使うときの値（#2937）。`inkSub` のライトは白で 3.32:1・クリームで 3.11:1 しか取れず、
+        /// 10〜13pt の記録の数値や補助見出しが読めなかった。ライトだけ同じ色相のまま濃くして AA（4.5:1）に乗せ、
+        /// ダークは `inkSub` のまま。`fillMuted`（面色）は触らない。
+        public static let inkSubText: Pair = (0x7A6A60, inkSub.dark)
 
         /// 白文字を載せる「濃い」チップ・ボタンの面色（将棋の先手番・囲碁の黒番など）。
         /// `ink` はダークで明るく反転するため面色には使えない。
@@ -91,6 +95,8 @@ public enum Theme {
     public static let surface = Color(Hex.surface)
     public static let ink = Color(Hex.ink)
     public static let inkSub = Color(Hex.inkSub)
+    /// 補助文字の**文字色**（#2937）。文字には `inkSub` ではなくこちらを使う。値の根拠は `Hex.inkSubText` を参照。
+    public static let inkSubText = Color(Hex.inkSubText)
     public static let fillStrong = Color(Hex.fillStrong)
     public static let fillMuted = Color(Hex.fillMuted)
 

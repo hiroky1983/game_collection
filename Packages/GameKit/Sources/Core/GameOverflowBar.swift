@@ -90,7 +90,7 @@ public struct GameOverflowCaption {
     let color: Color
     let accessibilityLabel: String?
 
-    public init(_ text: String, color: Color = Theme.inkSub, accessibilityLabel: String? = nil) {
+    public init(_ text: String, color: Color = Theme.inkSubText, accessibilityLabel: String? = nil) {
         self.text = text
         self.color = color
         self.accessibilityLabel = accessibilityLabel

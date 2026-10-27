@@ -19,7 +19,7 @@ public struct RecordLabel: View {
     ///   - textColor: 記録本文の色。暗いオーバーレイの上に直接置く画面（2048 など）は
     ///     `.white` を渡す。既定は明るい背景向けの補助文字色（オセロのように暗幕の上でも
     ///     明るいカードに乗る画面はこちらでよい）。
-    public init(_ result: RecordResult?, accent: Color = Theme.Fill.coral, textColor: Color = Theme.inkSub) {
+    public init(_ result: RecordResult?, accent: Color = Theme.Fill.coral, textColor: Color = Theme.inkSubText) {
         self.result = result
         self.accent = accent
         self.textColor = textColor

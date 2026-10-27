@@ -142,3 +142,64 @@ struct ProminentButtonOnAccentScanTests {
         #expect(Self.offenders(in: other).isEmpty)
     }
 }
+
+/// 補助文字色 `Theme.inkSub` を前景（文字・アイコン）に直接使うのを止める（#2937）。
+///
+/// `inkSub` のライト値は白で 3.32:1・クリームで 3.11:1 しか取れず、小さい文字が読めなかった。
+/// 文字・アイコンには `Theme.inkSubText` を使う。線・薄い面・影（`.fill` / `.stroke` / `.opacity` の面）は対象外。
+/// 意図的に使うなら行末に `// ink-sub-text-ok: 理由` を付ける。見るのは行単位の書き方（`AccentTextScanTests` と同じ）。
+struct InkSubTextScanTests {
+
+    private static let ink = #"\bTheme\.inkSub\b"#
+    private static let patterns = [
+        #"foregroundStyle\(.*"# + ink,
+        #"(RuleFigureLabel|GameOverflowCaption)\(.*\bcolor:.*"# + ink,
+        #"\bcaptionColor:\s*"# + ink,
+        #"^\s*color:(?!.*(lineWidth|dash)).*"# + ink,
+    ]
+
+    static func isOffending(_ line: Substring) -> Bool {
+        guard !line.contains("ink-sub-text-ok") else { return false }
+        return patterns.contains { SourceScan.matchCount(of: $0, in: String(line)) > 0 }
+    }
+
+    @Test("補助文字色 inkSub を前景（文字・アイコン）に直接使わない（inkSubText を使う）")
+    func noDirectInkSubForText() throws {
+        let roots = [
+            SourceScan.packageRoot.appendingPathComponent("Sources"),
+            SourceScan.repositoryRoot.appendingPathComponent("App"),
+        ]
+        var offenders: [String] = []
+        var scanned = 0
+        for root in roots {
+            let enumerator = try #require(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil))
+            for case let file as URL in enumerator where file.pathExtension == "swift" {
+                let lines = try String(contentsOf: file, encoding: .utf8).split(separator: "\n", omittingEmptySubsequences: false)
+                scanned += 1
+                for (index, line) in lines.enumerated() where Self.isOffending(line) {
+                    offenders.append("\(file.path):\(index + 1)")
+                }
+            }
+        }
+        #expect(scanned > 100)
+        #expect(offenders.isEmpty, """
+            前景に Theme.inkSub を使うとライトで 3.3:1 しか取れず小さい文字が読めない。
+            Theme.inkSubText を使う（#2937）。線・面は対象外。
+            意図的に使うなら行末に `// ink-sub-text-ok: 理由` を付ける。
+            \(offenders.joined(separator: "\n"))
+            """)
+    }
+
+    @Test("判定は直接の inkSub を落とし、inkSubText・面・免除は通す")
+    func detectionRules() {
+        #expect(Self.isOffending("    .foregroundStyle(Theme.inkSub)"))
+        #expect(Self.isOffending("    .foregroundStyle(a ? Theme.coralText : Theme.inkSub)"))
+        #expect(Self.isOffending("    RuleFigureLabel(t, color: Theme.inkSub)"))
+        #expect(Self.isOffending("    captionColor: Theme.inkSub)"))
+        #expect(!Self.isOffending("    .foregroundStyle(Theme.inkSubText)"))
+        #expect(!Self.isOffending("    .foregroundStyle(Theme.inkSubText.opacity(0.6))"))
+        #expect(!Self.isOffending("    Capsule().fill(Theme.inkSub.opacity(0.2))"))
+        #expect(!Self.isOffending("    .stroke(Theme.inkSub, style: StrokeStyle(lineWidth: 2))"))
+        #expect(!Self.isOffending("    .foregroundStyle(Theme.inkSub) // ink-sub-text-ok: 固定色の面"))
+    }
+}

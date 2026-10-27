@@ -34,7 +34,7 @@ enum ShogiHowToFigures {
                             if index == 1, row == 0, col == 2 { koma(.gold) }
                         }
                     }
-                    RuleFigureLabel(index == 0 ? tr("駒をタップ → 光るマス") : tr("タップで移動"), color: index == 0 ? Theme.coralText : Theme.inkSub)
+                    RuleFigureLabel(index == 0 ? tr("駒をタップ → 光るマス") : tr("タップで移動"), color: index == 0 ? Theme.coralText : Theme.inkSubText)
                 }
             }
         }
@@ -88,7 +88,7 @@ enum ShogiHowToFigures {
                         }
                     }
                     RuleFigureLabel(index == 0 ? tr("赤い 3 段が相手陣") : tr("入ると成れる（歩 → と）"),
-                                    color: index == 0 ? Theme.coralText : Theme.inkSub)
+                                    color: index == 0 ? Theme.coralText : Theme.inkSubText)
                 }
             }
         }

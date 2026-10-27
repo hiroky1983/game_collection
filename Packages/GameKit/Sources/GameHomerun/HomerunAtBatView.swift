@@ -680,7 +680,7 @@ struct HomerunBallResultCard: View {
                 if ball.moon == .broken {
                     Text(tr("挑戦はここまで"))
                         .scaledFont(16, weight: .heavy, design: .rounded)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                     Label(tr("プレイ回数 +%lld プレゼント", HomerunLedger.moonBonus), systemImage: "gift.fill")
                         .scaledFont(18, weight: .heavy, design: .rounded)
                         .foregroundStyle(Theme.coralText)
@@ -698,7 +698,7 @@ struct HomerunBallResultCard: View {
             if ball.kind != .miss || ball.timing != .miss {
                 Text(verbatim: tr("タイミング: %@", HomerunText.timing(ball.timing)))
                     .themeCaption(12)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
             }
             if ball.distance > 0, !ball.isMoon {
                 HomerunSprayChart(balls: [ball], numbered: false)

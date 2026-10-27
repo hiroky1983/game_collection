@@ -58,11 +58,11 @@ struct HomerunRankingPage: View {
     private func statusCard(icon: String?, text: String) -> some View {
         VStack(spacing: 12) {
             if let icon {
-                Image(systemName: icon).scaledFont(30, weight: .bold).foregroundStyle(Theme.inkSub)
+                Image(systemName: icon).scaledFont(30, weight: .bold).foregroundStyle(Theme.inkSubText)
             } else {
                 ProgressView()
             }
-            Text(text).themeBody(14).foregroundStyle(Theme.inkSub).multilineTextAlignment(.center)
+            Text(text).themeBody(14).foregroundStyle(Theme.inkSubText).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
         .padding(24)
@@ -74,7 +74,7 @@ struct HomerunRankingPage: View {
             Text(tr("毎週月曜 0:00 に切り替わります。1 人 1 件（その週の自己ベスト）。月まで飛んだ打球は 384,400 km として数えます"))
             Text(tr("ランキングは予告なく終了する場合があります"))
         }
-        .themeCaption(11).foregroundStyle(Theme.inkSub)
+        .themeCaption(11).foregroundStyle(Theme.inkSubText)
         .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity)
     }
@@ -145,7 +145,7 @@ struct HomerunLobbyRankRow: View {
                 .scaledFont(20, weight: .bold)
                 .foregroundStyle(Theme.yellowText)
             VStack(alignment: .leading, spacing: 2) {
-                Text(tr("今週のランキング")).themeCaption(12).foregroundStyle(Theme.inkSub)
+                Text(tr("今週のランキング")).themeCaption(12).foregroundStyle(Theme.inkSubText)
                     .lineLimit(1)
                 Text(verbatim: detail).themeBody(16, weight: .heavy).foregroundStyle(Theme.ink)
                     .monospacedDigit()
@@ -156,7 +156,7 @@ struct HomerunLobbyRankRow: View {
                 if isLoading {
                     ProgressView().controlSize(.small)
                 } else {
-                    Image(systemName: "chevron.right").scaledFont(13, weight: .bold).foregroundStyle(Theme.inkSub)
+                    Image(systemName: "chevron.right").scaledFont(13, weight: .bold).foregroundStyle(Theme.inkSubText)
                 }
             }
             .frame(width: 20, height: 20)
@@ -232,7 +232,7 @@ struct HomerunRankingSignedOutPage: View {
                     Text(fromLobby
                          ? tr("週間ランキングは Game Center の仕組みを使っています。設定アプリで Game Center にサインインすると、今週の順位が出ます。")
                          : tr("週間ランキングは Game Center の仕組みを使っています。設定アプリで Game Center にサインインすると、次の挑戦から今週の順位が出ます。"))
-                        .themeBody(13).foregroundStyle(Theme.inkSub)
+                        .themeBody(13).foregroundStyle(Theme.inkSubText)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -244,7 +244,7 @@ struct HomerunRankingSignedOutPage: View {
                     Text(tr("毎週月曜 0:00 に切り替わります。1 人 1 件（その週の自己ベスト）"))
                     Text(tr("ランキングは予告なく終了する場合があります"))
                 }
-                .themeCaption(11).foregroundStyle(Theme.inkSub)
+                .themeCaption(11).foregroundStyle(Theme.inkSubText)
                 .multilineTextAlignment(.center)
 
                 Button(action: onNext) {
@@ -323,7 +323,7 @@ struct HomerunRankingBoardView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(tr("今週のランキング")).themeBody(16).foregroundStyle(Theme.ink)
                 if let range = HomerunRankingText.weekRange(start: board.start, end: board.end, now: Date()) {
-                    Text(verbatim: range).themeCaption(12).foregroundStyle(Theme.inkSub)
+                    Text(verbatim: range).themeCaption(12).foregroundStyle(Theme.inkSubText)
                 }
             }
             Spacer(minLength: 0)
@@ -340,7 +340,7 @@ struct HomerunRankingBoardView: View {
         if let myRank {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(tr("今週のあなた")).themeCaption(12).foregroundStyle(Theme.inkSub)
+                    Text(tr("今週のあなた")).themeCaption(12).foregroundStyle(Theme.inkSubText)
                     HStack(alignment: .firstTextBaseline, spacing: 2) {
                         Text(verbatim: "\(myRank)")
                             .scaledFont(46, weight: .black, design: .rounded, maxScale: 1.2).monospacedDigit()
@@ -360,7 +360,7 @@ struct HomerunRankingBoardView: View {
                 Spacer(minLength: 0)
                 VStack(alignment: .trailing, spacing: 6) {
                     if let lastWeek = board.lastWeekRank {
-                        Text(verbatim: tr("先週は %lld位", lastWeek)).themeCaption(12).foregroundStyle(Theme.inkSub)
+                        Text(verbatim: tr("先週は %lld位", lastWeek)).themeCaption(12).foregroundStyle(Theme.inkSubText)
                     }
                     if !arrived {
                         Text(verbatim: " ").themeCaption(13)
@@ -379,7 +379,7 @@ struct HomerunRankingBoardView: View {
                 .strokeBorder(Theme.Fill.coral, lineWidth: 2))
         } else {
             HStack {
-                Text(tr("今週はまだ記録がありません")).themeBody(15).foregroundStyle(Theme.inkSub)
+                Text(tr("今週はまだ記録がありません")).themeBody(15).foregroundStyle(Theme.inkSubText)
                 Spacer(minLength: 0)
             }
             .padding(14)

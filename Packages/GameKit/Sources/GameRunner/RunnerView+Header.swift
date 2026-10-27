@@ -43,7 +43,7 @@ extension RunnerView {
         VStack(alignment: .leading, spacing: 2) {
             Text(RunnerAccessibility.stageLabel(number: model.stageNumber, total: RunnerRules.stageCount))
                 .scaledFont(12, weight: .bold, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
             Text(stageHeadlineText)
                 .scaledFont(17, weight: .heavy, design: .rounded)
                 .foregroundStyle(Theme.ink)
@@ -64,7 +64,7 @@ extension RunnerView {
         VStack(alignment: .trailing, spacing: 4) {
             Text(tr("ゴールまで"))
                 .scaledFont(12, weight: .bold, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
             progressBar
         }
         .accessibilityElement()
@@ -77,7 +77,7 @@ extension RunnerView {
         VStack(alignment: .leading, spacing: 2) {
             Text(tr("走行距離"))
                 .scaledFont(12, weight: .bold, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
             shrinkingNumber(distanceText(model.distanceMeters), size: 22)
         }
         .accessibilityElement()
@@ -89,7 +89,7 @@ extension RunnerView {
         VStack(alignment: .trailing, spacing: 2) {
             Text(tr("自己ベスト"))
                 .scaledFont(12, weight: .bold, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
             shrinkingNumber(model.endlessBestDistance.map(distanceText) ?? "–", size: 15, alignment: .trailing)
         }
         .accessibilityElement()
@@ -126,7 +126,7 @@ extension RunnerView {
         VStack(alignment: .leading, spacing: 3) {
             Text(tr("スピード"))
                 .scaledFont(12, weight: .bold, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Theme.Fill.coral.opacity(0.2))

@@ -23,7 +23,7 @@ struct HomerunSprayChart: View {
                     ForEach(Array(Self.fixedLabels(layout: layout).enumerated()), id: \.offset) { _, label in
                         Text(verbatim: label.text)
                             .font(.system(size: 10, weight: .bold, design: .rounded)) // fixed-size: 図の座標・寸法と一体の目盛りで、文字だけ拡大すると柵や印に重なる
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                             .fixedSize()
                             .position(label.at)
                     }
@@ -118,10 +118,10 @@ struct HomerunSprayChart: View {
                     ctx.stroke(dot, with: .color(.white), lineWidth: 1.5)
                 case .foul:
                     ctx.draw(Text(verbatim: "F").font(.system(size: 13, weight: .black, design: .rounded)) // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
-                        .foregroundStyle(Theme.inkSub), at: p)
+                        .foregroundStyle(Theme.inkSubText), at: p)
                 case .miss:
                     ctx.draw(Text(verbatim: "×").font(.system(size: 14, weight: .black)) // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
-                        .foregroundStyle(Theme.inkSub), at: CGPoint(x: p.x, y: p.y - 8))
+                        .foregroundStyle(Theme.inkSubText), at: CGPoint(x: p.x, y: p.y - 8))
                 }
                 if numbered {
                     ctx.draw(Text(verbatim: "\(index + 1)").font(.system(size: 9, weight: .bold, design: .rounded)) // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体

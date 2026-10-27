@@ -930,7 +930,7 @@ private struct HubCategoryHeading: View {
                 .themeBody(layout.scaled(15), weight: .black)
             Text(tr("%d本", count))
                 .themeCaption(layout.scaled(12), weight: .heavy)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)

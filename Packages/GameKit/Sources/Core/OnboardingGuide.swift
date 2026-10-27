@@ -307,7 +307,7 @@ private struct OnboardingPageView: View {
         VStack(spacing: 4) {
             Text(tr("%1$lld / %2$lld", number, total))
                 .scaledFont(12, weight: .black, design: .rounded, maxScale: 1.2)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
             Text(page.heading).themeBody(20, weight: .black)
                 .foregroundStyle(Theme.ink)
                 .multilineTextAlignment(.center)

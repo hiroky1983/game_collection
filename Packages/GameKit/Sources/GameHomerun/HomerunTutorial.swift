@@ -57,7 +57,7 @@ struct HomerunTutorialCards: View {
                         .accessibilityAddTraits(.isHeader)
                     Spacer()
                     Button(tr("とばす")) { onFinish() }
-                        .themeCaption(13).foregroundStyle(Theme.inkSub)
+                        .themeCaption(13).foregroundStyle(Theme.inkSubText)
                         .buttonStyle(.pop)
                 }
                 if large {

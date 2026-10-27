@@ -120,7 +120,7 @@ public enum DaifugoOnboarding {
                     HStack {
                         Text(tr("%lld 番目に上がる", index + 1))
                             .scaledFont(12, weight: .bold, design: .rounded, maxScale: 1.15)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                         Spacer(minLength: 8)
                         Text(title)
                             .scaledFont(14, weight: .black, design: .rounded, maxScale: 1.15)

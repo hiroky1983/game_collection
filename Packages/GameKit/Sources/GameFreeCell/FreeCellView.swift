@@ -225,7 +225,7 @@ public struct FreeCellView: View {
             // （実測: 配札 #1,126）。番号なので区切ってはいけない。文字列にしてから渡す。
             Text(verbatim: tr("配札 #%@", String(model.dealNumber)))
                 .scaledFont(10, weight: .bold, design: .monospaced)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
 
             GameClockLabel(RecordFormat.time(model.elapsedSeconds))
         }

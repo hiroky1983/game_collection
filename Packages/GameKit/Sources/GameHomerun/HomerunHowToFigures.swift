@@ -22,7 +22,7 @@ enum HomerunHowToFigures {
                     ForEach(0..<10, id: \.self) { _ in
                         Image(systemName: "baseball.fill")
                             .scaledFont(18, maxScale: 1.15)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                     }
                 }
                 HStack(spacing: 6) {
@@ -67,7 +67,7 @@ enum HomerunHowToFigures {
                 .frame(width: 60, height: 64)
                 Image(systemName: "arrow.right")
                     .scaledFont(12, weight: .black, maxScale: 1.2)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 VStack(spacing: 4) {
                     Image(systemName: "arrow.up.right")
                         .scaledFont(28, weight: .black, maxScale: 1.15)
@@ -85,7 +85,7 @@ enum HomerunHowToFigures {
                 VStack(spacing: 6) {
                     HomerunHeroCountDots(allowance: 3, remaining: index == 0 ? 2 : 3, size: 18)
                     RuleFigureLabel(index == 0 ? tr("打席に立つと 1 回減る") : tr("0:00 に 3 回に戻る"),
-                                    color: index == 1 ? Theme.coralText : Theme.inkSub)
+                                    color: index == 1 ? Theme.coralText : Theme.inkSubText)
                 }
             }
         }

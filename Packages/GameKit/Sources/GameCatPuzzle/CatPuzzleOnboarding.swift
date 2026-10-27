@@ -83,7 +83,7 @@ enum CatPuzzleOnboarding {
                         solved: index == 1, cellSide: 22, showsRoomLabels: false
                     )
                     RuleFigureLabel(index == 0 ? tr("はじめ") : tr("おわり"),
-                                    color: index == 0 ? Theme.inkSub : Theme.coralText)
+                                    color: index == 0 ? Theme.inkSubText : Theme.coralText)
                 }
             }
         }

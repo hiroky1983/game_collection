@@ -90,13 +90,13 @@ public struct YonmokuView: View {
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else if model.isDraw {
                 Label(tr("引き分け"), systemImage: "equal.circle")
-                    .themeBody(16).foregroundStyle(Theme.inkSub)
+                    .themeBody(16).foregroundStyle(Theme.inkSubText)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
                 TurnBadge(isYourTurn: !model.isAITurn)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
-                    Text(tr("思考中…")).themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text(tr("思考中…")).themeBody(13).foregroundStyle(Theme.inkSubText)
                 }
             }
         } trailing: {
@@ -104,7 +104,7 @@ public struct YonmokuView: View {
                 RecordLabel(model.recordResult)
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
-            Text(tr("%lld手", model.moveCount)).themeBody(13).foregroundStyle(Theme.inkSub)
+            Text(tr("%lld手", model.moveCount)).themeBody(13).foregroundStyle(Theme.inkSubText)
         }
     }
 
@@ -218,10 +218,10 @@ public struct YonmokuView: View {
             YonmokuDiscView(disc: disc, size: 18, isLast: false)
             Text(isYou ? tr("あなた") : "CPU")
                 .themeCaption(13, weight: .bold, maxScale: 1.5)
-                .foregroundStyle(isYou ? Theme.tealText : Theme.inkSub)
+                .foregroundStyle(isYou ? Theme.tealText : Theme.inkSubText)
             Text(disc == .black ? tr("黒・先手") : tr("白・後手"))
                 .themeCaption(13, weight: .regular, maxScale: 1.5)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
         }
         .lineLimit(1)
         .minimumScaleFactor(0.8)

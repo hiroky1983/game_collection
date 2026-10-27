@@ -172,7 +172,7 @@ struct RunnerStoryReplayList: View {
                     HStack(spacing: 8) {
                         Image(systemName: "play.rectangle.fill")
                             .scaledFont(13, weight: .bold)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                         Text(scene.title)
                             .scaledFont(14, weight: .bold, design: .rounded)
                             .foregroundStyle(Theme.ink)

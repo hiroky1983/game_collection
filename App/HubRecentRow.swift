@@ -29,14 +29,14 @@ struct HubRecentRow: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(tr("つづき・最近"))
                     .themeCaption(layout.scaled(12), weight: .heavy)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     // アイコンの並びだけでは何の行か分からないため、見出しとして読ませる。
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 8)
                 if let streakText {
                     Label(streakText, systemImage: "flame.fill")
                         .themeCaption(layout.scaled(11), weight: .heavy)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                         // 最大サイズでは切らずに折り返す（#2935）。既定サイズは 1 行のまま。
                         .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                         .accessibilityElement(children: .combine)
@@ -108,7 +108,7 @@ private struct HubRecentCard: View {
                     .minimumScaleFactor(0.7)
                 Text(hasResume ? tr("つづきから") : tr("また あそぶ"))
                     .themeCaption(layout.scaled(10), weight: .heavy)
-                    .foregroundStyle(hasResume ? accent : Theme.inkSub)
+                    .foregroundStyle(hasResume ? accent : Theme.inkSubText)
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                     // 英語（#2109）は日本語より横に長い。幅が固定のカードなので、切れる前に縮める。
                     .minimumScaleFactor(0.7)

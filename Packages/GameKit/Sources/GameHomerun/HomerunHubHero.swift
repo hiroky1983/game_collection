@@ -230,7 +230,7 @@ struct HomerunHeroLogoImageCard: View {
         GeometryReader { geo in
             Text(description)
                 .themeCaption(adaptive.scaled(11))
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .padding(.horizontal, adaptive.scaled(10))

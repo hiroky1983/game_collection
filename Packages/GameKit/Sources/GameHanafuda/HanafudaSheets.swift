@@ -34,7 +34,7 @@ public struct HanafudaSetupSheet: View {
                     }
                 }
                 Text(tr("全局が終わった時点で、合計の文数が多いほうの勝ちです。"))
-                    .themeBody(12).foregroundStyle(Theme.inkSub)
+                    .themeBody(12).foregroundStyle(Theme.inkSubText)
             }
             GameSetupSection(tr("CPUの強さ")) {
                 HStack(spacing: 6) {
@@ -44,7 +44,7 @@ public struct HanafudaSetupSheet: View {
                 }
                 // 段を選び直してもシートが伸び縮みしないよう 1 行に固定する（`CPUStrengthPicker` と同じ）。
                 Text(draft.difficulty.detail)
-                    .themeBody(13).foregroundStyle(Theme.inkSub)
+                    .themeBody(13).foregroundStyle(Theme.inkSubText)
                     .lineLimit(1).minimumScaleFactor(0.7)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -54,7 +54,7 @@ public struct HanafudaSetupSheet: View {
                         .foregroundStyle(Theme.ink)
                 }
                 Text(tr("「芒に月＋菊に盃」「桜に幕＋菊に盃」を役として数えます。オフにすると菊に盃はタネ札としてだけ働きます。"))
-                    .themeBody(12).foregroundStyle(Theme.inkSub)
+                    .themeBody(12).foregroundStyle(Theme.inkSubText)
             }
         }
     }
@@ -108,17 +108,17 @@ public struct HanafudaYakuSheet: View {
             // 名前の列は幅が固定なので短い名前（英語はローマ字だけ）。英語の説明は成立条件の列の頭に入れてある（#2166）。
             Text(yaku.shortName)
                 .scaledFont(15, weight: .bold, design: .rounded)
-                .foregroundStyle(isDisabled ? Theme.inkSub : Theme.ink)
+                .foregroundStyle(isDisabled ? Theme.inkSubText : Theme.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
                 .frame(width: 76, alignment: .leading)
             Text(yaku.requirement)
                 .scaledFont(13, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
             Spacer(minLength: 6)
             Text(tr("%lld文", yaku.basePoints))
                 .scaledFont(14, weight: .heavy, design: .rounded)
-                .foregroundStyle(isDisabled ? Theme.inkSub : Theme.coralText)
+                .foregroundStyle(isDisabled ? Theme.inkSubText : Theme.coralText)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(isDisabled
@@ -135,7 +135,7 @@ public struct HanafudaYakuSheet: View {
                 .frame(width: 96, alignment: .leading)
             Text(detail)
                 .scaledFont(13, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
         }
     }
 }

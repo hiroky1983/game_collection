@@ -59,7 +59,7 @@ public struct FifteenView: View {
         HStack(spacing: 6) {
             Text(tr("盤の大きさ"))
                 .scaledFont(13, weight: .bold, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
             ForEach(Array(FifteenLogic.sizes), id: \.self) { size in
                 let isCurrent = size == model.size
                 Button {
@@ -103,7 +103,7 @@ public struct FifteenView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(tr("手数"))
                     .scaledFont(12, weight: .bold, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 Text("\(model.moves)")
                     .scaledFont(30, weight: .heavy, design: .rounded, maxScale: 1.2).monospacedDigit()
                     .foregroundStyle(Theme.ink)

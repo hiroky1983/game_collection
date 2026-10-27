@@ -19,7 +19,7 @@ extension MahjongView {
                         // 保存値（日本語）を表示言語にする（#2166）。
                         Text(MahjongHandResult.displayYakuLine(line))
                             .scaledFont(12, weight: .semibold, design: .rounded)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                     }
                 }
                 Text(Self.pointsText(result.gainedPoints))
@@ -38,7 +38,7 @@ extension MahjongView {
                 // 手牌は卓の上で開けてある（#2872）。ここは罰符の内訳を 1 行で。
                 Text(Self.drawPenaltyLine(result))
                     .scaledFont(13, weight: .semibold, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -83,7 +83,7 @@ extension MahjongView {
         HStack(spacing: 4) {
             Text(tr("裏ドラ"))
                 .scaledFont(11, weight: .bold, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
             ForEach(Array(tiles.enumerated()), id: \.offset) { _, tile in
                 MahjongTileView(tile: tile, width: 14, height: 19)
             }
@@ -141,7 +141,7 @@ extension MahjongView {
                         Spacer()
                         Text(Self.pointsText(model.scores[player]))
                             .scaledFont(13, weight: .black, design: .rounded)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                     }
                 }
             }
@@ -163,7 +163,7 @@ extension MahjongView {
                 HStack {
                     Text(model.playerName(player))
                         .scaledFont(12, weight: .semibold, design: .rounded)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                     if let result = model.handResult, result.kind == .exhaustiveDraw {
                         drawStatus(player: player, result: result)
                     }
@@ -196,7 +196,7 @@ extension MahjongView {
         return HStack(spacing: 4) {
             Text(label)
                 .scaledFont(10, weight: .black, design: .rounded)
-                .foregroundStyle(isTenpai ? Theme.tealText : Theme.inkSub)
+                .foregroundStyle(isTenpai ? Theme.tealText : Theme.inkSubText)
                 .padding(.horizontal, 5).padding(.vertical, 1)
                 .overlay(Capsule().strokeBorder(isTenpai ? Theme.tealText : Theme.inkSub, lineWidth: 1))
                 .fixedSize()

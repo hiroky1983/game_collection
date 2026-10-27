@@ -64,7 +64,7 @@ enum BlocksHowToFigures {
                         Image(systemName: "arrow.right")
                     }
                     .scaledFont(12, weight: .black, maxScale: 1.2)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     RuleFigureLabel(tr("指を横に動かす"))
                 }
                 VStack(spacing: 6) {
@@ -105,7 +105,7 @@ enum BlocksHowToFigures {
                 Ball().position(x: 120, y: 60)
                 Text(tr("壊れない"))
                     .scaledFont(10, weight: .black, design: .rounded, maxScale: 1.15)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .position(x: 84, y: 36)
             }
         }
@@ -122,14 +122,14 @@ enum BlocksHowToFigures {
                             .foregroundStyle(Theme.Fill.teal)
                         Image(systemName: "arrow.down")
                             .scaledFont(11, weight: .black, maxScale: 1.2)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                         Paddle()
                     } else {
                         HStack(spacing: 6) { Ball(); Ball(); Ball() }
                         Paddle(width: 84)
                     }
                     RuleFigureLabel(index == 0 ? tr("アイテムを受ける") : tr("伸びる・球が増える"),
-                                    color: index == 1 ? Theme.coralText : Theme.inkSub)
+                                    color: index == 1 ? Theme.coralText : Theme.inkSubText)
                 }
             }
         }
@@ -147,7 +147,7 @@ enum BlocksHowToFigures {
                         }
                     }
                     RuleFigureLabel(index == 0 ? tr("あと 1 つ") : tr("次のステージへ"),
-                                    color: index == 1 ? Theme.coralText : Theme.inkSub)
+                                    color: index == 1 ? Theme.coralText : Theme.inkSubText)
                 }
             }
         }

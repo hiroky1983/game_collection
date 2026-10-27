@@ -61,7 +61,7 @@ struct OjisanPuzzleSetupSheet: View {
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.down")
                     .scaledFont(13, weight: .bold)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .rotationEffect(.degrees(showsDetails ? 180 : 0))
             }
             .padding(12)

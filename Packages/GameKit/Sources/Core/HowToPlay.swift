@@ -1082,7 +1082,7 @@ public struct HowToPlaySheet<Extra: View>: View {
                                 Spacer()
                                 Image(systemName: "chevron.right")
                                     .scaledFont(13, weight: .bold)
-                                    .foregroundStyle(Theme.inkSub)
+                                    .foregroundStyle(Theme.inkSubText)
                             }
                             .padding(12)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1220,7 +1220,7 @@ public struct HowToPlayNotesCard: View {
             ForEach(notes, id: \.self) { note in
                 Text(note)
                     .themeBody(13, weight: .medium)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -1253,7 +1253,7 @@ public struct RuleFrames<Frame: View>: View {
                 if index < count - 1 {
                     Image(systemName: "arrow.right")
                         .scaledFont(12, weight: .black, maxScale: 1.2)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                 }
             }
         }
@@ -1287,12 +1287,12 @@ public struct RuleLineup<Entry: View>: View {
                     Rectangle().fill(Theme.inkSub).frame(height: 2)
                     Image(systemName: "chevron.right")
                         .scaledFont(12, weight: .black, maxScale: 1.2)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                         .padding(.leading, -6)
                 }
                 .padding(.horizontal, 6)
                 HStack {
-                    if let low { Text(low).foregroundStyle(Theme.inkSub) }
+                    if let low { Text(low).foregroundStyle(Theme.inkSubText) }
                     Spacer()
                     if let high { Text(high).foregroundStyle(Theme.coralText) }
                 }
@@ -1313,7 +1313,7 @@ public struct RuleStageBand<Above: View>: View {
         public let color: Color
         public let captionColor: Color
 
-        public init(_ caption: String, share: CGFloat, color: Color, captionColor: Color = Theme.inkSub) {
+        public init(_ caption: String, share: CGFloat, color: Color, captionColor: Color = Theme.inkSubText) {
             self.caption = caption
             self.share = share
             self.color = color
@@ -1449,7 +1449,7 @@ public struct RuleFigureCard<Content: View>: View {
                     if let detail {
                         Text(detail)
                             .themeCaption(12, weight: .medium)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                     }
                 }
             }
@@ -1527,7 +1527,7 @@ public struct YakuTableSection<Content: View>: View {
             if let header {
                 Text(header)
                     .themeBody(13, weight: .black)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .padding(.horizontal, 4)
                     .accessibilityAddTraits(.isHeader)
             }
@@ -1540,7 +1540,7 @@ public struct YakuTableSection<Content: View>: View {
             if let footer {
                 Text(footer)
                     .themeCaption(12, weight: .medium)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 4)
             }

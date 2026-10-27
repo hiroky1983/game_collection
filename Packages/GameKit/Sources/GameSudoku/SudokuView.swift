@@ -274,13 +274,13 @@ public struct SudokuView: View {
                     Label(tr("ミス %1$lld/%2$lld", model.mistakes, SudokuModel.maxMistakes), systemImage: "xmark.circle")
                         .themeBody(15, weight: .bold, maxScale: 1.5)
                         .minimumScaleFactor(0.7)
-                        .foregroundStyle(model.mistakes >= SudokuModel.maxMistakes - 1 ? Theme.coralText : Theme.inkSub)
+                        .foregroundStyle(model.mistakes >= SudokuModel.maxMistakes - 1 ? Theme.coralText : Theme.inkSubText)
                 } else {
                     // まだ出題が無い（#354）。存在しない問題の「残り81」「ミス 0/3」を出さない。
                     Text(tr("難易度を選んでください"))
                         .themeBody(15)
                         .minimumScaleFactor(0.7)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                 }
             }
             .lineLimit(1)
@@ -483,7 +483,7 @@ public struct SudokuView: View {
                         let digit = r * 3 + c + 1
                         Text(noteDigits.contains(digit) ? "\(digit)" : " ")
                             .font(.system(size: side * 0.22, weight: .semibold, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
@@ -506,7 +506,7 @@ public struct SudokuView: View {
         if isGiven { return Theme.ink }
         // 諦めて表示した答えは自力で入れた数字と同じ色にしない
         // （同じ teal だと「自分で解いた盤」と見分けが付かない）。
-        if model.state == .givenUp { return Theme.inkSub }
+        if model.state == .givenUp { return Theme.inkSubText }
         if isHinted { return Theme.purple }
         return Theme.tealText
     }
@@ -612,12 +612,12 @@ public struct SudokuView: View {
                     if !exhausted {
                         Text(verbatim: "\(remaining)")
                             .scaledFont(10, weight: .semibold, design: .rounded)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                             .padding(.top, 3)
                             .padding(.trailing, 5)
                     }
                 }
-                .foregroundStyle(exhausted ? Theme.inkSub : Theme.ink)
+                .foregroundStyle(exhausted ? Theme.inkSubText : Theme.ink)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.pop)
@@ -638,7 +638,7 @@ public struct SudokuView: View {
                     RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
                         .fill(Theme.surface)
                 )
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.pop)

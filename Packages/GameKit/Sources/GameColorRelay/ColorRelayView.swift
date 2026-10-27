@@ -441,7 +441,7 @@ public struct ColorRelayView: View {
             VStack(spacing: 6) {
                 Text(tr("次の色を選ぶ"))
                     .scaledFont(12, weight: .bold, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 HStack(spacing: 8) {
                     ForEach(RelayColor.allCases, id: \.self) { color in
                         colorChoiceButton(color)
@@ -555,7 +555,7 @@ public struct ColorRelayView: View {
             HStack(spacing: 10) {
                 Image(systemName: model.playerPlace == 0 ? "crown.fill" : "flag.checkered")
                     .scaledFont(26)
-                    .foregroundStyle(model.playerPlace == 0 ? Theme.yellowText : Theme.inkSub)
+                    .foregroundStyle(model.playerPlace == 0 ? Theme.yellowText : Theme.inkSubText)
                 Text(resultHeadline)
                     .scaledFont(22, weight: .black, design: .rounded)
                     .foregroundStyle(model.playerPlace == 0 ? Theme.tealText : Theme.ink)
@@ -587,7 +587,7 @@ public struct ColorRelayView: View {
                         Spacer(minLength: 4)
                         Text(place == 0 ? tr("あがり") : tr("残り%lld枚", model.hands[player].count))
                             .scaledFont(15, weight: .semibold, design: .rounded)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
                     }
@@ -769,7 +769,7 @@ struct ColorRelayNewGameSheet: View {
                     }
                 }
                 Text(tr("人数ごとに記録（勝敗・連勝・平均順位）は別々に残ります。"))
-                    .themeBody(12).foregroundStyle(Theme.inkSub)
+                    .themeBody(12).foregroundStyle(Theme.inkSubText)
             }
             GameSetupSection(tr("CPUの強さ")) {
                 // 説明は `ColorRelayRules.cpuPlay` の中身と一致させる（#416）。

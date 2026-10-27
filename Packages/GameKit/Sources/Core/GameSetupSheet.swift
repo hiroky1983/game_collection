@@ -168,7 +168,7 @@ public struct GameSetupSection<Content: View>: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title).themeBody(15).foregroundStyle(Theme.inkSub)
+            Text(title).themeBody(15).foregroundStyle(Theme.inkSubText)
             content
         }
     }
@@ -257,7 +257,7 @@ public struct GameSetupChooser: View {
                 if let icon {
                     Image(systemName: icon)
                         .scaledFont(15, weight: .bold, maxScale: 1.2)
-                        .foregroundStyle(selected ? onAccent : Theme.inkSub)
+                        .foregroundStyle(selected ? onAccent : Theme.inkSubText)
                 }
                 titleText
                 // 副題が空のときは行ごと出さない（CPU の強さの5段階だけは、狭い端末で
@@ -291,7 +291,7 @@ public struct GameSetupChooser: View {
     private var subtitleText: some View {
         Text(subtitle)
             .font(.system(size: metrics.subtitleSize, weight: .semibold, design: .rounded)) // fixed-size: セットアップ部品の寸法定数（metrics.subtitleSize）で揃える。枠が固定寸法のため追従させない
-            .foregroundStyle(selected ? onAccent : Theme.inkSub)
+            .foregroundStyle(selected ? onAccent : Theme.inkSubText)
             .modifier(ShrinkToFit(minimumScale: metrics.subtitleMinimumScale))
     }
 }

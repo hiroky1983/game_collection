@@ -58,7 +58,7 @@ public struct TsunagiView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(tr("手数"))
                     .scaledFont(12, weight: .bold, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 Text("\(model.moves)")
                     .scaledFont(30, weight: .heavy, design: .rounded, maxScale: 1.2).monospacedDigit()
                     .foregroundStyle(Theme.ink)
@@ -99,7 +99,7 @@ public struct TsunagiView: View {
                 connected: model.connectedCount, pairs: model.puzzle.pairCount,
                 filled: model.filledCount, cells: model.puzzle.cellCount))
             .scaledFont(13, weight: .bold, design: .rounded)
-            .foregroundStyle(model.isConnectedButNotFilled ? Theme.coralText : Theme.inkSub)
+            .foregroundStyle(model.isConnectedButNotFilled ? Theme.coralText : Theme.inkSubText)
             .multilineTextAlignment(.center)
     }
 

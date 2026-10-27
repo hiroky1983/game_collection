@@ -89,7 +89,7 @@ struct MahjongPointsGuideView: View {
                 .foregroundStyle(Theme.ink)
             Text(detail)
                 .scaledFont(12, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .combine)
@@ -105,7 +105,7 @@ struct MahjongPointsGuideView: View {
                             .foregroundStyle(Theme.ink)
                         Text(row.hanText)
                             .scaledFont(11, weight: .medium, design: .rounded)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                     }
                     ForEach(limitLines(han: row.han), id: \.self) { line in
                         Text(line)
@@ -119,7 +119,7 @@ struct MahjongPointsGuideView: View {
             Text(tr("役満は %1$lld点（子）・%2$lld点（親）。複数そろうと倍になります。",
                     MahjongPointsGuide.yakumanRon(isDealer: false), MahjongPointsGuide.yakumanRon(isDealer: true)))
                 .scaledFont(12, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -146,7 +146,7 @@ struct MahjongPointsGuideView: View {
                 }
             }
             .scaledFont(11, weight: .bold, design: .rounded)
-            .foregroundStyle(Theme.inkSub)
+            .foregroundStyle(Theme.inkSubText)
             ForEach(MahjongPointsGuide.fuRows, id: \.self) { fu in
                 GridRow {
                     Text(tr("%lld符", fu))

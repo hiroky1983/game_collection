@@ -43,7 +43,7 @@ enum OjisanPuzzleHowToFigures {
     fileprivate static func caption(_ text: String) -> some View {
         Text(text)
             .themeCaption(11, weight: .bold, maxScale: 1.3)
-            .foregroundStyle(Theme.inkSub)
+            .foregroundStyle(Theme.inkSubText)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -149,7 +149,7 @@ struct OjisanPuzzleMiniBoard: View {
     private var spawnMark: some View {
         if let spawnColumn {
             let tint = spawnWarn ? Theme.coral : Theme.inkSub
-            let iconTint = spawnWarn ? Theme.coralText : Theme.inkSub
+            let iconTint = spawnWarn ? Theme.coralText : Theme.inkSubText
             ZStack(alignment: .top) {
                 RoundedRectangle(cornerRadius: max(1, cell * 0.2), style: .continuous)
                     .fill(tint.opacity(spawnWarn ? 0.22 : 0.10))
@@ -253,11 +253,11 @@ struct GoalFigure: View {
             OjisanPuzzleMiniBoard(grid: puzzleBoard, cell: Self.cell,
                                   spawnColumn: OjisanPuzzleBoard.spawnColumn)
             VStack(alignment: .leading, spacing: 2) {
-                OjisanPuzzleHowToFigures.label(tr("スコア"), size: 9, color: Theme.inkSub)
+                OjisanPuzzleHowToFigures.label(tr("スコア"), size: 9, color: Theme.inkSubText)
                 OjisanPuzzleHowToFigures.label("1280", size: 16)
                 OjisanPuzzleHowToFigures.label(tr("2連鎖"), size: 11, color: Theme.coralText)
                 Spacer(minLength: 0)
-                OjisanPuzzleHowToFigures.label(tr("ゲージ\nなし"), size: 9.5, color: Theme.inkSub)
+                OjisanPuzzleHowToFigures.label(tr("ゲージ\nなし"), size: 9.5, color: Theme.inkSubText)
             }
             .frame(height: boardHeight)
         }
@@ -377,7 +377,7 @@ struct ChainFigure: View {
         RuleFrames(count: Self.steps.count, spacing: 5) { index in
             let step = Self.steps[index]
             VStack(spacing: 4) {
-                OjisanPuzzleHowToFigures.label(step.label, size: 10.5, color: step.emphasized ? Theme.coralText : Theme.inkSub)
+                OjisanPuzzleHowToFigures.label(step.label, size: 10.5, color: step.emphasized ? Theme.coralText : Theme.inkSubText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                 OjisanPuzzleMiniBoard(grid: step.grid, cell: Self.cell, highlight: step.highlight)
@@ -412,7 +412,7 @@ struct WeightFigure: View {
                             .scaledFont(8, weight: .regular, maxScale: 1.1)
                     }
                 }
-                .foregroundStyle(kind.weight >= 4 ? Theme.coralText : Theme.inkSub)
+                .foregroundStyle(kind.weight >= 4 ? Theme.coralText : Theme.inkSubText)
             }
         }
     }
@@ -451,7 +451,7 @@ struct GaugeFigure: View {
             VStack(alignment: .leading, spacing: 5) {
                 row("arrow.up", Theme.coralText, tr("重い荷物をかかえるほど腰にくる"))
                 row("arrow.down", Theme.tealText, tr("消すと楽になる"))
-                row("shippingbox.fill", Theme.inkSub, tr("荷物が多い盤ほど、最初から腰にきている"))
+                row("shippingbox.fill", Theme.inkSubText, tr("荷物が多い盤ほど、最初から腰にきている"))
                 row("hare.fill", Theme.coralText, tr("腰にくると落ちるのが速くなり、操作が遅れる"))
                 row("cross.case.fill", Theme.coralText, tr("満タンで入院"))
             }

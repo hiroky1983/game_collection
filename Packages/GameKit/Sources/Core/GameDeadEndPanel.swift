@@ -56,7 +56,7 @@ public struct GameDeadEndPanel<Buttons: View>: View {
                 .foregroundStyle(Theme.ink)
             Text(message)
                 .themeBody(15, weight: .semibold)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 .multilineTextAlignment(.center)
             VStack(spacing: 12) {
                 buttons

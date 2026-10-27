@@ -131,7 +131,7 @@ struct DifficultyLadderCard: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(offer.caption)
                             .themeCaption(RecommendationCard.captionSize, weight: .semibold)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                             .lineLimit(1)
                         Text(offer.title)
                             .themeBody(16)

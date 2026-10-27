@@ -77,7 +77,7 @@ enum FifteenOnboarding {
                 VStack(spacing: 4) {
                     board(index == 0 ? FifteenOnboarding.startBoard : FifteenLogic.solved)
                     RuleFigureLabel(index == 0 ? tr("はじめ") : tr("おわり"),
-                                    color: index == 0 ? Theme.inkSub : Theme.coralText)
+                                    color: index == 0 ? Theme.inkSubText : Theme.coralText)
                 }
             }
         }

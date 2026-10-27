@@ -91,7 +91,7 @@ enum BlocksOnboarding {
                             .background(RoundedRectangle(cornerRadius: Theme.cornerSmall / 2, style: .continuous)
                                 .fill(Color(hex: BlocksPalette.field)))
                         RuleFigureLabel(BlocksOnboarding.label(for: kind),
-                                        color: kind.hitPoints == nil ? Theme.coralText : Theme.inkSub)
+                                        color: kind.hitPoints == nil ? Theme.coralText : Theme.inkSubText)
                     }
                 }
             }

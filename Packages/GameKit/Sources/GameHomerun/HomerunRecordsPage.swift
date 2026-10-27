@@ -18,10 +18,10 @@ struct HomerunRecordsLink: View {
                 Spacer()
                 Text(verbatim: "\(model.achievements.count) / \(HomerunAchievement.allCases.count)")
                     .themeBody(16, weight: .heavy)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 Image(systemName: "chevron.right")
                     .scaledFont(13, weight: .bold)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -98,11 +98,11 @@ struct HomerunRecordsCard: View {
                 HStack(alignment: .firstTextBaseline) {
                     Text(verbatim: row.title)
                         .themeBody(17, weight: .heavy)
-                        .foregroundStyle(row.isHidden ? Theme.inkSub : Theme.ink)
+                        .foregroundStyle(row.isHidden ? Theme.inkSubText : Theme.ink)
                     Spacer(minLength: 8)
                     Text(verbatim: row.value)
                         .scaledFont(20, weight: .heavy, design: .rounded).monospacedDigit()
-                        .foregroundStyle(row.isHidden ? Theme.inkSub : Theme.ink)
+                        .foregroundStyle(row.isHidden ? Theme.inkSubText : Theme.ink)
                 }
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(row.isHidden ? tr("まだ見つけていない記録") : "\(row.title) \(row.value)")
