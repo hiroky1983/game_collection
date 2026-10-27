@@ -21,6 +21,7 @@ struct HubRecentRow: View {
     let streakText: String?
 
     @Environment(\.adaptiveLayout) private var layout
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         // 寸法・色はモック 01（docs/design/hub-redesign-1831）の `.label` / `.recent` / `.rc`（#2175）。
@@ -36,7 +37,8 @@ struct HubRecentRow: View {
                     Label(streakText, systemImage: "flame.fill")
                         .themeCaption(layout.scaled(11), weight: .heavy)
                         .foregroundStyle(Theme.inkSub)
-                        .lineLimit(1)
+                        // 最大サイズでは切らずに折り返す（#2935）。既定サイズは 1 行のまま。
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                         .accessibilityElement(children: .combine)
                 }
             }
@@ -86,6 +88,7 @@ private struct HubRecentCard: View {
     let hasResume: Bool
 
     @Environment(\.adaptiveLayout) private var layout
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// カード1枚の幅。固定にするのは、SE 相当の 320pt でも**2枚目が半分見える**状態を作って
     /// 「横に続いている」ことを分からせるため（中身に任せるとゲーム名の長さで見え方が変わる）。
@@ -101,12 +104,12 @@ private struct HubRecentCard: View {
                 Text(module.title)
                     .themeBody(layout.scaled(14), weight: .heavy)
                     .foregroundStyle(Theme.ink)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                     .minimumScaleFactor(0.7)
                 Text(hasResume ? tr("つづきから") : tr("また あそぶ"))
                     .themeCaption(layout.scaled(10), weight: .heavy)
                     .foregroundStyle(hasResume ? accent : Theme.inkSub)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                     // 英語（#2109）は日本語より横に長い。幅が固定のカードなので、切れる前に縮める。
                     .minimumScaleFactor(0.7)
             }
@@ -114,7 +117,13 @@ private struct HubRecentCard: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, layout.scaled(10))
-        .frame(width: layout.scaled(Self.width), alignment: .leading)
+        // 最大サイズでは固定幅をやめ、文字に合わせて広げる（#2935）。既定サイズは固定幅のまま。
+        .frame(width: dynamicTypeSize.isAccessibilitySize ? nil : layout.scaled(Self.width), alignment: .leading)
+        .frame(
+            minWidth: dynamicTypeSize.isAccessibilitySize ? layout.scaled(Self.width) : nil,
+            maxWidth: dynamicTypeSize.isAccessibilitySize ? layout.scaled(Self.width * 2) : nil,
+            alignment: .leading
+        )
         .frame(minHeight: layout.scaled(52))
         .background(
             RoundedRectangle(cornerRadius: layout.scaled(Theme.cornerSmall), style: .continuous)
