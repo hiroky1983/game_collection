@@ -268,4 +268,123 @@ struct DiceComboModelTests {
         }
         #expect(big && small, "両方の出目が探索範囲に出る")
     }
+
+    // MARK: - 役選びを戻す（#2940）
+
+    /// 1 回振って `category` に入れる。
+    private func rollAndChoose(_ model: DiceComboModel, _ category: DiceComboCategory) {
+        model.roll()
+        model.choose(category)
+    }
+
+    @Test("役を選んだ直後なら戻せる。点が消え、選ぶ前の出目・振った回数に戻って回数を 1 使う")
+    func undoRestoresTurn() {
+        let model = DiceComboModel(services: makeServices(), seed: 11)
+        model.roll()
+        model.toggleHold(0)
+        let dice = model.dice, held = model.held, rolls = model.rollsUsed
+        #expect(!model.canUndo)
+        model.choose(.choice)
+        #expect(model.canUndo && model.scores[.choice] != nil)
+        #expect(model.undoChoice())
+        #expect(model.scores.isEmpty)
+        #expect(model.dice == dice && model.held == held && model.rollsUsed == rolls)
+        #expect(model.undosRemaining == DiceComboUndoBudget.free - 1)
+        #expect(model.lastFilled == nil)
+        #expect(model.canChoose(.fourDice) && model.canChoose(.choice), "戻したら同じ出目で選び直せる")
+        #expect(!model.canUndo, "戻せるのは直前の 1 回だけ")
+        #expect(!model.undoChoice())
+    }
+
+    @Test("次のターンを振ったら戻せない（次の出目を見てから戻す抜け道を作らない）")
+    func undoUnavailableAfterNextRoll() {
+        let model = DiceComboModel(services: makeServices(), seed: 12)
+        rollAndChoose(model, .choice)
+        #expect(model.canUndo)
+        model.roll()
+        model.settleRoll()
+        #expect(!model.canUndo)
+        #expect(!model.undoChoice())
+        #expect(model.scores.count == 1)
+    }
+
+    @Test("最後の役で決着したあとは戻せない")
+    func undoUnavailableAfterFinish() {
+        let model = DiceComboModel(services: makeServices(), seed: 13)
+        playThrough(model)
+        #expect(model.isFinished && !model.canUndo)
+        #expect(!model.undoChoice())
+        #expect(model.scores.count == DiceComboCategory.allCases.count)
+    }
+
+    @Test("無料 3 回を使い切ると戻せず、広告の提案が必要になる。補充は視聴完了後に 3 回ぶん")
+    func undoBudgetAndRefill() {
+        let model = DiceComboModel(services: makeServices(), seed: 14)
+        for category in [DiceComboCategory.ones, .twos, .threes] {
+            rollAndChoose(model, category)
+            #expect(model.undoChoice())
+        }
+        #expect(model.undosRemaining == 0)
+        rollAndChoose(model, .ones)
+        #expect(model.canUndo && !model.hasUndoCredit && model.needsUndoRefill)
+        #expect(!model.undoChoice(), "回数が無ければ戻らない")
+        #expect(model.scores[.ones] != nil)
+        #expect(model.grantUndos(forGame: model.gameSerial))
+        #expect(model.undosRemaining == DiceComboUndoBudget.refill)
+        #expect(!model.needsUndoRefill && model.undoChoice())
+    }
+
+    @Test("広告のロード中に新しいゲームを始めたら補充しない。新しい局は無料枠から始まる")
+    func grantIgnoresStaleGame() {
+        let model = DiceComboModel(services: makeServices(), seed: 15)
+        let serial = model.gameSerial
+        rollAndChoose(model, .ones)
+        _ = model.undoChoice()
+        model.newGame()
+        #expect(model.undosRemaining == DiceComboUndoBudget.free)
+        #expect(!model.grantUndos(forGame: serial))
+        #expect(model.undosRemaining == DiceComboUndoBudget.free)
+    }
+
+    @Test("決着した局へは補充しない。戻す用の鍵が壊れていても局は読める")
+    func grantRejectedAfterFinishAndCorruptUndoKeysDecode() throws {
+        let model = DiceComboModel(services: makeServices(), seed: 17)
+        let serial = model.gameSerial
+        playThrough(model)
+        #expect(!model.grantUndos(forGame: serial))
+        #expect(model.undosRemaining == DiceComboUndoBudget.free)
+
+        let json = #"{"dice":[],"held":[],"rollsUsed":0,"scores":{"choice":20},"undosRemaining":"x","lastChoice":5}"#
+        let snap = try JSONDecoder().decode(DiceComboSnapshot.self, from: Data(json.utf8))
+        #expect(snap.scores == ["choice": 20] && snap.undosRemaining == nil && snap.lastChoice == nil)
+        #expect(DiceComboModel.restore(snap)?.undosRemaining == DiceComboUndoBudget.free)
+    }
+
+    @Test("回数と戻せる手は中断から復元される。戻す関連の鍵が無い旧データは無料枠で読む")
+    func undoSurvivesResume() {
+        let store = MemorySnapshotStore()
+        let model = DiceComboModel(services: makeServices(store: store), seed: 16)
+        rollAndChoose(model, .ones)
+        _ = model.undoChoice()
+        rollAndChoose(model, .twos)
+        let resumed = DiceComboModel(services: makeServices(store: store), seed: 16)
+        #expect(resumed.undosRemaining == DiceComboUndoBudget.free - 1)
+        #expect(resumed.canUndo && resumed.undoChoice())
+        #expect(resumed.scores[.twos] == nil)
+
+        let old = DiceComboSnapshot(dice: [], held: [], rollsUsed: 0, scores: ["choice": 20])
+        let restored = DiceComboModel.restore(old)
+        #expect(restored?.undosRemaining == DiceComboUndoBudget.free)
+        #expect(restored?.lastChoice == nil)
+    }
+
+    @Test("壊れた「戻す」データは捨てて、戻せない局として読む")
+    func corruptLastChoiceIsDropped() {
+        let bad = DiceComboSnapshot.Choice(category: "nope", dice: [1, 2, 3, 4, 5], held: [false, false, false, false, false], rollsUsed: 1)
+        let snap = DiceComboSnapshot(dice: [], held: [], rollsUsed: 0, scores: ["choice": 20],
+                                     undosRemaining: -5, lastChoice: bad)
+        let restored = DiceComboModel.restore(snap)
+        #expect(restored?.lastChoice == nil)
+        #expect(restored?.undosRemaining == 0)
+    }
 }
