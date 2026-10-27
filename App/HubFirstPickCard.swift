@@ -18,6 +18,7 @@ struct HubFirstPickCard: View {
     let accentFill: Color
 
     @Environment(\.adaptiveLayout) private var layout
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         HStack(spacing: layout.scaled(12)) {
@@ -33,13 +34,13 @@ struct HubFirstPickCard: View {
                 Text(tr("はじめてなら、これ"))
                     .themeCaption(layout.scaled(11), weight: .semibold)
                     .foregroundStyle(Theme.inkSub)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                     // 英語（#2109）は日本語より横に長い。右の「あそぶ」に押されて切れる前に縮める。
                     .minimumScaleFactor(0.8)
                 Text(module.title)
                     .themeBody(layout.scaled(16))
                     .foregroundStyle(Theme.ink)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                     .minimumScaleFactor(0.7)
             }
             Spacer(minLength: 4)

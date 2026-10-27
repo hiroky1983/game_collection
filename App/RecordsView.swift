@@ -18,6 +18,7 @@ struct RecordsView: View {
     /// （シートを出したまま Game Center のオーバーレイやサインイン画面を重ねない）。
     var onOpenGameCenter: () -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// 並びは設定シートと同じ（非表示のゲームも記録は残っているので載せる）。
     private var summary: RecordsSummary {
@@ -91,22 +92,34 @@ struct RecordsView: View {
             .accessibilityLabel(summary.progressText)
 
             // 6 枚を 3 枚ずつ 2 段に折る（タイルの数は固定。SE でも 1 枚あたり幅が足りる）。
+            // 最大サイズでは見出しが切れるので 2 枚ずつ 3 段にする（#2935）。
+            let tiles = statTiles(summary)
+            let columns = dynamicTypeSize.isAccessibilitySize ? 2 : 3
             VStack(spacing: 8) {
-                HStack(spacing: 8) {
-                    statTile(title: tr("遊んだ種類"), value: "\(summary.playedCount)/\(summary.gameCount)")
-                    statTile(title: tr("通算勝利"), value: RecordFormat.number(summary.totalWins))
-                    statTile(title: tr("最高連勝"), value: RecordFormat.number(summary.bestStreak))
-                }
-                HStack(spacing: 8) {
-                    statTile(title: tr("総プレイ回数"), value: tr("%@回", RecordFormat.number(playLog?.totalFinishes ?? 0)))
-                    // `playDays` は直近 366 日ぶんだけ保存している（上限を超えた古い日は数えない）。
-                    statTile(title: tr("遊んだ日数"), value: tr("%@日", RecordFormat.number(playLog?.playDays.count ?? 0)))
-                    // 日をまたぐ連続（#1625）。勝敗の連勝とは別物。0 日のときも 0 で出す（タイルの数は固定）。
-                    statTile(title: tr("連続日数"), value: tr("%@日", RecordFormat.number(playLog?.playStreak() ?? 0)))
+                ForEach(0..<(tiles.count / columns), id: \.self) { row in
+                    HStack(spacing: 8) {
+                        ForEach(0..<columns, id: \.self) { column in
+                            let tile = tiles[row * columns + column]
+                            statTile(title: tile.title, value: tile.value)
+                        }
+                    }
                 }
             }
         }
         .padding(.vertical, 4)
+    }
+
+    private func statTiles(_ summary: RecordsSummary) -> [(title: String, value: String)] {
+        [
+            (tr("遊んだ種類"), "\(summary.playedCount)/\(summary.gameCount)"),
+            (tr("通算勝利"), RecordFormat.number(summary.totalWins)),
+            (tr("最高連勝"), RecordFormat.number(summary.bestStreak)),
+            (tr("総プレイ回数"), tr("%@回", RecordFormat.number(playLog?.totalFinishes ?? 0))),
+            // `playDays` は直近 366 日ぶんだけ保存している（上限を超えた古い日は数えない）。
+            (tr("遊んだ日数"), tr("%@日", RecordFormat.number(playLog?.playDays.count ?? 0))),
+            // 日をまたぐ連続（#1625）。勝敗の連勝とは別物。0 日のときも 0 で出す（タイルの数は固定）。
+            (tr("連続日数"), tr("%@日", RecordFormat.number(playLog?.playStreak() ?? 0))),
+        ]
     }
 
     private func statTile(title: String, value: String) -> some View {
@@ -120,10 +133,10 @@ struct RecordsView: View {
             Text(title)
                 .themeCaption(11)
                 .foregroundStyle(Theme.inkSub)
-                .lineLimit(1)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 .minimumScaleFactor(0.7)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
@@ -177,12 +190,12 @@ struct RecordsView: View {
                 Text(row.title)
                     .themeBody(16)
                     .foregroundStyle(Theme.ink)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                     .minimumScaleFactor(0.7)
                 Text(verbatim: row.detailText)
                     .themeCaption(12)
                     .foregroundStyle(Theme.inkSub)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                     .minimumScaleFactor(0.7)
                 if let lastPlayedText {
                     Text(verbatim: lastPlayedText)
