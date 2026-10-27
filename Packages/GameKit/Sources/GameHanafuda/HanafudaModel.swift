@@ -399,8 +399,8 @@ public final class HanafudaModel: AITurnGuarded {
     /// 手札の 1 枚を場に適用し、続けて山札をめくる。
     private func applyHandPlay(_ card: HanafudaCard, chosen: HanafudaCard?, for player: HanafudaPlayer) {
         removeFromHand(card, of: player)
-        // 札が場に出た = 捨てたら途中離脱として数える局面（#500）。
-        services?.gameDidProgress(gameID: Self.gameID)
+        // 人間の札が場に出た = 捨てたら途中離脱として数える局面（#500）。CPU が親で先に出しただけでは数えない（#3000）。
+        if player == .human { services?.gameDidProgress(gameID: Self.gameID) }
         let result = HanafudaRules.resolve(playing: card, field: field, chosen: chosen)
         field = result.field.sorted()
         capture(result.captured, for: player)
