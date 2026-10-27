@@ -48,28 +48,25 @@ struct OnboardingGuideTests {
         }
     }
 
-    /// v1.1.14 では入口を出さない（#2944）。中身・図・テストは消さず、切り替えは `isAvailable` の 1 か所だけ。
-    @Test("v1.1.14 では入口を出さない（#2944）")
-    func entryHiddenForV1114() {
-        #expect(!OnboardingGuide.isAvailable)
+    /// v1.1.14 では隠していた入口を v1.1.15 で出し直した（#3002）。切り替えは `isAvailable` の 1 か所だけ。
+    @Test("v1.1.15 では入口を出す（#3002）")
+    func entryShownForV1115() {
+        #expect(OnboardingGuide.isAvailable)
     }
 
-    /// 入口が隠れているとき、ガイドを持つゲームでもボタンの場所が余白として残らないこと。
-    /// ガイドが無いゲーム（`OnboardingEntry(nil, ...)`）と同じ、0 サイズで描かれることを確かめる。
-    @Test("入口を隠しているときはガイドがあっても余白が残らない")
+    /// 入口が出ているとき、ガイドを持つゲームはボタンの分だけ描かれ、ガイドが無いゲーム
+    /// （`OnboardingEntry(nil, ...)`）は 0 サイズのままであること。
+    @Test("ガイドがあれば入口が描かれ、無ければ何も描かれない")
     @MainActor
-    func entryLeavesNoGapWhenHidden() {
+    func entryRendersOnlyWithGuide() {
         for style: OnboardingEntry.Style in [.prominent, .compact] {
-            let withGuide = OnboardingEntry(guide(pages: 4), style: style)
-            let withoutGuide = OnboardingEntry(nil, style: style)
-
-            let withGuideRenderer = ImageRenderer(content: withGuide.fixedSize())
+            let withGuideRenderer = ImageRenderer(content: OnboardingEntry(guide(pages: 4), style: style).fixedSize())
             withGuideRenderer.scale = 1
-            let withoutGuideRenderer = ImageRenderer(content: withoutGuide.fixedSize())
+            let withoutGuideRenderer = ImageRenderer(content: OnboardingEntry(nil, style: style).fixedSize())
             withoutGuideRenderer.scale = 1
 
-            #expect(withGuideRenderer.cgImage?.width ?? 0 == withoutGuideRenderer.cgImage?.width ?? 0)
-            #expect(withGuideRenderer.cgImage?.height ?? 0 == withoutGuideRenderer.cgImage?.height ?? 0)
+            #expect((withGuideRenderer.cgImage?.height ?? 0) > 0)
+            #expect((withoutGuideRenderer.cgImage?.height ?? 0) == 0)
         }
     }
 }
