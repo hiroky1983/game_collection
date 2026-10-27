@@ -237,7 +237,8 @@ public final class DiceComboModel {
     /// - Returns: 補充できたか。false のとき View は「補充できなかった」と伝える。
     @discardableResult
     public func grantUndos(forGame serial: Int) -> Bool {
-        guard serial == gameSerial else { return false }
+        // 決着した局へは足さない（`persist` は決着後に保存せず、`newGame` で無料枠へ戻るので使い道が無い）。
+        guard serial == gameSerial, !isFinished else { return false }
         undosRemaining += DiceComboUndoBudget.refill
         services?.feedback.notify(.success)
         persist()

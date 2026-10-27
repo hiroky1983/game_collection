@@ -161,7 +161,7 @@ public struct DiceComboView: View {
             )
         }
         .buttonStyle(.plain)
-        .disabled(!model.canChoose(category))
+        .disabled(!model.canChoose(category) || undoRescue.isWatching)
         .accessibilityLabel(DiceComboAccessibility.categoryLabel(category, scored: scored, preview: preview))
         .accessibilityHint(preview != nil ? tr("この役に点を入れます") : "")
     }
@@ -250,7 +250,7 @@ public struct DiceComboView: View {
                 }
                 .buttonStyle(.plain)
                 // 転がっている間は押しても何も起きない（Model が弾く）が、見た目は薄くしない（0.8 秒ごとに点滅して見えるため）。
-                .disabled(!model.canHold && !model.isRolling)
+                .disabled(!model.canHold && !model.isRolling || undoRescue.isWatching)
                 // 読み上げは常に確定した目（`value`）。途中の目（`shown`）は読まない。
                 .accessibilityLabel(value.map { DiceComboAccessibility.dieLabel(index: index, value: $0, isHeld: isHeld) }
                     ?? tr("サイコロ%lld、まだ振っていません", index + 1))
@@ -273,7 +273,7 @@ public struct DiceComboView: View {
         }
         .buttonStyle(.game(.primary, shape: .block))
         // 転がっている間の連打は Model が黙って捨てる。ボタンは薄くしない（振るたびに点滅して見えるため）。
-        .disabled(!model.canRoll && !model.isRolling)
+        .disabled(!model.canRoll && !model.isRolling || undoRescue.isWatching)
         .accessibilityLabel(DiceComboAccessibility.rollLabel(remaining: model.rollsRemaining))
     }
 

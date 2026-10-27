@@ -32,6 +32,22 @@ public struct DiceComboSnapshot: Codable, Equatable, Sendable {
         }
     }
 
+    private enum CodingKeys: String, CodingKey {
+        case dice, held, rollsUsed, scores, undosRemaining, lastChoice
+    }
+
+    /// 従来の鍵は厳格に読み、後から足した「戻す」の鍵だけは型が合わなくても捨てて読む
+    /// （戻す用の値が壊れていても、局そのものは再開できるようにする）。
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        dice = try container.decode([Int].self, forKey: .dice)
+        held = try container.decode([Bool].self, forKey: .held)
+        rollsUsed = try container.decode(Int.self, forKey: .rollsUsed)
+        scores = try container.decode([String: Int].self, forKey: .scores)
+        undosRemaining = try? container.decodeIfPresent(Int.self, forKey: .undosRemaining)
+        lastChoice = try? container.decodeIfPresent(Choice.self, forKey: .lastChoice)
+    }
+
     public init(dice: [Int], held: [Bool], rollsUsed: Int, scores: [String: Int],
                 undosRemaining: Int? = nil, lastChoice: Choice? = nil) {
         self.dice = dice

@@ -346,6 +346,20 @@ struct DiceComboModelTests {
         #expect(model.undosRemaining == DiceComboUndoBudget.free)
     }
 
+    @Test("決着した局へは補充しない。戻す用の鍵が壊れていても局は読める")
+    func grantRejectedAfterFinishAndCorruptUndoKeysDecode() throws {
+        let model = DiceComboModel(services: makeServices(), seed: 17)
+        let serial = model.gameSerial
+        playThrough(model)
+        #expect(!model.grantUndos(forGame: serial))
+        #expect(model.undosRemaining == DiceComboUndoBudget.free)
+
+        let json = #"{"dice":[],"held":[],"rollsUsed":0,"scores":{"choice":20},"undosRemaining":"x","lastChoice":5}"#
+        let snap = try JSONDecoder().decode(DiceComboSnapshot.self, from: Data(json.utf8))
+        #expect(snap.scores == ["choice": 20] && snap.undosRemaining == nil && snap.lastChoice == nil)
+        #expect(DiceComboModel.restore(snap)?.undosRemaining == DiceComboUndoBudget.free)
+    }
+
     @Test("回数と戻せる手は中断から復元される。戻す関連の鍵が無い旧データは無料枠で読む")
     func undoSurvivesResume() {
         let store = MemorySnapshotStore()
