@@ -186,7 +186,7 @@ public final class OldMaidModel: AITurnGuarded {
         game = next
         self.selectedID = nil
         isUntouchedDeal = false
-        // 札が動いた = 盤面が動いた。配っただけの局面を捨てても離脱には数えない境目（#500）。
+        // あなたが札を引いた = 盤面が動いた。配っただけの局面を捨てても離脱には数えない境目（#500）。
         services?.gameDidProgress(gameID: gameID)
         if let transfer = next.lastTransfer {
             if transfer.card.isJoker {
@@ -248,8 +248,7 @@ public final class OldMaidModel: AITurnGuarded {
     private func performCPUTurn() {
         guard var next = game, next.performCPUTurn(using: &generator) else { return }
         game = next
-        isUntouchedDeal = false
-        services?.gameDidProgress(gameID: gameID)
+        isUntouchedDeal = false   // 保存はする（CPU の初手も復元できるように）。続き扱いにはならない（#3000）
         if next.lastTransfer?.from == Self.humanIndex {
             services?.feedback.impact(.light)
         }
