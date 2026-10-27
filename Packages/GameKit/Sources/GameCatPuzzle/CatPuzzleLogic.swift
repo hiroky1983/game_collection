@@ -1,10 +1,10 @@
 import Foundation
 import CoreEngine
 
-/// 盤の大きさ（難易度・#2250）。かんたん 6×6・ふつう 7×7・むずかしい 8×8。
+/// 盤の大きさ（難易度・#2250）。かんたん 6×6・ふつう 7×7・むずかしい 8×8・とことん 9×9。
 /// `rawValue` は記録の区分キー・中断データにそのまま使う。
 public enum CatPuzzleSize: String, CaseIterable, Codable, Sendable {
-    case easy, normal, hard
+    case easy, normal, hard, expert
 
     /// 1 辺のマス数 = 部屋の数 = 猫の数。
     public var side: Int {
@@ -12,6 +12,7 @@ public enum CatPuzzleSize: String, CaseIterable, Codable, Sendable {
         case .easy: 6
         case .normal: 7
         case .hard: 8
+        case .expert: 9
         }
     }
 }
@@ -185,7 +186,7 @@ public enum CatPuzzleLogic {
     // MARK: - 解の数え上げ
 
     /// 部屋割り `rooms` に対する解（各部屋・行・列に 1 匹・隣り合わない置き方）の数を `limit` まで数える。
-    /// 行ごとに列を選ぶ深さ優先で、使った列・部屋をビットで持つ（8×8 でも一瞬）。
+    /// 行ごとに列を選ぶ深さ優先で、使った列・部屋をビットで持つ（9×9 でも一瞬）。
     public static func countSolutions(side: Int, rooms: [Int], limit: Int) -> Int {
         var count = 0
         func search(row: Int, usedCols: Int, usedRooms: Int, previousCol: Int) {
@@ -229,7 +230,11 @@ public enum CatPuzzleLogic {
                 var stale = 0
                 while count != 1 && stale < 150 {
                     stale += 1
-                    guard let move = randomMove(rooms: rooms, side: n, solution: solution, using: &generator) else { break }
+                    // 盤が広いと、でたらめな付け替えでは別解がなかなか消えない。別解を 1 つ探し、
+                    // それを壊す付け替え（別解の猫のマスを、別解の別の猫がいる部屋へ移す）を優先する。
+                    let directed = count <= directedThreshold ? otherSolution(side: n, rooms: rooms, excluding: solution) : nil
+                    guard let move = directed.flatMap({ directedMove(rooms: rooms, side: n, solution: solution, other: $0, using: &generator) })
+                            ?? randomMove(rooms: rooms, side: n, solution: solution, using: &generator) else { break }
                     var trial = rooms
                     trial[move.cell] = move.room
                     let vacated = rooms[move.cell]
@@ -248,6 +253,47 @@ public enum CatPuzzleLogic {
                 }
             }
         }
+    }
+
+    /// 別解の数がこの値以下なら、別解を壊す付け替えを狙う（それより多いうちは、でたらめな付け替えで十分減る）。
+    static let directedThreshold = 64
+
+    /// 答え `excluding` 以外の解を 1 つ返す（無ければ nil）。
+    static func otherSolution(side: Int, rooms: [Int], excluding solution: [Int]) -> [Int]? {
+        var cols: [Int] = []
+        func search(row: Int, usedCols: Int, usedRooms: Int) -> Bool {
+            if row == side { return cols != solution }
+            for col in 0..<side where usedCols & (1 << col) == 0 {
+                if let previous = cols.last, abs(col - previous) <= 1 { continue }
+                let room = rooms[row * side + col]
+                if usedRooms & (1 << room) != 0 { continue }
+                cols.append(col)
+                if search(row: row + 1, usedCols: usedCols | (1 << col), usedRooms: usedRooms | (1 << room)) { return true }
+                cols.removeLast()
+            }
+            return false
+        }
+        return search(row: 0, usedCols: 0, usedRooms: 0) ? cols : nil
+    }
+
+    /// 別解 `other` を壊す付け替え: 別解の猫のマス（答えの猫ではないもの）を、別解の別の猫がいる隣の部屋へ移す。
+    /// 移すと別解の 1 つの部屋に猫が 2 匹になり、別解でなくなる。
+    static func directedMove<G: RandomNumberGenerator>(
+        rooms: [Int], side n: Int, solution: [Int], other: [Int], using generator: inout G
+    ) -> (cell: Int, room: Int)? {
+        var sizes = Array(repeating: 0, count: n)
+        for room in rooms { sizes[room] += 1 }
+        let limit = maxRoomSize(side: n)
+        let otherCells = other.enumerated().map { $0.offset * n + $0.element }
+        let otherRooms = Set(otherCells.map { rooms[$0] })
+        var moves: [(cell: Int, room: Int)] = []
+        for cell in otherCells where solution[cell / n] != cell % n && sizes[rooms[cell]] > 2 {
+            for next in neighbors4(of: cell, side: n)
+            where rooms[next] != rooms[cell] && otherRooms.contains(rooms[next]) && sizes[rooms[next]] < limit {
+                moves.append((cell, rooms[next]))
+            }
+        }
+        return moves.randomElement(using: &generator)
     }
 
     /// 解を変えずに見た目の並びを乱数で混ぜる: 盤の回転・裏返し（8 通りのどれか）と、部屋の番号の振り直し。

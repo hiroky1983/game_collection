@@ -1603,13 +1603,13 @@
         }
       }
     },
-    "盤は 6×6・7×7・8×8 の 3 段階で、問題は毎回変わります（答えは 1 通り）。" : {
+    "盤は 6×6・7×7・8×8・9×9 の 4 段階で、問題は毎回変わります（答えは 1 通り）。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Boards come in 6×6, 7×7, and 8×8, with a new puzzle every time (one unique answer)."
+            "value" : "Boards come in 6×6, 7×7, 8×8, and 9×9, with a new puzzle every time (one unique answer)."
           }
         }
       }

@@ -860,6 +860,28 @@
         }
       }
     },
+    "廊下" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hallway"
+          }
+        }
+      }
+    },
+    "とことん" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Endless"
+          }
+        }
+      }
+    },
     "途中で終了すると、いまの盤面とタイムが失われます。" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -568,12 +568,13 @@ public final class CatPuzzleModel {
 }
 
 extension CatPuzzleSize {
-    /// `game_start` の `level`（#500）。6×6 をやさしい、7×7 をふつう、8×8 を上級として送る。
+    /// `game_start` の `level`（#500）。6×6 をやさしい、7×7 をふつう、8×8 を上級、9×9 を最上級として送る。
     var analyticsLevel: AnalyticsLevel {
         switch self {
         case .easy: .beginner
         case .normal: .normal
         case .hard: .hard
+        case .expert: .expert
         }
     }
 
@@ -589,6 +590,7 @@ extension CatPuzzleSize {
         case .easy: tr("かんたん")
         case .normal: tr("ふつう")
         case .hard: tr("むずかしい")
+        case .expert: tr("とことん")
         }
     }
 

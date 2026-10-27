@@ -100,8 +100,8 @@ public enum RecordVariantLabels {
             // 15パズル（#2869）の盤の大きさ。4×4 は区分なし（従来の保存先）。数字と記号だけなので言語で変わらない。
             return ["3x3": "3×3", "5x5": "5×5"][variant]
         case "catpuzzle":
-            // おじさんちのねこさがし（#2250）。キーは盤の大きさ（`CatPuzzleSize.rawValue`: easy / normal / hard）。
-            return difficultyWord(variant, language: language)
+            // おじさんちのねこさがし（#2250）。キーは盤の大きさ（`CatPuzzleSize.rawValue`: easy / normal / hard / expert）。
+            return variant == "expert" ? tr("とことん", language: language) : difficultyWord(variant, language: language)
         case "daifugo":
             // CPU の強さ別（#2604）。「ふつう」は区分なし（これまでの記録）なので、キーは入門・かんたん・むずかしいだけ。
             return cpuStrengthLabel(variant, language: language)
