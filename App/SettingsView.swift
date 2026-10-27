@@ -104,6 +104,21 @@ struct SettingsView: View {
                             .foregroundStyle(Theme.ink)
                     }
                     .tint(Theme.coral) // accent-text-ok: トグルのトラック（面）
+
+                    if settings.soundEnabled {
+                        Picker(selection: Binding(
+                            get: { settings.soundVolume },
+                            set: { settings.soundVolume = $0 }
+                        )) {
+                            Text(tr("小")).tag(SoundVolume.small)
+                            Text(tr("中")).tag(SoundVolume.medium)
+                            Text(tr("大")).tag(SoundVolume.large)
+                        } label: {
+                            Label(tr("効果音の音量"), systemImage: "speaker.wave.3")
+                                .foregroundStyle(Theme.ink)
+                        }
+                        .pickerStyle(.segmented)
+                    }
                 } header: {
                     Text(tr("フィードバック"))
                 } footer: {

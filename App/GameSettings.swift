@@ -20,6 +20,10 @@ final class GameSettings {
     var soundEnabled: Bool {
         didSet { Self.sound.isEnabled = soundEnabled }
     }
+    /// 効果音の音量（小・中・大・#3007）。既定は中。効果音がオンのときに全ゲームの音へ効く。
+    var soundVolume: SoundVolume {
+        didSet { Self.soundVolumePreference.volume = soundVolume }
+    }
     /// ヒント表示のオン / オフ（#190）。既定はオン。
     /// 大富豪の「いま出せるカードの強調」「出せない理由の1行表示」がこれで切り替わる。
     var hintsEnabled: Bool {
@@ -80,6 +84,7 @@ final class GameSettings {
     private static let homerunFrontKey = "gameOrderHomerunFront_v1"
     private static let haptics = FeedbackPreference(key: "hapticsEnabled_v1")
     private static let sound   = FeedbackPreference(key: "soundEnabled_v1")
+    private static let soundVolumePreference = SoundVolumePreference()
     // 触覚・効果音と同じ「未設定ならオン」の箱に相乗りする（新しい永続化の仕組みを増やさない）。
     private static let analytics = FeedbackPreference(key: "analyticsEnabled_v1")
     private static let notifications = FeedbackPreference(key: "resumeRemindersEnabled_v1")
@@ -100,6 +105,7 @@ final class GameSettings {
         // 未設定（初回起動・キー無し）はオン。既定値の規則は FeedbackPreference が持つ。
         self.hapticsEnabled = Self.haptics.isEnabled
         self.soundEnabled = Self.sound.isEnabled
+        self.soundVolume = Self.soundVolumePreference.volume
         self.analyticsEnabled = Self.analytics.isEnabled
         let mergedNotificationsEnabled = NotificationsPreferenceMerge.mergedIsEnabled(
             resume: Self.notifications.isEnabled,

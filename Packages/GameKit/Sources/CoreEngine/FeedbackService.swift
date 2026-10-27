@@ -119,6 +119,43 @@ public struct FeedbackPreference {
     }
 }
 
+/// 効果音の音量（小・中・大・#3007）。オンのときだけ意味を持つ。既定は中。
+///
+/// `scale` は `AVAudioPlayer.volume` にそのまま渡す値。中は従来の固定値（0.6）と同じにして、
+/// 設定を触っていない人の聞こえ方を変えない。保存は文字列の rawValue（並びを入れ替えても壊れない）。
+public enum SoundVolume: String, CaseIterable, Sendable {
+    case small
+    case medium
+    case large
+
+    public static let `default`: SoundVolume = .medium
+
+    public var scale: Float {
+        switch self {
+        case .small: return 0.3
+        case .medium: return 0.6
+        case .large: return 1.0
+        }
+    }
+}
+
+/// `SoundVolume` の保存。`FeedbackPreference` と同じく `UserDefaults` の注入でテストできる。
+public struct SoundVolumePreference {
+    private let key: String
+    private let defaults: UserDefaults
+
+    public init(key: String = "soundVolume_v1", defaults: UserDefaults = .standard) {
+        self.key = key
+        self.defaults = defaults
+    }
+
+    /// 保存が無い・読めない値のときは既定（中）。
+    public var volume: SoundVolume {
+        get { defaults.string(forKey: key).flatMap(SoundVolume.init(rawValue:)) ?? .default }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: key) }
+    }
+}
+
 public extension FeedbackPreference {
     /// ヒント表示（いま出せる手の強調・出せない理由の表示）のオン / オフ（#190）。既定はオン。
     ///

@@ -228,4 +228,22 @@ struct FeedbackPreferenceTests {
         haptics.isEnabled = false
         #expect(sound.isEnabled, "触覚を切っても効果音は残る")
     }
+
+    @Test("音量は未設定なら中、保存すると読み直しても残る")
+    func soundVolumePersists() {
+        let defaults = makeDefaults("volume")
+        #expect(SoundVolumePreference(defaults: defaults).volume == .medium)
+        SoundVolumePreference(defaults: defaults).volume = .large
+        #expect(SoundVolumePreference(defaults: defaults).volume == .large)
+        defaults.set("bogus", forKey: "soundVolume_v1")
+        #expect(SoundVolumePreference(defaults: defaults).volume == .medium, "読めない値は既定へ")
+    }
+
+    @Test("音量は 小 < 中 < 大 で、中は従来の固定値 0.6")
+    func soundVolumeScales() {
+        #expect(SoundVolume.small.scale < SoundVolume.medium.scale)
+        #expect(SoundVolume.medium.scale < SoundVolume.large.scale)
+        #expect(SoundVolume.medium.scale == 0.6)
+        #expect(SoundVolume.large.scale <= 1.0)
+    }
 }

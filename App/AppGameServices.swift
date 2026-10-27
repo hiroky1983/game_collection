@@ -81,7 +81,7 @@ enum AppEnvironment {
     static let haptic = HapticFeedbackService()
 
     /// 効果音の実体（`feedback` の操作音と `homerunSound` の場面の音で共有）。
-    static let sound = SoundFeedbackService()
+    static let sound = SoundFeedbackService(volume: { settings.soundVolume })
 
     /// 中断したゲームのお知らせ（#663）。中断データを持ってハブへ戻ったときだけ、1 日ほど後に予約する。
     /// 撮影モードと DEBUG ビルドでは予約しない（撮影・開発中の動作確認の端末に溜めない）。
