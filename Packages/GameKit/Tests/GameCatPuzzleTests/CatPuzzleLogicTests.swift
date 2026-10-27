@@ -48,6 +48,15 @@ struct CatPuzzleLogicTests {
         #expect(CatPuzzleLogic.countSolutions(side: puzzle.side, rooms: puzzle.rooms, limit: 3) == 1)
     }
 
+    @Test("生成した問題は形が正しく、解がちょうど 1 つ（9×9）", arguments: NightlyScale.range(ci: 0..<2, nightly: 0..<6))
+    func expertPuzzlesHaveUniqueSolution(seed: Int) {
+        var generator = SplitMix64(seed: UInt64(3000 + seed))
+        let puzzle = CatPuzzleLogic.generate(size: .expert, using: &generator)
+        #expect(puzzle.side == 9)
+        #expect(CatPuzzleLogic.isWellFormed(puzzle))
+        #expect(CatPuzzleLogic.countSolutions(side: puzzle.side, rooms: puzzle.rooms, limit: 3) == 1)
+    }
+
     @Test("同じ種からは同じ問題ができる（日替わり用）")
     func deterministicForSeed() {
         var a = SplitMix64(seed: 42), b = SplitMix64(seed: 42)

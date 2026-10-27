@@ -202,14 +202,22 @@ struct CatPuzzleHintTests {
         Self.solveByHints(puzzle, marks: Array(repeating: .empty, count: puzzle.cellCount), note: "hard \(seed)")
     }
 
+    @Test("生成直後: 解はただ 1 つで、ヒントだけで解け、答えと矛盾しない（9×9）", arguments: NightlyScale.range(ci: 0..<1, nightly: 0..<6))
+    func freshExpert(seed: Int) {
+        var generator = SplitMix64(seed: UInt64(seed))
+        let puzzle = CatPuzzleLogic.generate(size: .expert, using: &generator)
+        #expect(Self.allSolutions(puzzle) == [puzzle.solutionCells], "expert \(seed): 解がただ 1 つで答えと一致する")
+        Self.solveByHints(puzzle, marks: Array(repeating: .empty, count: puzzle.cellCount), note: "expert \(seed)")
+    }
+
     @Test("生成した盤は推理だけで解け、最後の手段（答えを置く）は出ない")
     func deductionCoversGeneratedPuzzles() {
         var forcedTotal = 0, puzzles = 0
         var seen = Set<String>()
         // 問題作りと推理は Debug で 1 問 1 秒前後。CI は各サイズ数問、夜間は 42 問（#2952）
         for (size, seeds) in NightlyScale.value(
-            ci: [(CatPuzzleSize.easy, 0..<4), (.normal, 0..<3), (.hard, 0..<2)],
-            nightly: [(CatPuzzleSize.easy, 0..<20), (.normal, 0..<16), (.hard, 0..<6)]
+            ci: [(CatPuzzleSize.easy, 0..<4), (.normal, 0..<3), (.hard, 0..<2), (.expert, 0..<1)],
+            nightly: [(CatPuzzleSize.easy, 0..<20), (.normal, 0..<16), (.hard, 0..<6), (.expert, 0..<4)]
         ) {
             for seed in seeds {
                 var generator = SplitMix64(seed: UInt64(seed) &+ 7000)

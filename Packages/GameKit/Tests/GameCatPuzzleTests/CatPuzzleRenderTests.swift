@@ -279,11 +279,13 @@ struct CatPuzzleRenderTests {
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         let scenes: [(name: String, make: () -> CatPuzzleModel)] = [
             ("1-playing", { Self.playingModel() }),
-            // 6×6 と 8×8 の途中とクリア（どの大きさでも札・壁・マスの区切りが崩れないことを目で見る。とくに SE の 8×8）。
+            // 6×6・8×8・9×9 の途中とクリア（どの大きさでも札・壁・マスの区切りが崩れないことを目で見る。とくに SE の 9×9）。
             ("1-playing-easy", { Self.playingModel(size: .easy) }),
             ("1-playing-hard", { Self.playingModel(size: .hard) }),
             ("4c-clear-easy", { Self.clearModel(size: .easy) }),
             ("4c-clear-hard", { Self.clearModel(size: .hard) }),
+            ("1-playing-expert", { Self.playingModel(size: .expert) }),
+            ("4c-clear-expert", { Self.clearModel(size: .expert) }),
             ("2-wrong-cross", Self.wrongCrossModel),
             ("3a-hint-line", Self.hintLineModel),
             ("3b-hint-room", Self.hintRoomModel),
@@ -323,7 +325,7 @@ struct CatPuzzleRenderTests {
                 // `ImageRenderer` は ScrollView の中身を描かないので、節を本来の位置（題名の行の下）に重ねて描く。
                 let sheet = ZStack(alignment: .top) {
                     CatPuzzleNewGameSheet(initial: .normal, onStart: { _ in }, onCancel: {})
-                    CatPuzzleNewGameSheet.sizeSection(selection: .constant(.normal))
+                    CatPuzzleNewGameSheet.sizeSection(selection: .constant(.expert))
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(Theme.pad)
                         .padding(.top, 78)
