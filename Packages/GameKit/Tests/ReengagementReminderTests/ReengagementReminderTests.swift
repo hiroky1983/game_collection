@@ -501,8 +501,8 @@ struct ReengagementReminderServiceTests {
         #expect(spy.scheduled.isEmpty)
     }
 
-    @Test("許諾が未決定なら、標準の許可ダイアログ（明示的な許可）を求めてから予約する")
-    func requestsExplicitAuthorizationWhenNotDetermined() async {
+    @Test("許諾が未決定なら、背面では許可ダイアログを求めず予約もしない（#2938）")
+    func doesNotRequestAuthorizationWhenNotDetermined() async {
         let spy = SpyScheduler(status: .notDetermined, statusAfterRequest: .authorized)
         let service = makeService(spy, Environment(now: date(20)))
         let games = [ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: date(1, 8))]
@@ -510,8 +510,8 @@ struct ReengagementReminderServiceTests {
         service.applicationDidEnterBackground(games: games, availableIDs: ["shogi"])
         await service.pendingWork?.value
 
-        #expect(spy.explicitRequests == 1)
-        #expect(spy.scheduled["shogi"] != nil)
+        #expect(spy.explicitRequests == 0, "背面で許可ダイアログを求めている")
+        #expect(spy.scheduled.isEmpty)
     }
 
     @Test("許可が得られない・拒否されているなら予約しない")
