@@ -544,7 +544,7 @@ Sheet で表示。`List` + `EditMode` 常時有効。
 | 規約 | 利用規約 / プライバシーポリシー（外部 URL を `SFSafariViewController` の sheet で表示） |
 | その他 | アプリを評価する / アプリをシェア |
 
-- 並び順・非表示設定は `UserDefaults` に保存 (キー: `gameOrder_v1`, `hiddenGames_v1`)
+- 並び順・非表示設定は `UserDefaults` に保存 (キー: `gameOrder_v1`, `hiddenGames_v1`)。設定の「ハブの並びを初期に戻す」（確認ダイアログ付き・#3006）で両方のキーを消し、登録順・全表示に戻す
 - 新ゲーム追加時は末尾に自動追記
 - 「アプリを評価する」は `AppEnvironment.writeReviewURL`（`https://apps.apple.com/app/id6781719499?action=write-review`）を
   `openURL` で開き、App Store のレビュー記入画面へ直接遷移する（#1471）。OS の `requestReview` は
