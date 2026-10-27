@@ -215,7 +215,8 @@ public final class MancalaModel: AITurnGuarded, BoardUndoModel {
         let mover = currentSide
         let result = MancalaRules.apply(pit: pit, side: mover, to: board)
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。冪等。
-        services?.gameDidProgress(gameID: gameID)
+        // 人間が後手のとき CPU の初手だけでは数えない（#2934）。
+        if mover == humanSide { services?.gameDidProgress(gameID: gameID) }
         board = result.board
         lastMove = (MancalaBoard.slotIndex(mover, pit: pit), result.lastSlot)
         lastEvent = MancalaEvent(side: mover, extraTurn: result.extraTurn, captured: result.captured)

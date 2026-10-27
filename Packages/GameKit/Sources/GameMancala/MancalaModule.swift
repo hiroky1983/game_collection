@@ -20,4 +20,16 @@ public struct MancalaModule: GameModule {
     @MainActor public func makeView(services: GameServices) -> AnyView {
         AnyView(MancalaView(services: services))
     }
+
+    /// 人間が一手も打っていない盤は「続き」ではない（#2934）。人間が後手のとき CPU の初手（と続く追加の手番）が
+    /// 先に入るので、手数ではなく「待った」の戻り先（人間が打つたびに残る）か使用済みの印で人間の着手を見る。
+    /// 人間が先手の局は最初の保存が必ず人間の手の後なので、従来どおり続きとして扱う。
+    public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(MancalaSnapshot.self, for: id) else { return false }
+        return snap.humanFirst || snap.undoSlots != nil || snap.undoUsed == true
+    }
+
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        snapshots.exists(for: id) && !hasResumableSnapshot(in: snapshots)
+    }
 }
