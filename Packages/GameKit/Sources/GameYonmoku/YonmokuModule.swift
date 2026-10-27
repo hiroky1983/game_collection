@@ -22,4 +22,15 @@ public struct YonmokuModule: GameModule {
     @MainActor public func makeView(services: GameServices) -> AnyView {
         AnyView(YonmokuView(services: services))
     }
+
+    /// 人間が一手も打っていない盤は「続き」ではない。人間が白のときは CPU の初手（黒）が先に入るので、
+    /// それだけでは数えない（#2934。五目並べ・オセロと同じ #2508 の判定）。
+    public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(YonmokuSnapshot.self, for: id) else { return false }
+        return CPUOpening.humanHasMoved(totalMoves: snap.moves.count, cpuMovesFirst: snap.humanSide == YonmokuDisc.white.rawValue)
+    }
+
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        snapshots.exists(for: id) && !hasResumableSnapshot(in: snapshots)
+    }
 }
