@@ -44,6 +44,9 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     public private(set) var gameSerial: Int = 0
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
     public private(set) var recordResult: RecordResult?
+    /// 直近の決着が、達人（#2698）への**初めての勝ち**か（#2991）。結果カードの専用の見出しを出す。
+    /// 保存はしない（再起動後に見返した結果カードは通常の勝ちの見た目に戻る）。
+    public private(set) var isMasterFirstWin = false
 
     private let services: GameServices?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
@@ -467,7 +470,6 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             let loser = position.sideToMove
             resultKey = Self.checkmateResultText(loser: loser)
             phase = .review
-            services?.feedback.notify(loser == humanSide ? .error : .success)
             startPlayIfPending()
             recordResult = services?.gameDidFinish(
                 gameID: gameID,
@@ -476,6 +478,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
                 // 評価リクエストの見せ場は「ふつう」以上の CPU に勝ったとき（#1471）。
                 isReviewHighlight: beatsWorthyCPU
             )
+            notifyFinish(isWin: loser != humanSide, isLoss: loser == humanSide)
         } else if Self.isFourfoldRepetition(initialSFEN: initialSFEN, moves: moves, current: position) {
             // 千日手（#375）。同一局面が 4 回現れたら終局する。これが無いと、
             // 閉塞局面や相入玉で合法手は在り続けるのに勝敗が付かず、出口が投了（負け記録）
@@ -484,13 +487,17 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             gameOver = true
             resultKey = Self.repetitionResultText(perpetualCheckLoser: loser)
             phase = .review
-            services?.feedback.notify(loser == nil ? .warning : (loser == humanSide ? .error : .success))
             startPlayIfPending()
             recordResult = services?.gameDidFinish(
                 gameID: gameID,
                 outcome: loser.map { $0 == humanSide ? .loss : .win } ?? .draw,
                 score: recordScore
             )
+            if let loser {
+                notifyFinish(isWin: loser != humanSide, isLoss: loser == humanSide)
+            } else {
+                services?.feedback.notify(.warning)
+            }
         } else if position.isKingInCheck(position.sideToMove) {
             // 王手（#377）。された側・した側のどちらの手番でも同じ合図を出す
             // （初心者が「なぜ動かせないのか」で詰まるのは前者だが、掛けた側にも手応えが要る）。
@@ -503,6 +510,32 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             services?.feedback.impact(.board(isCapture ? .shogiCapture : .shogiPiece))
         }
         persist()
+    }
+
+    /// 決着の触覚。達人への初勝利（#2991）だけ、通常の勝ちより強い合図（`milestone`）にして実績を解除する。
+    /// 記録（`gameDidFinish`）の**後**に呼ぶ: 初めてかどうかは更新後の勝ち数で決まるため。
+    private func notifyFinish(isWin: Bool, isLoss: Bool) {
+        isMasterFirstWin = isWin && isFirstMasterWin()
+        if isMasterFirstWin {
+            services?.feedback.notify(.milestone)
+            services?.feedback.impact(.rigid)
+            services?.gameCenter?.reportUnlocked([GameCenterAchievements.shogiMaster])
+        } else {
+            services?.feedback.notify(isLoss ? .error : .success)
+        }
+    }
+
+    /// 達人（平手・駒落ちのどの手合いも含む）の勝ち数が、いま付けた 1 勝だけか。
+    private func isFirstMasterWin() -> Bool {
+        guard aiLevel == ShogiMasterEngine.level, sente == .ai || gote == .ai,
+              let log = services?.playLog else { return false }
+        let wins = log.records(gameID: gameID)
+            .filter { record in
+                guard let key = record.recordKey else { return false }
+                return key == "\(gameID)#master" || key.hasPrefix("\(gameID)#master-")
+            }
+            .reduce(0) { $0 + $1.wins }
+        return wins == 1
     }
 
     public func clearSelection() {
@@ -534,6 +567,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         hints.reset()
         hintMove = nil; hintIsMate = false; showsHintHopeless = false
         recordResult = nil
+        isMasterFirstWin = false
         // 通し番号（`checkEventID`）は 0 に戻さない。View は「値が変わったこと」で
         // 文字を出すため、対局をまたいで単調に増やしておかないと巻き戻しが合図として拾われる。
         lastCheckedSide = nil

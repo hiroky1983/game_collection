@@ -25,6 +25,7 @@ public struct BoardGameResultCard: View {
     }
 
     private let verdict: Verdict
+    private let headline: String?
     private let reason: String
     private let decisiveMove: String?
     private let details: [String]
@@ -48,6 +49,7 @@ public struct BoardGameResultCard: View {
     }
 
     /// - Parameters:
+    ///   - headline: 勝ちの見出しを差し替える特別な演出（将棋の達人への初勝利・#2991）。nil なら通常の見出し。
     ///   - reason: 終局の理由（「詰み」「投了」「五連」など）。
     ///   - decisiveMove: 決め手の手（将棋・チェス。例 "▲７六歩"）。無ければ nil。
     ///   - details: 補足の行（囲碁の目数の内訳など）。
@@ -56,13 +58,14 @@ public struct BoardGameResultCard: View {
     ///   - closeTitle: 閉じるボタンの文言。nil なら「盤を見る」（ねこさがしの「あきらめて正解を見る」・#2904）。
     ///   - closeHint: 閉じるボタンの VoiceOver のヒント。nil なら「結果を閉じて盤面を見返します」。
     ///   - onClose: 「盤を見る」。
-    public init(verdict: Verdict, reason: String, decisiveMove: String? = nil, details: [String] = [],
+    public init(verdict: Verdict, headline: String? = nil, reason: String, decisiveMove: String? = nil, details: [String] = [],
                 record: RecordResult?, secondaryAction: SecondaryAction? = nil,
                 closeTitle: String? = nil, closeHint: String? = nil, onClose: @escaping () -> Void) {
         self.secondaryAction = secondaryAction
         self.closeTitle = closeTitle ?? tr("盤を見る")
         self.closeHint = closeHint ?? tr("結果を閉じて盤面を見返します")
         self.verdict = verdict
+        self.headline = headline
         self.reason = reason
         self.decisiveMove = decisiveMove
         self.details = details
@@ -71,9 +74,9 @@ public struct BoardGameResultCard: View {
     }
 
     /// VoiceOver が 1 回で読む文。記号・見出し・理由・決め手・補足をまとめる。
-    public static func accessibilityLabel(verdict: Verdict, reason: String, decisiveMove: String?,
-                                          details: [String]) -> String {
-        var parts = [verdict.title.replacingOccurrences(of: "！", with: "").replacingOccurrences(of: "!", with: ""), reason]  // i18n-keep: 見出しから「！」「!」を外すだけ（表示する文ではない）
+    public static func accessibilityLabel(verdict: Verdict, headline: String? = nil, reason: String,
+                                          decisiveMove: String?, details: [String]) -> String {
+        var parts = [(headline ?? verdict.title).replacingOccurrences(of: "！", with: "").replacingOccurrences(of: "!", with: ""), reason]  // i18n-keep: 見出しから「！」「!」を外すだけ（表示する文ではない）
         if let decisiveMove { parts.append(tr("決め手 %@", decisiveMove)) }
         parts.append(contentsOf: details)
         return parts.joined(separator: tr("。"))
@@ -103,8 +106,8 @@ public struct BoardGameResultCard: View {
                     Image(systemName: symbol.name)
                         .scaledFont(40, maxScale: 1.2)
                         .foregroundStyle(symbol.color)
-                    Text(verdict.title)
-                        .themeBody(24, weight: .bold, maxScale: 1.5)
+                    Text(headline ?? verdict.title)
+                        .themeBody(headline == nil ? 24 : 30, weight: .bold, maxScale: 1.5)
                         .foregroundStyle(accent)
                     Text(reason)
                         .themeBody(17, weight: .semibold, maxScale: 1.5)
@@ -122,7 +125,7 @@ public struct BoardGameResultCard: View {
                 }
                 .multilineTextAlignment(.center)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Self.accessibilityLabel(verdict: verdict, reason: reason,
+                .accessibilityLabel(Self.accessibilityLabel(verdict: verdict, headline: headline, reason: reason,
                                                             decisiveMove: decisiveMove, details: details))
                 // 共有ボタンを持つので、読み上げの塊の外に置く（オセロ #1716 と同じ）。
                 RecordLabel(record)
@@ -157,7 +160,7 @@ public struct BoardGameResultCard: View {
         .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isModal)
-        .announcesResultAppearance(Self.accessibilityLabel(verdict: verdict, reason: reason,
+        .announcesResultAppearance(Self.accessibilityLabel(verdict: verdict, headline: headline, reason: reason,
                                                            decisiveMove: decisiveMove, details: details))
     }
 }
