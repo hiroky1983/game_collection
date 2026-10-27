@@ -491,6 +491,7 @@ public struct ShogiView: View {
         if let verdict = model.endVerdict, let kind = model.endKind {
             BoardGameResultCard(
                 verdict: verdict,
+                headline: model.isMasterFirstWin ? tr("達人に勝った！") : nil,
                 reason: kind.reasonText,
                 decisiveMove: model.decisiveMoveText,
                 details: [tr("%lld手", model.moves.count)],

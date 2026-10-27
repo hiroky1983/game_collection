@@ -349,6 +349,10 @@ public enum GameCenterAchievements {
     /// 登録が必要な実績 ID の全量。
     public static let allIDs = [firstWin, wins10, wins50, playAll]
 
+    /// 将棋の達人（#2698）に初めて勝った（#2991）。ゲーム別の実績なので `allIDs`（ハブの「記録」画面の道しるべ）には入れない。
+    /// App Store Connect への登録は社長が API で行う。
+    public static let shogiMaster = "asobiba.shogi.achievement.master"
+
     /// 柵越えおじさん（#1794）の実績 ID の全量。ゲームのフォルダはここを参照できない（`Core` が上流）ので文字列で持ち、
     /// `HomerunAchievement.gameCenterID` との一致は `GameHomerunTests` が縛る。ゲーム別の実績なので、ハブの
     /// 「記録」画面の道しるべ（`allIDs` と 1 対 1）には入れない。ハブに載せる版が決まったとき App Store Connect に登録する（会長操作）。

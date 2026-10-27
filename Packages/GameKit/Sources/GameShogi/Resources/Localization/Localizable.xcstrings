@@ -497,6 +497,17 @@
         }
       }
     },
+    "達人に勝った！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You beat the Master!"
+          }
+        }
+      }
+    },
     "達人" : {
       "extractionState" : "manual",
       "localizations" : {
