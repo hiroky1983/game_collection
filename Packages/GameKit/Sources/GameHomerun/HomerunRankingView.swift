@@ -132,7 +132,7 @@ struct HomerunLobbyRankRow: View {
                 } label: {
                     label(detail: detail, isLoading: state == .loading)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pop)
                 .accessibilityElement(children: .combine)
                 .accessibilityHint(tr("今週のランキングを開きます"))
             }

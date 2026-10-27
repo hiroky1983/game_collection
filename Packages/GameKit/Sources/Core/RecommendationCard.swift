@@ -141,7 +141,7 @@ struct RecommendationDismissButton: View {
                 .frame(minWidth: Self.side, minHeight: Self.side)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pop)
         .accessibilityLabel(tr("閉じる"))
     }
 }

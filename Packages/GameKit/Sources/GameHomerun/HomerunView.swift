@@ -366,7 +366,7 @@ struct HomerunResultView: View {
             .frame(minHeight: 44)
             .popCard()
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pop)
     }
 
     /// 月まで飛んだ（#1680）挑戦だけに出す。距離は 384,400 km と出し（合計・自己ベストには 180m で数えてある）、月が割れたら

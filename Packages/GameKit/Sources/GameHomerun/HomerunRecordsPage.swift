@@ -27,7 +27,7 @@ struct HomerunRecordsLink: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .popCard()
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pop)
         .accessibilityLabel(tr("記録と実績。実績 %1$lld / %2$lld", model.achievements.count, HomerunAchievement.allCases.count))
         .accessibilityHint(tr("記録と実績の一覧を開きます"))
     }

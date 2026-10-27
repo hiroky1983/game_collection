@@ -75,7 +75,7 @@ public struct FifteenView: View {
                                 .fill(isCurrent ? Theme.Fill.teal : Theme.fillMuted)
                         )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pop)
                 .accessibilityLabel(tr("盤の大きさ %@", "\(size)×\(size)"))
                 .accessibilityAddTraits(isCurrent ? .isSelected : [])
             }

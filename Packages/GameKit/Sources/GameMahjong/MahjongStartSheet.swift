@@ -68,7 +68,7 @@ struct MahjongStartSheet: View {
                 .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
                     .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pop)
         }
         .sheet(isPresented: $showRules) {
             NavigationStack {
@@ -102,7 +102,7 @@ struct MahjongStartSheet: View {
             .popCard(corner: Theme.cornerSmall)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pop)
         .foregroundStyle(Theme.ink)
         .accessibilityValue(showsDetails ? tr("開いている") : tr("閉じている"))
     }

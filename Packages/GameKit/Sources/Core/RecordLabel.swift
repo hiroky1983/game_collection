@@ -110,7 +110,7 @@ struct RecordShareButton: View {
                 .frame(width: Self.tapTarget, height: Self.tapTarget)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pop)
         // ShareLink は押したことを知らせる口を持たないので、同時に効くタップで拾う（共有シートの表示は妨げない）。
         .simultaneousGesture(TapGesture().onEnded { context.didTap() })
         .padding(.vertical, -(Self.tapTarget - Self.symbolSide) / 2)

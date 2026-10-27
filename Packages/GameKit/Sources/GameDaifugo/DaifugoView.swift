@@ -161,7 +161,7 @@ public struct DaifugoView: View {
                     .overlay(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
                         .strokeBorder(Theme.ink.opacity(0.85), lineWidth: 2))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pop)
                 .padding(.horizontal, 24)
                 .accessibilityLabel(DaifugoAccessibility.exchangeLines(
                     notice, partnerName: model.playerName(notice.partner), spoken: true).joined(separator: tr("。")))
