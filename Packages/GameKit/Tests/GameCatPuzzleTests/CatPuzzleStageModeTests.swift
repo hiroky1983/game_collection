@@ -130,9 +130,11 @@ struct CatPuzzleStageModeTests {
     func switchingDuringPreparationDropsStage() async {
         let model = CatPuzzleModel(services: makeServices(), stageDefaults: makeDefaults("switch"))
         model.startStage(31)
+        // 切り替えで `stagePreparation` は外れるので、作りかけの段取りを先に控えて最後まで待つ。
+        let pending = model.stagePreparation
         model.newGame(size: .easy)
         #expect(!model.isPreparingStage)
-        await model.stagePreparation?.value
+        await pending?.value
         #expect(model.stage == nil && model.size == .easy)
     }
 

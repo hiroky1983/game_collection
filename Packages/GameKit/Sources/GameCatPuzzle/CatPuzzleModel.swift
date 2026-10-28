@@ -438,6 +438,9 @@ public final class CatPuzzleModel {
             task = prefetched.task
             self.prefetched = nil
         } else {
+            // 別の面を先に作っていたら止める（使わない計算を残さない）。
+            prefetched?.task.cancel()
+            prefetched = nil
             task = Self.makeStagePuzzle(n)
         }
         stagePreparation = Task { [weak self] in
