@@ -269,7 +269,7 @@ struct CatPuzzleModelTests {
         #expect(store.exists(for: CatPuzzleModel.gameID), "ヒントの印がある盤は保存する")
     }
 
-    @Test("ヒントは推理の 1 歩として × を置く（印付き・消せない）。無料ぶん 3 回のあとは広告が要る")
+    @Test("ヒントは推理の 1 歩として × を置く（印付き・消せない）。無料ぶん 1 回のあとは広告が要る")
     func hints() {
         let spy = SpyAnalyticsService()
         let model = CatPuzzleModel(services: makeServices(analytics: spy), puzzle: sample)
@@ -280,8 +280,8 @@ struct CatPuzzleModelTests {
         #expect(model.lastHint == hint)
         #expect(model.marks[11] == .cross)
         #expect(model.hintCrosses == [11] && model.hintCells.isEmpty)
-        #expect(model.hintsRemaining == 2)
-        #expect(model.canHint, "次のヒントもすぐ押せる")
+        #expect(model.hintsRemaining == 0, "無料は 1 局 1 回（#3048）")
+        #expect(model.canHint, "無料を使い切っても広告で足せるので押せる")
         // ヒントの × はタップしても変わらず、「戻す」でも残る。
         model.toggleCross(cell: 11)
         #expect(model.marks[11] == .cross)
@@ -290,15 +290,11 @@ struct CatPuzzleModelTests {
         #expect(model.lastHint == nil, "次の操作でヒントの一言は消える")
         model.undo()
         #expect(model.marks[11] == .cross)
-        model.useHint()
-        model.useHint()
-        #expect(model.hintsRemaining == 0)
-        #expect(model.hintCrosses.count + model.hintCells.count >= 3)
         // 無料ぶんを使い切ったら、押せるが次の 1 回は広告（`useHint` だけでは減らず、盤も進まない）。
         #expect(model.needsAdForHint && model.canHint, "無料ぶんを使い切っても広告で足せる")
         let marksBefore = model.marks
         model.useHint()
-        #expect(model.hintsUsed == 3 && model.marks == marksBefore, "広告を見ずに 4 回目は出ない")
+        #expect(model.hintsUsed == 1 && model.marks == marksBefore, "広告を見ずに 2 回目は出ない")
         #expect(spy.events.filter {
             switch $0 {
             case .rewardOffer, .rewardRequest, .rewardAd: true

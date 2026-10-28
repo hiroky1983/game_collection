@@ -24,9 +24,12 @@ import Observation
 public final class CatPuzzleModel {
     /// 解析・記録・中断データの ID。`CatPuzzleModule.id` と同じ。
     public nonisolated static let gameID = "catpuzzle"
-    /// 1 問につき無料で使えるヒントの回数。使い切ったあとはリワード広告 1 本ごとに 1 回足せる
-    /// （上限は `BoardHintBudget.adRefillMax`。15パズルなどと同じ回数制・`CatPuzzleView`）。
-    public static let freeHints = 3
+    /// 1 問につき無料で使えるヒントの回数。使い切ったあとはリワード広告 1 本ごとに 1 回足せる（上限 `adHints`・`CatPuzzleView`）。
+    /// 1 局 1 回（会長決裁 2026-10-28・#3048。3 回だと広告の追加と合わせてヒントだけで解き切れてしまうため）。
+    public static let freeHints = 1
+    /// 無料を使い切ったあと、広告で足せるヒントの上限（1 局で合計 `freeHints + adHints` = 4 回・会長決裁 2026-10-28・#3048）。
+    /// いちばん小さい 6×6（猫 6 匹）でも、ヒントだけでは全部見つからないようにする。
+    public static let adHints = 3
     /// 赤い ×（ミス）の上限。この回数目で終局（負け）。
     public nonisolated static let maxMistakes = 3
     /// 計時中に保存し直す間隔（秒）。他の計時のあるゲームと同じ幅。
@@ -54,8 +57,8 @@ public final class CatPuzzleModel {
     public private(set) var wrongCrosses: Set<Int> = []
     /// 直近に赤い × が付いたマス（揺れ・赤の点滅の演出用）。次の操作で消える。保存しない。
     public private(set) var lastWrongCell: Int?
-    /// この局のヒントの回数（無料 `freeHints` 回 + 広告で最大 `BoardHintBudget.adRefillMax` 回）。勘定は Core の `BoardHintBudget`。
-    public private(set) var hints = BoardHintBudget(freeLimit: CatPuzzleModel.freeHints)
+    /// この局のヒントの回数（無料 `freeHints` 回 + 広告で最大 `adHints` 回）。勘定は Core の `BoardHintBudget`。
+    public private(set) var hints = BoardHintBudget(freeLimit: CatPuzzleModel.freeHints, adLimit: CatPuzzleModel.adHints)
     /// この局で使ったヒントの回数（無料・広告の合計。中断データに保存する）。
     public var hintsUsed: Int { hints.used }
     /// 局の通し番号。広告を出す前に控え、視聴中に新しい局へ入れ替わっていたら報酬を乗せない（#815）。
@@ -125,7 +128,7 @@ public final class CatPuzzleModel {
             continueUsed = snap.continueUsed ?? false
             // ミスが上限のまま保存されている = コンティニューの提案の最中に離れた局。提案から続ける。
             isOfferingContinue = snap.mistakes >= Self.maxMistakes
-            hints = BoardHintBudget(used: snap.hintsUsed, freeLimit: Self.freeHints)
+            hints = BoardHintBudget(used: snap.hintsUsed, freeLimit: Self.freeHints, adLimit: Self.adHints)
             hintCells = Set(snap.hintCells ?? [])
             hintCrosses = Set(snap.hintCrosses ?? [])
             wrongCrosses = Set(snap.wrongCrosses ?? [])

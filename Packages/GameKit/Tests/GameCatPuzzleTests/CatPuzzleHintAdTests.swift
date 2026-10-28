@@ -32,7 +32,7 @@ private func settle() async {
 }
 
 @MainActor
-@Suite("おじさんちのねこさがしのヒントの広告（無料 3 回のあと +1・#2250）")
+@Suite("おじさんちのねこさがしのヒントの広告（無料 1 回のあと +1・#2250・#3048）")
 struct CatPuzzleHintAdTests {
 
     private func make(
@@ -67,7 +67,7 @@ struct CatPuzzleHintAdTests {
         CatPuzzleView.requestHint(model: model, hintRescue: rescue, services: services)
         await settle()
         #expect(model.hintsUsed == 1 && model.lastHint != nil)
-        #expect(CatPuzzleView.hintBadge(for: model) == .count(2), "広告で足せる分は数えない")
+        #expect(CatPuzzleView.hintBadge(for: model) == .ad(gain: 1), "広告で足せる分は数えない（無料 1 回を使ったら広告の面）")
         #expect(ads.shownCount == 0)
         #expect(rewardEvents(spy).isEmpty)
     }
@@ -77,7 +77,7 @@ struct CatPuzzleHintAdTests {
         let (model, ads, _, services) = make()
         let rescue = RewardedRescue()
         await spendFree(model, rescue: rescue, services: services)
-        #expect(model.hintsUsed == 3 && model.hintsRemaining == 0)
+        #expect(model.hintsUsed == CatPuzzleModel.freeHints && model.hintsRemaining == 0)
         #expect(model.needsAdForHint && model.canHint)
         #expect(CatPuzzleView.hintBadge(for: model) == .ad(gain: 1))
         #expect(CatPuzzleAccessibility.hintLabel(remaining: 0, needsAd: true).contains("広告"))
@@ -95,7 +95,7 @@ struct CatPuzzleHintAdTests {
         CatPuzzleView.requestHint(model: model, hintRescue: rescue, services: services)
         await settle()
         #expect(ads.shownCount == 1)
-        #expect(model.hintsUsed == 4)
+        #expect(model.hintsUsed == CatPuzzleModel.freeHints + 1)
         #expect(model.marks != marksBefore && model.lastHint != nil, "盤が 1 歩進む")
         #expect(!rescue.showsNotEarned && !rescue.showsUnavailable && !rescue.isWatching)
         #expect(rewardEvents(spy) == ["reward_request", "reward_ad"])
@@ -116,7 +116,7 @@ struct CatPuzzleHintAdTests {
         CatPuzzleView.requestHint(model: model, hintRescue: rescue, services: services)
         await settle()
         #expect(ads.shownCount == 1)
-        #expect(model.hintsUsed == 3 && model.marks == marksBefore)
+        #expect(model.hintsUsed == CatPuzzleModel.freeHints && model.marks == marksBefore)
         #expect(rescue.showsNotEarned && !rescue.showsUnavailable && !rescue.isWatching)
         #expect(rewardEvents(spy) == ["reward_request"], "視聴完了の reward_ad は送らない")
         #expect(model.needsAdForHint && model.canHint, "もう一度押せる")
@@ -140,7 +140,7 @@ struct CatPuzzleHintAdTests {
         #expect(heldDuringAd, "gameTimerLifecycle(rescues:) が計時を止める合図")
         #expect(!enabledDuringAd, "視聴中はヒントを押せない")
         #expect(ads.shownCount == 1)
-        #expect(model.hintsUsed == 4)
+        #expect(model.hintsUsed == CatPuzzleModel.freeHints + 1)
         #expect(!rescue.holdsClock)
     }
 
@@ -164,23 +164,66 @@ struct CatPuzzleHintAdTests {
         #expect(model.hintsUsed == 0)
         for _ in 0..<CatPuzzleModel.freeHints { model.useHint() }
         #expect(!model.grantAdHint(forGame: model.gameSerial + 1))
-        #expect(model.hintsUsed == 3)
+        #expect(model.hintsUsed == CatPuzzleModel.freeHints)
         #expect(model.grantAdHint(forGame: model.gameSerial))
-        #expect(model.hintsUsed == 4)
+        #expect(model.hintsUsed == CatPuzzleModel.freeHints + 1)
     }
 
     @Test("広告の追加も上限まで使うと押せず、0 回のまま案内も出さない")
     func adRefillHasCap() {
         let (model, _, _, _) = make()
         for _ in 0..<CatPuzzleModel.freeHints { model.useHint() }
-        for _ in 0..<BoardHintBudget.adRefillMax {
+        for _ in 0..<CatPuzzleModel.adHints {
             #expect(model.grantAdHint(forGame: model.gameSerial))
         }
         #expect(!model.isSolved, "前提: 上限まで使っても解け切らない盤")
-        #expect(model.hintsUsed == CatPuzzleModel.freeHints + BoardHintBudget.adRefillMax)
+        #expect(model.hintsUsed == CatPuzzleModel.freeHints + CatPuzzleModel.adHints)
         #expect(!model.canHint && !model.needsAdForHint)
         #expect(!model.grantAdHint(forGame: model.gameSerial))
         #expect(CatPuzzleView.hintBadge(for: model) == .count(0))
+    }
+
+    @Test("1 局のヒントは無料 1 回＋広告 3 回の合計 4 回まで（#3048）")
+    func hintCapIsFourPerGame() {
+        #expect(CatPuzzleModel.freeHints == 1)
+        #expect(CatPuzzleModel.adHints == 3)
+        let (model, _, _, _) = make()
+        #expect(model.hints.capacity == 4)
+        #expect(CatPuzzleView.hintBadge(for: model) == .count(1), "最初は無料の 1 回だけを数える")
+    }
+
+    @Test("上限まで使ったら押せない見た目にし、押しても広告は出さない")
+    func usedUpHintLooksDisabledButAnswers() async {
+        let (model, ads, spy, services) = make()
+        let rescue = RewardedRescue()
+        for _ in 0..<CatPuzzleModel.freeHints { model.useHint() }
+        for _ in 0..<CatPuzzleModel.adHints { model.grantAdHint(forGame: model.gameSerial) }
+        #expect(CatPuzzleView.isHintUsedUp(model))
+        let hint = CatPuzzleView.playControls(for: model).actions.first { $0.id == "hint" }
+        #expect(hint?.looksDisabled == true, "押せない見た目")
+        #expect(hint?.isEnabled == true, "押すと「使い切りました」を出すために押せる")
+        #expect(hint?.accessibilityHint == "この局のヒントは使い切りました")
+        // 押しても（画面は一言を出すだけで）モデルの手順は広告を出さず、回数も盤も変わらない。
+        let marksBefore = model.marks
+        CatPuzzleView.requestHint(model: model, hintRescue: rescue, services: services)
+        await settle()
+        #expect(ads.shownCount == 0)
+        #expect(rewardEvents(spy).isEmpty)
+        #expect(model.marks == marksBefore && model.hintsUsed == 4)
+        // 使い切る前は普通の見た目。
+        let (fresh, _, _, _) = make()
+        let freshHint = CatPuzzleView.playControls(for: fresh).actions.first { $0.id == "hint" }
+        #expect(freshHint?.looksDisabled == false && !CatPuzzleView.isHintUsedUp(fresh))
+    }
+
+    @Test("いちばん小さい 6×6 でも、ヒントを上限まで使うだけでは解き切れない", arguments: 0..<10)
+    func hintsAloneCannotSolveSmallest(seed: Int) {
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: StubAdService(rewardEarned: true))
+        let model = CatPuzzleModel(services: services, size: .easy, seed: UInt64(seed))
+        for _ in 0..<CatPuzzleModel.freeHints { model.useHint() }
+        for _ in 0..<CatPuzzleModel.adHints { model.grantAdHint(forGame: model.gameSerial) }
+        #expect(!model.isSolved)
+        #expect(model.hintCells.count <= CatPuzzleModel.freeHints + CatPuzzleModel.adHints, "ヒント 1 回で置く猫は多くて 1 匹")
     }
 
     @Test("中断データから戻しても、広告で使った分を含めて回数は戻らない")
@@ -191,12 +234,12 @@ struct CatPuzzleHintAdTests {
         #expect(model.grantAdHint(forGame: model.gameSerial))
         let (restored, _, _, _) = make(store: store)
         #expect(restored.puzzle == model.puzzle)
-        #expect(restored.hintsUsed == 4)
+        #expect(restored.hintsUsed == CatPuzzleModel.freeHints + 1)
         #expect(restored.needsAdForHint)
         #expect(CatPuzzleView.hintBadge(for: restored) == .ad(gain: 1))
     }
 
-    @Test("新規ゲームで無料の 3 回に戻る")
+    @Test("新規ゲームで無料の 1 回に戻る")
     func newGameResetsHints() {
         let (model, _, _, _) = make()
         for _ in 0..<CatPuzzleModel.freeHints { model.useHint() }
