@@ -26,7 +26,7 @@ Packages/GameKit/
     GameShogi/          ← 将棋
     GameMahjong/        ← 麻雀（4人打ち。`release/v1.1.14` から、配牌のまま 1 枚も切っていない 1 局目〈`roundNumber == 1 && honba == 0 && dealer == 0` で河・副露が空〉は「続きから」に出さない・#2542。保存は残るので開き直すと同じ配牌に戻る。`hasUntouchedSnapshot` で見分け、走査テスト `UntouchedSnapshotScanTests` の開始操作表に登録。※ release/v1.1.14 で実装・main へは未取り込み）
     GameSudoku/         ← ナンプレ
-    GameOthello/        ← オセロ
+    GameOthello/        ← オセロ（置ける升の白い点は新規対局シートの「打てる場所の表示」トグルでオン・オフできる。既定オン・#3005・release/v1.1.15。保存は `UserDefaults` の Bool 1 つ〈キー `othelloShowLegalMoves`〉で、シートで「始める」を押したときだけ反映。VoiceOver の「置ける」読み上げはオフでも維持）
     GameGo/             ← 囲碁
     GameChess/          ← チェス
     GameMahjongSolitaire/ ← 麻雀ソリティア
