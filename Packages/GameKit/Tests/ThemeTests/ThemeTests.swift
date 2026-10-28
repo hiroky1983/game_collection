@@ -29,7 +29,7 @@ struct ThemeContrastTests {
         // ink / inkSub をチップの面色として使っていた箇所の置き換え先。
         // ライトでは元の値と同一でなければ見た目が変わる。
         #expect(Theme.Hex.fillStrong.light == Theme.Hex.ink.light)
-        #expect(Theme.Hex.fillMuted.light == Theme.Hex.inkSub.light)
+        #expect(Theme.Hex.fillMuted.light == 0x7E6E64)   // #3036: 白文字で AA に乗せるため inkSub から分離
         #expect(Theme.Hex.accents == [0xFF6F61, 0x22C3BE, 0x8C7BE0, 0xFFC24B, 0xFF8FB1])
         // #220 で面色（`Hex.Fill`）を切り出したが、**文字色としての差し色は据え置き**。
         // 差し色を文字色に使っている約 40 箇所の見た目は変わらない。
@@ -95,13 +95,13 @@ struct ThemeContrastTests {
     /// 白文字を載せるチップ・ボタンの面色。ここを `ink` / `inkSub` のまま動的にすると
     /// ダークで面が明るくなり、白文字が消える（#187 の主な事故ケース）。
     ///
-    /// ライト側は従来値のまま動かせない（`fillMuted` は 3.32:1 で元から AA を満たしていない）ため、
-    /// 下限を課すのはダーク側だけにし、ライトに対しては悪化しないことだけを見る。
-    @Test func whiteTextOnFilledChipsIsReadableInDarkMode() {
+    /// ライト・ダークとも白文字で AA（4.5:1）を取る。`fillMuted` のライトは #3036 までは 3.32:1 だった。
+    @Test func whiteTextOnFilledChipsIsReadableInBothModes() {
         for pair in [Theme.Hex.fillStrong, Theme.Hex.fillMuted] {
+            #expect(WCAG.contrast(Self.white, pair.light) >= Self.aa)
             #expect(WCAG.contrast(Self.white, pair.dark) >= Self.aa)
         }
-        // 控えめなチップはライトの 3.32:1 より良くなる（9.05:1）。
+        // ダークの控えめなチップはライトより濃い（9.05:1）。
         #expect(WCAG.contrast(Self.white, Theme.Hex.fillMuted.dark)
                 >= WCAG.contrast(Self.white, Theme.Hex.fillMuted.light))
     }

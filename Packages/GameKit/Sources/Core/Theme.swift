@@ -39,7 +39,8 @@ public enum Theme {
         /// `ink` はダークで明るく反転するため面色には使えない。
         public static let fillStrong: Pair = (0x4A3B33, 0x6F5B4E)
         /// 同じく白文字を載せる「控えめな」チップ・ボタンの面色（パス・フォールド・後手など）。
-        public static let fillMuted: Pair = (0x9A8A80, 0x504742)
+        /// ライトは `inkSub`（0x9A8A80・白で 3.32:1）と別の値にして白文字で AA（4.88:1）に乗せた（#3036）。
+        public static let fillMuted: Pair = (0x7E6E64, 0x504742)
 
         // 差し色（両モード共通）。**文字色として**使うときの値。
         public static let coral: UInt32 = 0xFF6F61
