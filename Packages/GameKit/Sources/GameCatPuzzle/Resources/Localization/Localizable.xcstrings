@@ -1125,6 +1125,17 @@
         }
       }
     },
+    "この局のヒントは使い切りました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hints left for this puzzle"
+          }
+        }
+      }
+    },
     "このゲームの目的" : {
       "extractionState" : "manual",
       "localizations" : {

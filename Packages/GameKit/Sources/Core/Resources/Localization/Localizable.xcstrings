@@ -1614,13 +1614,13 @@
         }
       }
     },
-    "ヒントは 1 問につき 3 回まで。記録はクリアまでのタイムです。" : {
+    "ヒントは 1 問につき無料で 1 回（広告を見ると増やせます）。記録はクリアまでのタイムです。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Up to 3 hints per puzzle. Your record is the time to clear."
+            "value" : "One free hint per puzzle (watch an ad for more). Your record is the time to clear."
           }
         }
       }

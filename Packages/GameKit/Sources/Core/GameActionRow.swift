@@ -35,9 +35,10 @@ public enum GameActionBadge: Equatable, Sendable {
     /// 盤ゲーム（将棋・チェス・五目並べ）のヒントの 2 行目。`totalRemaining` は `BoardHintBudget.remaining`（無料 + 広告の合計）。
     /// 数字は「いま使える回数」＝無料の残りだけで、広告でこれから足せる分は含めない。無料を使い切ったら `.ad`、
     /// 広告の追加まで使い切ったら 0 のまま案内なし（#1897）。
-    public static func hint(totalRemaining: Int, needsAd: Bool) -> GameActionBadge {
+    /// `adLimit` は広告で足せる上限（既定は盤ゲームの `BoardHintBudget.adRefillMax`。ねこさがしは 3・#3048）。
+    public static func hint(totalRemaining: Int, needsAd: Bool, adLimit: Int = BoardHintBudget.adRefillMax) -> GameActionBadge {
         if needsAd { return .ad() }
-        return .count(max(0, totalRemaining - BoardHintBudget.adRefillMax))
+        return .count(max(0, totalRemaining - adLimit))
     }
 
     /// ▶ の前に置く「0回」。`.ad` だけ。
@@ -73,6 +74,9 @@ public struct GameActionItem: Identifiable {
     /// そのボタン自身の状態を知らせるものの置き場所（段のボタンの幅を変えずに出せる）。
     public let note: String?
     public let isEnabled: Bool
+    /// 押せるが、押せない見た目にする（ねこさがしのヒントの上限・#3048）。押すと `action` で理由を短く知らせる用。
+    /// 既定 false で、ほかのボタンの見た目・挙動は変わらない。
+    public let looksDisabled: Bool
     /// 読み上げ。渡した文字に 2 行目の内容（残り回数・広告）まで含めること（渡すと 2 行目は読み上げに足さない。
     /// 「1手戻す、残り3回」のあとに「あと3回」を重ねて読まないため）。nil なら題と 2 行目をそのまま読む。
     public let accessibilityLabel: String?
@@ -87,6 +91,7 @@ public struct GameActionItem: Identifiable {
         badge: GameActionBadge = .none,
         note: String? = nil,
         isEnabled: Bool = true,
+        looksDisabled: Bool = false,
         accessibilityLabel: String? = nil,
         accessibilityHint: String? = nil,
         action: @escaping () -> Void
@@ -98,6 +103,7 @@ public struct GameActionItem: Identifiable {
         self.badge = badge
         self.note = note
         self.isEnabled = isEnabled
+        self.looksDisabled = looksDisabled
         self.accessibilityLabel = accessibilityLabel
         self.accessibilityHint = accessibilityHint
         self.action = action
@@ -111,13 +117,13 @@ struct GameActionCapsule: View {
     @Environment(\.hintNudgeIsShowing) private var isNudging
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var glows: Bool { item.role == .hint && item.isEnabled && isNudging }
+    private var glows: Bool { item.role == .hint && item.isEnabled && !item.looksDisabled && isNudging }
 
     var body: some View {
         Button(action: item.action) {
             label
         }
-        .buttonStyle(GameActionCapsuleStyle(role: item.role, needsAd: item.badge.needsAd))
+        .buttonStyle(GameActionCapsuleStyle(role: item.role, needsAd: item.badge.needsAd, looksDisabled: item.looksDisabled))
         .disabled(!item.isEnabled)
         .hintNudgeGlow(glows, reduceMotion: reduceMotion)
         .accessibilityLabel(item.accessibilityLabel ?? item.title)
@@ -179,8 +185,12 @@ struct GameActionCapsuleStyle: ButtonStyle {
     @Environment(\.isOnTableFelt) private var isOnTableFelt
     let role: GameButtonRole
     var needsAd = false
+    /// 押せるが押せない見た目にする（`GameActionItem.looksDisabled`）。
+    var looksDisabled = false
 
-    private var showsAdFace: Bool { isEnabled && needsAd }
+    /// 見た目の上で押せるか。
+    private var looksEnabled: Bool { isEnabled && !looksDisabled }
+    private var showsAdFace: Bool { looksEnabled && needsAd }
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -189,11 +199,11 @@ struct GameActionCapsuleStyle: ButtonStyle {
             .frame(maxWidth: .infinity, minHeight: GameButtonMetrics.minTapTarget)
             .background(face)
             .contentShape(Capsule())
-            .opacity(isEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.55)
+            .opacity(looksEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.55)
     }
 
     private var foreground: Color {
-        if !isEnabled { return .white }
+        if !looksEnabled { return .white }
         return showsAdFace ? Theme.ink : role.foreground
     }
 
@@ -204,7 +214,7 @@ struct GameActionCapsuleStyle: ButtonStyle {
                 .background(Capsule().fill(isOnTableFelt ? Theme.surface : Color.clear))
                 .overlay(Capsule().strokeBorder(role.fill, lineWidth: Self.adBorderWidth))
         } else {
-            Capsule().fill(isEnabled ? role.fill : Theme.fillMuted)
+            Capsule().fill(looksEnabled ? role.fill : Theme.fillMuted)
         }
     }
 }

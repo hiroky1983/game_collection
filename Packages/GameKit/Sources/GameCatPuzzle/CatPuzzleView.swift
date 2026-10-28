@@ -16,12 +16,14 @@ public struct CatPuzzleView: View {
     @State private var showConfirmClear = false
     /// コンティニュー済みの局の負けカードを「盤を見る」で閉じたか（新しい局で開け直す）。
     @State private var failCardClosed = false
-    /// ヒントの広告救済（無料 3 回を使い切った後の 1 回。連打ガード・広告・失敗アラート。15パズル・ナンプレと同じ #526）。
+    /// ヒントの広告救済（無料 1 回を使い切った後の 1 回。連打ガード・広告・失敗アラート。15パズル・ナンプレと同じ #526）。
     @State private var hintRescue = RewardedRescue()
     /// コンティニュー（3 回目のミスで広告を見て続ける）の広告の段取り（#2780。ヒントとは別の救済として持つ）。
     @State private var continueRescue = RewardedRescue()
     /// 負けたあとの答え合わせで、これまでに盤へ出した「見つけていない猫」の数（1 匹ずつ増やす）。
     @State private var revealedGhosts = 0
+    /// ヒントを上限まで使い切ったあとに押したときの一言を出している間（数秒で消える・#3048）。
+    @State private var showsHintUsedUp = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(services: GameServices) {
@@ -146,6 +148,13 @@ public struct CatPuzzleView: View {
         .task(id: model.isFailed) {
             guard model.isFailed else { return }
             await revealUnfoundCats()
+        }
+        // 「この局のヒントは使い切りました」は数秒で消す。
+        .task(id: showsHintUsedUp) {
+            guard showsHintUsedUp else { return }
+            try? await Task.sleep(for: .seconds(2.5))
+            guard !Task.isCancelled else { return }
+            withGameAnimation { showsHintUsedUp = false }
         }
         // 最後の猫を置いたら 1 拍おいてクリアのダイアログを出す。
         .task(id: model.isSolved) {
@@ -326,6 +335,11 @@ public struct CatPuzzleView: View {
                     .multilineTextAlignment(.center)
                     // 読み上げは `onChange` の通知で伝える。
                     .accessibilityHidden(true)
+            } else if showsHintUsedUp {
+                Label(tr("この局のヒントは使い切りました"), systemImage: "lightbulb.slash")
+                    .scaledFont(14, weight: .bold, design: .rounded)
+                    .foregroundStyle(Theme.inkSubText)
+                    .multilineTextAlignment(.center)
             } else if let hint = model.lastHint {
                 Label(CatPuzzleAccessibility.message(for: hint, puzzle: model.puzzle, roomName: { CatPuzzleHouse.room($0).name }),
                       systemImage: "lightbulb.fill")
@@ -404,9 +418,13 @@ public struct CatPuzzleView: View {
             GameActionItem(
                 id: "hint", title: tr("ヒント"), systemImage: "lightbulb.fill", role: .hint,
                 badge: hintBadge(for: model),
-                isEnabled: model.canHint && !isWatchingAd,
+                // 上限まで使い切ったら押せない見た目にするが、押すと「使い切りました」と知らせる（広告は出さない・#3048）。
+                isEnabled: (model.canHint || isHintUsedUp(model)) && !isWatchingAd,
+                looksDisabled: isHintUsedUp(model),
                 accessibilityLabel: CatPuzzleAccessibility.hintLabel(remaining: model.hintsRemaining, needsAd: model.needsAdForHint),
-                accessibilityHint: tr("推理の1歩を示します。確実に猫のいないマスに×を置き、確定するときだけ猫を置きます"),
+                accessibilityHint: isHintUsedUp(model)
+                    ? tr("この局のヒントは使い切りました")
+                    : tr("推理の1歩を示します。確実に猫のいないマスに×を置き、確定するときだけ猫を置きます"),
                 action: onHint
             ),
         ]
@@ -415,12 +433,24 @@ public struct CatPuzzleView: View {
 
     /// ヒントの 2 行目。「あと n 回」は無料ぶんだけで、使い切ったら「0回 ▶ 広告を見て +1」の面にする
     /// （15パズル・将棋などと同じ `GameActionBadge.hint`。広告の追加まで使い切ったら 0 のまま・#1897）。
+    /// 広告で足せる上限は盤ゲームの 5 回ではなく 3 回なので、それを渡す（#3048）。
     static func hintBadge(for model: CatPuzzleModel) -> GameActionBadge {
-        .hint(totalRemaining: model.hints.remaining, needsAd: model.needsAdForHint)
+        .hint(totalRemaining: model.hints.remaining, needsAd: model.needsAdForHint, adLimit: model.hints.adLimit)
+    }
+
+    /// 無料と広告の追加を合わせて、この局のヒントを上限まで使い切ったか（遊んでいる間だけ）。
+    static func isHintUsedUp(_ model: CatPuzzleModel) -> Bool {
+        model.hints.isExhausted && !model.isOver && !model.isOfferingContinue
     }
 
     /// 無料が残っていればそのまま示し、使い切っていれば広告を見たあとに示す（広告は押下起点・自動再生しない）。
+    /// 上限まで使い切っていたら広告は出さず、盤の下に「この局のヒントは使い切りました」を数秒出す。
     private func requestHint() {
+        if Self.isHintUsedUp(model) {
+            showsHintUsedUp = true
+            AccessibilityNotification.Announcement(tr("この局のヒントは使い切りました")).post()
+            return
+        }
         Self.requestHint(model: model, hintRescue: hintRescue, services: services)
     }
 

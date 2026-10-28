@@ -69,7 +69,9 @@ struct GameActionRowTests {
         let style = try #require(SourceScan.declaration(of: "struct GameActionCapsuleStyle", in: source))
         #expect(style.contains(".frame(maxWidth: .infinity, minHeight: GameButtonMetrics.minTapTarget)"), "等幅・44pt になっていない")
         #expect(style.contains(".contentShape(Capsule())"))
-        #expect(style.contains("isEnabled ? role.fill : Theme.fillMuted"), "押せないときの面がグレーでない")
+        #expect(style.contains("looksEnabled ? role.fill : Theme.fillMuted"), "押せないときの面がグレーでない")
+        // 押せるが押せない見た目（`looksDisabled`・ねこさがしのヒントの上限 #3048）も同じグレーの面にする。
+        #expect(style.contains("private var looksEnabled: Bool { isEnabled && !looksDisabled }"))
         #expect(style.contains(": 0.55)"), "押せないときの薄さが GameButtonStyle と揃っていない")
         let capsule = try #require(SourceScan.declaration(of: "struct GameActionCapsule: View", in: source))
         #expect(capsule.contains(".disabled(!item.isEnabled)"), "押せない状態を Button に結線していない")
