@@ -92,7 +92,8 @@ public struct CatPuzzleView: View {
         .boardGameResultCard(isPresented: Self.showsFailCard(model, closed: failCardClosed)) { failCard }
         // クリアのカードも盤ではなく画面全体に重ねる。盤に重ねるとカードの方が背が高く、SE でスクロールになっていた（#3048）。
         // 最後の猫が出る演出を見せてから 1 拍（`CatPuzzleModel.clearCardDelay`）おいて出す。
-        .boardGameResultCard(isPresented: model.showsClearCard && !clearCardClosed) { clearCard }
+        // 「次のステージへ」を押して次の面を作っている間はカードを下げ、盤の「問題を用意しています…」を見せる。
+        .boardGameResultCard(isPresented: model.showsClearCard && !clearCardClosed && !model.isPreparingStage) { clearCard }
         .gameChrome(title: tr("おじさんちのねこさがし"), review: services.review,
                     newGame: GameChromeNewGame(.solo, isDisabled: hintRescue.isWatching || continueRescue.isWatching) { requestNewGame() })
         .howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items).onboarding(CatPuzzleOnboarding.guide))

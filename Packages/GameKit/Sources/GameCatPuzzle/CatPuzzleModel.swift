@@ -100,6 +100,9 @@ public final class CatPuzzleModel {
     @ObservationIgnored private var prefetched: (number: Int, task: Task<CatPuzzle, Never>)?
     /// 作っている最中のステージの問題を盤に出すまでの段取り（テストが待つ）。
     @ObservationIgnored private(set) var stagePreparation: Task<Void, Never>?
+    /// いま作っている面の番号と、その問題を作っている計算（取り消すときに止める）。
+    @ObservationIgnored private var preparingStage: Int?
+    @ObservationIgnored private var stageGeneration: Task<CatPuzzle, Never>?
 
     private let services: GameServices?
     private var generator: SplitMix64?
@@ -427,26 +430,30 @@ public final class CatPuzzleModel {
     /// 盤は前のまま操作できない。先に作っておいた次の面（`prefetchStage`）があればそれを使う。
     public func startStage(_ number: Int? = nil) {
         let n = max(1, number ?? savedStage)
+        // 同じ面を作っている最中の 2 回目（「次のステージへ」の連打）は何もしない（同じ問題を二重に作らない）。
+        if isPreparingStage, preparingStage == n { return }
         cancelStagePreparation()
-        stageRequest += 1
         let request = stageRequest
         pendingTap = nil
         stopwatch.stop()
         isPreparingStage = true
+        preparingStage = n
         let task: Task<CatPuzzle, Never>
         if let prefetched, prefetched.number == n {
             task = prefetched.task
-            self.prefetched = nil
         } else {
             // 別の面を先に作っていたら止める（使わない計算を残さない）。
             prefetched?.task.cancel()
             prefetched = nil
             task = Self.makeStagePuzzle(n)
         }
+        stageGeneration = task
         stagePreparation = Task { [weak self] in
             let made = await task.value
             guard let self, self.stageRequest == request else { return }
             self.isPreparingStage = false
+            self.preparingStage = nil
+            self.stageGeneration = nil
             self.begin(puzzle: made, size: CatPuzzleStage(n).size, stage: n)
             self.prefetchStage(n + 1)
         }
@@ -459,11 +466,18 @@ public final class CatPuzzleModel {
         prefetched = (number, Self.makeStagePuzzle(number))
     }
 
-    /// 作っている最中のステージの問題を捨てる（出来上がっても盤に出さない）。
+    /// 作っている最中のステージの問題を捨てる（出来上がっても盤に出さない）。作っている計算も止める
+    /// （`CatPuzzleStage.makePuzzle` は取り消されたら途中で抜ける）。止めた計算が先読みのものなら、先読みの記録も消す。
     private func cancelStagePreparation() {
         stageRequest += 1
+        if let generation = stageGeneration {
+            generation.cancel()
+            if prefetched?.task == generation { prefetched = nil }
+        }
+        stageGeneration = nil
         stagePreparation = nil
         isPreparingStage = false
+        preparingStage = nil
     }
 
     /// ステージの問題をメインスレッドの外で作る。

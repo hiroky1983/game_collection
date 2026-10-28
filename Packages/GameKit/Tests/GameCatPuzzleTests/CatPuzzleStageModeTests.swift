@@ -138,6 +138,18 @@ struct CatPuzzleStageModeTests {
         #expect(model.stage == nil && model.size == .easy)
     }
 
+    @Test("同じ面を作っている最中にもう一度始めても（連打）、作り直さず 1 回で盤に出る")
+    func repeatedStartIsIgnored() async {
+        let model = CatPuzzleModel(services: makeServices(), stageDefaults: makeDefaults("repeat"))
+        model.startStage(2)
+        let first = model.stagePreparation
+        model.startStage(2)
+        #expect(model.stagePreparation == first, "2 回目は何もしない")
+        await first?.value
+        #expect(model.stage == 2 && !model.isPreparingStage)
+        #expect(model.puzzle == CatPuzzleStage(2).makePuzzle())
+    }
+
     @Test("決着後の段は、結果カードが画面を覆っている間に替える（遊んでいる間は高さを取らない）")
     func finishedControlsSwapUnderTheCard() async {
         let model = CatPuzzleModel(services: makeServices(), stageDefaults: makeDefaults("controls"))

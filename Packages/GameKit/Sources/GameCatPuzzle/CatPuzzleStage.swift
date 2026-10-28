@@ -43,10 +43,13 @@ public struct CatPuzzleStage: Equatable, Sendable {
 
     /// この面の問題を作る。種から決まるので、何度作っても同じ問題になる。
     /// 生成した問題（解は必ず 1 つ）を解き手で測り、段が `tiers` に入る最初の 1 問を採る。
+    /// 呼び出し元の `Task` が取り消されたら、その時点の問題（段が範囲外のこともある）を返して抜ける。
+    /// 取り消した側はその問題を使わない（`CatPuzzleModel.startStage`）。
     public func makePuzzle() -> CatPuzzle {
         var generator = SplitMix64(seed: seed)
         while true {
             let puzzle = CatPuzzleLogic.generate(size: size, using: &generator)
+            if Task.isCancelled { return puzzle }
             let difficulty = CatPuzzleSolver.rate(puzzle, maxTier: 4)
             if difficulty.solved && tiers.contains(difficulty.tier) { return puzzle }
         }
