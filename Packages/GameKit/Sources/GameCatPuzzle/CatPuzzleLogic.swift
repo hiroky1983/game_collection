@@ -189,21 +189,56 @@ public enum CatPuzzleLogic {
     /// 行ごとに列を選ぶ深さ優先で、使った列・部屋をビットで持つ（9×9 でも一瞬）。
     public static func countSolutions(side: Int, rooms: [Int], limit: Int) -> Int {
         var count = 0
-        func search(row: Int, usedCols: Int, usedRooms: Int, previousCol: Int) {
-            if count >= limit { return }
-            if row == side {
-                count += 1
-                return
-            }
-            for col in 0..<side where usedCols & (1 << col) == 0 {
-                if previousCol >= 0 && abs(col - previousCol) <= 1 { continue }
-                let room = rooms[row * side + col]
-                if usedRooms & (1 << room) != 0 { continue }
-                search(row: row + 1, usedCols: usedCols | (1 << col), usedRooms: usedRooms | (1 << room), previousCol: col)
+        let reachable = reachableColumns(side: side, rooms: rooms)
+        rooms.withUnsafeBufferPointer { rooms in
+            reachable.withUnsafeBufferPointer { reachable in
+                countSolutions(side: side, rooms: rooms, reachable: reachable, limit: limit, row: 0, usedCols: 0,
+                               usedRooms: 0, previousCol: -1, count: &count)
             }
         }
-        search(row: 0, usedCols: 0, usedRooms: 0, previousCol: -1)
         return count
+    }
+
+    /// `[row * side + room]` = `row` 行目から下で、部屋 `room` のあるマスの列（ビット）。
+    /// 探索の枝刈り用: まだ猫のいない部屋が、残りの行・使っていない列のどこにも無ければ、その先に解は無い。
+    static func reachableColumns(side: Int, rooms: [Int]) -> [Int] {
+        var reachable = Array(repeating: 0, count: (side + 1) * side)
+        for row in stride(from: side - 1, through: 0, by: -1) {
+            for room in 0..<side { reachable[row * side + room] = reachable[(row + 1) * side + room] }
+            for col in 0..<side { reachable[row * side + rooms[row * side + col]] |= 1 << col }
+        }
+        return reachable
+    }
+
+    /// まだ猫のいない部屋が、残りの行・使っていない列のどこかに置けるか（枝刈りの判定）。
+    @inline(__always)
+    private static func canFinish(
+        side: Int, reachable: UnsafeBufferPointer<Int>, row: Int, usedCols: Int, usedRooms: Int
+    ) -> Bool {
+        for room in 0..<side where usedRooms & (1 << room) == 0 {
+            if reachable[row * side + room] & ~usedCols == 0 { return false }
+        }
+        return true
+    }
+
+    /// `countSolutions` の本体。クロージャを使わず、`rooms` を借りたまま再帰する（生成で何万回も呼ぶので速さが要る）。
+    private static func countSolutions(
+        side: Int, rooms: UnsafeBufferPointer<Int>, reachable: UnsafeBufferPointer<Int>, limit: Int,
+        row: Int, usedCols: Int, usedRooms: Int, previousCol: Int, count: inout Int
+    ) {
+        if row == side {
+            count += 1
+            return
+        }
+        guard canFinish(side: side, reachable: reachable, row: row, usedCols: usedCols, usedRooms: usedRooms) else { return }
+        for col in 0..<side where usedCols & (1 << col) == 0 {
+            if previousCol >= 0 && abs(col - previousCol) <= 1 { continue }
+            let room = rooms[row * side + col]
+            if usedRooms & (1 << room) != 0 { continue }
+            countSolutions(side: side, rooms: rooms, reachable: reachable, limit: limit, row: row + 1,
+                           usedCols: usedCols | (1 << col), usedRooms: usedRooms | (1 << room), previousCol: col, count: &count)
+            if count >= limit { return }
+        }
     }
 
     // MARK: - 生成
@@ -261,8 +296,12 @@ public enum CatPuzzleLogic {
     /// 答え `excluding` 以外の解を 1 つ返す（無ければ nil）。
     static func otherSolution(side: Int, rooms: [Int], excluding solution: [Int]) -> [Int]? {
         var cols: [Int] = []
+        let reachable = reachableColumns(side: side, rooms: rooms)
         func search(row: Int, usedCols: Int, usedRooms: Int) -> Bool {
             if row == side { return cols != solution }
+            guard reachable.withUnsafeBufferPointer({
+                canFinish(side: side, reachable: $0, row: row, usedCols: usedCols, usedRooms: usedRooms)
+            }) else { return false }
             for col in 0..<side where usedCols & (1 << col) == 0 {
                 if let previous = cols.last, abs(col - previous) <= 1 { continue }
                 let room = rooms[row * side + col]
