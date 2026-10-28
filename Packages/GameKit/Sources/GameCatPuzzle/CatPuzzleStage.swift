@@ -41,11 +41,17 @@ public struct CatPuzzleStage: Equatable, Sendable {
         return mixer.next()
     }
 
-    /// この面の問題を作る。種から決まるので、何度作っても同じ問題になる。
+    /// この面の問題。9×9（31 面目から）は作るのに最大で数秒かかり、iPhone SE では数倍になるので、
+    /// 前もって作った問題（`CatPuzzleStageBank`）があればそれを使う（同梱の範囲を越えたら `generatePuzzle` で作る）。
+    public func makePuzzle() -> CatPuzzle {
+        CatPuzzleStageBank.puzzle(for: number) ?? generatePuzzle()
+    }
+
+    /// この面の問題をその場で作る。種から決まるので、何度作っても同じ問題になる。
     /// 生成した問題（解は必ず 1 つ）を解き手で測り、段が `tiers` に入る最初の 1 問を採る。
     /// 呼び出し元の `Task` が取り消されたら、その時点の問題（段が範囲外のこともある）を返して抜ける。
     /// 取り消した側はその問題を使わない（`CatPuzzleModel.startStage`）。
-    public func makePuzzle() -> CatPuzzle {
+    public func generatePuzzle() -> CatPuzzle {
         var generator = SplitMix64(seed: seed)
         while true {
             let puzzle = CatPuzzleLogic.generate(size: size, using: &generator)
