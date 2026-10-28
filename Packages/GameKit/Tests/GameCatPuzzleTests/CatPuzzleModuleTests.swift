@@ -53,7 +53,8 @@ struct CatPuzzleModuleTests {
         // 後ろに .onboarding(...)（#2826）が続くので、閉じ括弧の手前までで見る。
         #expect(code.contains(".howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items)"))
         #expect(code.contains("RecordLabel("))
-        #expect(code.contains(".gameClearCard(isPresented:"))
+        // クリアのカードは共通の `GameClearCard` を画面全体に重ねる（盤に重ねると SE でスクロールになる・#3048）。
+        #expect(code.contains("GameClearCard(") && code.contains(".boardGameResultCard(isPresented: model.showsClearCard"))
         // ヒントの広告は他のゲームと同じ部品（`RewardedRescue`）で、局ガード・失敗アラート・視聴中の計時停止まで揃える。
         #expect(code.contains("var hintRescue = RewardedRescue()"))
         #expect(code.contains("hintRescue.request(") && code.contains("purpose: .hint") && code.contains("guardedBy: .checkedByGrant"))
@@ -70,7 +71,8 @@ struct CatPuzzleModuleTests {
         #expect(!code.contains("showRewardedAd("), "広告は RewardedRescue 経由だけで出す")
         #expect(!code.contains("withAnimation("), "アニメーションは gameAnimation 経由")
         #expect(!code.contains("UIImage("), "macOS でもビルドできるよう画像は ImageIO で読む")
-        #expect(code.contains("level: size.analyticsLevel"), "盤の大きさを game_start の level に載せる")
+        #expect(code.contains("level: analyticsLevel"), "盤の大きさ（ステージは面の番号）を game_start の level に載せる")
+        #expect(code.contains("stage.map { .stage($0) } ?? size.analyticsLevel"), "ステージはチャリンコおじさんと同じ stage-N")
         #expect(code.contains("gameDidStart(") && code.contains("gameDidRestart(")
                 && code.contains("gameDidProgress(") && code.contains("gameDidFinish(") && code.contains("gameDidUseHint("))
     }

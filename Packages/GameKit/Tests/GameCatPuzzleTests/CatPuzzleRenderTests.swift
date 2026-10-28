@@ -324,8 +324,11 @@ struct CatPuzzleRenderTests {
                 let suffix = scheme.scheme == .light ? "" : "-dark"
                 // `ImageRenderer` は ScrollView の中身を描かないので、節を本来の位置（題名の行の下）に重ねて描く。
                 let sheet = ZStack(alignment: .top) {
-                    CatPuzzleNewGameSheet(initial: .normal, onStart: { _ in }, onCancel: {})
-                    CatPuzzleNewGameSheet.sizeSection(selection: .constant(.expert))
+                    CatPuzzleNewGameSheet(initialMode: .free, initial: .normal, nextStage: 12, onStart: { _, _ in }, onCancel: {})
+                    VStack(alignment: .leading, spacing: Theme.pad) {
+                        CatPuzzleNewGameSheet.modeSection(selection: .constant(.free), nextStage: 12)
+                        CatPuzzleNewGameSheet.sizeSection(selection: .constant(.expert))
+                    }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(Theme.pad)
                         .padding(.top, 78)

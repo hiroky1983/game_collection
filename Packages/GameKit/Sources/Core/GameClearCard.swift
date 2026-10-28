@@ -10,10 +10,25 @@ public struct GameClearCard: View {
     private let title: String
     private let details: [String]
     private let onClose: (() -> Void)?
+    private let primaryAction: PrimaryAction?
 
-    public init(title: String? = nil, details: [String] = [], onClose: (() -> Void)? = nil) {
+    /// 「盤を見る」の上に置く、次へ進む動線（ねこさがしのステージの「次のステージへ」・#3048）。無ければ出さない。
+    public struct PrimaryAction {
+        let title: String
+        let hint: String
+        let action: () -> Void
+
+        public init(title: String, hint: String, action: @escaping () -> Void) {
+            self.title = title
+            self.hint = hint
+            self.action = action
+        }
+    }
+
+    public init(title: String? = nil, details: [String] = [], primaryAction: PrimaryAction? = nil, onClose: (() -> Void)? = nil) {
         self.title = title ?? tr("クリア！")
         self.details = details
+        self.primaryAction = primaryAction
         self.onClose = onClose
     }
 
@@ -40,14 +55,32 @@ public struct GameClearCard: View {
             .multilineTextAlignment(.center)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Self.accessibilityLabel(title: title, details: details))
-            if let onClose {
-                Button(action: onClose) {
-                    Text(tr("盤を見る"))
+            if let primaryAction {
+                Button(action: primaryAction.action) {
+                    Text(primaryAction.title)
                         .themeBody(15, weight: .bold, maxScale: 1.5)
                         .foregroundStyle(Theme.onAccent)
                         .padding(.horizontal, 20)
                         .frame(minHeight: 44)
                         .background(Capsule().fill(Theme.Fill.coral))
+                }
+                .accessibilityHint(primaryAction.hint)
+            }
+            if let onClose {
+                Button(action: onClose) {
+                    Text(tr("盤を見る"))
+                        .themeBody(15, weight: .bold, maxScale: 1.5)
+                        .foregroundStyle(primaryAction == nil ? Theme.onAccent : Theme.coralText)
+                        .padding(.horizontal, 20)
+                        .frame(minHeight: 44)
+                        // 次へ進む動線があるときは、そちらを塗りにして「盤を見る」は枠だけにする（結果カードの副ボタンと同じ形）。
+                        .background {
+                            if primaryAction == nil {
+                                Capsule().fill(Theme.Fill.coral)
+                            } else {
+                                Capsule().stroke(Theme.coralText, lineWidth: 2)
+                            }
+                        }
                 }
                 .accessibilityHint(tr("クリアの表示を閉じて盤面を見返します"))
             }

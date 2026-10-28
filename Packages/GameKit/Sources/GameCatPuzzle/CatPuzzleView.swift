@@ -8,6 +8,10 @@ public struct CatPuzzleView: View {
     @State private var model: CatPuzzleModel
     /// 最後に選んだ盤の大きさ（次に開いたときの開始シートの初期値）。
     @AppStorage("catPuzzleSize") private var preferredSize = CatPuzzleSize.normal.rawValue
+    /// 最後に選んだ遊び方（ステージ／自由に遊ぶ・#3048）。開始シートの初期値。
+    @AppStorage("catPuzzleMode") private var preferredMode = CatPuzzlePlayMode.stage.rawValue
+    /// ステージのクリアのカードを「盤を見る」で閉じたか（新しい局で開け直す）。
+    @State private var clearCardClosed = false
     /// 開始シート（難易度を選ぶ）。続きの盤が無ければ最初に出す（他のゲームと同じ・会長 QA 2026-10-21・build 43）。
     @State private var showNewGame: Bool
     /// 「＋」で途中の局をやめるかの確認。
@@ -67,7 +71,8 @@ public struct CatPuzzleView: View {
             // 盤は残りの高さを Spacer と山分けしない（操作の段が増えた分だけ盤が縮むのを防ぐ）。
             // クリアのダイアログは最後の猫が出る演出を見せてから 1 拍（`CatPuzzleModel.clearCardDelay`）おいて重ねる。
             board
-                .gameClearCard(isPresented: model.showsClearCard, title: tr("クリア！"), details: clearDetails)
+                // ステージの問題を裏で作っている間は盤の上に「用意しています」を重ねる（9×9 は数秒かかることがある）。
+                .overlay { if model.isPreparingStage { preparingOverlay } }
                 .rewardOffer(continueRescue, for: .continue, isPresented: model.isOfferingContinue,
                              services: services, gameID: CatPuzzleModel.gameID)
                 // 広告のロード〜視聴中は盤に触れない（ナンプレと同じ。視聴後のヒントは盤の今の形から読み直す）。
@@ -85,13 +90,18 @@ public struct CatPuzzleView: View {
         // 「あきらめて正解を見る」を並べ、あきらめたら盤に正解を出して終わる（もう 1 枚は重ねない・#2904）。
         // 盤（正方形）ではなく画面全体に重ねる。盤の高さだけでは SE でボタンまで見えないため（#2931）。
         .boardGameResultCard(isPresented: Self.showsFailCard(model, closed: failCardClosed)) { failCard }
+        // クリアのカードも盤ではなく画面全体に重ねる。盤に重ねるとカードの方が背が高く、SE でスクロールになっていた（#3048）。
+        // 最後の猫が出る演出を見せてから 1 拍（`CatPuzzleModel.clearCardDelay`）おいて出す。
+        // 「次のステージへ」を押して次の面を作っている間はカードを下げ、盤の「問題を用意しています…」を見せる。
+        .boardGameResultCard(isPresented: model.showsClearCard && !clearCardClosed && !model.isPreparingStage) { clearCard }
         .gameChrome(title: tr("おじさんちのねこさがし"), review: services.review,
                     newGame: GameChromeNewGame(.solo, isDisabled: hintRescue.isWatching || continueRescue.isWatching) { requestNewGame() })
         .howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items).onboarding(CatPuzzleOnboarding.guide))
         .sheet(isPresented: $showNewGame) {
-            CatPuzzleNewGameSheet(initial: model.size) { size in
+            CatPuzzleNewGameSheet(initialMode: CatPuzzlePlayMode(rawValue: preferredMode) ?? .stage,
+                                  initial: model.size, nextStage: model.savedStage) { mode, size in
                 showNewGame = false
-                startNewGame(size: size)
+                start(mode: mode, size: size)
             } onCancel: {
                 showNewGame = false
                 // 閉じて今の盤で遊ぶ。遅らせていた開始をここで数える。
@@ -137,6 +147,9 @@ public struct CatPuzzleView: View {
                 ).post()
             }
         }
+        .onChange(of: model.showsClearCard) { _, shows in
+            if !shows { clearCardClosed = false }
+        }
         // 新しい局が始まったら、答え合わせで出した猫を片付ける。
         .onChange(of: model.isFailed) { _, failed in
             if !failed {
@@ -173,6 +186,15 @@ public struct CatPuzzleView: View {
             resume: { model.resumeTimerIfNeeded() }
         )
         .task {
+            #if DEBUG
+            // 撮影・動作確認用: `-catpuzzleScenario <名前>` で開始シートを閉じ、狙った盤を作る（#3048）。
+            let args = ProcessInfo.processInfo.arguments
+            if let i = args.firstIndex(of: "-catpuzzleScenario"), i + 1 < args.count {
+                showNewGame = false
+                model.startPlayIfPending()
+                await model.applyDebugScenario(args[i + 1])
+            }
+            #endif
             // 開始シートを出している間は動かさない（シートを閉じた時点で `gameTimerLifecycle` が動かす）。
             if !showNewGame { model.resumeTimerIfNeeded() }
         }
@@ -200,10 +222,11 @@ public struct CatPuzzleView: View {
                     .foregroundStyle(model.mistakes > 0 ? Theme.coralText : Theme.inkSubText)
                     .accessibilityLabel(tr("ミス %1$lld回、あと%2$lld回で終わり", model.mistakes, model.mistakesRemaining))
                 Text(tr("・")).foregroundStyle(Theme.inkSubText).accessibilityHidden(true)
-                Text(model.size.label)
+                // ステージは面の番号、自由に遊ぶは難易度。
+                Text(model.stage.map { tr("ステージ %lld", $0) } ?? model.size.label)
                     .scaledFont(13, weight: .bold, design: .rounded, maxScale: 1.3)
                     .foregroundStyle(Theme.inkSubText)
-                    .accessibilityLabel(tr("難易度 %@", model.size.label))
+                    .accessibilityLabel(model.stage.map { tr("ステージ %lld", $0) } ?? tr("難易度 %@", model.size.label))
                 Text(tr("・")).foregroundStyle(Theme.inkSubText).accessibilityHidden(true)
                 GameClockLabel(RecordFormat.time(model.elapsedSeconds))
             }
@@ -373,16 +396,30 @@ public struct CatPuzzleView: View {
 
     /// 盤の下の操作（#148・#1689）。遊んでいる間はヒント・戻す・⋯、終局（クリア・ミス 3 回の負け）したら他のゲームと同じ
     /// 「同じ条件でもう一回」「設定を変える」（`GameReplayBar`）とレコメンドに替える（会長 QA 2026-10-21・build 42）。
-    /// 高さは `GameControlArea` が終局後の最大構成に揃える（決着で盤が縮まない）。
-    private var controlArea: some View {
-        GameControlArea(isFinished: model.isOver, services: services, ladder: ladder) {
-            GameReplayBar(
-                onReplay: { startNewGame(size: nil) },
-                onChangeSettings: { showNewGame = true }
-            ) {
-                RecordLabel(model.recordResult)
+    ///
+    /// 遊んでいる間は操作の段の高さだけを取り、決着後の段（もう一回＋レコメンド）の高さは確保しない（#3048）。
+    /// 確保すると SE で盤が 216pt まで縮み、段の下に画面の 1/4 ほどの空きが残っていた。入れ替えは結果カードを
+    /// 画面全体に出している間（クリアのカード・ミス 3 回のカード）に行い、盤の大きさが変わる瞬間を見せない
+    /// （`showsFinishedControls`）。
+    @ViewBuilder private var controlArea: some View {
+        if Self.showsFinishedControls(model) {
+            GameControlArea(isFinished: true, services: services, ladder: model.stage == nil ? ladder : nil) {
+                if let stage = model.stage, model.isSolved {
+                    CatPuzzleNextStageBar(next: stage + 1,
+                                          onNext: { startStage(stage + 1) },
+                                          onChangeSettings: { showNewGame = true })
+                } else {
+                    GameReplayBar(
+                        onReplay: { replay() },
+                        onChangeSettings: { showNewGame = true }
+                    ) {
+                        RecordLabel(model.recordResult)
+                    }
+                }
+            } playing: {
+                EmptyView()
             }
-        } playing: {
+        } else {
             let controls = Self.playControls(
                 for: model,
                 isWatchingAd: hintRescue.isWatching,
@@ -394,6 +431,12 @@ public struct CatPuzzleView: View {
                 GameOverflowBar(menuItems: controls.menu, actions: controls.actions, verticalPadding: 4)
             }
         }
+    }
+
+    /// 決着後の段に替えるか。クリアはカードが出た時点（最後の猫から 1 拍後）、ミス 3 回は提案のカードが出た時点で替える
+    /// （どちらもカードが画面全体を覆っている間に盤の大きさが変わる）。コンティニューで戻ったら遊ぶ段に戻る。
+    static func showsFinishedControls(_ model: CatPuzzleModel) -> Bool {
+        model.showsClearCard || model.isFailed || model.isOfferingContinue
     }
 
     /// 遊んでいる間の操作の段（#1834）。広告が絡むヒントと「戻す」を段に、やり直しは「⋯」に入れる。
@@ -472,33 +515,60 @@ public struct CatPuzzleView: View {
         }
     }
 
-    private var clearDetails: [String] {
-        [
-            tr("タイム %@", RecordFormat.time(model.elapsedSeconds)),
-            tr("%1$@（%2$@）", model.size.label, model.size.sizeLabel),
-            model.mistakes == 0 ? tr("ミス 0・パーフェクト！") : tr("ミス %lld", model.mistakes),
-            tr("手数 %lld", model.moves),
-            // ヒントは 0 回でも省かず出す（#2613・#2801）。
-            tr("ヒント %lld回", model.hintsUsed),
+    /// 盤の大きさの呼び名。ステージは「ステージ 3（6×6）」、自由に遊ぶは「ふつう（7×7）」。
+    private var boardLabel: String {
+        if let stage = model.stage {
+            return tr("ステージ %1$lld（%2$@）", stage, model.size.sizeLabel)
+        }
+        return tr("%1$@（%2$@）", model.size.label, model.size.sizeLabel)
+    }
+
+    /// クリアのカードの行。SE の画面に収まるよう 2〜3 行に詰める（#3048。以前は 5 行で盤からはみ出しスクロールになっていた）。
+    /// ヒントは 0 回でも省かず出す（#2613・#2801）。
+    var clearDetails: [String] {
+        var lines = [
+            tr("タイム %1$@・ミス %2$lld・ヒント %3$lld回",
+               RecordFormat.time(model.elapsedSeconds), model.mistakes, model.hintsUsed),
+            tr("%1$@・手数 %2$lld", boardLabel, model.moves),
         ]
+        if model.mistakes == 0 { lines.append(tr("ミスなしのパーフェクト！")) }
+        return lines
+    }
+
+    /// クリアのカード（画面全体に重ねる）。ステージは見出しを「ステージ n クリア！」にし、「次のステージへ」を置く。
+    private var clearCard: some View {
+        let title = model.stage.map { tr("ステージ %lld クリア！", $0) } ?? tr("クリア！")
+        return ZStack {
+            Color.black.opacity(0.45)
+            GameClearCard(
+                title: title, details: clearDetails,
+                primaryAction: model.stage.map { stage in
+                    GameClearCard.PrimaryAction(
+                        title: tr("次のステージへ"),
+                        hint: tr("ステージ %lld を始めます", stage + 1)
+                    ) { startStage(stage + 1) }
+                }
+            ) {
+                clearCardClosed = true
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isModal)
     }
 
     /// 3 回目のミスで出す、ただ 1 枚のダイアログ（他のゲームの負けと同じ `BoardGameResultCard`・#2904）。
     /// 提案中は「広告を見てコンティニュー」でミスが 1 回ぶん戻り、「あきらめて正解を見る」で負けを確定して盤に正解を出す
     /// （負けはあきらめた時点で確定するので、記録の行はこのカードには出ない）。
     /// コンティニュー済みの局は負けが確定した状態で出し、「盤を見る」で閉じる（正解はカードの後ろで盤に出る）。
+    /// 補足は 1 行に詰める（#3048。SE で画面の高さぎりぎりだった）。「広告を見ると、ミスが1回ぶん戻ります」は
+    /// コンティニューのボタンの読み上げのヒントに残す。
     private var failCard: some View {
         let offering = model.isOfferingContinue
-        var details = [
-            tr("%1$@（%2$@）", model.size.label, model.size.sizeLabel),
-            tr("タイム %@", RecordFormat.time(model.elapsedSeconds)),
-            tr("手数 %lld", model.moves),
-        ]
-        if offering { details.append(tr("広告を見ると、ミスが1回ぶん戻ります")) }
         return BoardGameResultCard(
             verdict: .loss,
             reason: tr("%lld回まちがえた…", CatPuzzleModel.maxMistakes),
-            details: details,
+            details: [tr("%1$@・タイム %2$@", boardLabel, RecordFormat.time(model.elapsedSeconds))],
             record: offering ? nil : model.recordResult,
             secondaryAction: offering
                 ? BoardGameResultCard.SecondaryAction(
@@ -517,6 +587,21 @@ public struct CatPuzzleView: View {
         }
     }
 
+    /// ステージの問題を作っている間に盤へ重ねる表示。
+    private var preparingOverlay: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
+                .fill(Theme.surface.opacity(0.85))
+            VStack(spacing: 10) {
+                ProgressView()
+                Text(tr("問題を用意しています…"))
+                    .scaledFont(15, weight: .bold, design: .rounded)
+                    .foregroundStyle(Theme.inkSubText)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
     // MARK: - 新規ゲーム
 
     /// 「＋」。途中の盤面があるときは確認を挟んでから開始シートを出す（他のゲームと同じ）。
@@ -529,7 +614,7 @@ public struct CatPuzzleView: View {
         }
     }
 
-    /// 勝ちが続いたら一段上の大きさを勧める（#722・#2806）。並びは開始シートの大きさと同じ。
+    /// 勝ちが続いたら一段上の大きさを勧める（#722・#2806）。並びは開始シートの大きさと同じ。自由に遊ぶときだけ。
     private var ladder: DifficultyLadderPrompt? {
         let sizes = CatPuzzleSize.allCases
         return DifficultyLadderPrompt(result: model.recordResult, currentLevel: sizes.firstIndex(of: model.size),
@@ -538,26 +623,104 @@ public struct CatPuzzleView: View {
         }
     }
 
-    /// `size` が nil なら同じ大きさで始め直す（「同じ条件でもう一回」）。
+    /// 「同じ条件でもう一回」。ステージで負けたら同じ面（同じ問題）にもう一度挑む。自由に遊ぶは同じ大きさの新しい問題。
+    private func replay() {
+        if let stage = model.stage {
+            startStage(stage)
+        } else {
+            startNewGame(size: nil)
+        }
+    }
+
+    /// 開始シートの「スタート」。
+    private func start(mode: CatPuzzlePlayMode, size: CatPuzzleSize) {
+        preferredMode = mode.rawValue
+        switch mode {
+        case .stage: startStage(nil)
+        case .free: startNewGame(size: size)
+        }
+    }
+
+    /// 自由に遊ぶ。`size` が nil なら同じ大きさで始め直す（「同じ条件でもう一回」）。
     private func startNewGame(size: CatPuzzleSize?) {
         if let size { preferredSize = size.rawValue }
         withGameAnimation { model.newGame(size: size) }
+    }
+
+    /// ステージの面を始める。`number` が nil なら次に遊ぶ面。
+    private func startStage(_ number: Int?) {
+        withGameAnimation { model.startStage(number) }
+    }
+}
+
+// MARK: - 遊び方の選択
+
+/// 入口で選ぶ遊び方（#3048）。`rawValue` は最後に選んだ遊び方の保存に使う。
+enum CatPuzzlePlayMode: String, CaseIterable {
+    /// 1 面ずつ難しくなる連番のステージ。クリアしたら次の面へ進むだけで、前の面には戻らない。
+    case stage
+    /// 盤の大きさを選び、毎回新しい問題（これまでの遊び方）。
+    case free
+
+    var label: String {
+        switch self {
+        case .stage: tr("ステージ")
+        case .free: tr("自由に遊ぶ")
+        }
+    }
+}
+
+/// ステージのクリア後に盤の下へ出す段。「次のステージへ」と「設定を変える」（`GameReplayBar` と同じ形・寸法）。
+struct CatPuzzleNextStageBar: View {
+    let next: Int
+    let onNext: () -> Void
+    let onChangeSettings: () -> Void
+
+    var body: some View {
+        HStack(spacing: GameReplayBarMetrics.buttonSpacing) {
+            Button(action: onNext) {
+                capsule(tr("次のステージへ"), fill: Theme.Fill.coral, foreground: Theme.onAccent)
+            }
+            .accessibilityHint(tr("ステージ %lld を始めます", next))
+            Button(action: onChangeSettings) {
+                capsule(GameReplayBarText.changeSettings, fill: Theme.fillMuted, foreground: .white)
+            }
+        }
+        .themeBody(14)
+        .padding(.horizontal, 16).padding(.vertical, GameReplayBarMetrics.verticalPadding)
+        .popCard(corner: Theme.cornerSmall)
+    }
+
+    private func capsule(_ title: String, fill: Color, foreground: Color) -> some View {
+        Text(title)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .foregroundStyle(foreground)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: .infinity, minHeight: GameReplayBarMetrics.buttonHeight)
+            .background(Capsule().fill(fill))
+            .contentShape(Rectangle())
     }
 }
 
 // MARK: - 開始シート
 
-/// 難易度（盤の大きさ）を選んで始めるシート。他のゲームと同じ共通の枠（`GameSetupSheet`）。
+/// 遊び方（ステージ／自由に遊ぶ）と、自由に遊ぶときの難易度（盤の大きさ）を選んで始めるシート。
+/// 他のゲームと同じ共通の枠（`GameSetupSheet`）。
 struct CatPuzzleNewGameSheet: View {
-    let onStart: (CatPuzzleSize) -> Void
+    let nextStage: Int
+    let onStart: (CatPuzzlePlayMode, CatPuzzleSize) -> Void
     let onCancel: () -> Void
+    @State private var mode: CatPuzzlePlayMode
     @State private var size: CatPuzzleSize
 
-    init(initial: CatPuzzleSize,
-         onStart: @escaping (CatPuzzleSize) -> Void,
+    init(initialMode: CatPuzzlePlayMode, initial: CatPuzzleSize, nextStage: Int,
+         onStart: @escaping (CatPuzzlePlayMode, CatPuzzleSize) -> Void,
          onCancel: @escaping () -> Void) {
+        self.nextStage = nextStage
         self.onStart = onStart
         self.onCancel = onCancel
+        _mode = State(initialValue: initialMode)
         _size = State(initialValue: initial)
     }
 
@@ -565,9 +728,30 @@ struct CatPuzzleNewGameSheet: View {
         GameSetupSheet(
             kind: .solo,
             onboarding: CatPuzzleOnboarding.guide,
-            onStart: { onStart(size) }, onCancel: onCancel
+            onStart: { onStart(mode, size) }, onCancel: onCancel
         ) {
-            Self.sizeSection(selection: $size)
+            Self.modeSection(selection: $mode, nextStage: nextStage)
+            if mode == .free {
+                Self.sizeSection(selection: $size)
+            }
+        }
+    }
+
+    /// 遊び方の節。ステージは次に遊ぶ面の番号を添える。
+    static func modeSection(selection: Binding<CatPuzzlePlayMode>, nextStage: Int) -> some View {
+        GameSetupSection(tr("遊び方")) {
+            HStack(spacing: 6) {
+                let modes = CatPuzzlePlayMode.allCases
+                ForEach(Array(modes.enumerated()), id: \.element) { step, value in
+                    GameSetupChooser(title: value.label,
+                                     subtitle: value == .stage ? tr("ステージ %lld から", nextStage) : tr("盤の大きさを選ぶ"),
+                                     selected: selection.wrappedValue == value,
+                                     accent: DifficultyTile.accent(step: step, of: modes.count),
+                                     metrics: DifficultyTile.metrics) {
+                        selection.wrappedValue = value
+                    }
+                }
+            }
         }
     }
 
