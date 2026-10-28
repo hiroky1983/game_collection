@@ -1366,6 +1366,171 @@
           }
         }
       }
+    },
+    "ステージ %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stage %lld"
+          }
+        }
+      }
+    },
+    "盤の大きさを選ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a board size"
+          }
+        }
+      }
+    },
+    "ミスなしのパーフェクト！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perfect, no misses!"
+          }
+        }
+      }
+    },
+    "遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mode"
+          }
+        }
+      }
+    },
+    "自由に遊ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Free play"
+          }
+        }
+      }
+    },
+    "ステージ %lld から" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From stage %lld"
+          }
+        }
+      }
+    },
+    "ステージ %lld を始めます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starts stage %lld"
+          }
+        }
+      }
+    },
+    "次のステージへ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next stage"
+          }
+        }
+      }
+    },
+    "ステージ %1$lld（%2$@）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stage %1$lld (%2$@)"
+          }
+        }
+      }
+    },
+    "%1$@・手数 %2$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$lld moves"
+          }
+        }
+      }
+    },
+    "問題を用意しています…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing the puzzle…"
+          }
+        }
+      }
+    },
+    "タイム %1$@・ミス %2$lld・ヒント %3$lld回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time %1$@ · Misses %2$lld · Hints %3$lld"
+          }
+        }
+      }
+    },
+    "ステージ %lld クリア！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stage %lld cleared!"
+          }
+        }
+      }
+    },
+    "%1$@・タイム %2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · Time %2$@"
+          }
+        }
+      }
+    },
+    "ステージ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stages"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

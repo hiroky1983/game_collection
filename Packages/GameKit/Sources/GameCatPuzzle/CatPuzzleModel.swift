@@ -1,3 +1,4 @@
+import Foundation
 import Core
 import CoreEngine
 import Observation
@@ -87,6 +88,18 @@ public final class CatPuzzleModel {
     public private(set) var recordResult: RecordResult?
     /// タップした回数（手数）。
     public private(set) var moves = 0
+    /// ステージモードの面の番号（#3048）。自由に遊ぶ盤なら nil。
+    public private(set) var stage: Int?
+    /// ステージの問題を裏で作っている間（`startStage`）。盤は操作できず、計時もしない。
+    public private(set) var isPreparingStage = false
+    /// ステージの進み具合（次に遊ぶ面の番号）の保存先。テストは専用の `UserDefaults` を渡す。
+    @ObservationIgnored private let stageDefaults: UserDefaults
+    /// ステージの問題の作成を頼んだ回数。作っている間に別の局へ切り替わったら、出来上がった問題は捨てる。
+    @ObservationIgnored private var stageRequest = 0
+    /// 次の面を先に作っておく（遊んでいる間に裏で作り、「次のステージへ」で待たせない）。
+    @ObservationIgnored private var prefetched: (number: Int, task: Task<CatPuzzle, Never>)?
+    /// 作っている最中のステージの問題を盤に出すまでの段取り（テストが待つ）。
+    @ObservationIgnored private(set) var stagePreparation: Task<Void, Never>?
 
     private let services: GameServices?
     private var generator: SplitMix64?
@@ -115,8 +128,10 @@ public final class CatPuzzleModel {
     /// `defersStart` が真なら、新規開始の `game_start` を最初の操作か `startPlayIfPending()` まで遅らせる
     /// （開始シートを出す画面用。シートで始めると `newGame` が数えるので、ここで先に数えると 1 局が 2 回になる・
     /// 囲碁・チェスと同じ #1372）。
-    public init(services: GameServices? = nil, size: CatPuzzleSize = .normal, seed: UInt64? = nil, defersStart: Bool = false) {
+    public init(services: GameServices? = nil, size: CatPuzzleSize = .normal, seed: UInt64? = nil, defersStart: Bool = false,
+                stageDefaults: UserDefaults = .standard) {
         self.services = services
+        self.stageDefaults = stageDefaults
         var seeded = seed.map { SplitMix64(seed: $0) }
         if let snap = services?.snapshots.load(CatPuzzleSnapshot.self, for: Self.gameID),
            CatPuzzleSnapshot.isResumable(snap), let restoredSize = CatPuzzleSize(rawValue: snap.size) {
@@ -126,6 +141,7 @@ public final class CatPuzzleModel {
             elapsedSeconds = snap.elapsedSeconds
             mistakes = snap.mistakes
             continueUsed = snap.continueUsed ?? false
+            stage = snap.stage
             // ミスが上限のまま保存されている = コンティニューの提案の最中に離れた局。提案から続ける。
             isOfferingContinue = snap.mistakes >= Self.maxMistakes
             hints = BoardHintBudget(used: snap.hintsUsed, freeLimit: Self.freeHints, adLimit: Self.adHints)
@@ -150,10 +166,12 @@ public final class CatPuzzleModel {
             if defersStart {
                 pendingInitialStart = true
             } else {
-                services?.gameDidStart(gameID: Self.gameID, level: size.analyticsLevel)
+                services?.gameDidStart(gameID: Self.gameID, level: analyticsLevel)
             }
         }
         generator = seeded
+        // 続きのステージを遊んでいる間に、次の面を裏で作っておく。
+        if let stage { prefetchStage(stage + 1) }
     }
 
     /// 遅らせている新規開始の `game_start`（`defersStart`）。冪等で、2 回目以降は何もしない。
@@ -163,17 +181,20 @@ public final class CatPuzzleModel {
     public func startPlayIfPending() {
         guard pendingInitialStart else { return }
         pendingInitialStart = false
-        services?.gameDidStart(gameID: Self.gameID, level: size.analyticsLevel)
+        services?.gameDidStart(gameID: Self.gameID, level: analyticsLevel)
     }
 
     /// 問題を直接与えて開始する。狙った局面から検証するためのテスト用の経路。
-    public init(services: GameServices? = nil, puzzle: CatPuzzle, size: CatPuzzleSize = .normal) {
+    public init(services: GameServices? = nil, puzzle: CatPuzzle, size: CatPuzzleSize = .normal, stage: Int? = nil,
+                stageDefaults: UserDefaults = .standard) {
         self.services = services
+        self.stageDefaults = stageDefaults
+        self.stage = stage
         self.size = size
         self.puzzle = puzzle
         marks = Array(repeating: .empty, count: puzzle.cellCount)
         services?.snapshots.clear(for: Self.gameID)
-        services?.gameDidStart(gameID: Self.gameID, level: size.analyticsLevel)
+        services?.gameDidStart(gameID: Self.gameID, level: analyticsLevel)
     }
 
     // MARK: - 読み取り
@@ -197,7 +218,7 @@ public final class CatPuzzleModel {
     public var isOver: Bool { isSolved || isFailed }
 
     /// 盤を操作できない間（終局、またはコンティニューの提案中）。
-    private var isFrozen: Bool { isOver || isOfferingContinue }
+    private var isFrozen: Bool { isOver || isOfferingContinue || isPreparingStage }
 
     /// 負けたあとに見せる、まだ見つけていない猫の場所（正解のうち猫の印が無いマス。行→列の順）。負けていなければ空。
     public var unfoundCats: [Int] {
@@ -386,12 +407,79 @@ public final class CatPuzzleModel {
         for cell in hintCrosses.union(wrongCrosses) where marks.indices.contains(cell) { marks[cell] = .cross }
     }
 
-    /// 新規ゲーム。`size` を渡すと盤の大きさを変える。
+    /// 新規ゲーム（自由に遊ぶ）。`size` を渡すと盤の大きさを変える。ステージの途中からでも自由に遊ぶへ切り替わる。
     public func newGame(size newSize: CatPuzzleSize? = nil) {
         if let newSize { size = newSize }
+        cancelStagePreparation()
+        begin(puzzle: Self.makePuzzle(size: size, generator: &generator), size: size, stage: nil)
+    }
+
+    // MARK: - ステージ（#3048）
+
+    /// ステージの進み具合（次に遊ぶ面の番号）の保存キー。進み具合はこの番号だけを持つ（面ごとの記録は持たない）。
+    public static let stageProgressKey = "catPuzzleStage"
+
+    /// 次に遊ぶ面の番号（1 始まり）。クリアするたびに 1 つ進み、負けても戻らない。
+    public var savedStage: Int { max(1, stageDefaults.integer(forKey: Self.stageProgressKey)) }
+
+    /// ステージの面を始める。`number` を省くと次に遊ぶ面（`savedStage`）。問題はステージ番号から決めた種で作る
+    /// （`CatPuzzleStage`・9×9 は数秒かかることがあるので裏で作る）。作っている間は `isPreparingStage` が真で、
+    /// 盤は前のまま操作できない。先に作っておいた次の面（`prefetchStage`）があればそれを使う。
+    public func startStage(_ number: Int? = nil) {
+        let n = max(1, number ?? savedStage)
+        cancelStagePreparation()
+        stageRequest += 1
+        let request = stageRequest
         pendingTap = nil
         stopwatch.stop()
-        puzzle = Self.makePuzzle(size: size, generator: &generator)
+        isPreparingStage = true
+        let task: Task<CatPuzzle, Never>
+        if let prefetched, prefetched.number == n {
+            task = prefetched.task
+            self.prefetched = nil
+        } else {
+            task = Self.makeStagePuzzle(n)
+        }
+        stagePreparation = Task { [weak self] in
+            let made = await task.value
+            guard let self, self.stageRequest == request else { return }
+            self.isPreparingStage = false
+            self.begin(puzzle: made, size: CatPuzzleStage(n).size, stage: n)
+            self.prefetchStage(n + 1)
+        }
+    }
+
+    /// 次の面を裏で作っておく（作り終えた問題は `startStage` が使う）。
+    private func prefetchStage(_ number: Int) {
+        guard prefetched?.number != number else { return }
+        prefetched?.task.cancel()
+        prefetched = (number, Self.makeStagePuzzle(number))
+    }
+
+    /// 作っている最中のステージの問題を捨てる（出来上がっても盤に出さない）。
+    private func cancelStagePreparation() {
+        stageRequest += 1
+        stagePreparation = nil
+        isPreparingStage = false
+    }
+
+    /// ステージの問題をメインスレッドの外で作る。
+    nonisolated private static func makeStagePuzzle(_ number: Int) -> Task<CatPuzzle, Never> {
+        Task.detached(priority: .userInitiated) { CatPuzzleStage(number).makePuzzle() }
+    }
+
+    /// `game_start` の `level`。ステージは面の番号（チャリンコおじさんと同じ `stage-N`）、自由に遊ぶは盤の大きさ。
+    var analyticsLevel: AnalyticsLevel {
+        stage.map { .stage($0) } ?? size.analyticsLevel
+    }
+
+    /// 新しい問題で局を始める（自由に遊ぶ・ステージ共通）。
+    private func begin(puzzle newPuzzle: CatPuzzle, size newSize: CatPuzzleSize, stage newStage: Int?) {
+        size = newSize
+        stage = newStage
+        pendingTap = nil
+        stopwatch.stop()
+        puzzle = newPuzzle
         marks = Array(repeating: .empty, count: puzzle.cellCount)
         history.removeAll()
         mistakes = 0
@@ -414,7 +502,7 @@ public final class CatPuzzleModel {
         solvedAt = nil
         recordResult = nil
         services?.snapshots.clear(for: Self.gameID)
-        services?.gameDidRestart(gameID: Self.gameID, level: size.analyticsLevel)
+        services?.gameDidRestart(gameID: Self.gameID, level: analyticsLevel)
         // 新しい問題が出た瞬間から計時する（止めるのは画面側のシート・背面など）。
         startTimer()
     }
@@ -456,6 +544,8 @@ public final class CatPuzzleModel {
         stopwatch.stop()
         isSolved = true
         solvedAt = stopwatch.now()
+        // ステージは決着の時点で次の面へ進める（クリアのカードを閉じずにアプリを落としても進み具合は残る）。
+        if let stage, stage + 1 > savedStage { stageDefaults.set(stage + 1, forKey: Self.stageProgressKey) }
         showsClearCard = false
         services?.feedback.notify(.success)
         // 決着 1 回につき `gameDidFinish` は 1 回だけ呼ぶ。記録は大きさごとに分ける。
@@ -551,7 +641,7 @@ public final class CatPuzzleModel {
             size: size.rawValue, puzzle: puzzle, marks: marks.map(\.rawValue),
             elapsedSeconds: elapsedSeconds, mistakes: mistakes, hintsUsed: hintsUsed, hintCells: hintCells.sorted(),
             hintCrosses: hintCrosses.sorted(), wrongCrosses: wrongCrosses.sorted(),
-            continueUsed: continueUsed
+            continueUsed: continueUsed, stage: stage
         )
         try? services?.snapshots.save(snapshot, for: Self.gameID)
     }

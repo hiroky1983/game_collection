@@ -18,10 +18,12 @@ public struct CatPuzzleSnapshot: Codable, Equatable, Sendable {
     public var wrongCrosses: [Int]?
     /// この局でコンティニューを使ったか（#2780）。同じく optional で、無ければ未使用として読む。
     public var continueUsed: Bool?
+    /// ステージモードの面の番号（#3048）。自由に遊ぶ盤と、この鍵より前の中断データは nil。
+    public var stage: Int?
 
     public init(size: String, puzzle: CatPuzzle, marks: [Int], elapsedSeconds: Int,
                 mistakes: Int, hintsUsed: Int, hintCells: [Int]? = nil, hintCrosses: [Int]? = nil,
-                wrongCrosses: [Int]? = nil, continueUsed: Bool? = nil) {
+                wrongCrosses: [Int]? = nil, continueUsed: Bool? = nil, stage: Int? = nil) {
         self.size = size
         self.puzzle = puzzle
         self.marks = marks
@@ -32,6 +34,7 @@ public struct CatPuzzleSnapshot: Codable, Equatable, Sendable {
         self.hintCrosses = hintCrosses
         self.wrongCrosses = wrongCrosses
         self.continueUsed = continueUsed
+        self.stage = stage
     }
 
     /// 続きから再開できる中断データか（正しい問題・印が 1 つ以上・まだ解けていない・ミスが上限に届いていない）。
@@ -54,7 +57,8 @@ public struct CatPuzzleSnapshot: Codable, Equatable, Sendable {
               CatPuzzleLogic.isWellFormed(snap.puzzle),
               snap.marks.count == snap.puzzle.cellCount,
               snap.marks.allSatisfy({ CatPuzzleModel.Mark(rawValue: $0) != nil }),
-              snap.elapsedSeconds >= 0, snap.mistakes >= 0, snap.hintsUsed >= 0 else { return false }
+              snap.elapsedSeconds >= 0, snap.mistakes >= 0, snap.hintsUsed >= 0,
+              (snap.stage.map { $0 >= 1 && CatPuzzleStage($0).size == size } ?? true) else { return false }
         // ヒントで置いた猫は盤の中にあり、そのマスの印は猫。
         for cell in snap.hintCells ?? [] {
             guard (0..<snap.puzzle.cellCount).contains(cell), snap.marks[cell] == CatPuzzleModel.Mark.cat.rawValue else { return false }
