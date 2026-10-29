@@ -270,6 +270,7 @@ public struct SudokuView: View {
                         .themeBody(15, weight: .bold, maxScale: 1.5)
                         .minimumScaleFactor(0.7)
                         .foregroundStyle(Theme.coralText)
+                        .accessibilityLabel(tr("残り%lldマス", model.remainingCount))
                     // ミスの残量。上限に近づくほど目に入るよう、2回目からは色を変える。
                     Label(tr("ミス %1$lld/%2$lld", model.mistakes, SudokuModel.maxMistakes), systemImage: "xmark.circle")
                         .themeBody(15, weight: .bold, maxScale: 1.5)
@@ -293,7 +294,7 @@ public struct SudokuView: View {
                 .fixedSize(horizontal: true, vertical: false)
                 .opacity(model.hasPuzzle ? 1 : 0)
         } trailing: {
-            GameClockLabel(RecordFormat.time(model.elapsedSeconds), size: min(timerFontSize, 14 * 1.5))
+            GameClockLabel(RecordFormat.time(model.elapsedSeconds), elapsedSeconds: model.elapsedSeconds, size: min(timerFontSize, 14 * 1.5))
                 // 出題前の「0:00」も存在しない問題の数字なので、難易度カプセルと同じく隠す（#354）。
                 .opacity(model.hasPuzzle ? 1 : 0)
                 .fixedSize(horizontal: true, vertical: false)

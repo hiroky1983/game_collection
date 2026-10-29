@@ -374,6 +374,7 @@ public struct MinesweeperView: View {
                         .scaledFont(16, weight: .bold, design: .monospaced)
                         .fixedSize(horizontal: true, vertical: false)
                         .foregroundStyle(Theme.coralText)
+                        .accessibilityLabel(tr("残り地雷 %lld", max(0, model.remainingMines)))
                 }
             }
             .lineLimit(1)
@@ -389,7 +390,7 @@ public struct MinesweeperView: View {
                     .accessibilityHidden(true)
             }
         } trailing: {
-            GameClockLabel(String(format: "%03d", min(model.elapsedSeconds, 999)))
+            GameClockLabel(String(format: "%03d", min(model.elapsedSeconds, 999)), elapsedSeconds: model.elapsedSeconds)
                 .fixedSize(horizontal: true, vertical: false)
         }
     }

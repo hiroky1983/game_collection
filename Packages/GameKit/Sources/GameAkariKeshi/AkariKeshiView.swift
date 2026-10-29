@@ -89,7 +89,7 @@ public struct AkariKeshiView: View {
             .lineLimit(1)
             .minimumScaleFactor(0.7)
         } trailing: {
-            GameClockLabel(RecordFormat.time(model.elapsedSeconds))
+            GameClockLabel(RecordFormat.time(model.elapsedSeconds), elapsedSeconds: model.elapsedSeconds)
                 .fixedSize(horizontal: true, vertical: false)
         }
     }

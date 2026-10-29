@@ -227,7 +227,7 @@ public struct FreeCellView: View {
                 .scaledFont(10, weight: .bold, design: .monospaced)
                 .foregroundStyle(Theme.inkSubText)
 
-            GameClockLabel(RecordFormat.time(model.elapsedSeconds))
+            GameClockLabel(RecordFormat.time(model.elapsedSeconds), elapsedSeconds: model.elapsedSeconds)
         }
         // 数字が別々に読まれると意味が取りにくいので 1 要素にまとめる。
         .accessibilityElement(children: .ignore)
