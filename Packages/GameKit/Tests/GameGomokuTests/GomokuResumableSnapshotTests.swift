@@ -51,4 +51,38 @@ struct GomokuResumableSnapshotTests {
         #expect(module.hasResumableSnapshot(in: store), "自分が打った盤（対照）")
         #expect(!module.hasUntouchedSnapshot(in: store))
     }
+
+    @Test("CPU の初手だけで離れても途中離脱に数えない（#3042）")
+    func cpuOpeningIsNotQuit() async {
+        let spy = SpyAnalyticsService()
+        let services = GameServices(
+            snapshots: MemorySnapshotStore(), ads: NoopAdService(),
+            analytics: GameAnalytics(service: spy, allowedGameIDs: ["gomoku"]),
+            isResumable: { _, snapshots in GomokuModule().hasResumableSnapshot(in: snapshots) }
+        )
+        services.gameDidStart(gameID: "gomoku")
+        let model = GomokuModel(services: services)
+        model.newGame(humanSide: .white)
+        await model.performAIMoveIfNeeded()
+        services.gameDidLeave(gameID: "gomoku")
+        #expect(spy.quits.isEmpty, "CPU が指しただけでは離脱に数えない")
+    }
+
+    @Test("自分が指した後に離れると途中離脱に数える（対照・上のテストが空振りでない証拠・#3042）")
+    func leavingAfterHumanMoveIsQuit() async {
+        let spy = SpyAnalyticsService()
+        let services = GameServices(
+            snapshots: MemorySnapshotStore(), ads: NoopAdService(),
+            analytics: GameAnalytics(service: spy, allowedGameIDs: ["gomoku"]),
+            isResumable: { _, snapshots in GomokuModule().hasResumableSnapshot(in: snapshots) }
+        )
+        services.gameDidStart(gameID: "gomoku")
+        let model = GomokuModel(services: services)
+        model.newGame(humanSide: .white)
+        await model.performAIMoveIfNeeded()
+        model.tap(row: 0, col: 0)
+        // 再開できない盤として離れる（`game_end` quit は「進行済みで再開できない」ときだけ送られる）。
+        services.analytics?.leaveGame(gameID: "gomoku", isResumable: false)
+        #expect(spy.quits.map(\.gameID) == ["gomoku"], "自分が指した後は従来どおり数える（対照）")
+    }
 }
