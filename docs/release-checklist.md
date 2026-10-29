@@ -10,7 +10,7 @@
 
 - **Bundle ID**: `com.hirockysan1983.asobiba`（`project.yml`）
 - **バージョン番号運用**: `project.yml` の `MARKETING_VERSION` を手動管理、ビルド番号は
-  fastlane が日時 (`YYYYMMDDHHmm`) で自動採番
+  `project.yml` の `CURRENT_PROJECT_VERSION`（fastlane は採番しない。版数更新 PR で `Scripts/bump-marketing-version.sh` が上げる）
   - **2026-10-06 改定**: 手動管理は毎版上げ忘れたため廃止。版ごとの更新は `Scripts/bump-marketing-version.sh` が
     版数更新 PR を作り（`Scripts/ship-beta.sh` と当番の仕事13 が自動で呼ぶ・手で書き換えない）、公開版・既存タグ・
     凍結済みブランチより後方の番号なら止まる。正典は `docs/ai-devops.md`「ブランチ戦略」の「次版」の項と「配信」
