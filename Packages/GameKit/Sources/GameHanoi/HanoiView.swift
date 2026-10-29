@@ -74,7 +74,7 @@ public struct HanoiView: View {
                 .scaledFont(13, weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.inkSubText)
             Spacer()
-            GameClockLabel(RecordFormat.time(model.elapsedSeconds))
+            GameClockLabel(RecordFormat.time(model.elapsedSeconds), elapsedSeconds: model.elapsedSeconds)
         }
         .padding(.horizontal, 18).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)

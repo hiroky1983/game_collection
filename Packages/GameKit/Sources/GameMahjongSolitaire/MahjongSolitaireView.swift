@@ -317,6 +317,7 @@ public struct MahjongSolitaireView: View {
                         Label("\(model.remainingCount)", systemImage: "square.stack.3d.up.fill")
                             .scaledFont(16, weight: .bold, design: .monospaced)
                             .foregroundStyle(Theme.coralText)
+                            .accessibilityLabel(tr("残り%lld枚", model.remainingCount))
                         // 今取れる組の数（#2812）。0 になれば手詰まりパネルが出る。
                         if model.phase == .playing {
                             Text(tr("取れる組 %lld", model.availablePairCount))
@@ -329,7 +330,7 @@ public struct MahjongSolitaireView: View {
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
         } trailing: {
-            GameClockLabel(timeText)
+            GameClockLabel(timeText, elapsedSeconds: model.elapsedSeconds)
         }
     }
 
