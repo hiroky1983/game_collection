@@ -383,6 +383,21 @@ struct FruitsGameOverTests {
         #expect(!model.continueAfterAd(forGame: serial))
     }
 
+    @Test("コンティニュー → 落とさずに「はじめから」: 続きの 1 プレイに game_end(quit) が 1 件付く（#3041）")
+    func newGameRightAfterAdContinueSendsQuit() {
+        let spy = SpyAnalyticsService()
+        let model = makeModel(fruits: overflowingColumn, score: 300, analytics: spy)
+        advance(model, seconds: 3.5)
+        #expect(model.phase == .gameOver)
+        let endsAtGameOver = spy.ends(of: "fruits")
+        #expect(model.continueAfterAd(forGame: model.gameSerial))
+
+        model.newGame()
+
+        #expect(spy.ends(of: "fruits") == endsAtGameOver + 1, "続きの 1 プレイに game_end が付く")
+        #expect(spy.quits(of: "fruits") == 1, "付いた game_end は quit")
+    }
+
     @Test("金の松を作っていた回のコンティニューは勝ちを巻き戻し、再終局で 1 勝に数え直す（#1359）")
     func continueRewindsTheWinAndRecountsOnce() {
         let (playLog, defaults, name) = makePlayLog("continue-win")
