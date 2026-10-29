@@ -342,7 +342,8 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         moves.append(move)
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
         startPlayIfPending()
-        services?.gameDidProgress(gameID: gameID)
+        // CPU の着手では数えない。人間が未着手のまま離れたら離脱ではない（#3042）。
+        if mover == humanSide { services?.gameDidProgress(gameID: gameID) }
         clearSelection()
         // 盤が動いたらヒントの印は用済み（#1118）。示した手を指したかどうかは問わない。
         hintMove = nil

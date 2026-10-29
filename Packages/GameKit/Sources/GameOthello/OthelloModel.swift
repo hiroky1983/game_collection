@@ -472,7 +472,8 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             .map { $0.0 * othelloBoardSize + $0.1 })
         placementCount += 1
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
-        services?.gameDidProgress(gameID: gameID)
+        // CPU の着手では数えない。人間が未着手のまま離れたら離脱ではない（#3042）。
+        if mover == humanSide { services?.gameDidProgress(gameID: gameID) }
         board.place(row: row, col: col, stone: currentStone)
         lastMove     = (row, col)
         currentStone = currentStone.opponent

@@ -37,4 +37,40 @@ struct ChessResumableSnapshotTests {
         #expect(module.hasResumableSnapshot(in: store), "自分が指した局（対照）")
         #expect(!module.hasUntouchedSnapshot(in: store))
     }
+
+    @Test("CPU の初手だけで離れても途中離脱に数えない（#3042）")
+    func cpuOpeningIsNotQuit() async {
+        let spy = SpyAnalyticsService()
+        let services = GameServices(
+            snapshots: MemorySnapshotStore(), ads: NoopAdService(),
+            analytics: GameAnalytics(service: spy, allowedGameIDs: ["chess"]),
+            isResumable: { _, snapshots in ChessModule().hasResumableSnapshot(in: snapshots) }
+        )
+        services.gameDidStart(gameID: "chess")
+        let model = ChessGameModel(services: services)
+        model.newGame(humanSide: .black)
+        await model.performAIMoveIfNeeded()
+        services.gameDidLeave(gameID: "chess")
+        #expect(spy.quits.isEmpty, "CPU が指しただけでは離脱に数えない")
+    }
+
+    @Test("自分が指した後に離れると途中離脱に数える（対照・上のテストが空振りでない証拠・#3042）")
+    func leavingAfterHumanMoveIsQuit() async {
+        let spy = SpyAnalyticsService()
+        let services = GameServices(
+            snapshots: MemorySnapshotStore(), ads: NoopAdService(),
+            analytics: GameAnalytics(service: spy, allowedGameIDs: ["chess"]),
+            isResumable: { _, snapshots in ChessModule().hasResumableSnapshot(in: snapshots) }
+        )
+        services.gameDidStart(gameID: "chess")
+        let model = ChessGameModel(services: services)
+        model.newGame(humanSide: .black)
+        await model.performAIMoveIfNeeded()
+        let reply = model.legalMovesCache.first!
+        model.tapSquare(reply.from)
+        model.tapSquare(reply.to)
+        // 再開できない盤として離れる（`game_end` quit は「進行済みで再開できない」ときだけ送られる）。
+        services.analytics?.leaveGame(gameID: "chess", isResumable: false)
+        #expect(spy.quits.map(\.gameID) == ["chess"], "自分が指した後は従来どおり数える（対照）")
+    }
 }

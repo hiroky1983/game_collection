@@ -57,4 +57,38 @@ struct ShogiResumableSnapshotTests {
         model.tapSquare(Sq.fromUSI("7f")!)
         #expect(module.resumeProgress(in: store) == "\(model.moves.count)手目")
     }
+
+    @Test("CPU の初手だけで離れても途中離脱に数えない（#3042）")
+    func cpuOpeningIsNotQuit() async {
+        let spy = SpyAnalyticsService()
+        let services = GameServices(
+            snapshots: MemorySnapshotStore(), ads: NoopAdService(),
+            analytics: GameAnalytics(service: spy, allowedGameIDs: ["shogi"]),
+            isResumable: { _, snapshots in ShogiModule().hasResumableSnapshot(in: snapshots) }
+        )
+        services.gameDidStart(gameID: "shogi")
+        let model = ShogiGameModel(services: services)
+        model.newGame(humanSide: .white)
+        await model.performAIMoveIfNeeded()
+        services.gameDidLeave(gameID: "shogi")
+        #expect(spy.quits.isEmpty, "CPU が指しただけでは離脱に数えない")
+    }
+
+    @Test("自分が指した後に離れると途中離脱に数える（対照・上のテストが空振りでない証拠・#3042）")
+    func leavingAfterHumanMoveIsQuit() async {
+        let spy = SpyAnalyticsService()
+        let services = GameServices(
+            snapshots: MemorySnapshotStore(), ads: NoopAdService(),
+            analytics: GameAnalytics(service: spy, allowedGameIDs: ["shogi"]),
+            isResumable: { _, snapshots in ShogiModule().hasResumableSnapshot(in: snapshots) }
+        )
+        services.gameDidStart(gameID: "shogi")
+        let model = ShogiGameModel(services: services)
+        model.newGame(humanSide: .white)
+        await model.performAIMoveIfNeeded()
+        model.apply(model.legalMovesCache.first!)
+        // 再開できない盤として離れる（`game_end` quit は「進行済みで再開できない」ときだけ送られる）。
+        services.analytics?.leaveGame(gameID: "shogi", isResumable: false)
+        #expect(spy.quits.map(\.gameID) == ["shogi"], "自分が指した後は従来どおり数える（対照）")
+    }
 }
