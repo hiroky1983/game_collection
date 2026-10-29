@@ -25,6 +25,10 @@ on:
       - 'App/AppGameServices.swift'
       - 'Packages/GameKit/Sources/**/*Module.swift'
       - '.github/workflows/scripts-tests.yml'
+      - '.github/workflows/ci.yml'
+      - 'fastlane/Fastfile'
+      - 'docs/ai-devops.md'
+      - 'docs/aso/metadata-v*.md'
   push:
     branches: [main]
     paths:
@@ -32,6 +36,10 @@ on:
       - 'App/AppGameServices.swift'
       - 'Packages/GameKit/Sources/**/*Module.swift'
       - '.github/workflows/scripts-tests.yml'
+      - '.github/workflows/ci.yml'
+      - 'fastlane/Fastfile'
+      - 'docs/ai-devops.md'
+      - 'docs/aso/metadata-v*.md'
 
 concurrency:
   group: scripts-tests-${{ github.ref }}
