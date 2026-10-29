@@ -30,6 +30,8 @@ private struct ReviewRequestPromptModifier: ViewModifier {
                 guard let service, service.pendingNewGameCardID != nil else { return }
                 await service.presentPendingNewGameCard()
             }
+            // 表示中に戻るで画面を離れても、共有サービスに表示中の状態を残さない（別のゲームで再表示されない）。
+            .onDisappear { service?.newGameCardDismissed() }
             .overlay {
                 if let service, service.isNewGameCardPresented {
                     NewGameFeedbackCard(

@@ -40,7 +40,7 @@ public final class ReviewRequestService {
     public var pendingNewGameCardID: Int? { isDeferredUntilResultIsVisible ? nil : issuedNewGameCardID }
     private var issuedNewGameCardID: Int?
 
-    /// 感想カードを表示中か。画面側のシートがこの値を見る。
+    /// 感想カードを表示中か。画面側のオーバーレイがこの値を見る。
     public var isNewGameCardPresented = false
 
     public init(
@@ -171,7 +171,7 @@ public final class ReviewRequestService {
         analytics?.recordReviewPrompt(kind: .newGameCard, step: .writeReview)
     }
 
-    /// 感想カードの「あとで」、またはシートを下げて閉じた。答えた人には数えない。
+    /// 感想カードの「あとで」、または背景タップ・画面を離れて閉じた。答えた人には数えない。
     public func newGameCardDismissed() {
         guard isNewGameCardPresented else { return }
         isNewGameCardPresented = false
