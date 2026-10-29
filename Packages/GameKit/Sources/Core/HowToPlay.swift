@@ -1080,9 +1080,7 @@ public struct HowToPlaySheet<Extra: View>: View {
                                 Label(tr("くわしいルール"), systemImage: "book")
                                     .themeBody(15)
                                 Spacer()
-                                Image(systemName: "chevron.right")
-                                    .scaledFont(13, weight: .bold)
-                                    .foregroundStyle(Theme.inkSubText)
+                                DisclosureChevron()
                             }
                             .padding(12)
                             .frame(maxWidth: .infinity, alignment: .leading)

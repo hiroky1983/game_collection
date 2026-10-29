@@ -59,9 +59,7 @@ struct MahjongStartSheet: View {
                     Text(tr("ルールと役を見る"))
                         .scaledFont(15, weight: .semibold, design: .rounded)
                     Spacer()
-                    Image(systemName: "chevron.right")
-                        .scaledFont(13, weight: .semibold)
-                        .foregroundStyle(Theme.inkSubText)
+                    DisclosureChevron(size: 13, weight: .semibold)
                 }
                 .foregroundStyle(Theme.coralText)
                 .padding(16)
@@ -92,9 +90,7 @@ struct MahjongStartSheet: View {
                     .themeBody(15)
                     .lineLimit(1).minimumScaleFactor(0.8)
                 Spacer(minLength: 8)
-                Image(systemName: "chevron.down")
-                    .scaledFont(13, weight: .bold)
-                    .foregroundStyle(Theme.inkSubText)
+                DisclosureChevron("chevron.down")
                     .rotationEffect(.degrees(showsDetails ? 180 : 0))
             }
             .padding(12)

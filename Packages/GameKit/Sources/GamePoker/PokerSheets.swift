@@ -78,9 +78,7 @@ struct PokerStartSheet: View {
                 Text(title)
                     .scaledFont(15, weight: .semibold, design: .rounded)
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .scaledFont(13, weight: .semibold)
-                    .foregroundStyle(Theme.inkSubText)
+                DisclosureChevron(size: 13, weight: .semibold)
             }
             .foregroundStyle(Theme.coralText)
             .padding(16)

@@ -513,6 +513,7 @@ public struct HeartsView: View {
                 Image(systemName: isFinal ? (model.playerPlace == 0 ? "crown.fill" : "flag.checkered") : "suit.heart.fill")
                     .scaledFont(20)
                     .foregroundStyle(isFinal && model.playerPlace == 0 ? Theme.yellowText : PlayingCardInk.red)
+                    .accessibilityHidden(true)
                 Text(scoreHeadline)
                     .scaledFont(17, weight: .black, design: .rounded)
                     .foregroundStyle(isFinal && model.playerPlace == 0 ? Theme.tealText : Theme.ink)

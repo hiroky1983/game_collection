@@ -655,9 +655,7 @@ struct ShiritoriSetupSheet: View {
                     .themeBody(15)
                     .lineLimit(1).minimumScaleFactor(0.8)
                 Spacer(minLength: 8)
-                Image(systemName: "chevron.down")
-                    .scaledFont(13, weight: .bold)
-                    .foregroundStyle(Theme.inkSubText)
+                DisclosureChevron("chevron.down")
                     .rotationEffect(.degrees(showsDetails ? 180 : 0))
             }
             .padding(12)

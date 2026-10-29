@@ -360,7 +360,7 @@ struct HomerunResultView: View {
                 Text(verbatim: detail).themeBody(14, weight: .heavy).foregroundStyle(Theme.ink)
                     .multilineTextAlignment(.trailing)
                 if let delta, delta > 0 { ChipText(text: "↑ \(delta)", fill: Theme.Fill.pink) }
-                Image(systemName: "chevron.right").scaledFont(13, weight: .bold).foregroundStyle(Theme.inkSubText)
+                DisclosureChevron()
             }
             .padding(14)
             .frame(minHeight: 44)

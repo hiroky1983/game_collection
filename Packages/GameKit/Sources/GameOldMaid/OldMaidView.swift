@@ -519,6 +519,7 @@ public struct OldMaidView: View {
                 Image(systemName: won ? "crown.fill" : "theatermasks.fill")
                     .scaledFont(20)
                     .foregroundStyle(won ? Theme.yellowText : Theme.purple)
+                    .accessibilityHidden(true)
                 Text(won ? tr("あなたの勝ち！") : tr("ジョーカーが残った…あなたの負け"))
                     .scaledFont(17, weight: .black, design: .rounded)
                     .foregroundStyle(won ? Theme.tealText : Theme.ink)
