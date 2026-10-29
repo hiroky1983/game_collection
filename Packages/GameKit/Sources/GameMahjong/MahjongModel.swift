@@ -223,6 +223,12 @@ public final class MahjongModel: AITurnGuarded {
             riichiTurn = snap.riichiTurn ?? snap.riichi.map { $0 ? 0 : nil }
             isRinshanDraw = snap.isRinshanDraw ?? false
             phase = snap.handResult != nil ? .handResult : .playing
+            // 「打牌済み・次家の自摸前」で保存された局面（ロン見逃し直後の保存・#2298）は、誰も打牌待ちでなく
+            // 自摸を引く経路も無いため、そのままでは局が止まる（#3040）。ここで次家の自摸を引き直す。
+            if phase == .playing, drawnTile == nil, !awaitsDiscard(currentPlayer) {
+                draw(for: (currentPlayer + 1) % Self.playerCount)
+                persist()
+            }
             // 終局の手前のリザルトから再開した局も決着済み（#811。`finishHand` の末尾と同じ判定）。
             if concludesAfterCurrentResult { services?.gameDidRestoreFinished(gameID: gameID) }
         }
