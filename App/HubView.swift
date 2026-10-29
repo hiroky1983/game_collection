@@ -454,6 +454,12 @@ struct HubView: View {
                 if args.contains("-simulateReviewRequest") {
                     services.review?.simulateRequest()
                 }
+                // 撮影用: 新しいゲームの感想カード（#3061）を条件を通さずに出す（`-startGame <id> -simulateNewGameCard`）。
+                // 画面遷移の最中に立てると、画面の作り直しで予定が破棄されるため、遷移が落ち着いてから立てる。
+                if args.contains("-simulateNewGameCard") {
+                    try? await Task.sleep(for: .seconds(2))
+                    services.review?.simulateNewGameCard()
+                }
                 // 動作確認用: 中断のお知らせ（#663）をタップしたのと同じ入口でゲームを開く
                 // （`-simulateNotificationTap <gameID>`）。シミュレータでは通知をタップできないため。
                 if let i = args.firstIndex(of: "-simulateNotificationTap"), i + 1 < args.count {

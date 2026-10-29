@@ -5399,6 +5399,50 @@
           }
         }
       }
+    },
+    "新しいゲームはどうでしたか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How was the new game?"
+          }
+        }
+      }
+    },
+    "感想をお聞かせください" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "We'd love to hear what you think."
+          }
+        }
+      }
+    },
+    "App Store で感想を書く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write a review on the App Store"
+          }
+        }
+      }
+    },
+    "あとで" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Later"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
