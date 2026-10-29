@@ -41,7 +41,7 @@ struct HomerunRankingPage: View {
                 Button(action: onNext) {
                     HStack(spacing: 8) {
                         Text(nextTitle).themeBody(18)
-                        Image(systemName: "chevron.right").scaledFont(15, weight: .bold)
+                        DisclosureChevron(size: 15, tint: nil)
                     }
                     .foregroundStyle(Theme.onAccent)
                     .frame(maxWidth: .infinity)
@@ -156,7 +156,7 @@ struct HomerunLobbyRankRow: View {
                 if isLoading {
                     ProgressView().controlSize(.small)
                 } else {
-                    Image(systemName: "chevron.right").scaledFont(13, weight: .bold).foregroundStyle(Theme.inkSubText)
+                    DisclosureChevron()
                 }
             }
             .frame(width: 20, height: 20)
@@ -250,7 +250,7 @@ struct HomerunRankingSignedOutPage: View {
                 Button(action: onNext) {
                     HStack(spacing: 8) {
                         Text(nextTitle).themeBody(18)
-                        Image(systemName: "chevron.right").scaledFont(15, weight: .bold)
+                        DisclosureChevron(size: 15, tint: nil)
                     }
                     .foregroundStyle(Theme.onAccent)
                     .frame(maxWidth: .infinity)

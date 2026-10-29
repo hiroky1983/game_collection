@@ -110,7 +110,7 @@ public struct OnboardingEntry: View {
                             .themeBody(16, weight: .bold)
                             .multilineTextAlignment(.leading)
                         Spacer(minLength: 0)
-                        Image(systemName: "chevron.right").scaledFont(13, weight: .bold)
+                        DisclosureChevron(tint: nil)
                     }
                     .foregroundStyle(Theme.onAccent)
                     .padding(14)

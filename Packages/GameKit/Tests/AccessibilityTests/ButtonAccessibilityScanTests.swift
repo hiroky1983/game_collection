@@ -65,6 +65,13 @@ struct ButtonAccessibilityScanTests {
             && SourceScan.matchCount(of: #"\bText\(|\bLabel\(|accessibilityLabel|accessibilityHidden"#, in: neighborhood) == 0
     }
 
+    /// 近傍に行末の飾りのシェブロンを `Image(systemName:)` で直書きしていて、読み上げから隠していないか（#3053）。
+    /// 隠す手当ては `DisclosureChevron`（隠す処理込み）か `accessibilityHidden` / `accessibilityLabel`。
+    static func hasUnhiddenChevron(_ neighborhood: String) -> Bool {
+        SourceScan.matchCount(of: #"Image\(systemName:\s*"chevron\.(right|down)""#, in: neighborhood) > 0
+            && SourceScan.matchCount(of: #"accessibilityHidden|accessibilityLabel"#, in: neighborhood) == 0
+    }
+
     /// 近傍に 44 未満の固定 frame があり、広げる手当て（contentShape / minTapTarget / 44 以上の frame）が無いか。
     static func isSmallTapTarget(_ neighborhood: String) -> Bool {
         let sizes = frameSizes(in: neighborhood)
@@ -115,6 +122,15 @@ struct ButtonAccessibilityScanTests {
             """)
     }
 
+    @Test("ボタン行末の飾りのシェブロンは VoiceOver から隠す")
+    func decorativeChevronsAreHidden() throws {
+        let found = try Self.offenders(Self.hasUnhiddenChevron)
+        #expect(found.isEmpty, """
+            ボタン内の chevron は DisclosureChevron で描く（直書きなら .accessibilityHidden(true)）。\
+            意図的なら行末に // a11y-ok: 理由。\n\(found.joined(separator: "\n"))
+            """)
+    }
+
     @Test("44pt 未満の固定 frame のボタンには押せる範囲を広げる手当てが要る")
     func smallButtonsExtendTapTarget() throws {
         let found = try Self.offenders(Self.isSmallTapTarget)
@@ -141,6 +157,14 @@ struct ButtonAccessibilityScanTests {
         #expect(!Self.isUnlabeledIconButton("Button { go() } label: { Label(\"設定\", systemImage: \"gear\") }"))
         #expect(!Self.isUnlabeledIconButton("Button { go() } label: { Image(systemName: \"gear\") }\n.accessibilityHidden(true)"))
         #expect(!Self.isUnlabeledIconButton("Button(\"OK\") { go() }"))
+    }
+
+    @Test("隠していないシェブロンは違反、DisclosureChevron や accessibilityHidden があれば通す")
+    func chevronRules() {
+        #expect(Self.hasUnhiddenChevron("Button { go() } label: { HStack { Text(\"a\"); Image(systemName: \"chevron.right\") } }"))
+        #expect(!Self.hasUnhiddenChevron("Button { go() } label: { HStack { Text(\"a\"); DisclosureChevron() } }"))
+        #expect(!Self.hasUnhiddenChevron("Button { go() } label: { HStack { Text(\"a\"); Image(systemName: \"chevron.down\").accessibilityHidden(true) } }"))
+        #expect(!Self.hasUnhiddenChevron("Button { go() } label: { Image(systemName: \"gear\") }"))
     }
 
     @Test("44 未満の固定 frame は違反、手当てや 44 以上があれば通す")

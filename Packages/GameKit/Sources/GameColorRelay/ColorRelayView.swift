@@ -556,6 +556,7 @@ public struct ColorRelayView: View {
                 Image(systemName: model.playerPlace == 0 ? "crown.fill" : "flag.checkered")
                     .scaledFont(26)
                     .foregroundStyle(model.playerPlace == 0 ? Theme.yellowText : Theme.inkSubText)
+                    .accessibilityHidden(true)
                 Text(resultHeadline)
                     .scaledFont(22, weight: .black, design: .rounded)
                     .foregroundStyle(model.playerPlace == 0 ? Theme.tealText : Theme.ink)

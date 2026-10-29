@@ -785,6 +785,7 @@ public struct SpeedView: View {
                 Image(systemName: model.winner == .human ? "crown.fill" : "flag.checkered")
                     .scaledFont(20)
                     .foregroundStyle(model.winner == .human ? Theme.yellowText : Theme.inkSubText)
+                    .accessibilityHidden(true)
                 Text(statusText)
                     .scaledFont(17, weight: .black, design: .rounded)
                     .foregroundStyle(model.winner == .human ? Theme.tealText : Theme.ink)
