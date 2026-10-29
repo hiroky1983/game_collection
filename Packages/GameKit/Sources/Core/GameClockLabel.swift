@@ -4,19 +4,34 @@ import SwiftUI
 ///
 /// 文字列の組み立て（`0:00`・`00:00`・`000` など）はゲームごとの表示の約束なので呼び出し側に任せ、
 /// アイコン・フォント・色だけを揃える。
+///
+/// VoiceOver には表示の文字列（「0:12」「003」）ではなく「経過 12秒」と読ませる（#3043）。
+/// 読みは経過秒から組み立てるので、呼び出し側は `elapsedSeconds` を必ず渡す。
 public struct GameClockLabel: View {
     private let text: String
+    private let elapsedSeconds: Int
     private let size: CGFloat
 
-    public init(_ text: String, size: CGFloat = 14) {
+    public init(_ text: String, elapsedSeconds: Int, size: CGFloat = 14) {
         self.text = text
+        self.elapsedSeconds = elapsedSeconds
         self.size = size
+    }
+
+    /// 読み上げ文。「経過 1分15秒」「経過 12秒」。
+    public static func spokenLabel(elapsedSeconds: Int) -> String {
+        let total = max(0, elapsedSeconds)
+        let minutes = total / 60
+        let seconds = total % 60
+        let time = minutes > 0 ? tr("%1$lld分%2$lld秒", minutes, seconds) : tr("%lld秒", seconds)
+        return tr("経過%@", time)
     }
 
     public var body: some View {
         Label(text, systemImage: "clock")
             .scaledFont(size, weight: .bold, design: .monospaced)
             .foregroundStyle(Theme.tealText)
+            .accessibilityLabel(Self.spokenLabel(elapsedSeconds: elapsedSeconds))
     }
 }
 

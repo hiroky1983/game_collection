@@ -220,7 +220,7 @@ public struct SpiderView: View {
                 .scaledFont(10, weight: .bold, design: .monospaced)
                 .foregroundStyle(Theme.inkSubText)
 
-            GameClockLabel(RecordFormat.time(model.elapsedSeconds))
+            GameClockLabel(RecordFormat.time(model.elapsedSeconds), elapsedSeconds: model.elapsedSeconds)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(SpiderAccessibility.statusLabel(

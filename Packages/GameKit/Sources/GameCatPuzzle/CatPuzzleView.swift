@@ -228,7 +228,7 @@ public struct CatPuzzleView: View {
                     .foregroundStyle(Theme.inkSubText)
                     .accessibilityLabel(model.stage.map { tr("ステージ %lld", $0) } ?? tr("難易度 %@", model.size.label))
                 Text(tr("・")).foregroundStyle(Theme.inkSubText).accessibilityHidden(true)
-                GameClockLabel(RecordFormat.time(model.elapsedSeconds))
+                GameClockLabel(RecordFormat.time(model.elapsedSeconds), elapsedSeconds: model.elapsedSeconds)
             }
             .fixedSize()
             .layoutPriority(1)
