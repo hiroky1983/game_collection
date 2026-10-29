@@ -299,7 +299,7 @@ public struct AnalyticsEngagement: Equatable, Sendable {
 }
 
 /// 送信する解析イベント。**`game_start` / `game_end` / `reward_ad` / `reward_request` / `game_open` /
-/// `reward_offer` / `share_tap` の7種のみ**（#158 の決裁範囲 + #500 の会長決裁 2026-09-08 + #659 の会長決裁 2026-09-12 +
+/// `reward_offer` / `share_tap` の7種に、後続で足した `clear_exit` / `notification_permission` / `review_prompt`（#3061）を加えた計 10 種のみ**（#158 の決裁範囲 + #500 の会長決裁 2026-09-08 + #659 の会長決裁 2026-09-12 +
 /// #780 の会長決裁 2026-09-16 + #1043 の会長決裁 2026-09-16）。`game_start` の `play_count` / `days_since_last_play` は
 /// #1195 の会長決裁（2026-09-21・案A）でイベントは増やさずパラメータだけ足した。
 ///
@@ -350,6 +350,9 @@ public enum AnalyticsEvent: Equatable, Sendable {
     /// 通知の許可ダイアログの結果（#2008）。ダイアログを実際に出した 1 回につき 1 回。
     /// パラメータは `result` / `trigger` のみで、ゲーム ID は載せない。
     case notificationPermission(result: NotificationPermissionResult, trigger: NotificationPermissionTrigger)
+    /// 評価のお願い（#3061）。カードを出した・どれを押した・OS の評価ダイアログを依頼した、の 1 回につき 1 回。
+    /// パラメータは `kind` / `step` のみで、ゲーム ID は載せない。
+    case reviewPrompt(kind: ReviewPromptKind, step: ReviewPromptStep)
 
     /// Firebase のイベント名。
     public var name: String {
@@ -363,6 +366,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
         case .rewardOffer:   return "reward_offer"
         case .shareTap:      return "share_tap"
         case .notificationPermission: return "notification_permission"
+        case .reviewPrompt:  return "review_prompt"
         }
     }
 
@@ -437,8 +441,33 @@ public enum AnalyticsEvent: Equatable, Sendable {
                 "result": .string(result.rawValue),
                 "trigger": .string(trigger.rawValue),
             ]
+        case let .reviewPrompt(kind, step):
+            return [
+                "kind": .string(kind.rawValue),
+                "step": .string(step.rawValue),
+            ]
         }
     }
+}
+
+/// `review_prompt` の `kind`（#3061）。どちらの評価のお願いか。
+public enum ReviewPromptKind: String, Sendable, CaseIterable {
+    /// 勝利の見せ場の直後に出す、OS の評価ダイアログ（`requestReview`）。
+    case regular
+    /// 新しいゲームを遊んだ直後に出す、アプリ独自のカード。
+    case newGameCard = "new_game_card"
+}
+
+/// `review_prompt` の `step`（#3061）。
+public enum ReviewPromptStep: String, Sendable, CaseIterable {
+    /// 独自のカードを出した（`kind = new_game_card` のみ）。
+    case shown
+    /// カードの「App Store で感想を書く」を押した（`kind = new_game_card` のみ）。
+    case writeReview = "write_review"
+    /// カードの「あとで」を押した（`kind = new_game_card` のみ）。
+    case later
+    /// OS の評価ダイアログを依頼した（`kind = regular` のみ。出たかどうかは OS しか知らない）。
+    case osRequested = "os_requested"
 }
 
 /// 通知の許可ダイアログの結果（#2008）。
@@ -707,6 +736,11 @@ public final class GameAnalytics {
         result: NotificationPermissionResult, trigger: NotificationPermissionTrigger
     ) {
         service.log(.notificationPermission(result: result, trigger: trigger))
+    }
+
+    /// 評価のお願いの段階を送る（#3061）。プレイの数え方には影響しない。
+    public func recordReviewPrompt(kind: ReviewPromptKind, step: ReviewPromptStep) {
+        service.log(.reviewPrompt(kind: kind, step: step))
     }
 
     /// 解析送信の設定（オン / オフ）が切り替わったときに呼ぶ。**数え方の状態を丸ごと捨てる**。

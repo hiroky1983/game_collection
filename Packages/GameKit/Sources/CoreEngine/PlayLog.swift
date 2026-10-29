@@ -36,13 +36,22 @@ public struct ReviewRequestState: Equatable, Sendable {
     public var lastRequestedWins: Int
     /// 前回リクエストしたときのアプリバージョン。一度もリクエストしていなければ nil。
     public var lastRequestedVersion: String?
+    /// 「答えた人」か（#3061）。新しいゲームの感想カードで「App Store で感想を書く」を押した人。
+    /// iOS は実際に評価したかを教えないため、これを答えた印にして以後の評価のお願いを出さない。
+    public var hasAnswered: Bool
+    /// 新しいゲームの感想カード（#3061）を一度出したか。1 人につき一度きり（版ごとにリセットしない）。
+    public var hasAskedAboutNewGame: Bool
 
     public init(
         totalWins: Int = 0,
         lastRequestedAt: Date? = nil,
         lastRequestedWins: Int = 0,
-        lastRequestedVersion: String? = nil
+        lastRequestedVersion: String? = nil,
+        hasAnswered: Bool = false,
+        hasAskedAboutNewGame: Bool = false
     ) {
+        self.hasAnswered = hasAnswered
+        self.hasAskedAboutNewGame = hasAskedAboutNewGame
         self.totalWins = totalWins
         self.lastRequestedAt = lastRequestedAt
         self.lastRequestedWins = lastRequestedWins
@@ -73,6 +82,10 @@ public final class PlayLog {
     public static let lastRequestedAtKey      = "review_lastRequestedAt_v1"
     public static let lastRequestedWinsKey    = "review_lastRequestedWins_v1"
     public static let lastRequestedVersionKey = "review_lastRequestedVersion_v1"
+    /// 「答えた人」の印（#3061）。真偽値 1 個。端末内のみ・サーバ送信なし・「プレイ記録を消去」で消える。
+    public static let reviewAnsweredKey       = "review_answered_v1"
+    /// 新しいゲームの感想カードを出し済みの印（#3061）。真偽値 1 個。扱いは上と同じ。
+    public static let newGameCardAskedKey     = "review_newGameCardAsked_v1"
 
     /// ゲーム間レコメンド（#52）が書き込むキー。
     public static let recommendationKeys = [
@@ -83,6 +96,9 @@ public final class PlayLog {
     public static let reviewRequestKeys = [
         totalWinsKey, lastRequestedAtKey, lastRequestedWinsKey, lastRequestedVersionKey,
     ]
+
+    /// 評価のお願いの強化（#3061）が書き込むキー。どちらも真偽値 1 個で、回数に依らずキー数・データ量は増えない。
+    public static let reviewPromptKeys = [reviewAnsweredKey, newGameCardAskedKey]
 
     /// ゲーム別のプレイ記録（#115）。全ゲームぶんを JSON にまとめて**1キー**に入れる。
     /// ゲームごとにキーを切ると登録ゲームが増えるたびにキーが増え、消去漏れの温床になるため。
@@ -128,7 +144,7 @@ public final class PlayLog {
     public static let lastStartKeys = [lastStartKey]
 
     /// このクラスが書き込むキーの全量。「プレイ記録を消去」と、キーが増えていないことの検証に使う。
-    public static let allKeys = recommendationKeys + reviewRequestKeys + playRecordKeys + howToPlayKeys + newGameKeys + playDayKeys + homerunKeys + lastStartKeys
+    public static let allKeys = recommendationKeys + reviewRequestKeys + reviewPromptKeys + playRecordKeys + howToPlayKeys + newGameKeys + playDayKeys + homerunKeys + lastStartKeys
 
     private let defaults: UserDefaults
 
@@ -148,6 +164,8 @@ public final class PlayLog {
     private var lastRequestedAt: Date?
     private var lastRequestedWins: Int
     private var lastRequestedVersion: String?
+    private var hasAnswered: Bool
+    private var hasAskedAboutNewGame: Bool
 
     /// ゲーム別の記録。キーは `recordKey(gameID:variant:)`。
     public private(set) var records: [String: PlayRecord]
@@ -173,6 +191,8 @@ public final class PlayLog {
             .map { Date(timeIntervalSince1970: $0) }
         self.lastRequestedWins = defaults.integer(forKey: Self.lastRequestedWinsKey)
         self.lastRequestedVersion = defaults.string(forKey: Self.lastRequestedVersionKey)
+        self.hasAnswered = defaults.bool(forKey: Self.reviewAnsweredKey)
+        self.hasAskedAboutNewGame = defaults.bool(forKey: Self.newGameCardAskedKey)
 
         self.guidedGameIDs = Set(defaults.stringArray(forKey: Self.guidedGameIDsKey) ?? [])
         // 壊れた値は空に倒す。上限を超えて入っていても読み込み時に切り詰める。
@@ -206,8 +226,22 @@ public final class PlayLog {
             totalWins: totalWins,
             lastRequestedAt: lastRequestedAt,
             lastRequestedWins: lastRequestedWins,
-            lastRequestedVersion: lastRequestedVersion
+            lastRequestedVersion: lastRequestedVersion,
+            hasAnswered: hasAnswered,
+            hasAskedAboutNewGame: hasAskedAboutNewGame
         )
+    }
+
+    /// 新しいゲームの感想カード（#3061）を出したときに記録する。1 人につき一度きり。
+    public func markNewGameCardAsked() {
+        hasAskedAboutNewGame = true
+        defaults.set(true, forKey: Self.newGameCardAskedKey)
+    }
+
+    /// 感想カードで「App Store で感想を書く」を押したときに記録する（#3061）。以後、評価のお願いはどれも出さない。
+    public func markReviewAnswered() {
+        hasAnswered = true
+        defaults.set(true, forKey: Self.reviewAnsweredKey)
     }
 
     /// ゲームを1つ遊び終えた（リザルトが表示された）ときに呼ぶ。
@@ -548,6 +582,8 @@ public final class PlayLog {
         lastRequestedAt = nil
         lastRequestedWins = 0
         lastRequestedVersion = nil
+        hasAnswered = false
+        hasAskedAboutNewGame = false
         records = [:]
         guidedGameIDs = []
         playDays = []

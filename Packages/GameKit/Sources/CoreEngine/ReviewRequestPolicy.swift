@@ -10,18 +10,20 @@ import Foundation
 public enum ReviewRequestPolicy {
     /// 条件2: 通算これだけ勝つまでは一度も出さない（判断できる程度に遊んだ人にだけ聞く）。
     public static let firstRequestWins = 5
-    /// 条件3: 前回リクエストからの最小間隔（60日）。OS 側の上限（365日で3回）には、
-    /// 前回から 20 勝の歯止め（条件4）と合わせても当たらない（#1471 で 120 日から短縮）。
-    public static let minimumElapsed: TimeInterval = 60 * 24 * 60 * 60
-    /// 条件4: 前回リクエストからの最小勝利数。期間だけでなく利用実態でも間隔を担保する。
-    public static let minimumWinsSinceLast = 20
+    /// 条件3: 前回リクエストからの最小間隔（15日）。#1471 で 120 日から 60 日へ、#3061 で 15 日へ短縮した。
+    /// OS 側の上限（365日で3回）には、出す側の歯止めではなく OS に任せる（会長決裁 2026-10-29）。
+    public static let minimumElapsed: TimeInterval = 15 * 24 * 60 * 60
+    /// 条件4: 前回リクエストからの最小勝利数（#3061 で 20 勝から 5 勝へ短縮）。期間だけでなく利用実態でも間隔を担保する。
+    public static let minimumWinsSinceLast = 5
 
-    /// 条件2〜5 を満たすか。
+    /// 条件2〜5 を満たすか。「答えた人」（#3061）には常に出さない。
     public static func shouldRequest(
         state: ReviewRequestState,
         currentVersion: String,
         now: Date
     ) -> Bool {
+        // 答えた人（新しいゲームの感想カードで App Store のレビュー画面を開いた人）には二度と出さない。
+        guard !state.hasAnswered else { return false }
         // 条件2: 一桁の勝利数で聞かない。
         guard state.totalWins >= firstRequestWins else { return false }
         // 条件5: 同一バージョンでは1回まで（更新のたびに聞き直さない）。
@@ -32,5 +34,17 @@ public enum ReviewRequestPolicy {
         guard state.totalWins - state.lastRequestedWins >= minimumWinsSinceLast else { return false }
         // 条件3: 期間の歯止め。
         return now.timeIntervalSince(lastRequestedAt) >= minimumElapsed
+    }
+
+    /// 新しいゲームの感想カード（#3061）を出すか。条件1〜6 は飛び越える（勝敗も問わない）。
+    ///
+    /// 出すのは、答えていない人が新着のゲームを 1 局最後まで遊んだ直後に、**一人につき一度だけ**
+    /// （版ごとにリセットしない）。
+    public static func shouldAskAboutNewGame(
+        state: ReviewRequestState,
+        gameID: String,
+        newGameIDs: Set<String> = NewGames.currentVersionIDs
+    ) -> Bool {
+        !state.hasAnswered && !state.hasAskedAboutNewGame && newGameIDs.contains(gameID)
     }
 }

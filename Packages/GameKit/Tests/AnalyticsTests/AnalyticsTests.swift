@@ -213,7 +213,7 @@ struct AnalyticsEventShapeTests {
         #expect(sent == ["accepted", "declined", "not_ready"])
     }
 
-    @Test("イベントは game_start / game_end / reward_ad / reward_request / game_open / reward_offer / share_tap / notification_permission の8種だけで、パラメータも決まった鍵しか持たない")
+    @Test("イベントは game_start / game_end / reward_ad / reward_request / game_open / reward_offer / share_tap / notification_permission / review_prompt の9種だけで、パラメータも決まった鍵しか持たない")
     func namesAndParameters() {
         // 全量の列挙（#659 で2種・#780 で1種・#1043 で1種）。個々の鍵は下と上の各テストで固定する。
         #expect([
@@ -225,9 +225,17 @@ struct AnalyticsEventShapeTests {
             .rewardOffer(gameID: "2048", purpose: .undo, result: .declined),
             .shareTap(gameID: "2048"),
             .notificationPermission(result: .granted, trigger: .resume),
+            .reviewPrompt(kind: .newGameCard, step: .shown),
         ].map(\.name) == [
             "game_start", "game_end", "reward_ad", "reward_request", "game_open", "reward_offer", "share_tap",
-            "notification_permission",
+            "notification_permission", "review_prompt",
+        ])
+
+        // `review_prompt`（#3061）は kind / step の 2 鍵だけで、ゲーム ID を載せない。語彙は enum に閉じる。
+        #expect(ReviewPromptKind.allCases.map(\.rawValue) == ["regular", "new_game_card"])
+        #expect(ReviewPromptStep.allCases.map(\.rawValue) == ["shown", "write_review", "later", "os_requested"])
+        #expect(AnalyticsEvent.reviewPrompt(kind: .newGameCard, step: .writeReview).parameters == [
+            "kind": .string("new_game_card"), "step": .string("write_review"),
         ])
 
         #expect(AnalyticsEvent.gameStart(gameID: "2048").name == "game_start")

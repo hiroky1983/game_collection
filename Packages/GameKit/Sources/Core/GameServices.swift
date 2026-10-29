@@ -330,7 +330,8 @@ public struct GameServices {
         let isNewScoreBest = result.map { $0.update.points || $0.update.highestValue || $0.update.seconds || $0.update.moves } ?? false
         let willRequestReview = review?.gameDidFinish(
             outcome: outcome,
-            isHighlight: isReviewHighlight || isNewScoreBest
+            isHighlight: isReviewHighlight || isNewScoreBest,
+            gameID: gameID
         ) ?? false
         recommendations?.gameDidFinish(gameID: gameID, isSuppressedByOtherPrompt: willRequestReview)
         // Game Center（#289）は**最後**に呼ぶ。実績の進捗は `PlayLog` の通算値から作るため、
