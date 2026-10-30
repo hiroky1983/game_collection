@@ -766,7 +766,7 @@ private struct HandAreaView: View {
                             let selected = model.selectedHand == type && color == pos.sideToMove
                             let count    = hand[type.rawValue]
                             let isHint   = isYou && model.hintDropType == type
-                            Button { model.tapHand(type, color: color) } label: {
+                            Button { model.tapHand(type, color: color) } label: { // a11y-ok: 駒札の高さは KomaView(32pt)+余白+個数で 44pt 超。幅は tapWidth で確保
                                 VStack(spacing: 2) {
                                     KomaView(piece: Piece(type: type, color: color),
                                              size: layout.scaled(32), pointsUp: isYou)
