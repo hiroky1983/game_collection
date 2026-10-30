@@ -24,7 +24,7 @@ Packages/GameKit/
     MahjongTiles/       ← 麻雀牌の絵柄と描画（`MahjongTile`・牌ビュー・ギャラリー。麻雀ソリティアと四人打ち麻雀で共有し、各ゲームで描き直さない）
     Game2048/           ← 2048
     GameShogi/          ← 将棋
-    GameMahjong/        ← 麻雀（4人打ち。`release/v1.1.14` から、配牌のまま 1 枚も切っていない 1 局目〈`roundNumber == 1 && honba == 0 && dealer == 0` で河・副露が空〉は「続きから」に出さない・#2542。保存は残るので開き直すと同じ配牌に戻る。`hasUntouchedSnapshot` で見分け、走査テスト `UntouchedSnapshotScanTests` の開始操作表に登録。※ release/v1.1.14 で実装・main へは未取り込み）
+    GameMahjong/        ← 麻雀（4人打ち。`release/v1.1.14` から、配牌のまま 1 枚も切っていない 1 局目〈`roundNumber == 1 && honba == 0 && dealer == 0` で河・副露が空〉は「続きから」に出さない・#2542。保存は残るので開き直すと同じ配牌に戻る。`hasUntouchedSnapshot` で見分け、走査テスト `UntouchedSnapshotScanTests` の開始操作表に登録。※ release/v1.1.14 で実装・main へは未取り込み。対局の長さは `MahjongGameLength` の 3 択〈一局戦・東風戦・半荘戦、開始シートの並びもこの順。`release/v1.1.15`・#3098〉。半荘戦は東1局〜南4局の 8 局で、終わり方〈トビ・アガリやめ・流局の本場・トビ復活〉は東風戦の決まりを南場まで延ばしたもの、西入なし。場は別に保存せず通し番号 `roundNumber`〈1〜8〉と `gameLength` から導く〈`roundWind(forRound:)`。旧データは東場〉。記録は `recordVariant = "hanchan"` で東風戦・一局戦と別枠、Game Center の順位表へは送らない）
     GameSudoku/         ← ナンプレ
     GameOthello/        ← オセロ（置ける升の白い点は新規対局シートの「打てる場所の表示」トグルでオン・オフできる。既定オン・#3005・release/v1.1.15。保存は `UserDefaults` の Bool 1 つ〈キー `othelloShowLegalMoves`〉で、シートで「始める」を押したときだけ反映。VoiceOver の「置ける」読み上げはオフでも維持）
     GameGo/             ← 囲碁
@@ -1334,7 +1334,7 @@ v1.1.4 までの公開版は3種）。
   自動的に対象へ入るため、**このドキュメントに `game_id` の値そのものを列挙しない**
   （列挙すると新ゲーム追加のたびに手動同期が要り、漏れの温床になる。実際の値は各ゲームの
   `GameModule.id` を参照すること）
-- `mode`（`AnalyticsMode`）は遊び方の区分（v1.1.5）。四人打ち麻雀は `tonpuu`（東風戦）/ `single_hand`（一局戦）、
+- `mode`（`AnalyticsMode`）は遊び方の区分（v1.1.5）。四人打ち麻雀は `tonpuu`（東風戦）/ `single_hand`（一局戦）/ `hanchan`（半荘戦・v1.1.15・#3098）、
   チャリンコおじさんは `stage`（ステージ制。面番号は `level` の `stage-N`）/ `endless`（エンドレス。`level` を送らない）。
   おじさんの荷物運びパズルは `backpain`（荷運びモード。旧称「腰痛モード」）/ `puzzle`（パズルモード）（#1920）。
   将棋は手合い（#2179・v1.1.12）で `even`（平手）/ `rook_player`・`rook_cpu`（飛車落ち。落とす側が自分／CPU）/ `bishop_player`・`bishop_cpu`（角落ち）。
