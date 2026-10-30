@@ -694,7 +694,7 @@ Game Center の ID。英語の訳文には他社の商標名を入れない（�
 
 ---
 
-## 評価リクエスト（`ReviewRequestPolicy`・#53 / #1471・#3061）
+## 評価リクエスト（`ReviewRequestPolicy`・#53 / #1471・#3061・#3078）
 
 勝ちの中でも「見せ場」の直後にだけ、OS の評価ダイアログ（`requestReview`）を依頼する。
 判定は `ReviewRequestPolicy`（純粋関数）、予定と記録は `ReviewRequestService`、
@@ -729,8 +729,24 @@ Game Center の ID。英語の訳文には他社の商標名を入れない（�
   画面上のオーバーレイ（`ReviewRequestPrompt.swift`）で「新しいゲームはどうでしたか？」＋「App Store で感想を書く」／「あとで」を出す。
   「感想を書く」は App Store のレビュー記入画面（`ReviewRequestService.writeReviewURL`）を開く。行き先は 1 つで、感想の中身による振り分けはしない。
   同じ決着で通常の評価リクエストと重なったらカードを優先する。
-- 保存は上の真偽値 2 個だけ（端末内のみ・サーバ送信なし・増えない）。「プレイ記録を消去」で消える。
-- 解析は `review_prompt`（`kind` = regular\|new_game_card、`step` = shown\|write_review\|later\|os_requested。下記「解析仕様」）。
+- 保存は真偽値 2 個（`review_answered_v1`・`review_newGameCardAsked_v1`）。端末内のみ・サーバ送信なし・増えない。「プレイ記録を消去」で消える。
+- 解析は `review_prompt`（`kind` = regular\|new_game_card、`step` = shown\|write_review\|later\|os_requested、`trigger` は下記の節目のときだけ。下記「解析仕様」）。
+
+### 遊んだ日数の節目（#3078）
+
+アプリを開いた日の合計が **7 日・30 日**に達した日に、勝敗を問わず OS の評価ダイアログを 1 回依頼する（勝ちの少ない人にも届ける）。
+
+- **数え方**: `PlayLog.recordAppOpenDay`。起動・前面復帰・ハブに戻った・決着のたびに呼び、同じ日は何度でも 1。
+  端末の時計を戻されても増えない（最後に数えた日以前は数えない）。決着した日だけを数える `playDays`（連続プレイ日数・きろくの「遊んだ日数」）とは別物。
+- **出す場所**: ハブに戻った（`HubView` の `path` が空になった）ときと、リザルト（`gameDidFinish`・敗北・引き分けも含む）。
+  **起動直後・プレイ中には出さない**（起動は `appDidOpen()` で数えるだけ）。予定を立てたら 1.0 秒待ち、その前に画面を離れたら破棄する
+  （ハブは NavigationStack の根でゲームの下に残るため、`hubReviewRequestPrompt(isActive:)` でハブが前面にある間だけ実行する）。破棄した節目は消費しない。
+- **共通仕様**: 答えた人には出さない（C）、前回のお願いから 15 日以内なら出さない（A）。条件 2〜5（勝利数・同一バージョン 1 回）は課さない。
+- **競合**: 感想カードの予定があるときはカードを優先し、節目は次の区切りに回す。勝ちの見せ場の予定と重なったら見せ場を優先する。
+- **1 回まで**: 節目ごとに 1 回（`review_daysMilestoneAsked_v1` に出し終えた最大の節目を記録）。間隔で出せなかった節目は、明けた最初の区切りで出す。
+  7・30 日がまとめて未消化なら大きい方 1 回で両方を済ませる。
+- **保存**: 整数 3 個（`review_openDays_v1`・`review_lastOpenDay_v1`・`review_daysMilestoneAsked_v1`）。端末内のみ・サーバ送信なし・増えない。「プレイ記録を消去」で消える。
+- **解析**: `review_prompt` の `trigger` = `days_7` \| `days_30`（見せ場の勝ちには付けない）。
 
 禁止: 独自の「楽しんでいますか？」画面で振り分けてから OS の評価に回すこと（ガイドライン違反のおそれ）、
 評価と引き換えの特典。
@@ -1303,7 +1319,7 @@ v1.1.4 までの公開版は3種）。
 | `clear_exit` | 面をクリアした直後の画面を、次の面にも「もう一度」にも進まず離れた（チャリンコおじさんのステージ制。`GameAnalytics.leaveGame` の1か所・#2848） | `game_id` / `level`(`stage-N`) |
 | `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の8値） |
 | `notification_permission` | 通知の許可ダイアログを**実際に出した** 1 回につき 1 回（すでに許可 / 拒否が決まっている状態の問い合わせでは送らない。各 `UserNotification*Scheduler.requestExplicitAuthorization` の1か所・#2008） | `result`(granted\|denied) / `trigger`(resume\|challenge\|reengagement。`reengagement` は #2938 以降は発火しない)。ゲーム ID は載せない。GA4 のカスタムディメンション登録が要る（会長操作） |
-| `review_prompt` | 評価のお願いの段階（#3061）。カードを出した（`shown`）・「App Store で感想を書く」（`write_review`）・「あとで」（`later`）・OS の評価ダイアログを依頼した（`os_requested`。出たかどうかは OS しか知らない）の 1 回につき 1 回 | `kind`(regular\|new_game_card) / `step`(shown\|write_review\|later\|os_requested)。ゲーム ID は載せない。GA4 のカスタムディメンション登録が要る（会長操作） |
+| `review_prompt` | 評価のお願いの段階（#3061）。カードを出した（`shown`）・「App Store で感想を書く」（`write_review`）・「あとで」（`later`）・OS の評価ダイアログを依頼した（`os_requested`。出たかどうかは OS しか知らない）の 1 回につき 1 回 | `kind`(regular\|new_game_card) / `step`(shown\|write_review\|later\|os_requested) / `trigger`(days_7\|days_30。遊んだ日数の節目のときだけ・#3078)。ゲーム ID は載せない。GA4 のカスタムディメンション登録が要る（会長操作） |
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
 | `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick\|quick_action\|hero\|resume_reminder\|reengagement\|challenge_return\|records\|deeplink) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり）。`hero` はハブ先頭の特別枠（柵越えおじさん・#1761）だったが、v1.1.14（#2566）で通常のタイル（`hub`・位置あり）になり発火点は無い（GA4 の既存値のため語彙には残す）。`records` は「きろく」画面のゲーム行をタップして開いたとき（#1974。`position` は持たない）。`notification` は通知を種類別に分ける前の旧値で、#1950 以降は送らない |
 | `reward_offer` | リワード広告の**提示**が終わった（1 回の提示につき 1 回。下の定義） | `game_id` / `purpose`（上表の8値） / `result`(accepted\|declined\|not_ready) |
