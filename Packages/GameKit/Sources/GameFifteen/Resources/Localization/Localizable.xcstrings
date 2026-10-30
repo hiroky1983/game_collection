@@ -1,6 +1,17 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "新しいパズルを始めます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starts a new puzzle"
+          }
+        }
+      }
+    },
     "。" : {
       "extractionState" : "manual",
       "localizations" : {

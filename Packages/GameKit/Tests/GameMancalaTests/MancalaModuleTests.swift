@@ -86,7 +86,7 @@ struct MancalaModuleTests {
         #expect(code.contains("gameDidStart(") && code.contains("gameDidRestart(") && code.contains("gameDidProgress(")
                 && code.contains("gameDidFinish("), "解析は 1 ゲーム 1 組 + 進行の 3 点で接続する")
         #expect(code.contains("CPUStrength.analyticsLevel(forLevel:"), "選んだ強さを game_start に載せる（#500）")
-        #expect(code.contains("RecordLabel(model.recordResult)"), "決着のカードに記録を出す")
+        #expect(code.contains("BoardGameResultCard(") && code.contains("record: model.recordResult"), "決着のカードに記録を出す（共通の結果カード・#3059）")
     }
 
     @Test("撮影用の経路は Release に残っていない")

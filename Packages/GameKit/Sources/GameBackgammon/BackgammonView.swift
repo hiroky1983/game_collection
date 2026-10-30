@@ -8,6 +8,8 @@ public struct BackgammonView: View {
     @State private var showPassAlert = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
+    /// 結果カードを閉じたか（#3059）。新しい対局が始まる（`gameOver` が偽に戻る）とリセットする。
+    @State private var resultCardClosed = false
     /// 「ヒント」のリワード広告の段取り（#2302）。
     @State private var hintRescue = RewardedRescue()
 
@@ -23,22 +25,16 @@ public struct BackgammonView: View {
             board
                 .padding(.horizontal, -Theme.pad)
                 .layoutPriority(1)
-                .overlay {
-                    // 勝敗はフェードで出す。修飾子は 1 つのビューに 1 つだけ（入れ子にすると打ち消し合う・#199）。
-                    ZStack {
-                        if model.gameOver {
-                            resultOverlay
-                                .transition(.opacity)
-                        }
-                    }
-                    .gameAnimation(.easeOut(duration: 0.25), value: model.gameOver)
-                }
+                .boardGameResultCard(isPresented: model.gameOver && !resultCardClosed) { resultCard }
             Spacer(minLength: 0)
             HowToPlayHint(.backgammon, playLog: services.playLog)
             controlArea
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)
+        .onChange(of: model.gameOver) { _, over in
+            if !over { resultCardClosed = false }
+        }
         .padding(Theme.pad)
         .gameChrome(title: tr("バックギャモン"), review: services.review,
                     newGame: GameChromeNewGame(.match) {
@@ -257,50 +253,24 @@ public struct BackgammonView: View {
         )
     }
 
-    private var resultOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.45)
-            VStack(spacing: 12) {
-                // 勝敗・あがり数は 1 回で読ませる（RecordLabel は共有ボタンを持つので外に置く・オセロと同じ）。
-                VStack(spacing: 12) {
-                    let isWin = model.winner == model.humanSide
-                    Image(systemName: isWin ? "trophy.fill" : "flag.fill")
-                        .scaledFont(40, maxScale: 1.2)
-                        .foregroundStyle(isWin ? Theme.yellowText : Theme.coralText)
-                    Text(isWin ? tr("あなたの勝ち！") : tr("CPUの勝ち"))
-                        .scaledFont(24, weight: .bold, design: .rounded)
-                        .foregroundStyle(isWin ? Theme.tealText : Theme.coralText)
-                    if let kind = model.winKind, kind != .single {
-                        Text(tr("%1$@（%2$lld点）", kind.label, kind.rawValue))
-                            .scaledFont(15, weight: .bold, design: .rounded)
-                            .foregroundStyle(Theme.ink)
-                    }
-                    Text(tr("あがり あなた %1$lld – CPU %2$lld", model.board.off(for: .white), model.board.off(for: .black)))
-                        .scaledFont(15, weight: .semibold, design: .rounded)
-                        .monospacedDigit()
-                        .foregroundStyle(Theme.inkSubText)
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(resultAccessibilityLabel)
-                RecordLabel(model.recordResult)
+    @ViewBuilder
+    private var resultCard: some View {
+        if model.gameOver {
+            let offLine = tr("あがり あなた %1$lld – CPU %2$lld", model.board.off(for: .white), model.board.off(for: .black))
+            // ギャモン勝ち・バックギャモン勝ちは点数を理由に出し、あがり数は補足の行へ回す。
+            if let kind = model.winKind, kind != .single {
+                BoardGameResultCard(
+                    verdict: model.winner == model.humanSide ? .win : .loss,
+                    reason: tr("%1$@（%2$lld点）", kind.label, kind.rawValue),
+                    details: [offLine], record: model.recordResult
+                ) { resultCardClosed = true }
+            } else {
+                BoardGameResultCard(
+                    verdict: model.winner == model.humanSide ? .win : .loss,
+                    reason: offLine, record: model.recordResult
+                ) { resultCardClosed = true }
             }
-            .padding(28)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
         }
-        .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
-        // 背後の盤へ VoiceOver が移れないようにし、出現を告げる（#2232）。
-        .accessibilityElement(children: .contain)
-        .accessibilityAddTraits(.isModal)
-        .announcesResultAppearance(resultAccessibilityLabel)
-    }
-
-    private var resultAccessibilityLabel: String {
-        var parts = [model.winner == model.humanSide ? tr("あなたの勝ち") : tr("CPUの勝ち")]
-        if let kind = model.winKind, kind != .single {
-            parts.append(tr("%1$@（%2$lld点）", kind.label, kind.rawValue))
-        }
-        parts.append(tr("あがり あなた %1$lld – CPU %2$lld", model.board.off(for: .white), model.board.off(for: .black)))
-        return parts.joined(separator: tr("。"))
     }
 
     /// 対局中（投了・やり直し・待った）と終局後（もう一度・レコメンド）で中身が入れ替わるが、

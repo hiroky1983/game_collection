@@ -57,7 +57,7 @@ struct NumericCornerRadiusScanTests {
     /// 移行前の箇所（`Sources/` からの相対パス → 件数）。
     private static let legacy: [String: Int] = [
         "Game2048/Game2048View.swift": 2,
-        "GameBackgammon/BackgammonView.swift": 2,
+        "GameBackgammon/BackgammonView.swift": 1,
         "GameBlackjack/BlackjackView.swift": 1,
         "GameChess/ChessView.swift": 7,
         "GameConcentration/ConcentrationView.swift": 4,

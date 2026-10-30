@@ -8,6 +8,8 @@ public struct MancalaView: View {
     @State private var showConfirmNewGame = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
+    /// 結果カードを閉じたか（#3059）。新しい対局が始まる（`gameOver` が偽に戻る）とリセットする。
+    @State private var resultCardClosed = false
 
     public init(services: GameServices) {
         self.services = services
@@ -20,16 +22,7 @@ public struct MancalaView: View {
             Spacer(minLength: 0)
             board
                 .layoutPriority(1)
-                .overlay {
-                    // 勝敗はフェードで出す。修飾子は 1 つのビューに 1 つだけ（入れ子にすると打ち消し合う・#199）。
-                    ZStack {
-                        if model.gameOver {
-                            resultOverlay
-                                .transition(.opacity)
-                        }
-                    }
-                    .gameAnimation(.easeOut(duration: 0.25), value: model.gameOver)
-                }
+                .boardGameResultCard(isPresented: model.gameOver && !resultCardClosed) { resultCard }
             Text(statusMessage)
                 .themeBody(14, weight: .semibold)
                 .foregroundStyle(Theme.inkSubText)
@@ -43,6 +36,9 @@ public struct MancalaView: View {
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)
+        .onChange(of: model.gameOver) { _, over in
+            if !over { resultCardClosed = false }
+        }
         .padding(Theme.pad)
         .gameChrome(title: tr("マンカラ"), review: services.review,
                     newGame: GameChromeNewGame(.match) {
@@ -202,69 +198,23 @@ public struct MancalaView: View {
                             onResign: { model.resign() })
     }
 
-    private var resultOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.45)
-            VStack(spacing: 12) {
-                // 勝敗・ストアの数は 1 回で読ませる（RecordLabel は共有ボタンを持つので外に置く・オセロと同じ）。
-                VStack(spacing: 10) {
-                    Image(systemName: resultSymbol)
-                        .scaledFont(40, maxScale: 1.2)
-                        .foregroundStyle(resultColor)
-                    Text(resultVerdict)
-                        .themeBody(24, weight: .bold)
-                        .foregroundStyle(resultColor)
-                    Text(tr("あなた %1$lld – CPU %2$lld", model.humanStore, model.cpuStore))
-                        .themeBody(22, weight: .black)
-                        .monospacedDigit()
-                        .foregroundStyle(Theme.ink)
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(resultAccessibilityLabel)
-                RecordLabel(model.recordResult)
-            }
-            .padding(24)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Theme.corner))
-        }
-        .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
-        // 背後の盤へ VoiceOver が移れないようにし、出現を告げる（#2232）。
-        .accessibilityElement(children: .contain)
-        .accessibilityAddTraits(.isModal)
-        .announcesResultAppearance(resultAccessibilityLabel)
-    }
-
-    private var resultSymbol: String {
+    private var resultVerdict: BoardGameResultCard.Verdict {
         switch model.reviewOutcome {
-        case .win:  return "trophy.fill"
-        case .loss: return "flag.fill"
-        case .draw: return "equal.circle.fill"
+        case .win:  return .win
+        case .loss: return .loss
+        case .draw: return .draw
         }
     }
 
-    private var resultColor: Color {
-        switch model.reviewOutcome {
-        case .win:  return Theme.tealText
-        case .loss: return Theme.coralText
-        case .draw: return Theme.inkSubText
+    @ViewBuilder
+    private var resultCard: some View {
+        if model.gameOver {
+            BoardGameResultCard(
+                verdict: resultVerdict,
+                reason: tr("あなた %1$lld – CPU %2$lld", model.humanStore, model.cpuStore),
+                record: model.recordResult
+            ) { resultCardClosed = true }
         }
-    }
-
-    private var resultVerdict: String {
-        switch model.reviewOutcome {
-        case .win:  return tr("あなたの勝ち！")
-        case .loss: return tr("CPUの勝ち")
-        case .draw: return tr("引き分け")
-        }
-    }
-
-    private var resultAccessibilityLabel: String {
-        let verdict: String
-        switch model.reviewOutcome {
-        case .win:  verdict = tr("あなたの勝ち")
-        case .loss: verdict = tr("CPUの勝ち")
-        case .draw: verdict = tr("引き分け")
-        }
-        return tr("%1$@ あなた %2$lld 対 CPU %3$lld", verdict, model.humanStore, model.cpuStore)
     }
 
     // MARK: - 盤の下の操作エリア
