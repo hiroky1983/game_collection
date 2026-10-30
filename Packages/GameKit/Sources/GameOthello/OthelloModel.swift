@@ -51,6 +51,9 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     /// パスが成立するたびに増える通し番号（#2797。囲碁 `passEventID` と同じ）。View は値が変わったことで
     /// 「パス」の札を出す。人間のパスも CPU のパスも数える。永続化せず、0 へも戻さない。
     public private(set) var passEventID: Int = 0
+    /// 人間側のパスが成立するたびに増える通し番号（#3104）。View の VoiceOver 読み上げの契機で、
+    /// 確定が View の `onChange` 経由でも Model の保険経路でも、1 回ずつ読み上げられる。
+    public private(set) var humanPassEventID: Int = 0
     /// 出したままの「パス」の札を畳む契機（待った・新規対局・投了。囲碁 `passBannerDismissID` と同じ）。
     public private(set) var passBannerDismissID: Int = 0
     public private(set) var undoUsed: Bool
@@ -219,6 +222,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         // パスを含む一連のやり取りは、直前の自分の着手まとめて `undoLastExchange()` で戻す。
         mustPass     = false
         hintPoint    = nil
+        if currentStone == humanSide { humanPassEventID += 1 }
         currentStone = currentStone.opponent
         turnID      += 1
         passEventID += 1
@@ -269,6 +273,18 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     }
 
     public func performAIMoveIfNeeded() async {
+        // 人間側のパスの保険（#3104）。View の `onChange(of: mustPass)` が発火しない局面があり、
+        // 発火しないと着手も「待った」も塞がって投了しか残らない。局面が動くたびに回るこの経路でも
+        // 確定させる。`onChange` が先に確定していれば `mustPass` が false なので何もしない。
+        if mustPass, !isAITurn, !gameOver {
+            await withAITurnGuard(key: \.aiTurnKey) {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+            } commit: { _ in
+                guard !isAITurn, mustPass else { return }
+                confirmPass()
+            }
+            return
+        }
         guard isAITurn, !isThinking, !gameOver else { return }
         // 待ちの最中に新規対局が始まると、旧盤面での判断（パス・着手）が新しい盤面に
         // 適用されてしまう。開始時の `aiTurnKey`（対局の通し番号 × turnID）と
