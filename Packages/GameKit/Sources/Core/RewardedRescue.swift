@@ -327,29 +327,18 @@ public struct RewardedContinueOverlay<Detail: View>: View {
         ZStack {
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .fill(.black.opacity(0.55))
-            VStack(spacing: 12) {
-                Text(title).font(titleFont).foregroundStyle(.white)
-                detail
-                if canContinue {
-                    GameDeadEndActionButton(
-                        rescueLabel, systemImage: "play.rectangle.fill",
-                        tint: Theme.Fill.coral, isDisabled: continueRescue.isWatching
-                    ) {
-                        // 視聴完了（報酬獲得）したときだけコンティニューを許可する。どの局に対するものかを
-                        // 広告を出す前に控え、ロード中に入れ替わった局へは乗せない（#729）。
-                        let game = serial()
-                        continueRescue.request(
-                            services, gameID: gameID, purpose: .continue,
-                            guardedBy: .checkedByGrant
-                        ) {
-                            grant(game)
-                        }
+            // 最大の文字サイズ・SE では見出し＋ボタン 2 つが盤より背が高くなり上下が切れる（#3106）。
+            // **収まるあいだは今までの非スクロール表示のまま**、収まらないときだけスクロールに落とす
+            // （`GameDeadEndPanel` と同じ手当て）。
+            ViewThatFits(in: .vertical) {
+                content
+                GeometryReader { geo in
+                    ScrollView(showsIndicators: false) {
+                        // 幅を枠に固定する（`ScrollView` は中身の理想幅を提案してくるため）。
+                        content
+                            .frame(width: geo.size.width)
+                            .frame(minHeight: geo.size.height)
                     }
-                }
-                // 視聴中に「もう一度」「諦めて答えを見る」を押すと局が入れ替わり、見終えた広告が
-                // `grant` の局照合で弾かれて見損になる（#911。マインスイーパーの #816 と同型）。
-                GameDeadEndDismissButton(secondaryTitle, isDisabled: continueRescue.isWatching) {
-                    secondaryAction()
                 }
             }
             .padding(contentPadding)
@@ -360,6 +349,34 @@ public struct RewardedContinueOverlay<Detail: View>: View {
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isModal)
         .announcesResultAppearance(title)
+    }
+
+    private var content: some View {
+        VStack(spacing: 12) {
+            Text(title).font(titleFont).foregroundStyle(.white)
+            detail
+            if canContinue {
+                GameDeadEndActionButton(
+                    rescueLabel, systemImage: "play.rectangle.fill",
+                    tint: Theme.Fill.coral, isDisabled: continueRescue.isWatching
+                ) {
+                    // 視聴完了（報酬獲得）したときだけコンティニューを許可する。どの局に対するものかを
+                    // 広告を出す前に控え、ロード中に入れ替わった局へは乗せない（#729）。
+                    let game = serial()
+                    continueRescue.request(
+                        services, gameID: gameID, purpose: .continue,
+                        guardedBy: .checkedByGrant
+                    ) {
+                        grant(game)
+                    }
+                }
+            }
+            // 視聴中に「もう一度」「諦めて答えを見る」を押すと局が入れ替わり、見終えた広告が
+            // `grant` の局照合で弾かれて見損になる（#911。マインスイーパーの #816 と同型）。
+            GameDeadEndDismissButton(secondaryTitle, isDisabled: continueRescue.isWatching) {
+                secondaryAction()
+            }
+        }
     }
 }
 
