@@ -562,6 +562,39 @@
         }
       }
     },
+    "ゆっくりモードを切り替えますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch Slow Mode?"
+          }
+        }
+      }
+    },
+    "切り替える" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch"
+          }
+        }
+      }
+    },
+    "ブロック崩しとチャリンコおじさんの進行中のデータが消えます。元に戻せません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved progress in Block Breaker and Charinko Ojisan will be erased. This can't be undone."
+          }
+        }
+      }
+    },
     "プレイ記録を消去しますか？" : {
       "extractionState" : "manual",
       "localizations" : {
