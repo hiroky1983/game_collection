@@ -9,6 +9,9 @@ enum MahjongHowToFigures {
     /// 東風戦の版。
     static let items: [@MainActor @Sendable () -> AnyView] = [{ AnyView(FlowFigure(rounds: 4)) }] + common
 
+    /// 半荘戦の版。
+    static let hanchanItems: [@MainActor @Sendable () -> AnyView] = [{ AnyView(FlowFigure(rounds: 8)) }] + common
+
     /// 一局戦の版。
     static let singleHandItems: [@MainActor @Sendable () -> AnyView] = [{ AnyView(FlowFigure(rounds: 1)) }] + common
 
@@ -28,19 +31,26 @@ enum MahjongHowToFigures {
         MahjongTileView(tile: tile, width: width, height: height, isSelected: selected, isHinted: hinted)
     }
 
-    /// 東 1 局 → … → 東 4 局（一局戦は東 1 局だけ）。持ち点は 25000 点から。
+    /// 東 1 局 → … → 東 4 局（一局戦は東 1 局だけ、半荘戦は続けて南 1 局 → 南 4 局）。持ち点は 25000 点から。
+    /// 1 行に並べるのは東風戦の 4 局まで。半荘戦の 8 局は東場と南場の 2 段にする（1 行だと SE で潰れる）。
     struct FlowFigure: View {
         let rounds: Int
+        private static let perRow = MahjongGameLength.tonpuu.roundCount
 
         var body: some View {
             VStack(spacing: 8) {
-                RuleFrames(count: rounds, spacing: 4) { index in
-                    Text(tr("東%lld局", index + 1))
-                        .scaledFont(12, weight: .black, design: .rounded, maxScale: 1.15)
-                        .foregroundStyle(Theme.ink)
-                        .lineLimit(1).minimumScaleFactor(0.7)
-                        .padding(.horizontal, 8).padding(.vertical, 6)
-                        .background(Capsule().fill(Theme.coral.opacity(0.15)))
+                ForEach(0..<(rounds + Self.perRow - 1) / Self.perRow, id: \.self) { row in
+                    let first = row * Self.perRow
+                    RuleFrames(count: min(Self.perRow, rounds - first), spacing: 4) { index in
+                        let number = first + index + 1
+                        Text(rounds > Self.perRow ? MahjongGameLength.hanchan.roundName(forRound: number)
+                                                  : tr("東%lld局", number))
+                            .scaledFont(12, weight: .black, design: .rounded, maxScale: 1.15)
+                            .foregroundStyle(Theme.ink)
+                            .lineLimit(1).minimumScaleFactor(0.7)
+                            .padding(.horizontal, 8).padding(.vertical, 6)
+                            .background(Capsule().fill(Theme.coral.opacity(0.15)))
+                    }
                 }
                 RuleFigureLabel(tr("持ち点 25000 点から。多い順に順位"))
             }
@@ -180,6 +190,7 @@ extension MahjongGameLength {
         switch self {
         case .tonpuu: .mahjong.illustrated(MahjongHowToFigures.items)
         case .singleHand: .mahjongSingleHand.illustrated(MahjongHowToFigures.singleHandItems)
+        case .hanchan: .mahjongHanchan.illustrated(MahjongHowToFigures.hanchanItems)
         }
     }
 

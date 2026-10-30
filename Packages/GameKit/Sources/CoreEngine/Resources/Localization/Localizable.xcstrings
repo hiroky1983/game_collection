@@ -891,6 +891,17 @@
         }
       }
     },
+    "半荘戦" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hanchan"
+          }
+        }
+      }
+    },
     "一局戦" : {
       "extractionState" : "manual",
       "localizations" : {

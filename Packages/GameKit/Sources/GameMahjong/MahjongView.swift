@@ -441,7 +441,7 @@ public struct MahjongView: View {
             names: (0..<n).map { model.playerName($0) },
             seatWinds: (0..<n).map { model.seatWind($0) },
             currentPlayer: model.phase == .playing ? model.currentPlayer : nil,
-            roundNumber: model.displayedRoundNumber,
+            roundName: model.gameLength.roundName(forRound: model.displayedRoundNumber),
             honba: model.displayedHonba,
             riichiSticks: model.riichiSticks,
             remainingTiles: model.remainingTiles,

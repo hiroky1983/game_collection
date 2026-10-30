@@ -489,6 +489,17 @@
         }
       }
     },
+    "CPU 3 人と東 1 局から南 4 局まで戦い、持ち点の多い順に順位が決まります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play East 1 through South 4 against 3 CPUs. Rankings go by points."
+          }
+        }
+      }
+    },
     "CPU 3 人と東 1 局だけを戦い、持ち点の多い順に順位が決まります。" : {
       "extractionState" : "manual",
       "localizations" : {

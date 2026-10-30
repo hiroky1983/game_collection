@@ -386,6 +386,9 @@ public extension HowToPlayGuide {
     /// 一局戦（東 1 局だけ・#639）の麻雀。
     static var mahjongSingleHand: HowToPlayGuide { mahjong(flow: tr("CPU 3 人と東 1 局だけを戦い、持ち点の多い順に順位が決まります。")) }
 
+    /// 半荘戦（東 1 局〜南 4 局・#3098）の麻雀。
+    static var mahjongHanchan: HowToPlayGuide { mahjong(flow: tr("CPU 3 人と東 1 局から南 4 局まで戦い、持ち点の多い順に順位が決まります。")) }
+
     private static func mahjong(flow: String) -> HowToPlayGuide { HowToPlayGuide(
         gameID: "mahjong4",
         title: tr("麻雀の遊び方"),

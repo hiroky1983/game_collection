@@ -15,7 +15,6 @@ enum MahjongOnboarding {
     static let exampleScores = [32000, 27000, 22000, 19000]
 
     static func guide(length: MahjongGameLength) -> OnboardingGuide {
-        let isTonpuu = length == .tonpuu
         return OnboardingGuide(
             gameID: "mahjong4",
             title: tr("麻雀のはじめての遊び方"),
@@ -23,8 +22,11 @@ enum MahjongOnboarding {
                 OnboardingPage(
                     heading: tr("このゲームの目的"),
                     lines: [
-                        isTonpuu ? tr("CPU 3 人と対局します。東 1 局から東 4 局まで打ちます。")
-                                 : tr("CPU 3 人と対局します。東 1 局だけを打ちます。"),
+                        { switch length {
+                        case .tonpuu:     tr("CPU 3 人と対局します。東 1 局から東 4 局まで打ちます。")
+                        case .singleHand: tr("CPU 3 人と対局します。東 1 局だけを打ちます。")
+                        case .hanchan:    tr("CPU 3 人と対局します。東 1 局から南 4 局まで打ちます。")
+                        } }(),
                         tr("最後に、持ち点が多い順に順位が決まります。"),
                     ],
                     figure: { AnyView(MahjongHowToFigures.FlowFigure(rounds: length.roundCount)) }
@@ -67,8 +69,8 @@ enum MahjongOnboarding {
                     heading: tr("流局と順位"),
                     lines: [
                         tr("山が尽きたら流局。聴牌していた人が、3000 点を分け合います。"),
-                        isTonpuu ? tr("親が和了したり、聴牌で流局したりすると、同じ局を続けます（連荘）。")
-                                 : tr("一局戦は、親が和了っても連荘せず、その局で終わります。"),
+                        length.allowsDealerRepeat ? tr("親が和了したり、聴牌で流局したりすると、同じ局を続けます（連荘）。")
+                                                  : tr("一局戦は、親が和了っても連荘せず、その局で終わります。"),
                         tr("最後に、持ち点が多い順に順位が決まります。"),
                     ],
                     figure: { AnyView(RankFigure()) }

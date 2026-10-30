@@ -1434,6 +1434,72 @@
         }
       }
     },
+    "半荘戦" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hanchan"
+          }
+        }
+      }
+    },
+    "南%lld局" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "South %lld"
+          }
+        }
+      }
+    },
+    "東1局から南4局まで打って順位を決める、じっくり長めの対局" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The long game: play East 1 to South 4 to decide the ranking"
+          }
+        }
+      }
+    },
+    "CPU 3 人と対局します。東 1 局から南 4 局まで打ちます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You play against 3 CPUs, from East 1 through South 4."
+          }
+        }
+      }
+    },
+    "東1局から南4局までの8局。連荘・流局の本場・トビ・アガリやめは東風戦と同じ決まりで南場まで続けます。西入はしません。成績は東風戦とは別に数えます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eight hands, from East 1 to South 4. Dealer repeats, honba on draws, busting and ending as the leading dealer work as in the East Round, carried through the South round. There is no West round. Results are counted separately from the East Round."
+          }
+        }
+      }
+    },
+    "西入・立直したあとのカン・食い替えの禁止・流し満貫は採用していません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "West rounds, Kan after Riichi, swap-calling restrictions and Nagashi Mangan are not used"
+          }
+        }
+      }
+    },
     "一局戦" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1606,17 +1672,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "N"
-          }
-        }
-      }
-    },
-    "半荘戦・立直したあとのカン・食い替えの禁止・流し満貫は採用していません" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Half games (East-South), Kan after Riichi, swap-calling restrictions and Nagashi Mangan are not used"
           }
         }
       }
