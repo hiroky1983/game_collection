@@ -21,9 +21,9 @@ public enum MahjongAccessibility {
     }
 
     /// 局の見出し。
-    public static func roundLabel(roundNumber: Int, honba: Int, remainingTiles: Int) -> String {
+    public static func roundLabel(roundName: String, honba: Int, remainingTiles: Int) -> String {
         // 英語の複数形は最初の整数で選ばれるので、数ごとに別の文言にしてから区切りでつなぐ。
-        var parts = [tr("東%lld局", roundNumber)]
+        var parts = [roundName]
         if honba > 0 { parts.append(tr("%lld本場", honba)) }
         parts.append(tr("山の残り%lld枚", remainingTiles))
         return parts.joined(separator: listSeparator)

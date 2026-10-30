@@ -385,6 +385,7 @@ struct MahjongHanafudaHowToFiguresTests {
         [
             ("mahjong", .mahjong, MahjongHowToFigures.items),
             ("mahjongSingleHand", .mahjongSingleHand, MahjongHowToFigures.singleHandItems),
+            ("mahjongHanchan", .mahjongHanchan, MahjongHowToFigures.hanchanItems),
             ("mahjongSolitaire", .mahjongSolitaire, MahjongSolitaireHowToFigures.items),
             ("hanafuda", .hanafuda, HanafudaHowToFigures.items),
         ]

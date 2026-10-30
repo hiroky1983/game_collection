@@ -202,6 +202,8 @@ public enum AnalyticsMode: String, Equatable, Sendable, CaseIterable {
     case tonpuu
     /// 四人打ち麻雀の一局戦（v1.1.5）。1 対局が 1 局なので `game_start` が機械的に増える。
     case singleHand = "single_hand"
+    /// 四人打ち麻雀の半荘戦（#3098）。
+    case hanchan
     /// チャリンコおじさんのステージ制。面番号は `level` の `stage-N` が持つ。
     case stage
     /// チャリンコおじさんのエンドレス。面が無いので `level` を送らない。

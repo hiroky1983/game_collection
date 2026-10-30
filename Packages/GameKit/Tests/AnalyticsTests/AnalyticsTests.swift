@@ -313,10 +313,10 @@ struct AnalyticsEventShapeTests {
         #expect([GameOutcome.win, .loss, .draw].map { AnalyticsResult($0) } == [.win, .loss, .draw])
     }
 
-    @Test("mode は tonpuu / single_hand / stage / endless / backpain / puzzle と将棋の手合い5値・single_round の12値に閉じ、全値がどれかのゲームの遊び方から使われている（#820）")
+    @Test("mode は tonpuu / single_hand / hanchan / stage / endless / backpain / puzzle と将棋の手合い5値・single_round の13値に閉じ、全値がどれかのゲームの遊び方から使われている（#820）")
     func modeIsClosed() {
         #expect(AnalyticsMode.allCases.map(\.rawValue) == [
-            "tonpuu", "single_hand", "stage", "endless", "backpain", "puzzle",
+            "tonpuu", "single_hand", "hanchan", "stage", "endless", "backpain", "puzzle",
             "even", "rook_player", "rook_cpu", "bishop_player", "bishop_cpu", "single_round",
         ])
         // 送る文字列は rawValue そのもの（開始と終わりで同じ値）。

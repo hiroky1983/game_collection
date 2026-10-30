@@ -237,7 +237,7 @@ extension MahjongModel {
                 hand: hands[claim.player],
                 melds: melds[claim.player],
                 seatWind: seatWind(claim.player),
-                roundWind: 0
+                roundWind: gameLength.roundWind(forRound: roundNumber)
             )
             if let chosen {
                 performCall(chosen, by: claim.player)
