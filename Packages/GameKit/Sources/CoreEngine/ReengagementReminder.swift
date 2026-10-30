@@ -284,7 +284,10 @@ public final class ReengagementReminderService {
             guard let fireDate = ReengagementReminderPolicy.sixtyDayFireDate(lastPlayedAt: baseline, calendar: calendar),
                   ReengagementReminderPolicy.isUnresponsiveAfterSixtyDays(fireDate: fireDate, now: now())
             else { continue }
-            if let current = currentLastPlayed[gameID] ?? nil, current == baseline {
+            // 反応は「いずれかのゲームを遊んだ」で数える（#3091）。起点より後に進んだゲームが
+            // 1本でもあれば、毎日遊んでいる人なので停止せず、このスレッドを外すだけにする。
+            let playedAnyGameSince = games.contains { ($0.lastPlayedAt ?? .distantPast) > baseline }
+            if !playedAnyGameSince, let current = currentLastPlayed[gameID] ?? nil, current == baseline {
                 store.isPermanentlyStopped = true
                 store.activeThreads = [:]
                 store.lastThreadAddedAt = nil
