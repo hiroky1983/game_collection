@@ -244,11 +244,8 @@ public struct AnzanView: View {
         } label: {
             Label(tr("もう一度見る（広告）"), systemImage: "play.rectangle.fill")
                 .themeBody(13)
-                .foregroundStyle(Theme.onAccent)
-                .padding(.horizontal, 12).padding(.vertical, 7)
-                .background(Capsule().fill(replayRescue.isWatching ? Theme.inkSub.opacity(0.5) : Theme.Fill.yellow))
         }
-        .buttonStyle(.pop)
+        .buttonStyle(GameButtonStyle(role: .ad))
         .disabled(replayRescue.isWatching)
     }
 

@@ -249,7 +249,7 @@ public struct BoardResignButton: View {
     public var body: some View {
         switch look {
         case .handDrawnCapsule(let horizontalPadding):
-            Button(action: action) {
+            Button(action: action) { // a11y-ok: 手描き調の旧見た目。44pt の枠は tapTargetCapsule 側（別ゲームの移行は別 Issue）
                 Label(tr("投了"), systemImage: "flag.fill")
                     .foregroundStyle(Theme.onAccent)
                     .padding(.horizontal, horizontalPadding).padding(.vertical, 6)

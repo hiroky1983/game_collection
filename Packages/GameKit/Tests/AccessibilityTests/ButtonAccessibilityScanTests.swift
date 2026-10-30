@@ -80,6 +80,23 @@ struct ButtonAccessibilityScanTests {
         return !neighborhood.contains("contentShape") && !neighborhood.contains("minTapTarget")
     }
 
+    /// 近傍が余白（`.padding(.vertical, N)`・N は 12 以下）で高さを決めていて、下限の手当て
+    /// （`minHeight` / `minTapTarget` / `GameButtonStyle`）が無いか。固定 frame が無いので 44pt を割りやすい（#3105）。
+    static func isPaddingSizedButton(_ neighborhood: String) -> Bool {
+        let pattern = #"\.padding\(\.vertical,\s*([0-9]+(?:\.[0-9]+)?)\)|\.padding\(\.horizontal,\s*[0-9.]+\)\s*\.padding\(\.vertical,\s*([0-9]+(?:\.[0-9]+)?)\)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return false }
+        let range = NSRange(neighborhood.startIndex..., in: neighborhood)
+        let small = regex.matches(in: neighborhood, range: range).contains { match in
+            (1...2).contains { group in
+                Range(match.range(at: group), in: neighborhood)
+                    .flatMap { Double(neighborhood[$0]) }.map { $0 <= 12 } ?? false
+            }
+        }
+        guard small else { return false }
+        return !neighborhood.contains("GameButtonStyle") && !neighborhood.contains("minHeight")
+            && !neighborhood.contains("minTapTarget")
+    }
+
     /// `.frame(width: 28, height: 28)` の数値リテラルを集める（`minWidth` などの下限指定は含めない）。
     private static func frameSizes(in text: String) -> [Double] {
         guard let regex = try? NSRegularExpression(pattern: #"\.frame\(([^)]*)\)"#),
@@ -140,6 +157,15 @@ struct ButtonAccessibilityScanTests {
             """)
     }
 
+    @Test("余白で高さが決まる 44pt 未満のボタンは GameButtonStyle か minHeight に寄せる")
+    func paddingSizedButtonsHaveMinHeight() throws {
+        let found = try Self.offenders(Self.isPaddingSizedButton)
+        #expect(found.isEmpty, """
+            .padding(.vertical, 12 以下) で高さを決めるボタンは GameButtonStyle(role:shape:) \
+            （minHeight 44pt）に寄せる。意図的なら行末に // a11y-ok: 理由。\n\(found.joined(separator: "\n"))
+            """)
+    }
+
     /// 対照: ボタンの起点を実際に見つけていること（見つからない検査は何も止めない）。
     @Test("ボタンの起点を実際に検出している")
     func buttonStartsAreDetected() throws {
@@ -174,5 +200,14 @@ struct ButtonAccessibilityScanTests {
         #expect(!Self.isSmallTapTarget("Button { go() } label: { Image(systemName: \"x\").frame(width: 28, height: 28) }\n.frame(minWidth: GameButtonMetrics.minTapTarget)"))
         #expect(!Self.isSmallTapTarget("Button { go() } label: { Image(systemName: \"x\").frame(width: 44, height: 44) }"))
         #expect(!Self.isSmallTapTarget("Button { go() } label: { Text(\"a\").frame(maxWidth: .infinity) }"))
+    }
+
+    @Test("余白だけで高さを決めるボタンは違反、GameButtonStyle や minHeight があれば通す")
+    func paddingSizedRules() {
+        #expect(Self.isPaddingSizedButton("Button { go() } label: { Text(\"a\").padding(.vertical, 10) }"))
+        #expect(Self.isPaddingSizedButton("Button { go() } label: { Text(\"a\").padding(.horizontal, 12).padding(.vertical, 7) }"))
+        #expect(!Self.isPaddingSizedButton("Button { go() } label: { Text(\"a\").padding(.vertical, 10) }\n.buttonStyle(GameButtonStyle(role: .ad))"))
+        #expect(!Self.isPaddingSizedButton("Button { go() } label: { Text(\"a\").padding(.vertical, 10).frame(minHeight: 44) }"))
+        #expect(!Self.isPaddingSizedButton("Button { go() } label: { Text(\"a\").padding(.vertical, 16) }"))
     }
 }

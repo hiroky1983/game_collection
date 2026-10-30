@@ -834,7 +834,7 @@ public struct OjisanPuzzleView: View {
             // 自己ベストの 1 行（他ゲームのリザルトと同じ共通部品・#1904）。
             RecordLabel(model.recordResult)
             if model.canContinue { continueButton }
-            Button {
+            Button { // a11y-ok: 17pt 文字+縦余白 12×2 で 44pt 超（別 Issue で GameButtonStyle へ）
                 withGameAnimation { model.newGame() }
             } label: {
                 Text(tr("もう一回"))

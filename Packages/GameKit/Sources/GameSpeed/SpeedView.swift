@@ -682,7 +682,7 @@ public struct SpeedView: View {
         case .playing:
             VStack(spacing: 8) {
                 if model.canFlip {
-                    actionButton(flipTitle, color: Theme.Fill.coral) {
+                    actionButton(flipTitle) {
                         model.flipStocks()
                     }
                 } else {
@@ -753,28 +753,20 @@ public struct SpeedView: View {
                 .themeBody(14)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(timeoutRescue.isWatching ? Theme.inkSub.opacity(0.3) : Theme.Fill.teal,
-                            in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(timeoutRescue.isWatching ? Theme.inkSubText : Theme.onAccent)
         }
-        .buttonStyle(.pop)
+        .buttonStyle(GameButtonStyle(role: .ad, shape: .block))
         .disabled(timeoutRescue.isWatching)
     }
 
-    private func actionButton(_ title: String, color: Color, action: @escaping () -> Void) -> some View {
+    /// 主操作の横いっぱいのボタン。色・角丸・44pt は `GameButtonStyle` が持つ（#3105）。
+    private func actionButton(_ title: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
                 .themeBody(14)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 10)
-                .background(color, in: RoundedRectangle(cornerRadius: 10))
-                .foregroundStyle(Theme.onAccent)
         }
-        .buttonStyle(.pop)
+        .buttonStyle(GameButtonStyle(role: .primary, shape: .block))
     }
 
     // MARK: - リザルト
