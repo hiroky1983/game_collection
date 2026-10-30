@@ -119,12 +119,13 @@ Issue番号」を明記し、倉庫段階であることが一目で分かるよ
 
 - **main = リリース済みバージョンの集合**。App Store で公開された状態だけを表す。アプリコードの PR を直接向けない。
   - **これは CI で機械的に強制する**（2026-09-11 追加・#606）。`.github/workflows/pr-base-guard.yml` が
-    base = main の PR を見て、`App/` `Packages/` `project.yml` を含んでいれば落とす
+    base = main の PR を見て、許可リスト外のパス（`App/` `Packages/` `project.yml` に限らず `Config/` `fastlane/` `Gemfile` やルートに増えた新ディレクトリも）を含んでいれば落とす
+    （許可リスト方式・2026-10-30 #3052。それまでは禁止リスト方式で `Config/Package.resolved` が素通りした）
     （判定は `Scripts/check-pr-base.sh`・検証は `Scripts/tests/test-check-pr-base.sh`）。
     通すのは公開後の取り込み経路だけで、head が `release/vX.Y.Z` か、凍結回避の中間ブランチ
     `chore/merge-release-v<数字>-to-main` のときに限る。**バージョン番号の形まで見る**
     （`release/` の前方一致だけにすると、その名前を付けるだけで歯止めを迂回できる）。
-    `docs/` `Scripts/` `.github/` `web/` は従来どおり main 直でよい。
+    main 直でよいのは `docs/` `Scripts/` `.github/` `web/`・ルート直下の `*.md`・`.coderabbit.yaml` だけ（許可リスト）。
     **この歯止めが無いあいだ、main 直マージは当番のどの検知にも掛からなかった**: 仕事10
     （取り残しコミット）は「base にも main にも無いコミット」を探すため、main に入ったものは
     構造的に対象外になる。実際に PR #593 / #596 でチャリンコおじさんの6コミットが
