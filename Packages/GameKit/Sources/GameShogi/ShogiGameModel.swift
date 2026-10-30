@@ -928,6 +928,11 @@ extension ShogiMasterEngine {
     /// 開始シートに出す呼び名。
     public static var label: String { tr("達人") }
 
+    /// 生の `aiLevel` から強さの呼び名。達人は `CPUStrength` の並びの外（読み替えると「ふつう」に倒れる）ので先に拾う。
+    public static func strengthLabel(forLevel level: Int) -> String {
+        level == Self.level ? label : CPUStrength.strength(for: level).label
+    }
+
     /// 記録の区分キー。達人は既存の段（平手は区分なし＝通算の保存先）と混ざらないよう別の保存先にする。
     /// 駒落ちは手合いのキーの前に付ける（`master-rook-player` など）。達人以外は手合いの区分のまま。
     public static func recordVariant(level: Int, handicapVariant: String?) -> String? {

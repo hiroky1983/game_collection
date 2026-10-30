@@ -18,6 +18,15 @@ struct MasterEngineTests {
     }
 
     /// 達人の記録・解析は既存の段と混ざらない（確認用ビルド tf/shogi-master）。既存の段は今のまま。
+    /// #3110: 条件チップの強さ名。達人が「ふつう」に倒れない・既存 4 段は今のまま。
+    @Test func strengthLabelNamesMasterAndKeepsExistingLadder() {
+        #expect(ShogiMasterEngine.strengthLabel(forLevel: ShogiMasterEngine.level) == ShogiMasterEngine.label)
+        #expect(ShogiMasterEngine.strengthLabel(forLevel: ShogiMasterEngine.level) != CPUStrength.standard.label)
+        for strength in CPUStrength.allCases {
+            #expect(ShogiMasterEngine.strengthLabel(forLevel: strength.rawValue) == strength.label)
+        }
+    }
+
     @Test func masterRecordAndAnalyticsAreSeparate() {
         let master = ShogiMasterEngine.level
         #expect(ShogiMasterEngine.recordVariant(level: master, handicapVariant: nil) == "master")
