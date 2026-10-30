@@ -15,6 +15,8 @@ struct SettingsView: View {
     @State private var legalURL: IdentifiableURL?
     @State private var showClearPlayLogConfirm = false
     @State private var showResetOrderConfirm = false
+    /// 中断データが残っているときのゆっくりモード切り替えの確認待ち（#3107）。切り替え後の値を持つ。
+    @State private var pendingSlowMode: Bool?
     /// 通知の許諾状態（#1603）。開いたとき・設定アプリから戻ったときに読む。未確認の間は表示を変えない。
     @State private var notificationAuthorization: ReminderAuthorization?
 
@@ -145,12 +147,38 @@ struct SettingsView: View {
                 Section {
                     Toggle(isOn: Binding(
                         get: { settings.slowModeEnabled },
-                        set: { settings.slowModeEnabled = $0 }
+                        set: { newValue in
+                            // 切り替えると中断データが消えるので、残っているときだけ確認する（#3107）。
+                            // キャンセルしてもトグルは settings の値を読むので元のまま残る。
+                            if newValue != settings.slowModeEnabled, settings.slowModeToggleDiscardsSnapshots {
+                                pendingSlowMode = newValue
+                            } else {
+                                settings.slowModeEnabled = newValue
+                            }
+                        }
                     )) {
                         Label(tr("ゆっくりモード"), systemImage: "tortoise")
                             .foregroundStyle(Theme.ink)
                     }
                     .tint(Theme.coral) // accent-text-ok: トグルのトラック（面）
+                    .dialogs { anchor in
+                        anchor.confirmationDialog(
+                            tr("ゆっくりモードを切り替えますか？"),
+                            isPresented: Binding(
+                                get: { pendingSlowMode != nil },
+                                set: { if !$0 { pendingSlowMode = nil } }
+                            ),
+                            titleVisibility: .visible
+                        ) {
+                            Button(tr("切り替える"), role: .destructive) {
+                                if let value = pendingSlowMode { settings.slowModeEnabled = value }
+                                pendingSlowMode = nil
+                            }
+                            Button(tr("キャンセル"), role: .cancel) { pendingSlowMode = nil }
+                        } message: {
+                            Text(tr("ブロック崩しとチャリンコおじさんの進行中のデータが消えます。元に戻せません。"))
+                        }
+                    }
                 } header: {
                     Text(tr("あそびやすさ"))
                 } footer: {

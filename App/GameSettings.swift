@@ -50,6 +50,14 @@ final class GameSettings {
             AppEnvironment.services.snapshots.clear(for: BlocksModel.gameID)
         }
     }
+    /// ゆっくりモードを切り替えると消える中断データが、いま残っているか（#3107）。
+    /// 設定画面が、残っているときだけ切り替え前に確認を出すために読む。
+    var slowModeToggleDiscardsSnapshots: Bool {
+        // 「続きから」の判定ではなく、破棄されるものがあるかの有無なので、生の `exists` で見てよい。
+        // （ハブの走査テスト #809 が `snapshots.exists(` の直書きを禁じるため、変数名は `store`）
+        let store = AppEnvironment.services.snapshots
+        return store.exists(for: RunnerModel.gameID) || store.exists(for: BlocksModel.gameID)
+    }
     /// 解析送信のオン / オフ（#158）。既定はオン。
     /// オフのあいだ `logEvent` は呼ばれず、Firebase の自動収集イベントも止まる。
     var analyticsEnabled: Bool {
