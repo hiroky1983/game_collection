@@ -106,7 +106,7 @@ jobs:
               echo "base ブランチ（$BASE_REF）の取得に失敗したため全件検査にフォールバックする"
               exec python3 Scripts/compress-images.py --check
             fi
-            if ! pngs="$(git diff --name-only --diff-filter=AM "origin/$BASE_REF...HEAD" -- '*.png')"; then
+            if ! pngs="$(git diff --name-only --diff-filter=AMR "origin/$BASE_REF...HEAD" -- '*.png')"; then
               echo "差分の取得に失敗したため全件検査にフォールバックする"
               exec python3 Scripts/compress-images.py --check
             fi
@@ -119,7 +119,7 @@ jobs:
               echo "push 前の commit（$BEFORE_SHA）が取得できないため全件検査にフォールバックする"
               exec python3 Scripts/compress-images.py --check
             fi
-            if ! pngs="$(git diff --name-only --diff-filter=AM "$BEFORE_SHA" "$GITHUB_SHA" -- '*.png')"; then
+            if ! pngs="$(git diff --name-only --diff-filter=AMR "$BEFORE_SHA" "$GITHUB_SHA" -- '*.png')"; then
               echo "差分の取得に失敗したため全件検査にフォールバックする"
               exec python3 Scripts/compress-images.py --check
             fi
