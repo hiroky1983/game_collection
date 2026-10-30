@@ -277,22 +277,18 @@ public struct Game2048View: View {
     /// 2048 初到達の勝利演出（#438）。原典と同じく、ここから同じ盤面のまま続けられる。
     private var winOverlay: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 8).fill(.black.opacity(0.55))
+            RoundedRectangle(cornerRadius: Theme.corner, style: .continuous).fill(.black.opacity(0.55))
             VStack(spacing: 12) {
                 Text(tr("2048 達成！")).font(.title2.bold()).foregroundStyle(.white)
                 RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
-                Button {
+                GameDeadEndActionButton(
+                    tr("続ける"), systemImage: "arrow.forward.circle.fill", tint: Theme.Fill.coral
+                ) {
                     withGameAnimation { model.continueAfterWin() }
-                } label: {
-                    Label(tr("続ける"), systemImage: "arrow.forward.circle.fill")
-                        .foregroundStyle(Theme.onAccent)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.Fill.coral)
-                Button(tr("もう一回")) { withGameAnimation { model.newGame() } }
-                    .buttonStyle(.bordered)
-                    .tint(.white)
+                GameDeadEndDismissButton(tr("もう一回")) { withGameAnimation { model.newGame() } }
             }
+            .padding(RewardedPanelLayout.contentPadding)
         }
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isModal)
@@ -302,6 +298,7 @@ public struct Game2048View: View {
     private var gameOverOverlay: some View {
         RewardedContinueOverlay(
             title: tr("ゲームオーバー"),
+            cornerRadius: Theme.corner,
             detail: RecordLabel(model.recordResult, textColor: .white.opacity(0.85)),
             rescueLabel: tr("広告を見てコンティニュー"),
             canContinue: !model.continueUsed,
