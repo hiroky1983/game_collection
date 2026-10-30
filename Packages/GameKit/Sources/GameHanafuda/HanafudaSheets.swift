@@ -250,7 +250,7 @@ struct HanafudaYakuCardsFigure: View {
         HStack(alignment: .center, spacing: 3) {
             ForEach(Array(figure.slots.enumerated()), id: \.offset) { index, slot in
                 if index > 0 && figure.joinsWithPlus {
-                    Text(verbatim: "＋")
+                    Text(verbatim: "＋")  // i18n-keep: 札をつなぐ記号（言語によらず同じ）
                         .scaledFont(14, weight: .heavy, design: .rounded)
                         .foregroundStyle(Theme.inkSubText)
                 }
