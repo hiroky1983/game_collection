@@ -41,6 +41,10 @@ public struct ReviewRequestState: Equatable, Sendable {
     public var hasAnswered: Bool
     /// 新しいゲームの感想カード（#3061）を一度出したか。1 人につき一度きり（版ごとにリセットしない）。
     public var hasAskedAboutNewGame: Bool
+    /// アプリを開いた日の数の合計（#3078）。1 日に何度開いても 1。
+    public var openDays: Int
+    /// 遊んだ日数の節目（7・30）のうち、評価のお願いを出し終えた最大のもの（#3078）。0 なら未。
+    public var daysMilestoneAsked: Int
 
     public init(
         totalWins: Int = 0,
@@ -48,8 +52,12 @@ public struct ReviewRequestState: Equatable, Sendable {
         lastRequestedWins: Int = 0,
         lastRequestedVersion: String? = nil,
         hasAnswered: Bool = false,
-        hasAskedAboutNewGame: Bool = false
+        hasAskedAboutNewGame: Bool = false,
+        openDays: Int = 0,
+        daysMilestoneAsked: Int = 0
     ) {
+        self.openDays = openDays
+        self.daysMilestoneAsked = daysMilestoneAsked
         self.hasAnswered = hasAnswered
         self.hasAskedAboutNewGame = hasAskedAboutNewGame
         self.totalWins = totalWins
@@ -86,6 +94,13 @@ public final class PlayLog {
     public static let reviewAnsweredKey       = "review_answered_v1"
     /// 新しいゲームの感想カードを出し済みの印（#3061）。真偽値 1 個。扱いは上と同じ。
     public static let newGameCardAskedKey     = "review_newGameCardAsked_v1"
+    /// アプリを開いた日の数（#3078）。整数 1 個。`playDays`（決着した日・最大 366 個）とは別に数える
+    /// （節目の 30 日を、決着の無い日を含めて数えるため）。端末内のみ・サーバ送信なし・「プレイ記録を消去」で消える。
+    public static let openDaysKey             = "review_openDays_v1"
+    /// 最後に数えた日の日番号（#3078）。整数 1 個。同じ日を二度数えないための印。扱いは上と同じ。
+    public static let lastOpenDayKey          = "review_lastOpenDay_v1"
+    /// 遊んだ日数の節目を出し終えた最大の値（#3078）。整数 1 個。扱いは上と同じ。
+    public static let daysMilestoneAskedKey   = "review_daysMilestoneAsked_v1"
 
     /// ゲーム間レコメンド（#52）が書き込むキー。
     public static let recommendationKeys = [
@@ -97,8 +112,10 @@ public final class PlayLog {
         totalWinsKey, lastRequestedAtKey, lastRequestedWinsKey, lastRequestedVersionKey,
     ]
 
-    /// 評価のお願いの強化（#3061）が書き込むキー。どちらも真偽値 1 個で、回数に依らずキー数・データ量は増えない。
-    public static let reviewPromptKeys = [reviewAnsweredKey, newGameCardAskedKey]
+    /// 評価のお願いの強化（#3061・#3078）が書き込むキー。いずれも真偽値か整数 1 個で、回数に依らずキー数・データ量は増えない。
+    public static let reviewPromptKeys = [
+        reviewAnsweredKey, newGameCardAskedKey, openDaysKey, lastOpenDayKey, daysMilestoneAskedKey,
+    ]
 
     /// ゲーム別のプレイ記録（#115）。全ゲームぶんを JSON にまとめて**1キー**に入れる。
     /// ゲームごとにキーを切ると登録ゲームが増えるたびにキーが増え、消去漏れの温床になるため。
@@ -166,6 +183,9 @@ public final class PlayLog {
     private var lastRequestedVersion: String?
     private var hasAnswered: Bool
     private var hasAskedAboutNewGame: Bool
+    private var openDays: Int
+    private var lastOpenDay: Int?
+    private var daysMilestoneAsked: Int
 
     /// ゲーム別の記録。キーは `recordKey(gameID:variant:)`。
     public private(set) var records: [String: PlayRecord]
@@ -193,6 +213,9 @@ public final class PlayLog {
         self.lastRequestedVersion = defaults.string(forKey: Self.lastRequestedVersionKey)
         self.hasAnswered = defaults.bool(forKey: Self.reviewAnsweredKey)
         self.hasAskedAboutNewGame = defaults.bool(forKey: Self.newGameCardAskedKey)
+        self.openDays = defaults.integer(forKey: Self.openDaysKey)
+        self.lastOpenDay = defaults.object(forKey: Self.lastOpenDayKey) as? Int
+        self.daysMilestoneAsked = defaults.integer(forKey: Self.daysMilestoneAskedKey)
 
         self.guidedGameIDs = Set(defaults.stringArray(forKey: Self.guidedGameIDsKey) ?? [])
         // 壊れた値は空に倒す。上限を超えて入っていても読み込み時に切り詰める。
@@ -228,8 +251,29 @@ public final class PlayLog {
             lastRequestedWins: lastRequestedWins,
             lastRequestedVersion: lastRequestedVersion,
             hasAnswered: hasAnswered,
-            hasAskedAboutNewGame: hasAskedAboutNewGame
+            hasAskedAboutNewGame: hasAskedAboutNewGame,
+            openDays: openDays,
+            daysMilestoneAsked: daysMilestoneAsked
         )
+    }
+
+    /// 今日を「アプリを開いた日」として数える（#3078）。同じ日は何度呼んでも増えない。
+    ///
+    /// 端末の時計を戻された場合に水増しされないよう、最後に数えた日より前の日は数えない。
+    public func recordAppOpenDay(at date: Date, calendar: Calendar = .current) {
+        let day = PlayDayStreak.dayNumber(for: date, calendar: calendar)
+        if let lastOpenDay, day <= lastOpenDay { return }
+        openDays += 1
+        lastOpenDay = day
+        defaults.set(openDays, forKey: Self.openDaysKey)
+        defaults.set(day, forKey: Self.lastOpenDayKey)
+    }
+
+    /// 遊んだ日数の節目（7・30）の評価のお願いを出したときに記録する（#3078）。それ以下の節目も出し済みとして扱う。
+    public func markDaysMilestoneAsked(_ milestone: Int) {
+        guard milestone > daysMilestoneAsked else { return }
+        daysMilestoneAsked = milestone
+        defaults.set(milestone, forKey: Self.daysMilestoneAskedKey)
     }
 
     /// 新しいゲームの感想カード（#3061）を出したときに記録する。1 人につき一度きり。
@@ -584,6 +628,9 @@ public final class PlayLog {
         lastRequestedVersion = nil
         hasAnswered = false
         hasAskedAboutNewGame = false
+        openDays = 0
+        lastOpenDay = nil
+        daysMilestoneAsked = 0
         records = [:]
         guidedGameIDs = []
         playDays = []

@@ -34,6 +34,8 @@ public final class ReviewRequestService {
     public private(set) var isDeferredUntilResultIsVisible = false
 
     private var issuedRequestID: Int?
+    /// いま立っている予定が遊んだ日数の節目（#3078）のものなら、その節目（7 / 30）。勝ちの見せ場の予定なら nil。
+    private var issuedDaysMilestone: Int?
     private var issuedCount = 0
 
     /// 新しいゲームの感想カード（#3061）の予定。`pendingRequestID` と同じ作りで、演出中は伏せる。
@@ -70,6 +72,8 @@ public final class ReviewRequestService {
     public func gameDidFinish(outcome: GameOutcome, isHighlight: Bool = true, gameID: String = "") -> Bool {
         // 条件1: 勝利・クリアの直後のみ（さらに見せ場に絞る。下の `isHighlight`）。敗北・投了・ゲームオーバーでは勝利数も増やさない。
         if outcome == .win { log.recordWin() }
+        // 日付をまたいで開きっぱなしの回も、遊んだ日として数える（#3078）。
+        log.recordAppOpenDay(at: now())
         // 演出の途中で画面を離れると伏せ（#1143）が残る。決着のたびに必ず外すことで、
         // それ以降どの画面でも二度と出ない状態にならないようにする。演出を挟むゲームは
         // この直後に `deferUntilResultIsVisible()` を呼んで伏せ直す（`RunnerModel`）。
@@ -80,24 +84,55 @@ public final class ReviewRequestService {
         if issuedNewGameCardID != nil { return true }
         if ReviewRequestPolicy.shouldAskAboutNewGame(state: log.reviewState, gameID: gameID) {
             issuedRequestID = nil
+            issuedDaysMilestone = nil
             issuedCount += 1
             issuedNewGameCardID = issuedCount
             return true
         }
 
-        guard outcome == .win else { return false }
+        guard outcome == .win else { return scheduleDaysMilestoneRequest() }
         // すでに予定が立っている間は従来どおり true（同じリザルトのレコメンドを抑え続ける）。
         guard issuedRequestID == nil else { return true }
-        // 見せ場でない勝ちは、新しく予定を立てない（予定は見せ場で立てたものだけ）。
-        guard isHighlight else { return false }
+        // 見せ場でない勝ちは、新しく予定を立てない（予定は見せ場で立てたものだけ）。遊んだ日数の節目（#3078）は別。
+        guard isHighlight else { return scheduleDaysMilestoneRequest() }
         guard ReviewRequestPolicy.shouldRequest(
             state: log.reviewState,
             currentVersion: appVersion,
             now: now()
-        ) else { return false }
+        ) else { return scheduleDaysMilestoneRequest() }
 
         issuedCount += 1
         issuedRequestID = issuedCount
+        issuedDaysMilestone = nil
+        return true
+    }
+
+    /// アプリを開いた（ハブを最初に表示した）ときに画面側から呼ぶ（#3078）。今日を遊んだ日として数えるだけで、
+    /// **起動直後には出さない**ので予定は立てない。日付をまたいで前面に戻ったときにも呼んでよい。
+    public func appDidOpen() {
+        log.recordAppOpenDay(at: now())
+    }
+
+    /// ハブに戻った・ハブを表示したときに画面側から呼ぶ（#3078）。遊んだ日数が節目に達していれば、
+    /// 評価のお願いの予定を立てる（実行は 1.0 秒待ってから。`performPendingRequest`）。
+    ///
+    /// 感想カード（#3061）の予定が立っている間は立てず、次の区切りに回す。新しく立てたときだけ true。
+    @discardableResult
+    public func hubDidBecomeVisible() -> Bool {
+        log.recordAppOpenDay(at: now())
+        return scheduleDaysMilestoneRequest()
+    }
+
+    /// 遊んだ日数の節目（#3078）の予定を**新しく**立てたかを返す。
+    /// 感想カードや別の予定がすでにあるときは何も立てない（カード優先。こちらは次の区切りに回る）。
+    private func scheduleDaysMilestoneRequest() -> Bool {
+        if issuedNewGameCardID != nil || issuedRequestID != nil { return false }
+        guard let milestone = ReviewRequestPolicy.daysMilestoneToRequest(state: log.reviewState, now: now()) else {
+            return false
+        }
+        issuedCount += 1
+        issuedRequestID = issuedCount
+        issuedDaysMilestone = milestone
         return true
     }
 
@@ -130,15 +165,20 @@ public final class ReviewRequestService {
                 try await Task.sleep(for: delay)
             } catch {
                 issuedRequestID = nil
+                issuedDaysMilestone = nil
                 return
             }
         }
 
         guard pendingRequestID != nil else { return }
+        let milestone = issuedDaysMilestone
         issuedRequestID = nil
+        issuedDaysMilestone = nil
         // 出たかどうかは OS しか知らないため、呼んだ時点で記録する（条件3〜5の起点）。
         log.markReviewRequested(at: now(), version: appVersion)
-        analytics?.recordReviewPrompt(kind: .regular, step: .osRequested)
+        if let milestone { log.markDaysMilestoneAsked(milestone) }
+        analytics?.recordReviewPrompt(
+            kind: .regular, step: .osRequested, trigger: milestone.flatMap(ReviewPromptTrigger.init(milestone:)))
         request()
     }
 
@@ -183,6 +223,7 @@ public final class ReviewRequestService {
     /// 実機の条件は生涯1〜2回のため、シミュレータでダイアログを確認する手段がこれしかない。
     public func simulateRequest() {
         issuedCount += 1
+        issuedDaysMilestone = nil
         issuedRequestID = issuedCount
     }
 

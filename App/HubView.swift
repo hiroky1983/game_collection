@@ -279,6 +279,8 @@ struct HubView: View {
                 BannerSlot(ads: services.ads)
             }
             .popBackground()
+            // 遊んだ日数の節目の評価のお願い（#3078）。ハブが前面にある間だけ実行する（ゲームを開いたら破棄）。
+            .hubReviewRequestPrompt(services.review, isActive: path.isEmpty)
             // 戻るボタンの文字に使う。ハブ自身ではナビゲーションバーを隠し、見出しは `header` が描く（#2175）。
             .navigationTitle(tr("あそびば"))
             .toolbar(.hidden, for: .navigationBar)
@@ -317,7 +319,11 @@ struct HubView: View {
             // 前面へ戻ったら取り消す（#1951）。予約だけを行い、離脱計測（`gameDidLeave`）は呼ばない。
             .onChange(of: scenePhase) { _, phase in
                 // 日付をまたいで戻った回数を、前面に戻ったハブで出し直す（#2208）。
-                if phase == .active { homerunTally = HomerunHubCount.tally() }
+                if phase == .active {
+                    homerunTally = HomerunHubCount.tally()
+                    // 日付をまたいで前面に戻った日も、遊んだ日として数える（#3078。評価のお願いは出さない）。
+                    services.review?.appDidOpen()
+                }
                 guard let current = path.last else { return }
                 switch phase {
                 case .background: services.gameDidEnterBackground(gameID: current.gameID)
@@ -334,6 +340,8 @@ struct HubView: View {
                     // ハブに戻ったら柵越えおじさんの残り回数を読み直す（遊んだ分・0:00 の補充・#2208）。
                     homerunTally = HomerunHubCount.tally()
                 }
+                // ハブに戻った区切りで、遊んだ日数の節目なら評価のお願いの予定を立てる（#3078）。
+                if newPath.isEmpty { services.review?.hubDidBecomeVisible() }
                 // ハブからゲーム画面を開いたことを解析へ伝える（#659）。離脱と対になる
                 // 「空 → 非空」の1か所だけで送る。導線ごとに送ると付け忘れと二重送信の両方が起きる。
                 if oldPath.isEmpty, let opened = newPath.first {
@@ -426,6 +434,8 @@ struct HubView: View {
                 ))
             }
             .task {
+                // 起動した日を遊んだ日として数える（#3078。起動直後には評価のお願いを出さない）。
+                services.review?.appDidOpen()
                 // ATT はハブが描画された直後にシステムダイアログを直接出す（Build 6・審査指摘 2.1 対応）。
                 // 以前は自前の事前説明シートを挟み「最初のゲームを遊び終えてハブに戻った時点」で
                 // 出していたが、(1) ゲームを完了しないレビュアーがダイアログに到達できず審査で

@@ -1126,3 +1126,219 @@ struct ReviewPromptEnhancementTests {
         #expect(spy3.events == [.reviewPrompt(kind: .regular, step: .osRequested)])
     }
 }
+
+// MARK: - 遊んだ日数の節目（#3078）
+
+/// 進められる時計。日をまたぐ検証で使う。
+@MainActor
+private final class DaysClock {
+    /// 正午（UTC）。どのタイムゾーンでも日付の境目から遠い。
+    var date = Date(timeIntervalSince1970: 1_800_000_000 + 4 * 3600)
+    func advance(days: Int) { date = date.addingTimeInterval(TimeInterval(days) * 86_400) }
+}
+
+@MainActor
+private func makeDaysService(
+    suite: String,
+    clock: DaysClock,
+    analytics: GameAnalytics? = nil
+) -> (PlayLog, ReviewRequestService) {
+    let (log, _, _) = makeLog(suite: suite)
+    let service = ReviewRequestService(
+        log: log, appVersion: appVersion, now: { clock.date }, delay: .zero, analytics: analytics)
+    return (log, service)
+}
+
+/// n 日目まで 1 日ずつ進めながらアプリを開く（起動のたびに `appDidOpen`）。
+@MainActor
+private func openApp(_ service: ReviewRequestService, clock: DaysClock, days: Int) {
+    for day in 0..<days {
+        if day > 0 { clock.advance(days: 1) }
+        service.appDidOpen()
+    }
+}
+
+@Suite("遊んだ日数の節目の評価のお願い（#3078）")
+@MainActor
+struct DaysMilestoneReviewTests {
+
+    @Test("同じ日に何度開いても 1 日と数える")
+    func sameDayCountsOnce() {
+        let clock = DaysClock()
+        let (log, service) = makeDaysService(suite: "days-same-day", clock: clock)
+        for _ in 0..<5 { service.appDidOpen() }
+        service.hubDidBecomeVisible()
+        #expect(log.reviewState.openDays == 1)
+        clock.advance(days: 1)
+        service.appDidOpen()
+        #expect(log.reviewState.openDays == 2)
+    }
+
+    @Test("端末の時計を戻しても日数は増えない")
+    func clockRewindDoesNotInflate() {
+        let clock = DaysClock()
+        let (log, service) = makeDaysService(suite: "days-rewind", clock: clock)
+        service.appDidOpen()
+        clock.advance(days: 3)
+        service.appDidOpen()
+        clock.advance(days: -2)
+        service.appDidOpen()
+        #expect(log.reviewState.openDays == 2)
+    }
+
+    @Test("7 日目に達した日にハブへ戻ると予定が立ち、実行で OS に依頼して節目を記録する")
+    func sevenDaysSchedulesAtHub() async {
+        let clock = DaysClock()
+        let (log, service) = makeDaysService(suite: "days-7", clock: clock)
+        openApp(service, clock: clock, days: 6)
+        #expect(service.hubDidBecomeVisible() == false, "6 日目までは出さない")
+        clock.advance(days: 1)
+        service.appDidOpen()
+        #expect(service.pendingRequestID == nil, "起動直後（appDidOpen）には予定を立てない")
+        #expect(service.hubDidBecomeVisible() == true)
+        var requested = 0
+        await service.performPendingRequest { requested += 1 }
+        #expect(requested == 1)
+        #expect(log.reviewState.daysMilestoneAsked == 7)
+        #expect(service.hubDidBecomeVisible() == false, "7 日では 1 回まで")
+    }
+
+    @Test("勝敗を問わず、リザルト（敗北）でも節目なら予定が立つ")
+    func resultScreenAlsoSchedules() async {
+        let clock = DaysClock()
+        let (_, service) = makeDaysService(suite: "days-result", clock: clock)
+        openApp(service, clock: clock, days: 7)
+        #expect(service.gameDidFinish(outcome: .loss, gameID: "shogi") == true)
+        var requested = 0
+        await service.performPendingRequest { requested += 1 }
+        #expect(requested == 1)
+    }
+
+    @Test("30 日目にもう一度出る。15 日以内なら出さず、明けた最初の区切りで出す")
+    func thirtyDaysAfterInterval() async {
+        let clock = DaysClock()
+        let (log, service) = makeDaysService(suite: "days-30", clock: clock)
+        openApp(service, clock: clock, days: 7)
+        service.hubDidBecomeVisible()
+        await service.performPendingRequest {}
+        #expect(log.reviewState.daysMilestoneAsked == 7)
+        // 7 日目から 23 日後に 30 日目（前回から 15 日以上空いている）。
+        for _ in 0..<23 { clock.advance(days: 1); service.appDidOpen() }
+        #expect(log.reviewState.openDays == 30)
+        #expect(service.hubDidBecomeVisible() == true)
+        var requested = 0
+        await service.performPendingRequest { requested += 1 }
+        #expect(requested == 1)
+        #expect(log.reviewState.daysMilestoneAsked == 30)
+        #expect(service.hubDidBecomeVisible() == false)
+    }
+
+    @Test("A: 前回のお願いから 15 日以内なら出さず、間隔が明けた最初の区切りで出す")
+    func intervalHoldsThenReleases() async {
+        let clock = DaysClock()
+        let (log, service) = makeDaysService(suite: "days-interval", clock: clock)
+        log.markReviewRequested(at: clock.date, version: "0.9")
+        // 前回のお願いの 15 日後より前に 7 日に達する。
+        openApp(service, clock: clock, days: 7)
+        #expect(service.hubDidBecomeVisible() == false, "前回から 6 日")
+        for _ in 0..<8 { clock.advance(days: 1); service.appDidOpen() }
+        #expect(service.hubDidBecomeVisible() == false, "前回から 14 日")
+        clock.advance(days: 1)
+        #expect(service.hubDidBecomeVisible() == true, "前回から 15 日")
+    }
+
+    @Test("C: 答えた人には出さない")
+    func answeredNeverAsked() {
+        let clock = DaysClock()
+        let (log, service) = makeDaysService(suite: "days-answered", clock: clock)
+        log.markReviewAnswered()
+        openApp(service, clock: clock, days: 30)
+        #expect(service.hubDidBecomeVisible() == false)
+        #expect(service.gameDidFinish(outcome: .loss, gameID: "shogi") == false)
+    }
+
+    @Test("感想カードの予定があるときはカードを優先し、節目は次の区切りに回す")
+    func newGameCardTakesPriority() async {
+        let clock = DaysClock()
+        let (log, service) = makeDaysService(suite: "days-card", clock: clock)
+        openApp(service, clock: clock, days: 7)
+        let newGame = NewGames.currentVersionIDs.sorted().first ?? "shogi"
+        guard NewGames.currentVersionIDs.contains(newGame) else { return }
+        service.gameDidFinish(outcome: .win, gameID: newGame)
+        #expect(service.pendingNewGameCardID != nil)
+        #expect(service.hubDidBecomeVisible() == false)
+        #expect(service.pendingRequestID == nil, "カードの間は OS の依頼を立てない")
+        await service.presentPendingNewGameCard()
+        service.newGameCardDismissed()
+        // カードを出したのは「前回のお願い」ではないので、次の区切りでそのまま出る。
+        #expect(log.reviewState.daysMilestoneAsked == 0)
+        #expect(service.hubDidBecomeVisible() == true)
+        #expect(service.pendingRequestID != nil)
+    }
+
+    @Test("プレイ中・待っている間に画面を離れたら取り消し、節目は消費しない")
+    func cancelledWhenLeftBeforeDelay() async {
+        let clock = DaysClock()
+        let (log, _, _) = makeLog(suite: "days-cancel")
+        let service = ReviewRequestService(
+            log: log, appVersion: appVersion, now: { clock.date }, delay: .seconds(30))
+        openApp(service, clock: clock, days: 7)
+        #expect(service.hubDidBecomeVisible() == true)
+        var requested = 0
+        let task = Task { await service.performPendingRequest { requested += 1 } }
+        task.cancel()
+        await task.value
+        #expect(requested == 0)
+        #expect(service.pendingRequestID == nil)
+        #expect(log.reviewState.daysMilestoneAsked == 0)
+        #expect(log.reviewState.lastRequestedAt == nil)
+        // 次の区切りでもう一度立つ。
+        #expect(service.hubDidBecomeVisible() == true)
+    }
+
+    @Test("7 日と 30 日が両方未消化なら、1 回で両方を済ませる")
+    func bothDueAskedOnce() async {
+        let clock = DaysClock()
+        let (log, service) = makeDaysService(suite: "days-both", clock: clock)
+        log.markReviewRequested(at: clock.date, version: "0.9")
+        openApp(service, clock: clock, days: 30)
+        #expect(service.hubDidBecomeVisible() == true)
+        await service.performPendingRequest {}
+        #expect(log.reviewState.daysMilestoneAsked == 30)
+        clock.advance(days: 20)
+        service.appDidOpen()
+        #expect(service.hubDidBecomeVisible() == false)
+    }
+
+    @Test("解析: trigger に days_7 / days_30 が載り、勝ちの見せ場には載らない")
+    func analyticsTrigger() async {
+        let clock = DaysClock()
+        let spy = SpyAnalyticsService()
+        let (_, service) = makeDaysService(
+            suite: "days-analytics", clock: clock,
+            analytics: GameAnalytics(service: spy, allowedGameIDs: ["shogi"]))
+        openApp(service, clock: clock, days: 7)
+        service.hubDidBecomeVisible()
+        await service.performPendingRequest {}
+        #expect(spy.events == [.reviewPrompt(kind: .regular, step: .osRequested, trigger: .days7)])
+        #expect(spy.events.first?.parameters["trigger"] == .string("days_7"))
+        #expect(ReviewPromptTrigger(milestone: 30)?.rawValue == "days_30")
+        #expect(AnalyticsEvent.reviewPrompt(kind: .regular, step: .osRequested).parameters["trigger"] == nil)
+    }
+
+    @Test("キーは PlayLog.allKeys に入り、プレイ記録の消去で消える")
+    func clearedWithPlayLog() {
+        let clock = DaysClock()
+        let (log, defaults, _) = makeLog(suite: "days-clear")
+        log.recordAppOpenDay(at: clock.date)
+        log.markDaysMilestoneAsked(7)
+        for key in [PlayLog.openDaysKey, PlayLog.lastOpenDayKey, PlayLog.daysMilestoneAskedKey] {
+            #expect(PlayLog.allKeys.contains(key))
+            #expect(defaults.object(forKey: key) != nil)
+        }
+        log.clear()
+        for key in PlayLog.allKeys { #expect(defaults.object(forKey: key) == nil) }
+        #expect(log.reviewState.openDays == 0)
+        #expect(log.reviewState.daysMilestoneAsked == 0)
+    }
+}

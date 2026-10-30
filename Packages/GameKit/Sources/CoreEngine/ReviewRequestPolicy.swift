@@ -47,4 +47,20 @@ public enum ReviewRequestPolicy {
     ) -> Bool {
         !state.hasAnswered && !state.hasAskedAboutNewGame && newGameIDs.contains(gameID)
     }
+
+    /// 遊んだ日数の節目（#3078）。アプリを開いた日の合計がここに達した日に、勝敗を問わず評価のお願いを 1 回出す。
+    public static let daysMilestones = [7, 30]
+
+    /// 遊んだ日数の節目の評価のお願い（#3078）を出すなら、その節目（7 または 30）。出さなければ nil。
+    ///
+    /// 条件1〜6 の勝利数・バージョンの縛りは受けず、#3061 の共通仕様だけを効かせる:
+    /// 答えた人には出さない（C）、前回のお願いから 15 日以内なら出さない（A）。
+    /// 節目ごとに 1 回まで。間隔で出せなかった節目は、明けた最初の機会で出す。
+    /// 7 日と 30 日がまとめて未消化なら、大きい方 1 回で両方を済ませる。
+    public static func daysMilestoneToRequest(state: ReviewRequestState, now: Date) -> Int? {
+        guard !state.hasAnswered else { return nil }
+        if let lastRequestedAt = state.lastRequestedAt,
+           now.timeIntervalSince(lastRequestedAt) < minimumElapsed { return nil }
+        return daysMilestones.filter { state.openDays >= $0 && $0 > state.daysMilestoneAsked }.max()
+    }
 }
