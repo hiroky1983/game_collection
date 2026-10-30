@@ -9,6 +9,7 @@ import SwiftUI
 public struct GameClearCard: View {
     private let title: String
     private let details: [String]
+    private let record: RecordResult?
     private let onClose: (() -> Void)?
     private let primaryAction: PrimaryAction?
 
@@ -25,9 +26,12 @@ public struct GameClearCard: View {
         }
     }
 
-    public init(title: String? = nil, details: [String] = [], primaryAction: PrimaryAction? = nil, onClose: (() -> Void)? = nil) {
+    /// - Parameter record: 自己ベストの行に使う記録（15パズル・つなぎ。無ければ行を出さない・#3059）。
+    public init(title: String? = nil, details: [String] = [], record: RecordResult? = nil,
+                primaryAction: PrimaryAction? = nil, onClose: (() -> Void)? = nil) {
         self.title = title ?? tr("クリア！")
         self.details = details
+        self.record = record
         self.primaryAction = primaryAction
         self.onClose = onClose
     }
@@ -55,6 +59,8 @@ public struct GameClearCard: View {
             .multilineTextAlignment(.center)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(Self.accessibilityLabel(title: title, details: details))
+            // 共有ボタンを持つので、読み上げの塊の外に置く（`BoardGameResultCard` と同じ）。
+            if record != nil { RecordLabel(record) }
             if let primaryAction {
                 Button(action: primaryAction.action) {
                     Text(primaryAction.title)
@@ -101,6 +107,8 @@ private struct GameClearCardModifier: ViewModifier {
     let isPresented: Bool
     let title: String?
     let details: [String]
+    let record: RecordResult?
+    let primaryAction: GameClearCard.PrimaryAction?
     @State private var dismissed = false
 
     func body(content: Content) -> some View {
@@ -110,7 +118,7 @@ private struct GameClearCardModifier: ViewModifier {
                 if isPresented && !dismissed {
                     ZStack {
                         Color.black.opacity(0.45)
-                        GameClearCard(title: title, details: details) { dismissed = true }
+                        GameClearCard(title: title, details: details, record: record, primaryAction: primaryAction) { dismissed = true }
                     }
                     .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
                     .accessibilityElement(children: .contain)
@@ -128,7 +136,10 @@ private struct GameClearCardModifier: ViewModifier {
 
 public extension View {
     /// 盤の上にクリアカードを重ねる（#1755）。`isPresented` が真のあいだ出し、「盤を見る」で閉じられる。
-    func gameClearCard(isPresented: Bool, title: String? = nil, details: [String] = []) -> some View {
-        modifier(GameClearCardModifier(isPresented: isPresented, title: title, details: details))
+    /// `record` は自己ベストの行、`primaryAction` は「盤を見る」の上に置く動線（15パズル・つなぎの「もう一回」・#3059）。
+    func gameClearCard(isPresented: Bool, title: String? = nil, details: [String] = [], record: RecordResult? = nil,
+                       primaryAction: GameClearCard.PrimaryAction? = nil) -> some View {
+        modifier(GameClearCardModifier(isPresented: isPresented, title: title, details: details,
+                                       record: record, primaryAction: primaryAction))
     }
 }

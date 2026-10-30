@@ -24,7 +24,15 @@ public struct FifteenView: View {
             header
             sizePicker
             // 盤は残りの高さを Spacer と山分けしない（操作の段が増えた分だけ盤が縮むのを防ぐ）。
-            boardView.layoutPriority(1)
+            boardView
+                // ヒントは 0 回でも省かず出す（#2613・#2801）。「盤を見る」で閉じて完成した絵柄を見返せる（#3059）。
+                .gameClearCard(isPresented: model.isSolved,
+                               details: [tr("%lld手で揃えました", model.moves), tr("ヒント %lld回", model.hints.used)],
+                               record: model.recordResult,
+                               primaryAction: .init(title: tr("もう一回"), hint: tr("新しいパズルを始めます")) {
+                                   withGameAnimation { model.newGame() }
+                               })
+                .layoutPriority(1)
             hintBar
             // 初回だけ出す 1 行（以降は `?` ボタンからいつでも読める）。
             HowToPlayHint(.fifteen, playLog: services.playLog)
@@ -188,34 +196,8 @@ public struct FifteenView: View {
                 }
             }
             .gameAnimation(.easeInOut(duration: 0.12), value: model.tiles)
-            .overlay {
-                if model.isSolved { solvedOverlay }
-            }
         }
         .aspectRatio(1, contentMode: .fit)
-    }
-
-    private var solvedOverlay: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: Theme.corner, style: .continuous).fill(.black.opacity(0.55))
-            VStack(spacing: 12) {
-                Text(tr("クリア！")).font(.title2.bold()).foregroundStyle(.white)
-                Text(tr("%lld手で揃えました", model.moves))
-                    .font(.subheadline).foregroundStyle(.white.opacity(0.85))
-                // ヒントは 0 回でも省かず出す（#2613・#2801）。
-                Text(tr("ヒント %lld回", model.hints.used))
-                    .font(.subheadline).foregroundStyle(.white.opacity(0.85))
-                RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
-                Button { withGameAnimation { model.newGame() } } label: {
-                    Text(tr("もう一回")).foregroundStyle(Theme.onAccent)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.Fill.coral)
-            }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityAddTraits(.isModal)
-        .announcesResultAppearance([tr("クリア！"), tr("%lld手で揃えました", model.moves), tr("ヒント %lld回", model.hints.used)].joined(separator: tr("。")))
     }
 }
 
