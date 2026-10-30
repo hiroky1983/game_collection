@@ -77,7 +77,6 @@ struct NumericCornerRadiusScanTests {
         "GameRunner/RunnerStoryView.swift": 2,
         "GameShiritori/ShiritoriView.swift": 3,
         "GameShogi/ShogiView.swift": 9,
-        "GameSpeed/SpeedView.swift": 2,
     ]
 
     private static func sourceFiles() throws -> [(path: String, source: String)] {
