@@ -211,13 +211,13 @@ struct HubView: View {
                     VStack(alignment: .leading, spacing: 0) {
                     if activeCategory == .all {
                         // 中断・記録ともゼロなら**行ごと出さない**（#660）。「すべて」のときだけ出す（モック 01・04b）。
-                        // 連続プレイ日数（#1625）は 2 日以上のときだけ、行の見出しの右に控えめに出す。
+                        // 連続プレイ日数（#1625）は 2 日以上、または昨日まで続いて今日まだのとき（#3060）だけ、行の見出しの右に控えめに出す。
                         let recent = recentCandidates
                         if !recent.isEmpty {
                             HubRecentRow(
                                 candidates: recent,
                                 registry: registry,
-                                streakText: PlayDayStreak.hubText(streak: services.playLog?.playStreak() ?? 0)
+                                streakText: services.playLog?.hubStreakText()
                             )
                         }
                         // 記録がゼロの初回だけ「はじめの1本」を1枚出す（#721）。出す条件と何を出すかは `FirstPick` が持つ。

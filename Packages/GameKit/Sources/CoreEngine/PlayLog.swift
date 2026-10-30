@@ -509,6 +509,11 @@ public final class PlayLog {
         PlayDayStreak.longest(days: playDays, today: PlayDayStreak.dayNumber(for: now, calendar: calendar))
     }
 
+    /// ハブの連続日数の 1 行（#3060）。今日まだ遊んでいなければ「あと 1 局で連続 N+1 日」。
+    public func hubStreakText(now: Date = Date(), calendar: Calendar = .current) -> String? {
+        PlayDayStreak.hubText(days: playDays, today: PlayDayStreak.dayNumber(for: now, calendar: calendar))
+    }
+
     /// リワード広告のコンティニューで「その負けが無かったことになった」ときに呼ぶ。
     ///
     /// 2048・マインスイーパーは**同じ盤面のまま**再開するため、先に記録した敗北をそのままにすると
