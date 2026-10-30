@@ -397,6 +397,11 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             attemptMove(to: sq)
             return
         }
+        if sq == selectedSquare {
+            // 選んだ駒をもう一度叩いたら選択を取り消す（拒否ではないので触覚は鳴らさない）。
+            clearSelection()
+            return
+        }
         if let p = position.squares[sq], p.color == position.sideToMove {
             selectedSquare = sq
             selectedHand = nil
@@ -414,6 +419,10 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         guard phase == .playing, !gameOver, pendingPromotion == nil, !isAITurn else { return }
         guard color == position.sideToMove,
               position.hands[color.rawValue][type.rawValue] > 0 else { return }
+        if selectedHand == type {
+            clearSelection()
+            return
+        }
         selectedHand = type
         selectedSquare = nil
         services?.feedback.impact(.selection)

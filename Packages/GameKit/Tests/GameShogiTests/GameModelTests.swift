@@ -413,4 +413,49 @@ struct ShogiSelectionFeedbackTests {
         #expect(spy.notices == [.warning])
         #expect(spy.impacts == [.selection])
     }
+
+    @Test("選んだ駒をもう一度叩くと選択が解除され、拒否の触覚は鳴らない。別の駒なら選び直し（#3092）")
+    func retapDeselects() {
+        let spy = SpyFeedbackService()
+        let model = ShogiGameModel(
+            services: GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), feedback: spy)
+        )
+        model.tapSquare(Sq.fromUSI("7g")!)
+        model.tapSquare(Sq.fromUSI("7g")!)
+        #expect(model.selectedSquare == nil)
+        #expect(spy.notices.isEmpty)
+        #expect(spy.impacts == [.selection])
+
+        model.tapSquare(Sq.fromUSI("7g")!)
+        model.tapSquare(Sq.fromUSI("2g")!)
+        #expect(model.selectedSquare == Sq.fromUSI("2g")!)
+        #expect(spy.notices.isEmpty)
+    }
+
+    @Test("持ち駒をもう一度叩くと選択が解除される。盤上の駒を挟めば選び直し（#3092）")
+    func retapHandDeselects() throws {
+        let store = MemorySnapshotStore()
+        try store.save(
+            ShogiSnapshot(
+                initialSfen: "4k4/9/9/9/9/9/9/4P4/4K4 b P 1", moves: [], phase: .playing, reviewPly: nil,
+                sente: .human, gote: .human, aiLevel: nil, startedAt: Date(), undoUsed: false
+            ),
+            for: "shogi"
+        )
+        let spy = SpyFeedbackService()
+        let model = ShogiGameModel(
+            services: GameServices(snapshots: store, ads: NoopAdService(), feedback: spy)
+        )
+        model.tapHand(.pawn, color: .black)
+        #expect(model.selectedHand == .pawn)
+        model.tapHand(.pawn, color: .black)
+        #expect(model.selectedHand == nil)
+        #expect(spy.notices.isEmpty)
+        #expect(spy.impacts == [.selection])
+
+        model.tapHand(.pawn, color: .black)
+        model.tapSquare(Sq.fromUSI("5h")!) // 盤上の自駒を叩くと持ち駒から切り替わる
+        #expect(model.selectedHand == nil)
+        #expect(model.selectedSquare == Sq.fromUSI("5h")!)
+    }
 }

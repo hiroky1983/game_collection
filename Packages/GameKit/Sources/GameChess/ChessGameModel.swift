@@ -293,6 +293,11 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             attemptMove(to: sq)
             return
         }
+        if sq == selectedSquare {
+            // 選んだ駒をもう一度叩いたら選択を取り消す（拒否ではないので触覚は鳴らさない）。
+            clearSelection()
+            return
+        }
         if let p = position.squares[sq], p.color == position.sideToMove {
             selectedSquare = sq
             services?.feedback.impact(.selection)
