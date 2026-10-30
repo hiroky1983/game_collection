@@ -279,6 +279,9 @@ public final class ColorRelayModel: AITurnGuarded {
     /// `aiLevel` を渡すとその強さで、`opponentCount` を渡すとその人数で配る（開始シート・難易度の階段）。
     /// 渡さなければ前のゲームの強さ・人数のまま。
     public func startGame(aiLevel newLevel: Int? = nil, opponentCount newOpponents: Int? = nil) {
+        // 結果カードは `ranking` の席番号で `hands` を引く。人数を減らして始め直すとき、`hands` が縮む前に
+        // 順位を空にしておく（古い席番号で範囲外を引いて落ちた・#3084）。
+        ranking = []
         if newLevel != nil || newOpponents != nil {
             if let newLevel { aiLevel = CPUStrength.strength(for: newLevel).rawValue }
             if let newOpponents {
@@ -318,7 +321,6 @@ public final class ColorRelayModel: AITurnGuarded {
         hasDrawnThisTurn = false
         drawnCardID = nil
         selectedID = nil
-        ranking = []
         lastActions = Array(repeating: "", count: playerCount)
         isPenaltyWaived = false
         recordResult = nil

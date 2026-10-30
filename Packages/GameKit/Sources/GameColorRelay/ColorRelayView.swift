@@ -202,8 +202,8 @@ public struct ColorRelayView: View {
     /// 相手 1 人の席。アイコン・束・残り枚数・吹き出しの組み方は共通部品（`OpponentSeat`・#2531。大富豪と同じ見た目）。
     private func seat(_ index: Int) -> some View {
         let isCurrent = model.currentPlayer == index && model.phase == .playing
-        let count = model.hands[index].count
-        let action = model.lastActions[index]
+        let count = model.hands.indices.contains(index) ? model.hands[index].count : 0
+        let action = model.lastActions.indices.contains(index) ? model.lastActions[index] : ""
         let cardWidth = metrics.opponentCardWidth
         return OpponentSeat(
             index: index, diameter: metrics.seatDiameter, isCurrent: isCurrent, cardCount: count, lastAction: action,
@@ -316,7 +316,8 @@ public struct ColorRelayView: View {
     /// 自分の席の札（手札の見出し）。自分の番は黄色。
     private var youPill: some View {
         let isTurn = model.isPlayerTurn
-        let action = model.lastActions[ColorRelayModel.humanIndex]
+        let action = model.lastActions.indices.contains(ColorRelayModel.humanIndex)
+            ? model.lastActions[ColorRelayModel.humanIndex] : ""
         return HStack(spacing: 6) {
             Text(isTurn ? tr("あなたの番") : tr("あなた"))
                 .scaledFont(12, weight: .black, design: .rounded)
@@ -586,11 +587,12 @@ public struct ColorRelayView: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
                         Spacer(minLength: 4)
-                        Text(place == 0 ? tr("あがり") : tr("残り%lld枚", model.hands[player].count))
-                            .scaledFont(15, weight: .semibold, design: .rounded)
-                            .foregroundStyle(Theme.inkSubText)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
+                        // 人数を減らして始め直す間は、古い順位の席番号が `hands` の範囲外になりうる（#3084）。
+                        if place == 0 {
+                            resultRemainingText(tr("あがり"))
+                        } else if model.hands.indices.contains(player) {
+                            resultRemainingText(tr("残り%lld枚", model.hands[player].count))
+                        }
                     }
                 }
             }
@@ -601,6 +603,14 @@ public struct ColorRelayView: View {
         .popCard(corner: Theme.cornerSmall)
         .frame(maxWidth: ResultLayout.maxWidth)
         .frame(maxWidth: .infinity)
+    }
+
+    private func resultRemainingText(_ text: String) -> some View {
+        Text(text)
+            .scaledFont(15, weight: .semibold, design: .rounded)
+            .foregroundStyle(Theme.inkSubText)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
     }
 
     private var resultHeadline: String {
