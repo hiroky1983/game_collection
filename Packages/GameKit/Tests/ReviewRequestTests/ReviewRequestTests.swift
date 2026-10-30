@@ -278,15 +278,98 @@ struct ReviewHighlightTests {
         #expect(service.pendingRequestID != nil, "自己ベスト更新は全ゲーム共通で見せ場")
     }
 
-    @Test("連勝記録の更新だけでは見せ場にならない")
-    func streakAloneIsNotAHighlight() {
-        let (services, service) = makeRecordingServices(suite: "highlight-streak")
-        for _ in 0..<8 {
-            services.gameDidFinish(gameID: "g", outcome: .win, score: GameScore(metric: .winLoss),
-                                   isReviewHighlight: false)
+    @Test("3 連勝は CPU の強さを問わず見せ場。4 連勝目は見せ場でない（#3097）")
+    func threeWinStreakIsAHighlightOnlyOnce() {
+        // 3 連勝に達する回で通算 5 勝になるよう、勝利数を 2 勝ぶん先に積んでおく。
+        let (services, service) = makeRecordingServices(suite: "highlight-streak3")
+        service.log.recordWin(); service.log.recordWin()
+        for _ in 0..<2 {
+            services.gameDidFinish(gameID: "g", outcome: .win, score: GameScore(metric: .winLoss), isReviewHighlight: false)
         }
-        #expect(service.log.totalWins == 8)
+        #expect(service.log.totalWins == 4)
+        #expect(service.pendingRequestID == nil, "2 連勝までは見せ場でない")
+        services.gameDidFinish(gameID: "g", outcome: .win, score: GameScore(metric: .winLoss), isReviewHighlight: false)
+        #expect(service.log.totalWins == 5)
+        #expect(service.pendingRequestID != nil, "ちょうど 3 連勝に達した回は見せ場")
+
+        // 4 連勝目以降は見せ場にしない（3 連勝に達した時点では通算 5 勝に届かない流れで、5 連勝まで確かめる）。
+        let (services2, service2) = makeRecordingServices(suite: "highlight-streak4")
+        for _ in 0..<5 {
+            services2.gameDidFinish(gameID: "g", outcome: .win, score: GameScore(metric: .winLoss), isReviewHighlight: false)
+        }
+        #expect(service2.log.totalWins == 5)
+        #expect(service2.pendingRequestID == nil, "4・5 連勝目は見せ場でない")
+    }
+
+    @Test("連勝が途切れたら数え直し、3 連勝は 3 に戻ったときだけ")
+    func brokenStreakRestarts() {
+        let (services, service) = makeRecordingServices(suite: "highlight-streak-broken")
+        for _ in 0..<5 { service.log.recordWin() }
+        for outcome in [GameOutcome.win, .win, .loss, .win, .win] {
+            services.gameDidFinish(gameID: "g", outcome: outcome, score: GameScore(metric: .winLoss), isReviewHighlight: false)
+        }
+        #expect(service.pendingRequestID == nil, "2 連勝・負け・2 連勝では 3 連勝にならない")
+    }
+
+    // MARK: 実績の新規達成（#3097）
+
+    private func makeAchievementServices(
+        suite: String, signedIn: Bool = true, priorWins: Int
+    ) -> (GameServices, ReviewRequestService) {
+        let (log, _, _) = makeLog(suite: suite)
+        for _ in 0..<priorWins { log.recordWin() }
+        let service = ReviewRequestService(log: log, appVersion: appVersion, delay: .zero)
+        // 2 本登録にして、1 本遊んだだけでは「全ゲーム制覇」（playAll）に届かないようにする。
+        let reporter = GameCenterReporter(service: NoopGameCenterService(), allowedGameIDs: ["g", "h"], isAvailable: { signedIn })
+        let services = GameServices(
+            snapshots: MemorySnapshotStore(), ads: NoopAdService(), review: service, playLog: log, gameCenter: reporter
+        )
+        return (services, service)
+    }
+
+    private struct NoopGameCenterService: GameCenterService {
+        func submit(_ score: GameCenterScore) {}
+        func report(_ achievements: [GameCenterAchievement], completion: @escaping @MainActor (Bool) -> Void) { completion(true) }
+    }
+
+    @Test("実績を新たに解除した決着は見せ場（通算 10 勝目）")
+    func newAchievementIsAHighlight() {
+        let (services, service) = makeAchievementServices(suite: "highlight-ach", priorWins: 9)
+        // 9 勝済みの状態で 10 勝目（wins10 を初めて満たす）。連勝は 1 で、3 連勝でも自己ベストでもない。
+        services.gameDidFinish(gameID: "g", outcome: .win, score: GameScore(metric: .winLoss), isReviewHighlight: false)
+        #expect(service.pendingRequestID != nil)
+    }
+
+    @Test("達成済みの実績の再送は見せ場でない")
+    func alreadyUnlockedAchievementIsNotAHighlight() {
+        let (services, service) = makeAchievementServices(suite: "highlight-ach-already", priorWins: 10)
+        services.gameDidFinish(gameID: "g", outcome: .win, score: GameScore(metric: .winLoss), isReviewHighlight: false)
+        #expect(service.log.totalWins == 11)
         #expect(service.pendingRequestID == nil)
+    }
+
+    @Test("Game Center に未サインインなら、実績の達成は見せ場にしない")
+    func achievementNeedsSignIn() {
+        let (services, service) = makeAchievementServices(suite: "highlight-ach-signedout", signedIn: false, priorWins: 9)
+        services.gameDidFinish(gameID: "g", outcome: .win, score: GameScore(metric: .winLoss), isReviewHighlight: false)
+        #expect(service.pendingRequestID == nil)
+    }
+
+    @Test("実績の新規達成の判定: 勝利でない決着は勝利数の実績を解除しない・既達成は数えない")
+    func unlocksAnyIsPure() {
+        func unlocks(_ before: Int, _ after: Int, played: (Int, Int) = (0, 0), registered: Int = 12) -> Bool {
+            GameCenterAchievements.unlocksAny(
+                totalWinsBefore: before, totalWinsAfter: after,
+                playedGameCountBefore: played.0, playedGameCountAfter: played.1, registeredGameCount: registered)
+        }
+        #expect(unlocks(0, 1), "初勝利")
+        #expect(unlocks(9, 10))
+        #expect(unlocks(49, 50))
+        #expect(unlocks(10, 11) == false)
+        #expect(unlocks(9, 9) == false, "負けは勝利数が増えない")
+        #expect(unlocks(5, 5, played: (11, 12)), "最後の 1 本を初めて遊ぶと playAll")
+        #expect(unlocks(5, 5, played: (12, 12)) == false)
+        #expect(unlocks(5, 5, played: (4, 5)) == false)
     }
 
     @Test("既定（勝てば見せ場）のゲームは従来どおり5勝目で予定される")

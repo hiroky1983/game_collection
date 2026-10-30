@@ -309,7 +309,8 @@ public struct GameServices {
     ///   - isReviewHighlight: その勝ちが評価リクエストの「見せ場」か（#1471）。既定は true
     ///     （＝勝てば見せ場）。ブラックジャックのブラックジャック・ポーカーの役・対 CPU 盤面ゲームの
     ///     強さなど、勝ちの中でも絞りたいゲームだけ false を渡す。**自己ベストの更新は、ここで渡した
-    ///     値にかかわらず全ゲーム共通で見せ場になる**（連勝記録は含めない）。
+    ///     値にかかわらず全ゲーム共通で見せ場になる**。同じく全ゲーム共通で、そのゲームの記録が
+    ///     ちょうど 3 連勝に達した回と、Game Center の実績を新たに解除した回も見せ場になる（#3097）。
     /// - Returns: 更新後の自己ベストと更新内訳。リザルトに `RecordLabel` で 1 行出すのに使う。
     ///   記録を持たない構成（テスト・プレビュー）では nil。
     @MainActor
@@ -328,9 +329,19 @@ public struct GameServices {
         // 中断データに残すため、中断データの有無だけでは途中の局と見分けられない。
         reminders?.gameDidFinish(gameID: gameID)
         let isNewScoreBest = result.map { $0.update.points || $0.update.highestValue || $0.update.seconds || $0.update.moves } ?? false
+        // 3 連勝（CPU の強さを問わない・ちょうど 3 に達した回だけ・#3097）。
+        let reachedThreeWinStreak = outcome == .win && result?.record.currentStreak == 3
+        // 実績の新規達成（#3097）。`review`（勝利数）と `recommendations`（遊んだゲーム）が `PlayLog` を
+        // 更新する**前**の値から判定する。Game Center への送信はこれまでどおり最後。
+        let unlocksAchievement = gameCenter?.wouldUnlockAchievement(
+            gameID: gameID,
+            outcome: outcome,
+            totalWins: playLog?.totalWins ?? 0,
+            playedGameIDs: playLog?.playedGameIDs ?? []
+        ) ?? false
         let willRequestReview = review?.gameDidFinish(
             outcome: outcome,
-            isHighlight: isReviewHighlight || isNewScoreBest,
+            isHighlight: isReviewHighlight || isNewScoreBest || reachedThreeWinStreak || unlocksAchievement,
             gameID: gameID
         ) ?? false
         recommendations?.gameDidFinish(gameID: gameID, isSuppressedByOtherPrompt: willRequestReview)

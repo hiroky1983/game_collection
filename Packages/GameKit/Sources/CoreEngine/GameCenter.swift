@@ -405,6 +405,21 @@ public enum GameCenterAchievements {
         add(playAll, playedGameCount, target: registeredGameCount)
         return result
     }
+
+    /// 前後の進捗を比べて、**この決着で初めて 100% になった**実績があるか（#3097・評価のお願いの見せ場）。
+    /// 純粋関数。既に 100% だった実績が再び 100% でも数えない。
+    public static func unlocksAny(
+        totalWinsBefore: Int, totalWinsAfter: Int,
+        playedGameCountBefore: Int, playedGameCountAfter: Int,
+        registeredGameCount: Int
+    ) -> Bool {
+        func completed(_ wins: Int, _ played: Int) -> Set<String> {
+            Set(progress(totalWins: wins, playedGameCount: played, registeredGameCount: registeredGameCount)
+                .filter { $0.percentComplete >= 100 }.map(\.achievementID))
+        }
+        return !completed(totalWinsAfter, playedGameCountAfter)
+            .subtracting(completed(totalWinsBefore, playedGameCountBefore)).isEmpty
+    }
 }
 
 /// 決着のたびに Game Center へリーダーボードと実績を送る係（#289 段階②③）。
@@ -465,6 +480,27 @@ public final class GameCenterReporter {
                                 includesLastWeek: Bool = false) async -> GameCenterBoard? {
         guard allowedGameIDs.contains(gameID), isAvailable() else { return nil }
         return await service.loadBoard(leaderboardID: leaderboardID, topCount: topCount, includesLastWeek: includesLastWeek)
+    }
+
+    /// この決着で実績を新たに解除する見込みか（#3097）。`gameDidFinish` が送るものと同じ条件
+    /// （登録済みのゲーム・サインイン済み）に揃え、`PlayLog` が**まだ更新される前**（勝利数・遊んだゲームを
+    /// 足す前）の値を渡す。更新後の値はこの中で足して作る。
+    public func wouldUnlockAchievement(
+        gameID: String,
+        outcome: GameOutcome,
+        totalWins: Int,
+        playedGameIDs: Set<String>
+    ) -> Bool {
+        guard allowedGameIDs.contains(gameID), isAvailable() else { return false }
+        let playedBefore = playedGameIDs.intersection(allowedGameIDs).count
+        let playedAfter = playedGameIDs.union([gameID]).intersection(allowedGameIDs).count
+        return GameCenterAchievements.unlocksAny(
+            totalWinsBefore: totalWins,
+            totalWinsAfter: totalWins + (outcome == .win ? 1 : 0),
+            playedGameCountBefore: playedBefore,
+            playedGameCountAfter: playedAfter,
+            registeredGameCount: allowedGameIDs.count
+        )
     }
 
     /// 決着したときに `GameServices.gameDidFinish` から呼ぶ唯一の入口。
