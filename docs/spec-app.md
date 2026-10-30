@@ -762,6 +762,8 @@ Game Center の ID。英語の訳文には他社の商標名を入れない（�
 
 中断データを持ってハブへ戻った人にだけ、1 日ほど後に「「将棋」が途中のままです」をローカル通知で 1 件届ける。
 汎用の「遊びに来てね」・デイリー通知・リモートプッシュは送らない。
+本文は、ハブのタイルと同じ進み具合（`GameRegistry.resumeProgress`。将棋・チェスは「N 手目」、ナンプレは「残り N マス」等）が
+あるときだけ「中断時は〇〇。続きから、そのまま遊べます。」とする（予約時点の中断データから作る・#3075）。無ければ固定文のまま。
 
 - **規則は Core の `ResumeReminderService` / `ResumeReminderPolicy`**、OS へ渡す部分は App の
   `UserNotificationReminderScheduler`（`UNUserNotificationCenter`）。予約済みの一覧は OS が持ち、アプリ側に保存先を増やさない
