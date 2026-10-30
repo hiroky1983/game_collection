@@ -22,3 +22,6 @@ AuthKey_*.p8
 *.p12
 *.mobileprovision
 GoogleService-Info.plist.bak
+
+# fastlane の自動生成物（実行のたびに書き換わる）
+fastlane/report.xml
