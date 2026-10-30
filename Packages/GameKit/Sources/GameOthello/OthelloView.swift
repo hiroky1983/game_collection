@@ -623,13 +623,21 @@ private struct OthelloBoardCanvas: View, Animatable {
                 let r = c * OthelloBoardStyle.stoneRadiusRatio
                 // 上面の中心（側面ぶん上にずれている）へ合わせる。
                 let faceCY = cy - r * OthelloBoardStyle.stoneRimHeightRatio / 2
-                let mr = r * 0.3
+                // 輪（#3093）: 影フィルタは石の 2 パス描画の drawLayer 内だけに掛かっているので、
+                // ここ（ctx 直下）に描けば輪に落ち影は付かない。
+                let ringR = r + OthelloBoardStyle.lastMoveRingGap
+                ctx.stroke(Path(ellipseIn: CGRect(x: cx-ringR, y: faceCY-ringR,
+                                                  width: ringR*2, height: ringR*2)),
+                           with: .color(Theme.coral.opacity(progress)),
+                           lineWidth: OthelloBoardStyle.lastMoveRingLineWidth)
+                let mr = r * OthelloBoardStyle.lastMoveDotRadiusRatio
                 let mRect = CGRect(x: cx-mr, y: faceCY-mr, width: mr*2, height: mr*2)
-                ctx.fill(Path(ellipseIn: mRect),
-                         with: .color((stone == .black
-                                       ? Color.white.opacity(0.5)
-                                       : Color(hex: OthelloBoardStyle.boardGreen).opacity(0.5))
-                                          .opacity(progress)))
+                let dot = stone == .black
+                    ? Color(hex: OthelloBoardStyle.lastMoveDotOnBlack)
+                        .opacity(OthelloBoardStyle.lastMoveDotOnBlackOpacity)
+                    : Color(hex: OthelloBoardStyle.lastMoveDotOnWhite)
+                        .opacity(OthelloBoardStyle.lastMoveDotOnWhiteOpacity)
+                ctx.fill(Path(ellipseIn: mRect), with: .color(dot.opacity(progress)))
             }
         }
     }
