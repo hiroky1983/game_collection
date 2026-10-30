@@ -521,6 +521,41 @@ struct ReengagementReminderServiceTests {
         #expect(spy.scheduled.isEmpty, "永続停止後に新しいスレッドが追加されている")
     }
 
+    @Test("別のゲームを遊び続けた人は、通知したゲームが不変でも永続停止せずスレッドだけ外す（#3091）")
+    func doesNotStopWhenAnotherGameWasPlayed() async {
+        let spy = SpyScheduler()
+        let baseline = date(1, 8)
+        let env = Environment(now: date(8, 8))
+        let store = freshStore()
+        let service = makeService(spy, env, store: store)
+
+        service.applicationDidEnterBackground(
+            games: [
+                ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: baseline),
+                ReengagementCandidateInput(gameID: "game2048", plays: 1, lastPlayedAt: nil)
+            ],
+            availableIDs: ["shogi", "game2048"]
+        )
+        await service.pendingWork?.value
+        #expect(store.activeThreads["shogi"] != nil)
+
+        let sixtyDayFire = ReengagementReminderPolicy.sixtyDayFireDate(lastPlayedAt: baseline, calendar: tokyo)!
+        env.now = sixtyDayFire.addingTimeInterval(24 * 60 * 60)
+        // 将棋は不変だが、2048 は起点より後に遊ばれている。
+        service.applicationDidEnterBackground(
+            games: [
+                ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: baseline),
+                ReengagementCandidateInput(gameID: "game2048", plays: 50, lastPlayedAt: env.now)
+            ],
+            availableIDs: ["shogi", "game2048"]
+        )
+        await service.pendingWork?.value
+
+        #expect(!store.isPermanentlyStopped)
+        #expect(spy.cancelAllCount == 0)
+        #expect(store.activeThreads["shogi"] != baseline, "役目を終えたスレッドが残っている")
+    }
+
     @Test("60日後通知の発火予定時刻から24時間経つ前は、未反応と判定せず永続停止しない")
     func doesNotStopBeforeTwentyFourHoursPassed() async {
         let spy = SpyScheduler()
