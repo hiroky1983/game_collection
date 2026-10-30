@@ -119,6 +119,16 @@ struct PlayDayStreakTests {
         #expect(PlayDayStreak.hubText(streak: 2) == "連続 2 日あそび中")
     }
 
+    @Test("ハブの1行は3状態: 今日遊んだ=現行どおり／昨日まで続いて今日まだ=あと1局で+1（1日でも出す）／それ以外=nil")
+    func hubTextByPlayedToday() {
+        #expect(PlayDayStreak.hubText(days: [100], today: 100) == nil, "初日に遊んだ当日は出さない")
+        #expect(PlayDayStreak.hubText(days: [99, 100], today: 100) == "連続 2 日あそび中")
+        #expect(PlayDayStreak.hubText(days: [99], today: 100) == "あと 1 局で連続 2 日", "連続1日の翌日")
+        #expect(PlayDayStreak.hubText(days: [97, 98, 99], today: 100) == "あと 1 局で連続 4 日")
+        #expect(PlayDayStreak.hubText(days: [97, 98], today: 100) == nil, "1日空いた")
+        #expect(PlayDayStreak.hubText(days: [], today: 100) == nil)
+    }
+
     // MARK: PlayLog との結線
 
     private func makeLog(_ name: String) -> (PlayLog, UserDefaults) {

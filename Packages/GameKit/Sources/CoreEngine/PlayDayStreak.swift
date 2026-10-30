@@ -74,4 +74,15 @@ public enum PlayDayStreak {
     public static func hubText(streak: Int) -> String? {
         streak >= hubMinimumDays ? tr("連続 %@ 日あそび中", RecordFormat.number(streak)) : nil
     }
+
+    /// ハブの 1 行（#3060）。今日遊んだかで 3 状態に分ける。
+    /// - 今日遊んだ: `hubText(streak:)` と同じ（2 日以上のときだけ）。
+    /// - 昨日まで続いていて今日はまだ: 「あと 1 局で連続 N+1 日」（N=1 でも出す）。
+    /// - それ以外（昨日も今日も遊んでいない）: nil。
+    public static func hubText(days: [Int], today: Int) -> String? {
+        let streak = current(days: days, today: today)
+        if days.contains(today) { return hubText(streak: streak) }
+        guard streak > 0 else { return nil }
+        return tr("あと 1 局で連続 %@ 日", RecordFormat.number(streak + 1))
+    }
 }

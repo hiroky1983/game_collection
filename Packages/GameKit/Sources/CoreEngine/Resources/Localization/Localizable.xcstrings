@@ -1357,6 +1357,17 @@
         }
       }
     },
+    "あと 1 局で連続 %@ 日" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 more game for a %@-day streak"
+          }
+        }
+      }
+    },
     "連続 %@ 日あそび中" : {
       "extractionState" : "manual",
       "localizations" : {
