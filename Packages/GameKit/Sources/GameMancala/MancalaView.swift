@@ -70,6 +70,10 @@ public struct MancalaView: View {
         .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
         }
+        // CPU の着手（どの穴か・ストア入り・連続手番）を読み上げる（#3062）。
+        .cpuMoveAnnouncement(key: model.aiTurnKey, cpuMoveKey: model.lastCPUMoveKey) {
+            model.lastMove.map { MancalaAccessibility.cpuMoveAnnouncement(pitSlot: $0.pitSlot, event: model.lastEvent) }
+        }
         .task {
             #if DEBUG
             // 撮影・動作確認用: `-mancalaScenario capture|endgame` で局面を差し替える。

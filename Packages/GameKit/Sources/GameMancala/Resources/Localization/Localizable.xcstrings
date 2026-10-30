@@ -155,6 +155,39 @@
         }
       }
     },
+    "CPUは穴%lld をまきました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The CPU sowed from pit %lld"
+          }
+        }
+      }
+    },
+    "。%lld個を取りました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". It captured %lld seeds"
+          }
+        }
+      }
+    },
+    "。ストアに入って、もう一度まきます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". It landed in its store and sows again"
+          }
+        }
+      }
+    },
     "、" : {
       "extractionState" : "manual",
       "localizations" : {

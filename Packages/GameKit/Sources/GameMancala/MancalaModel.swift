@@ -49,6 +49,8 @@ public final class MancalaModel: AITurnGuarded, BoardUndoModel {
     public private(set) var lastMove: (pitSlot: Int, landingSlot: Int)?
     /// 直前の手で起きたこと（状況の 1 行に出す）。永続化しない。
     public private(set) var lastEvent: MancalaEvent?
+    /// CPU が着手した直後の `aiTurnKey`。View はこれと一致するときだけ着手を読み上げる（#3062）。永続化しない。
+    public private(set) var lastCPUMoveKey: AITurnKey?
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに 1 行出す。
     public private(set) var recordResult: RecordResult?
 
@@ -149,6 +151,7 @@ public final class MancalaModel: AITurnGuarded, BoardUndoModel {
         currentSide = humanSide
         lastMove = nil
         lastEvent = nil
+        lastCPUMoveKey = nil
         undoUsed = true
         turnID += 1
         persist()
@@ -194,6 +197,7 @@ public final class MancalaModel: AITurnGuarded, BoardUndoModel {
         winner = nil
         lastMove = nil
         lastEvent = nil
+        lastCPUMoveKey = nil
         undoUsed = false
         undoHistory = []
         recordResult = nil
@@ -221,6 +225,7 @@ public final class MancalaModel: AITurnGuarded, BoardUndoModel {
         lastMove = (MancalaBoard.slotIndex(mover, pit: pit), result.lastSlot)
         lastEvent = MancalaEvent(side: mover, extraTurn: result.extraTurn, captured: result.captured)
         turnID += 1
+        lastCPUMoveKey = mover == humanSide ? nil : aiTurnKey
         if result.gameEnded {
             finish(winner: MancalaRules.winner(of: board))
             return
@@ -277,6 +282,7 @@ public final class MancalaModel: AITurnGuarded, BoardUndoModel {
         winner = nil
         lastMove = nil
         lastEvent = nil
+        lastCPUMoveKey = nil
         undoHistory = []
         recordResult = nil
         gameSerial += 1
