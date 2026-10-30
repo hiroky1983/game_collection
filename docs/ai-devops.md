@@ -480,6 +480,8 @@ CodeRabbit を必須ステータスチェックにする案は採らない。レ
   変わっていた）。会長の「使いどころないなら消す」を受けてターゲットごと削除した（コード PR は release/v1.1.12）。
   画面の確認は起動引数（`-startGame` 等）＋シミュレータのスクリーンショットで行う。
 - 将棋の自己対戦などの重い検証は通常の PR の CI とは別枠（nightly・#1737）で回す。
+- **夜間の赤はここで拾う**（#3077）: 夜間2本（`nightly-gamekit-full.yml`・`nightly-shogi-selfplay.yml`）の `schedule` 実行は PR に紐づかない。
+  `ai-duty.sh` のスロット1が毎回 `Scripts/check-nightly-failures.sh` を呼び、main の最新 schedule 実行が `failure` なら run URL と落ちたログの先頭を書いた Issue を起票する（同じ run ID では二重に起票しない）。
 - **`web/`（LP）は `.github/workflows/web-check.yml` が `npm ci` → `npm run lint` → `npx tsc --noEmit` → `npm run build` を回す**（#2885）。
   `web/**` を触る PR / main への push だけで動く。LP は main マージが即本番公開なので、`ci.yml` がスキップする `web/` だけの PR の保険になる。
   paths 付きのため必須チェックには加えない（`scripts-tests.yml` と同じ理由）。

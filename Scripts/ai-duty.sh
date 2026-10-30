@@ -1166,6 +1166,7 @@ gh auth status >/dev/null 2>&1 || { log "gh 未認証またはオフライン"; 
 if [ "$DUTY_SLOT" -eq 1 ]; then
   run_auto_stamp
   run_auto_stamp_weekly_summary
+  [ -f "$DUTY_DIR/Scripts/check-nightly-failures.sh" ] && { bash "$DUTY_DIR/Scripts/check-nightly-failures.sh" >>"$LOG" 2>&1 || true; }  # 夜間ワークフローの赤の起票（#3077）
   collect_notify_targets
 fi
 
