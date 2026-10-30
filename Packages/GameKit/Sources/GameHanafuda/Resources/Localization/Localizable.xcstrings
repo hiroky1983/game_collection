@@ -2930,6 +2930,62 @@
           }
         }
       }
+    },
+    "このうち4枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All 4 of these"
+          }
+        }
+      }
+    },
+    "このうち3枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Any 3 of these"
+          }
+        }
+      }
+    },
+    "柳＋ほか3枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rain Man + any 3"
+          }
+        }
+      }
+    },
+    "%lld枚から" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld+ card"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld+ cards"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
