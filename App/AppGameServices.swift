@@ -44,7 +44,7 @@ import GameCatPuzzle
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
 @MainActor
 enum AppEnvironment {
-    static let services = GameServices(
+    static let services: GameServices = GameServices(
         // 中断データの消去（終局・やり直し・設定の切り替え）を横で捕まえ、そのゲームの
         // お知らせを取り消す（#663）。保存形式と読み書きは `FileSnapshotStore` のまま。
         snapshots: ClearObservingSnapshotStore(base: FileSnapshotStore()) { gameID in
@@ -96,7 +96,9 @@ enum AppEnvironment {
             guard let module = registry.module(id: gameID), module.resumesFromSnapshot else { return nil }
             guard !settings.hiddenIDs.contains(gameID) else { return nil }
             return module.title
-        }
+        },
+        // 通知の本文に、ハブのタイルと同じ進み具合を添える（#3075）。予約の時点の中断データから読む。
+        progress: { gameID in registry.resumeProgress(gameID: gameID, in: services.snapshots) }
     )
 
     /// ホーム画面アイコン長押し（#1642）。項目の組み直しは `GameCollectionApp` がバックグラウンドへ入るたびに行う。
