@@ -14,7 +14,7 @@
 #
 # 使い方: Scripts/check-pr-base.sh <base ブランチ名> <head ブランチ名> [変更ファイル一覧のパス]
 #   変更ファイル一覧を省略すると標準入力から読む（1 行 1 パス）。
-# 終了コード: 0 = 問題なし or 検証対象外 / 1 = main 直のアプリコード変更 / 2 = 使い方の誤り
+# 終了コード: 0 = 問題なし or 検証対象外 / 1 = main 直の許可リスト外の変更 / 2 = 使い方の誤り
 set -uo pipefail
 
 BASE="${1:-}"
@@ -75,27 +75,32 @@ else
   FILES="$(cat)"
 fi
 
-# アプリのバイナリに入るもの＝ release ブランチを経由しなければならないもの。
-# docs/ Scripts/ .github/ web/ は運用系・LP で、規程上 main 直の PR でよい。
+# 許可リスト方式（#3052）。main 直でよいのは運用系・LP だけ（docs/ai-devops.md）で、
+# それ以外のパスは「ビルドに効く可能性があるもの」として release ブランチを経由させる。
+# 禁止リスト（App/ Packages/ project.yml だけ）だと Config/Package.resolved・fastlane/・Gemfile が
+# 素通りし、ルートに新しいディレクトリが増えても守られない。
+# 許可: docs/ Scripts/ .github/ web/ ・ルート直下の *.md ・.coderabbit.yaml
 VIOLATIONS=""
 while IFS= read -r f; do
   [ -n "$f" ] || continue
   case "$f" in
-    App/*|Packages/*|project.yml)
-      VIOLATIONS="${VIOLATIONS}${f}"$'\n'
-      ;;
+    docs/*|Scripts/*|.github/*|web/*|.coderabbit.yaml) ;;
+    */*) VIOLATIONS="${VIOLATIONS}${f}"$'\n' ;;
+    *.md) ;;
+    *) VIOLATIONS="${VIOLATIONS}${f}"$'\n' ;;
   esac
 done <<< "$FILES"
 
 if [ -z "$VIOLATIONS" ]; then
-  echo "check-pr-base: main 直の PR ですが、アプリコード（App/ Packages/ project.yml）は含みません"
+  echo "check-pr-base: main 直の PR ですが、許可リスト外（アプリ・ビルドに効く変更）は含みません"
   exit 0
 fi
 
-echo "check-pr-base: main をベースにしたアプリコードの変更を検出しました"
+echo "check-pr-base: main をベースにした、許可リスト外（アプリ・ビルドに効く）の変更を検出しました"
 echo
 printf '%s' "$VIOLATIONS" | sed 's/^/  - /'
 echo
+echo "main 直でよいのは docs/ Scripts/ .github/ web/ ・ルート直下の *.md ・.coderabbit.yaml だけです。"
 echo "main は「リリース済みバージョンの集合」です（docs/ai-devops.md）。"
 echo "この PR の base を、対象 Issue のマイルストーンと同名の release/vX.Y.Z に付け替えてください。"
 echo "対応する release ブランチが無ければ直近の release の HEAD から作成します（同文書の手順）。"
