@@ -15,6 +15,30 @@ public extension View {
     }
 }
 
+public extension View {
+    /// ハブに評価リクエスト（遊んだ日数の節目・#3078）の実行を紐づける。`reviewRequestPrompt` の OS ダイアログの部分だけで、
+    /// 感想カードは出さない（カードはゲームの画面が持つ）。
+    ///
+    /// ハブは NavigationStack の根でゲームの下に残り続けるので、`isActive`（ハブが前面にあるか）が false の間は
+    /// 実行しない。待っている間にゲームを開いた（＝false になった）ら予定を破棄する。
+    func hubReviewRequestPrompt(_ service: ReviewRequestService?, isActive: Bool) -> some View {
+        modifier(HubReviewRequestPromptModifier(service: service, isActive: isActive))
+    }
+}
+
+private struct HubReviewRequestPromptModifier: ViewModifier {
+    let service: ReviewRequestService?
+    let isActive: Bool
+    @Environment(\.requestReview) private var requestReview
+
+    func body(content: Content) -> some View {
+        content.task(id: isActive ? service?.pendingRequestID : nil) {
+            guard isActive, let service, service.pendingRequestID != nil else { return }
+            await service.performPendingRequest { requestReview() }
+        }
+    }
+}
+
 private struct ReviewRequestPromptModifier: ViewModifier {
     let service: ReviewRequestService?
     @Environment(\.requestReview) private var requestReview

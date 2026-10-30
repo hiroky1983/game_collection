@@ -351,8 +351,8 @@ public enum AnalyticsEvent: Equatable, Sendable {
     /// パラメータは `result` / `trigger` のみで、ゲーム ID は載せない。
     case notificationPermission(result: NotificationPermissionResult, trigger: NotificationPermissionTrigger)
     /// 評価のお願い（#3061）。カードを出した・どれを押した・OS の評価ダイアログを依頼した、の 1 回につき 1 回。
-    /// パラメータは `kind` / `step` のみで、ゲーム ID は載せない。
-    case reviewPrompt(kind: ReviewPromptKind, step: ReviewPromptStep)
+    /// パラメータは `kind` / `step` と、遊んだ日数の節目（#3078）のときだけ `trigger`。ゲーム ID は載せない。
+    case reviewPrompt(kind: ReviewPromptKind, step: ReviewPromptStep, trigger: ReviewPromptTrigger? = nil)
 
     /// Firebase のイベント名。
     public var name: String {
@@ -441,11 +441,14 @@ public enum AnalyticsEvent: Equatable, Sendable {
                 "result": .string(result.rawValue),
                 "trigger": .string(trigger.rawValue),
             ]
-        case let .reviewPrompt(kind, step):
-            return [
+        case let .reviewPrompt(kind, step, trigger):
+            var parameters: [String: AnalyticsValue] = [
                 "kind": .string(kind.rawValue),
                 "step": .string(step.rawValue),
             ]
+            // 勝利の見せ場のきっかけは従来どおり鍵を送らない。遊んだ日数の節目だけ載せる（#3078）。
+            if let trigger { parameters["trigger"] = .string(trigger.rawValue) }
+            return parameters
         }
     }
 }
@@ -456,6 +459,23 @@ public enum ReviewPromptKind: String, Sendable, CaseIterable {
     case regular
     /// 新しいゲームを遊んだ直後に出す、アプリ独自のカード。
     case newGameCard = "new_game_card"
+}
+
+/// `review_prompt` の `trigger`（#3078）。見せ場の勝ち以外のきっかけ。
+public enum ReviewPromptTrigger: String, Sendable, CaseIterable {
+    /// 遊んだ日数が 7 日に達した。
+    case days7 = "days_7"
+    /// 遊んだ日数が 30 日に達した。
+    case days30 = "days_30"
+
+    /// 節目の日数（`ReviewRequestPolicy.daysMilestones`）に対応するきっかけ。
+    public init?(milestone: Int) {
+        switch milestone {
+        case 7: self = .days7
+        case 30: self = .days30
+        default: return nil
+        }
+    }
 }
 
 /// `review_prompt` の `step`（#3061）。
@@ -739,8 +759,8 @@ public final class GameAnalytics {
     }
 
     /// 評価のお願いの段階を送る（#3061）。プレイの数え方には影響しない。
-    public func recordReviewPrompt(kind: ReviewPromptKind, step: ReviewPromptStep) {
-        service.log(.reviewPrompt(kind: kind, step: step))
+    public func recordReviewPrompt(kind: ReviewPromptKind, step: ReviewPromptStep, trigger: ReviewPromptTrigger? = nil) {
+        service.log(.reviewPrompt(kind: kind, step: step, trigger: trigger))
     }
 
     /// 解析送信の設定（オン / オフ）が切り替わったときに呼ぶ。**数え方の状態を丸ごと捨てる**。
