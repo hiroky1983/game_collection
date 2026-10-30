@@ -1158,6 +1158,22 @@ trap 'cleanup_simulators; cleanup_worktree; notify_pending; release_claim; relea
 
 gh auth status >/dev/null 2>&1 || { log "gh 未認証またはオフライン"; exit 0; }
 
+# 夜間ワークフローの赤の起票（#3077）。作業ツリーは fetch しか進めないので、origin/main の版を取り出して実行する。
+# gh が止まっても当番を止めないよう perl の alarm で上限を付ける（macOS に timeout(1) は無い）
+run_nightly_check() {
+  local d
+  [ -d "$DUTY_DIR/.git" ] || return 0
+  d=$(mktemp -d "${TMPDIR:-/tmp}/duty-nightly.XXXXXX") || return 0
+  if git -C "$DUTY_DIR" show origin/main:Scripts/check-nightly-failures.sh >"$d/check-nightly-failures.sh" 2>/dev/null \
+     && git -C "$DUTY_DIR" show origin/main:Scripts/pick-issue-milestone.sh >"$d/pick-issue-milestone.sh" 2>/dev/null; then
+    perl -e 'alarm shift; exec @ARGV' "${DUTY_NIGHTLY_TIMEOUT:-120}" bash "$d/check-nightly-failures.sh" >>"$LOG" 2>&1 \
+      || log "夜間チェックが失敗または時間切れ（exit=$?）"
+  else
+    log "夜間チェック: origin/main に check-nightly-failures.sh が無いため見送り"
+  fi
+  rm -f "$d/check-nightly-failures.sh" "$d/pick-issue-milestone.sh"
+  rmdir "$d" 2>/dev/null
+}
 # 会長の操作待ち（決裁・承認）を先に集める。以降のどこで exit しても EXIT トラップから通知が出る。
 # 集めて通知するのはスロット1だけ（2並列化 2026-09-25）。両スロットが集めると、連投防止の状態ファイルを
 # 読んでから書くまでの間に2つとも「未通知」と判断して同じ内容を2回鳴らしうる
@@ -1166,7 +1182,7 @@ gh auth status >/dev/null 2>&1 || { log "gh 未認証またはオフライン"; 
 if [ "$DUTY_SLOT" -eq 1 ]; then
   run_auto_stamp
   run_auto_stamp_weekly_summary
-  [ -f "$DUTY_DIR/Scripts/check-nightly-failures.sh" ] && { bash "$DUTY_DIR/Scripts/check-nightly-failures.sh" >>"$LOG" 2>&1 || true; }  # 夜間ワークフローの赤の起票（#3077）
+  run_nightly_check
   collect_notify_targets
 fi
 
