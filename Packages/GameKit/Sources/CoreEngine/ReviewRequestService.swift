@@ -45,13 +45,18 @@ public final class ReviewRequestService {
     /// 感想カードを表示中か。画面側のオーバーレイがこの値を見る。
     public var isNewGameCardPresented = false
 
+    /// 感想カードの対象にする新着のゲーム。本番はこの版の新着（`NewGames.currentVersionIDs`）。テストが差し替える。
+    private let newGameIDs: Set<String>
+
     public init(
         log: PlayLog,
         appVersion: String,
         now: @escaping () -> Date = { Date() },
         delay: Duration = .seconds(1),
-        analytics: GameAnalytics? = nil
+        analytics: GameAnalytics? = nil,
+        newGameIDs: Set<String> = NewGames.currentVersionIDs
     ) {
+        self.newGameIDs = newGameIDs
         self.analytics = analytics
         self.log = log
         self.appVersion = appVersion
@@ -82,7 +87,7 @@ public final class ReviewRequestService {
         // 新しいゲームの感想カード（#3061）は条件1〜6 を飛び越える。通常の評価リクエストより優先し、
         // 同じリザルトで二重に聞かない。
         if issuedNewGameCardID != nil { return true }
-        if ReviewRequestPolicy.shouldAskAboutNewGame(state: log.reviewState, gameID: gameID) {
+        if ReviewRequestPolicy.shouldAskAboutNewGame(state: log.reviewState, gameID: gameID, newGameIDs: newGameIDs) {
             issuedRequestID = nil
             issuedDaysMilestone = nil
             issuedCount += 1
