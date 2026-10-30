@@ -300,11 +300,13 @@ public struct CatPuzzleView: View {
                     withGameAnimation { model.dragCross(to: cell) }
                 }
             }
-            .onEnded { _ in
+            .onEnded { value in
                 defer { boardTouch = BoardTouch() }
                 if boardTouch.isSliding {
                     model.endCrossDrag()
-                } else if let cell = boardTouch.startCell {
+                } else if let cell = boardTouch.startCell,
+                          cell == CatPuzzleModel.cell(at: value.location, side: side, cellSide: cellSide, inset: inset) {
+                    // 開始マスの上で離したときだけタップ（マスの端から余白へ出て離したら何もしない。旧 onTapGesture と同じ）。
                     withGameAnimation { model.tap(cell: cell) }
                 }
             }

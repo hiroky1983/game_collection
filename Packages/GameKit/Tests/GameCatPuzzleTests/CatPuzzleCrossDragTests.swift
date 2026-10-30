@@ -156,4 +156,15 @@ struct CatPuzzleCrossDragTests {
         model.endCrossDrag()
         #expect(model.marks[2] == .empty && model.marks[3] == .empty)
     }
+
+    @Test("スライド中にやり直し・戻すで盤が変わったら、古いスライドは捨てる")
+    func boardChangeDiscardsDrag() {
+        let model = makeModel()
+        model.beginCrossDrag(cell: 4)
+        model.dragCross(to: 5)
+        model.reset()
+        model.dragCross(to: 6)
+        model.endCrossDrag()
+        #expect(model.marks.allSatisfy { $0 == .empty }, "やり直しのあとの古いスライドは盤に作用しない")
+    }
 }

@@ -423,6 +423,7 @@ public final class CatPuzzleModel {
     public func undo() {
         guard canUndo, let previous = history.popLast() else { return }
         pendingTap = nil
+        crossDrag = nil  // 進行中のスライドは捨てる（盤が変わるため）
         marks = previous
         keepFixedMarks()
         lastHint = nil
@@ -437,6 +438,7 @@ public final class CatPuzzleModel {
         guard !isFrozen else { return }
         history.removeAll()
         pendingTap = nil
+        crossDrag = nil  // 進行中のスライドは捨てる（盤が変わるため）
         marks = Array(repeating: .empty, count: puzzle.cellCount)
         keepFixedMarks()
         lastHint = nil
@@ -467,6 +469,7 @@ public final class CatPuzzleModel {
     /// ヒントの中身を盤に反映する（回数の消費は呼び出し側が済ませている）。
     private func apply(_ hint: CatPuzzleHint) {
         pendingTap = nil
+        crossDrag = nil  // 進行中のスライドは捨てる（盤が変わるため）
         startPlayIfPending()
         for cell in hint.removed + hint.crossed {
             marks[cell] = .cross
@@ -521,6 +524,7 @@ public final class CatPuzzleModel {
         cancelStagePreparation()
         let request = stageRequest
         pendingTap = nil
+        crossDrag = nil  // 進行中のスライドは捨てる（盤が変わるため）
         stopwatch.stop()
         isPreparingStage = true
         preparingStage = n
@@ -581,6 +585,7 @@ public final class CatPuzzleModel {
         size = newSize
         stage = newStage
         pendingTap = nil
+        crossDrag = nil  // 進行中のスライドは捨てる（盤が変わるため）
         stopwatch.stop()
         puzzle = newPuzzle
         marks = Array(repeating: .empty, count: puzzle.cellCount)
