@@ -321,6 +321,7 @@ public enum GameCenterLeaderboard {
             case "easy":   return sudokuEasy
             case "normal": return sudokuNormal
             case "hard":   return sudokuHard
+            // 上級（"expert"）の順位表は作らない（#3099）。default の nil で何も送らない。
             default:       return nil
             }
         default:

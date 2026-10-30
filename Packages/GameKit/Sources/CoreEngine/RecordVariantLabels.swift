@@ -24,6 +24,7 @@ public enum RecordVariantLabels {
             case "easy":   return tr("かんたん", language: language)
             case "normal": return tr("ふつう", language: language)
             case "hard":   return tr("むずかしい", language: language)
+            case "expert": return tr("上級", language: language)
             default:       return nil
             }
         case "solitaire":

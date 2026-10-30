@@ -234,6 +234,7 @@ struct GameCenterLeaderboardTests {
         #expect(id("normal") == GameCenterLeaderboard.sudokuNormal)
         #expect(id("hard") == GameCenterLeaderboard.sudokuHard)
         #expect(Set([id("easy"), id("normal"), id("hard")]).count == 3, "難易度が同じ表に混ざらない")
+        #expect(id("expert") == nil, "上級の順位表は作らない（#3099）")
     }
 
     @Test("勝敗しか残らないゲームは対象外")

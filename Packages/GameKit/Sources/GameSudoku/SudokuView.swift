@@ -308,6 +308,7 @@ public struct SudokuView: View {
         case .easy:   return Theme.Fill.teal
         case .normal: return Theme.Fill.yellow
         case .hard:   return Theme.Fill.coral
+        case .expert: return Theme.Fill.purple
         }
     }
 
@@ -859,6 +860,7 @@ struct SudokuNewGameSheet: View {
                     difficultyTile(.easy,   subtitle: tr("空き 約30〜35"), accent: DifficultyTile.accent(step: 0, of: 3))
                     difficultyTile(.normal, subtitle: tr("空き 約40〜45"), accent: DifficultyTile.accent(step: 1, of: 3))
                     difficultyTile(.hard,   subtitle: tr("空き 約46〜50"), accent: DifficultyTile.accent(step: 2, of: 3))
+                    difficultyTile(.expert, subtitle: tr("空き 約52〜56"), accent: Theme.Fill.purple)
                 }
             }
         }

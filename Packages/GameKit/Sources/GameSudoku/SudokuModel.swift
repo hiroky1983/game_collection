@@ -736,6 +736,7 @@ extension SudokuDifficulty {
         case .easy:   return .beginner
         case .normal: return .normal
         case .hard:   return .hard
+        case .expert: return .expert
         }
     }
 }
