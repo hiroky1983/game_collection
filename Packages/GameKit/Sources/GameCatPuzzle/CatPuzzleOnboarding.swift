@@ -31,6 +31,7 @@ enum CatPuzzleOnboarding {
                     lines: [
                         tr("マスをタップすると、×（いない）を付け外しします。"),
                         tr("ダブルタップで、そのマスの猫を見つけます。"),
+                        tr("指をすべらせると、続けて × を付けたり外したりできます。"),
                     ],
                     figure: { AnyView(CatPuzzleHowToFigures.TapControlsFigure()) }
                 ),

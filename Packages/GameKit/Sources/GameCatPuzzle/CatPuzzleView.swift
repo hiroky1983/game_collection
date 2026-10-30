@@ -12,6 +12,8 @@ public struct CatPuzzleView: View {
     @AppStorage("catPuzzleMode") private var preferredMode = CatPuzzlePlayMode.stage.rawValue
     /// ステージのクリアのカードを「盤を見る」で閉じたか（新しい局で開け直す）。
     @State private var clearCardClosed = false
+    /// 盤を押している指の状態（タップかスライドかの判定。#3116）。
+    @State private var boardTouch = BoardTouch()
     /// 開始シート（難易度を選ぶ）。続きの盤が無ければ最初に出す（他のゲームと同じ・会長 QA 2026-10-21・build 43）。
     @State private var showNewGame: Bool
     /// 「＋」で途中の局をやめるかの確認。
@@ -259,14 +261,59 @@ public struct CatPuzzleView: View {
                 cells(cellSide: cellSide, inset: inset)
             }
             .frame(width: boardSide, height: boardSide)
+            .contentShape(Rectangle())
+            .gesture(boardGesture(cellSide: cellSide, inset: inset))
             .frame(maxWidth: .infinity, alignment: .center)
             .gameAnimation(.easeOut(duration: 0.15), value: model.marks)
         }
         .aspectRatio(1, contentMode: .fit)
     }
 
+    /// 盤を押している指の状態。指を置いた位置のマスと、スライドと決まったかを持つ。
+    private struct BoardTouch {
+        var start: CGPoint?
+        var startCell: Int?
+        var isSliding = false
+    }
+
+    /// 盤全体のタップとスライド（#3116）。指の動きがマスの一辺の `slideThreshold` 未満のまま離したらタップとして
+    /// `tap(cell:)` へ、届いたらスライドとして通ったマスに続けて × を付ける・外す（向きは最初のマスで決まる）。
+    private func boardGesture(cellSide: CGFloat, inset: CGFloat) -> some Gesture {
+        let side = model.puzzle.side
+        return DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                if boardTouch.start != value.startLocation {
+                    // 前の指が離れ損ねていたら（システムの割り込み）確定してから新しい指として扱う。
+                    if boardTouch.isSliding { model.endCrossDrag() }
+                    boardTouch = BoardTouch(
+                        start: value.startLocation,
+                        startCell: CatPuzzleModel.cell(at: value.startLocation, side: side, cellSide: cellSide, inset: inset))
+                }
+                guard let startCell = boardTouch.startCell else { return }
+                let moved = hypot(value.location.x - value.startLocation.x, value.location.y - value.startLocation.y)
+                if !boardTouch.isSliding, moved >= cellSide * CatPuzzleModel.slideThreshold {
+                    boardTouch.isSliding = true
+                    withGameAnimation { model.beginCrossDrag(cell: startCell) }
+                }
+                if boardTouch.isSliding {
+                    let cell = CatPuzzleModel.cell(at: value.location, side: side, cellSide: cellSide, inset: inset)
+                    withGameAnimation { model.dragCross(to: cell) }
+                }
+            }
+            .onEnded { value in
+                defer { boardTouch = BoardTouch() }
+                if boardTouch.isSliding {
+                    model.endCrossDrag()
+                } else if let cell = boardTouch.startCell,
+                          cell == CatPuzzleModel.cell(at: value.location, side: side, cellSide: cellSide, inset: inset) {
+                    // 開始マスの上で離したときだけタップ（マスの端から余白へ出て離したら何もしない。旧 onTapGesture と同じ）。
+                    withGameAnimation { model.tap(cell: cell) }
+                }
+            }
+    }
+
     /// タップと VoiceOver 用のマスの並び。見た目は Canvas で描き、操作と読み上げだけをこちらに置く。
-    /// タップは 1 回ごとに `CatPuzzleModel.tap(cell:)` へ渡し、ダブルタップの判定はモデルが時刻と同じマスかで行う
+    /// タップは盤全体のジェスチャ（`boardGesture`）が 1 回ごとに `CatPuzzleModel.tap(cell:)` へ渡し、ダブルタップの判定はモデルが時刻と同じマスかで行う
     /// （`.onTapGesture(count: 2)` と排他にすると単タップが約 0.3 秒遅れるため・会長 QA 2026-10-22・build 45）。
     private func cells(cellSide: CGFloat, inset: CGFloat) -> some View {
         let n = model.puzzle.side
@@ -275,7 +322,6 @@ public struct CatPuzzleView: View {
                 .frame(width: cellSide, height: cellSide)
                 .contentShape(Rectangle())
                 .offset(x: inset + CGFloat(index % n) * cellSide, y: inset + CGFloat(index / n) * cellSide)
-                .onTapGesture { withGameAnimation { model.tap(cell: index) } }
                 .accessibilityElement()
                 .accessibilityLabel(CatPuzzleAccessibility.cellLabel(
                     row: index / n, col: index % n,

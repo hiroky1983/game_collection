@@ -1191,6 +1191,17 @@
         }
       }
     },
+    "指をすべらせると、続けて × を付けたり外したりできます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slide your finger to add or remove several ×s in a row."
+          }
+        }
+      }
+    },
     "ダブルタップで、そのマスの猫を見つけます。" : {
       "extractionState" : "manual",
       "localizations" : {

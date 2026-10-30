@@ -294,6 +294,92 @@ public final class CatPuzzleModel {
         return true
     }
 
+    // MARK: - スライドで続けて ×（#3116）
+
+    /// 指の動きがマスの一辺のこの割合に届くまではタップとして扱う（届いたらスライド）。
+    public static let slideThreshold: Double = 0.4
+
+    /// 盤の座標（盤の左上が原点）から、いま指があるマスの番号。盤の外（余白・枠の外）は nil。
+    public static func cell(at point: CGPoint, side: Int, cellSide: CGFloat, inset: CGFloat) -> Int? {
+        let col = Int(((point.x - inset) / cellSide).rounded(.down))
+        let row = Int(((point.y - inset) / cellSide).rounded(.down))
+        guard (0..<side).contains(col), (0..<side).contains(row) else { return nil }
+        return row * side + col
+    }
+
+    /// `from` から `to` までに通ったマス（両端を含む。マスの中心どうしを結ぶ線）。速いスライドで飛んだマスを埋める。
+    public static func cellsOnLine(from: Int, to: Int, side: Int) -> [Int] {
+        var (col, row) = (from % side, from / side)
+        let (endCol, endRow) = (to % side, to / side)
+        let dx = abs(endCol - col), dy = abs(endRow - row)
+        let (stepX, stepY) = (col < endCol ? 1 : -1, row < endRow ? 1 : -1)
+        var error = dx - dy
+        var cells = [row * side + col]
+        while col != endCol || row != endRow {
+            let doubled = error * 2
+            if doubled > -dy { error -= dy; col += stepX }
+            if doubled < dx { error += dx; row += stepY }
+            cells.append(row * side + col)
+        }
+        return cells
+    }
+
+    /// スライド 1 回ぶんの状態。向きは最初に触れたマスで決まる（空なら付ける・× なら外す）。
+    private struct CrossDrag {
+        let adds: Bool
+        var changed: Set<Int> = []
+        var last: Int?
+        var hasChangedAny = false
+    }
+    @ObservationIgnored private var crossDrag: CrossDrag?
+
+    /// スライドの開始（指が `slideThreshold` 以上動いて、スライドと決まったとき）。最初のマスの印で向きを決め、
+    /// そのマスにも適用する。ダブルタップの控え（`pendingTap`）は捨てる。
+    public func beginCrossDrag(cell: Int) {
+        pendingTap = nil
+        guard !isFrozen, marks.indices.contains(cell) else { return }
+        crossDrag = CrossDrag(adds: marks[cell] != .cross)
+        dragCross(to: cell)
+    }
+
+    /// 指が `cell` に来た（盤の外に出ているときは nil）。前のマスとの間も通ったものとして、向きに合うマスだけ変える。
+    /// 同じマスは 1 回のスライドで 1 回しか変えない。猫・決まった印のマスは変えない。
+    public func dragCross(to cell: Int?) {
+        guard var drag = crossDrag, !isFrozen else { return }
+        defer { crossDrag = drag }
+        guard let cell, marks.indices.contains(cell) else {
+            drag.last = nil
+            return
+        }
+        let path = drag.last.map { Self.cellsOnLine(from: $0, to: cell, side: puzzle.side) } ?? [cell]
+        drag.last = cell
+        for passed in path where !drag.changed.contains(passed) {
+            guard !isFixed(cell: passed), marks[passed] != .cat,
+                  marks[passed] == (drag.adds ? .empty : .cross) else { continue }
+            if !drag.hasChangedAny {
+                // 最初に変わるときに 1 回だけ履歴を積む（スライド全体が「戻す」1 回ぶん・手数も 1）。
+                drag.hasChangedAny = true
+                startPlayIfPending()
+                lastHint = nil
+                lastWrongCell = nil
+                moves += 1
+                if !stopwatch.isRunning { startTimer() }
+                services?.gameDidProgress(gameID: Self.gameID)
+                history.append(marks)
+            }
+            drag.changed.insert(passed)
+            marks[passed] = drag.adds ? .cross : .empty
+            services?.feedback.impact(.light)
+        }
+    }
+
+    /// 指を離した（スライドの確定）。変わったマスがあれば保存する。
+    public func endCrossDrag() {
+        guard let drag = crossDrag else { return }
+        crossDrag = nil
+        if drag.hasChangedAny { persist() }
+    }
+
     /// ダブルタップ: そのマスで猫を見つける（空でも × でも同じ）。答えのマスなら猫を置き、答えでなければ猫は置かず
     /// 赤い × を固定で置いてミスを 1 数える。猫のいるマス・ヒントで置いた猫・×、赤い × のマスでは何もしない。
     public func findCat(cell: Int) {
@@ -337,6 +423,7 @@ public final class CatPuzzleModel {
     public func undo() {
         guard canUndo, let previous = history.popLast() else { return }
         pendingTap = nil
+        crossDrag = nil  // 進行中のスライドは捨てる（盤が変わるため）
         marks = previous
         keepFixedMarks()
         lastHint = nil
@@ -351,6 +438,7 @@ public final class CatPuzzleModel {
         guard !isFrozen else { return }
         history.removeAll()
         pendingTap = nil
+        crossDrag = nil  // 進行中のスライドは捨てる（盤が変わるため）
         marks = Array(repeating: .empty, count: puzzle.cellCount)
         keepFixedMarks()
         lastHint = nil
@@ -381,6 +469,7 @@ public final class CatPuzzleModel {
     /// ヒントの中身を盤に反映する（回数の消費は呼び出し側が済ませている）。
     private func apply(_ hint: CatPuzzleHint) {
         pendingTap = nil
+        crossDrag = nil  // 進行中のスライドは捨てる（盤が変わるため）
         startPlayIfPending()
         for cell in hint.removed + hint.crossed {
             marks[cell] = .cross
@@ -435,6 +524,7 @@ public final class CatPuzzleModel {
         cancelStagePreparation()
         let request = stageRequest
         pendingTap = nil
+        crossDrag = nil  // 進行中のスライドは捨てる（盤が変わるため）
         stopwatch.stop()
         isPreparingStage = true
         preparingStage = n
@@ -495,6 +585,7 @@ public final class CatPuzzleModel {
         size = newSize
         stage = newStage
         pendingTap = nil
+        crossDrag = nil  // 進行中のスライドは捨てる（盤が変わるため）
         stopwatch.stop()
         puzzle = newPuzzle
         marks = Array(repeating: .empty, count: puzzle.cellCount)
