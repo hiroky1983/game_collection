@@ -664,3 +664,40 @@ struct ResumeReminderIntegrationTests {
         #expect(reopenedSpy.reminders["mahjong4"] != nil, "続きの局があるリザルトを開き直して戻ったのに予約していない")
     }
 }
+
+// MARK: - 本文の進み具合（#3075）
+
+@Suite("中断通知の本文の進み具合（#3075）")
+@MainActor
+struct ResumeReminderProgressTests {
+    @Test("進み具合があれば本文に添え、無ければ現行の文言のまま")
+    func contentWithAndWithoutProgress() {
+        let plain = ResumeReminderPolicy.content(gameTitle: "将棋")
+        #expect(plain.body == "続きから、そのまま遊べます。")
+        #expect(ResumeReminderPolicy.content(gameTitle: "将棋", progress: nil).body == plain.body)
+
+        let withProgress = ResumeReminderPolicy.content(gameTitle: "将棋", progress: "32手目")
+        #expect(withProgress.title == plain.title)
+        #expect(withProgress.body == "中断時は32手目。続きから、そのまま遊べます。")
+    }
+
+    @Test("予約の時点の進み具合が通知の本文に入る")
+    func scheduledBodyIncludesProgress() async {
+        let spy = SpyScheduler()
+        let env = Environment(now: date(13, 12))
+        let service = ResumeReminderService(
+            scheduler: spy,
+            isEnabled: { env.enabled },
+            isSuppressed: false,
+            reminderTitle: { titles[$0] },
+            progress: { $0 == "shogi" ? "32手目" : nil },
+            now: { env.now },
+            calendar: tokyo
+        )
+        service.gameDidLeave(gameID: "shogi", hasSnapshot: true)
+        service.gameDidLeave(gameID: "go", hasSnapshot: true)
+        await service.pendingWork?.value
+        #expect(spy.contents["shogi"]?.body == "中断時は32手目。続きから、そのまま遊べます。")
+        #expect(spy.contents["go"]?.body == "続きから、そのまま遊べます。")
+    }
+}

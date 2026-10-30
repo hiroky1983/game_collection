@@ -1214,6 +1214,17 @@
         }
       }
     },
+    "中断時は%@。続きから、そのまま遊べます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When you left: %@. Pick up right where you left off."
+          }
+        }
+      }
+    },
     "続きから、そのまま遊べます。" : {
       "extractionState" : "manual",
       "localizations" : {
