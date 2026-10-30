@@ -867,7 +867,9 @@ struct SudokuNewGameSheet: View {
     }
 
     private func difficultyTile(_ value: SudokuDifficulty, subtitle: String, accent: Color) -> some View {
-        GameSetupChooser(title: value.label, subtitle: subtitle,
+        // 4 枚並ぶと副題が 2 行になる。「約30〜」「35」と数字の途中で折れないよう、〜の前後に
+        // 語結合子（U+2060）を入れて、折れるのを「空き」と「約…」の間だけにする（#3099）。
+        GameSetupChooser(title: value.label, subtitle: subtitle.replacingOccurrences(of: "〜", with: "\u{2060}〜\u{2060}"),
                          selected: difficulty == value, accent: accent,
                          metrics: DifficultyTile.metrics) {
             difficulty = value
