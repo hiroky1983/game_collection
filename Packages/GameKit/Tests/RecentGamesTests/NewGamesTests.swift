@@ -239,9 +239,19 @@ struct NewGamesPinnedTests {
         #expect(NewGames.pinned(visibleIDs: ["x", "y"], newIDs: []) == ["x", "y"])
     }
 
-    @Test("この版の新着は おじさんちのねこさがし・スピード・ババ抜き・ハーツ")
-    func currentVersionIDs() {
-        #expect(NewGames.currentVersionIDs == ["catpuzzle", "speed", "oldmaid", "hearts"])
+    @Test("v1.1.15 は新着なし（#3112）: NEW 印・先頭固定・感想カードの対象が空")
+    func currentVersionIDsIsEmpty() {
+        #expect(NewGames.currentVersionIDs.isEmpty)
+        let order = ["2048", "catpuzzle", "speed", "oldmaid", "hearts"]
+        #expect(NewGames.pinned(visibleIDs: order) == order, "登録順のまま")
+        #expect(!ReviewRequestPolicy.shouldAskAboutNewGame(state: .init(), gameID: "catpuzzle"))
+        #expect(NewGames.notice(count: NewGames.currentVersionIDs.count) == nil)
+    }
+
+    @Test("新着の記録が無い・全ゲームが既知でも、空集合で全ゲームを新着扱いしない")
+    func emptyCurrentDoesNotFlagEverything() {
+        #expect(NewGames.ids(registeredIDs: ["a", "b"], knownIDs: ["a", "b"], hasPlayHistory: true).isEmpty)
+        #expect(NewGames.ids(registeredIDs: ["a", "b"], knownIDs: nil, hasPlayHistory: false).isEmpty)
     }
 }
 

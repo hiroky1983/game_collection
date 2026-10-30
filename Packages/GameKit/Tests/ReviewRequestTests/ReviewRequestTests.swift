@@ -44,10 +44,11 @@ private func makeLog(suite: String) -> (PlayLog, UserDefaults, String) {
 private func makeServices(
     suite: String,
     now: @escaping () -> Date = { Date(timeIntervalSince1970: 1_800_000_000) },
-    delay: Duration = .zero
+    delay: Duration = .zero,
+    newGameIDs: Set<String> = NewGames.currentVersionIDs
 ) -> (GameServices, ReviewRequestService) {
     let (log, _, _) = makeLog(suite: suite)
-    let service = ReviewRequestService(log: log, appVersion: appVersion, now: now, delay: delay)
+    let service = ReviewRequestService(log: log, appVersion: appVersion, now: now, delay: delay, newGameIDs: newGameIDs)
     let services = GameServices(
         snapshots: MemorySnapshotStore(),
         ads: NoopAdService(),
@@ -1049,12 +1050,17 @@ private func playHanafudaMatch(_ services: GameServices, seed: UInt64 = 4649, ro
 
 // MARK: - 答えた人・新しいゲームの感想カード（#3061）
 
+/// 感想カードのテストで「新着」として扱うゲーム。本番の `NewGames.currentVersionIDs` は新着の無い版では空なので、
+/// 値に依存させず固定して渡す（#3112）。
+private let testNewGame = "catpuzzle"
+private let testNewGameIDs: Set<String> = [testNewGame]
+
 @Suite("評価のお願いの強化（#3061）")
 @MainActor
 struct ReviewPromptEnhancementTests {
 
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
-    private let newGame = NewGames.currentVersionIDs.sorted().first!
+    private let newGame = testNewGame
 
     @Test("答えた人には条件を全部満たしても出ない")
     func answeredNeverRequested() {
@@ -1067,7 +1073,7 @@ struct ReviewPromptEnhancementTests {
     @Test("感想カードの判定: 新着のゲームだけ・答えていない人だけ・一度だけ")
     func cardPolicyBranches() {
         func ask(_ id: String, _ state: ReviewRequestState = .init()) -> Bool {
-            ReviewRequestPolicy.shouldAskAboutNewGame(state: state, gameID: id)
+            ReviewRequestPolicy.shouldAskAboutNewGame(state: state, gameID: id, newGameIDs: testNewGameIDs)
         }
         #expect(ask(newGame) == true, "勝利数 0 でも条件1〜6 を飛び越える")
         #expect(ask("shogi") == false, "新着でないゲームでは出ない")
@@ -1078,11 +1084,11 @@ struct ReviewPromptEnhancementTests {
 
     @Test("新着ゲームの決着（負けでも）でカードの予定が立ち、通常の評価リクエストは立たない")
     func finishSchedulesCardInsteadOfRequest() {
-        let (_, service) = makeServices(suite: "card-schedule")
+        let (_, service) = makeServices(suite: "card-schedule", newGameIDs: testNewGameIDs)
         advanceWins(service, count: 10) // 通常の条件は満たす
         #expect(service.pendingRequestID != nil)
 
-        let (_, loss) = makeServices(suite: "card-schedule-loss")
+        let (_, loss) = makeServices(suite: "card-schedule-loss", newGameIDs: testNewGameIDs)
         #expect(loss.gameDidFinish(outcome: .loss, gameID: newGame) == true)
         #expect(loss.pendingNewGameCardID != nil)
         #expect(loss.pendingRequestID == nil)
@@ -1094,7 +1100,7 @@ struct ReviewPromptEnhancementTests {
 
     @Test("新着ゲームで 5 勝済みでも、その回はカードが優先され OS ダイアログは立たない")
     func cardWinsOverRequestOnSameFinish() async {
-        let (_, service) = makeServices(suite: "card-priority")
+        let (_, service) = makeServices(suite: "card-priority", newGameIDs: testNewGameIDs)
         advanceWins(service, count: 4)
         service.gameDidFinish(outcome: .win, gameID: newGame) // 5 勝目・新着
         #expect(service.pendingNewGameCardID != nil)
@@ -1106,7 +1112,7 @@ struct ReviewPromptEnhancementTests {
 
     @Test("カードは一人一度きり: 出した後はどの新着ゲームでも予定が立たない")
     func cardOnlyOnce() async {
-        let (_, service) = makeServices(suite: "card-once")
+        let (_, service) = makeServices(suite: "card-once", newGameIDs: testNewGameIDs)
         service.gameDidFinish(outcome: .win, gameID: newGame)
         await service.presentPendingNewGameCard()
         #expect(service.isNewGameCardPresented)
@@ -1114,7 +1120,7 @@ struct ReviewPromptEnhancementTests {
 
         service.newGameCardDismissed()
         #expect(!service.isNewGameCardPresented)
-        for id in NewGames.currentVersionIDs {
+        for id in testNewGameIDs {
             service.gameDidFinish(outcome: .win, gameID: id)
             #expect(service.pendingNewGameCardID == nil, "\(id) でも二度と出ない")
         }
@@ -1124,7 +1130,7 @@ struct ReviewPromptEnhancementTests {
     @Test("出す前に画面を離れた（キャンセルされた）カードは、出し済みに数えない")
     func cancelledCardIsNotCounted() async {
         let (log, _, _) = makeLog(suite: "card-cancel")
-        let service = ReviewRequestService(log: log, appVersion: appVersion, delay: .seconds(60))
+        let service = ReviewRequestService(log: log, appVersion: appVersion, delay: .seconds(60), newGameIDs: testNewGameIDs)
         service.gameDidFinish(outcome: .win, gameID: newGame)
         let task = Task { await service.presentPendingNewGameCard() }
         task.cancel()
@@ -1140,7 +1146,9 @@ struct ReviewPromptEnhancementTests {
         let defaults = UserDefaults(suiteName: name)!
         defaults.removePersistentDomain(forName: name)
         let log = PlayLog(defaults: defaults)
-        let service = ReviewRequestService(log: log, appVersion: appVersion, now: { Date(timeIntervalSince1970: 1_800_000_000) }, delay: .zero)
+        let service = ReviewRequestService(
+            log: log, appVersion: appVersion, now: { Date(timeIntervalSince1970: 1_800_000_000) }, delay: .zero,
+            newGameIDs: testNewGameIDs)
 
         service.gameDidFinish(outcome: .win, gameID: newGame)
         await service.presentPendingNewGameCard()
@@ -1166,7 +1174,7 @@ struct ReviewPromptEnhancementTests {
 
     @Test("演出中は予定を伏せ、リザルトに移ってから出る")
     func cardIsDeferredDuringStory() {
-        let (_, service) = makeServices(suite: "card-defer")
+        let (_, service) = makeServices(suite: "card-defer", newGameIDs: testNewGameIDs)
         service.gameDidFinish(outcome: .win, gameID: newGame)
         service.deferUntilResultIsVisible()
         #expect(service.pendingNewGameCardID == nil)
@@ -1179,7 +1187,7 @@ struct ReviewPromptEnhancementTests {
         let spy = SpyAnalyticsService()
         let analytics = GameAnalytics(service: spy, allowedGameIDs: [newGame])
         let (log, _, _) = makeLog(suite: "card-analytics")
-        let service = ReviewRequestService(log: log, appVersion: appVersion, delay: .zero, analytics: analytics)
+        let service = ReviewRequestService(log: log, appVersion: appVersion, delay: .zero, analytics: analytics, newGameIDs: testNewGameIDs)
 
         service.gameDidFinish(outcome: .win, gameID: newGame)
         await service.presentPendingNewGameCard()
@@ -1193,7 +1201,7 @@ struct ReviewPromptEnhancementTests {
         let spy2 = SpyAnalyticsService()
         let later = ReviewRequestService(
             log: log2, appVersion: appVersion, delay: .zero,
-            analytics: GameAnalytics(service: spy2, allowedGameIDs: [newGame]))
+            analytics: GameAnalytics(service: spy2, allowedGameIDs: [newGame]), newGameIDs: testNewGameIDs)
         later.gameDidFinish(outcome: .win, gameID: newGame)
         await later.presentPendingNewGameCard()
         later.newGameCardDismissed()
@@ -1228,7 +1236,7 @@ private func makeDaysService(
 ) -> (PlayLog, ReviewRequestService) {
     let (log, _, _) = makeLog(suite: suite)
     let service = ReviewRequestService(
-        log: log, appVersion: appVersion, now: { clock.date }, delay: .zero, analytics: analytics)
+        log: log, appVersion: appVersion, now: { clock.date }, delay: .zero, analytics: analytics, newGameIDs: testNewGameIDs)
     return (log, service)
 }
 
@@ -1345,8 +1353,7 @@ struct DaysMilestoneReviewTests {
         let clock = DaysClock()
         let (log, service) = makeDaysService(suite: "days-card", clock: clock)
         openApp(service, clock: clock, days: 7)
-        let newGame = NewGames.currentVersionIDs.sorted().first ?? "shogi"
-        guard NewGames.currentVersionIDs.contains(newGame) else { return }
+        let newGame = testNewGame
         service.gameDidFinish(outcome: .win, gameID: newGame)
         #expect(service.pendingNewGameCardID != nil)
         #expect(service.hubDidBecomeVisible() == false)
