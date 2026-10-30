@@ -309,6 +309,7 @@ struct OthelloPassDeadlockTests {
         #expect(model.mustPass == false)
         #expect(model.currentStone == .black)
         #expect(model.passEventID == 1)
+        #expect(model.humanPassEventID == 1)
     }
 
     /// パスは石が動かない操作なので、押した 1 回の触覚だけが手応えになる（#2540）。

@@ -92,9 +92,12 @@ public struct OthelloView: View {
         // CPU 側のパスは `performAIMoveIfNeeded` が自分で確定する。
         .onChange(of: model.mustPass, initial: true) { _, newValue in
             guard newValue, !model.isAITurn else { return }
-            // 札は文字の合図なので、VoiceOver には同じ内容を読み上げで伝える。
-            AccessibilityNotification.Announcement(tr("打てるマスがありません。パスします。")).post()
             model.confirmPass()
+        }
+        // 札は文字の合図なので、VoiceOver には同じ内容を読み上げで伝える。
+        // 確定は上の `onChange` か Model の保険経路（#3104）のどちらでもよいので、成立の番号で読む。
+        .onChange(of: model.humanPassEventID) { _, _ in
+            AccessibilityNotification.Announcement(tr("打てるマスがありません。パスします。")).post()
         }
         // パスした瞬間だけ札を出し、少し置いて引っ込める（囲碁 #664 と同じ機構）。
         // 引っ込めるのは自分が出した札がまだ出ているときだけ（続けて相手もパスしたとき、

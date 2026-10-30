@@ -51,6 +51,9 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     /// パスが成立するたびに増える通し番号（#2797。囲碁 `passEventID` と同じ）。View は値が変わったことで
     /// 「パス」の札を出す。人間のパスも CPU のパスも数える。永続化せず、0 へも戻さない。
     public private(set) var passEventID: Int = 0
+    /// 人間側のパスが成立するたびに増える通し番号（#3104）。View の VoiceOver 読み上げの契機で、
+    /// 確定が View の `onChange` 経由でも Model の保険経路でも、1 回ずつ読み上げられる。
+    public private(set) var humanPassEventID: Int = 0
     /// 出したままの「パス」の札を畳む契機（待った・新規対局・投了。囲碁 `passBannerDismissID` と同じ）。
     public private(set) var passBannerDismissID: Int = 0
     public private(set) var undoUsed: Bool
@@ -219,6 +222,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         // パスを含む一連のやり取りは、直前の自分の着手まとめて `undoLastExchange()` で戻す。
         mustPass     = false
         hintPoint    = nil
+        if currentStone == humanSide { humanPassEventID += 1 }
         currentStone = currentStone.opponent
         turnID      += 1
         passEventID += 1
