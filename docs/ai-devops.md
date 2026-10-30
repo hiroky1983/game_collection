@@ -323,7 +323,7 @@ Issue番号」を明記し、倉庫段階であることが一目で分かるよ
 
 判断に迷う場合は上位（より人間寄り）の階層に倒す。
 
-**付け忘れは CI で落とす**（2026-09-15 追加・#823）。`.github/workflows/pr-risk-label.yml` が、`App/` `Packages/` `project.yml` を
+**付け忘れは CI で落とす**（2026-09-15 追加・#823）。`.github/workflows/pr-risk-label.yml` が、`App/` `Packages/` `Config/` `project.yml` を
 触る PR に上の 3 種のどれも付いていなければ赤にする（判定は `Scripts/check-pr-risk-label.sh`・検証は
 `Scripts/tests/test-check-pr-risk-label.sh`）。ラベルを付ければ再実行されて緑になる。必須チェックではない（分類でありマージ可否ではないため）。
 release→main の取り込み、release 間の同期（`chore/sync-*`）、凍結回避の中間ブランチは、分類済みの変更を束ねて運ぶだけなので対象外。

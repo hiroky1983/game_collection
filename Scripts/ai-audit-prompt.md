@@ -47,7 +47,7 @@
 > （出荷を止めるべき欠陥なので、会長が気づける場所に置く）。
 
 
-`docs/ai-devops.md`「ブランチ戦略」のとおり、**アプリコード（`App/` `Packages/` `project.yml`）に手が入る Issue は
+`docs/ai-devops.md`「ブランチ戦略」のとおり、**アプリコード（`App/` `Packages/` `Config/` `project.yml`）に手が入る Issue は
 起票時にマイルストーンを必ず設定し、タイトルの先頭に `[vX.Y.Z]` を付ける**。対象は上の但し書きのとおり
 起動時の補足の版 X.Y.Z（`--milestone vX.Y.Z --title "[vX.Y.Z] リファクタリング: 〜"`）。
 判断に迷っても空にしない。空のままだと当番は着手せず（`ai-duty-prompt.md`「コード実装系」）、Issue が在庫として

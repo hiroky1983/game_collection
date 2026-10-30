@@ -39,6 +39,7 @@ echo "== 1. ラベル無しのアプリコードは落ちる（#808 の 6 本の
 check "Packages/ の変更・ラベル無し"            1 "release/v1.1.5" "fix/blocks-paddle-relative-control" "" "$PKG"
 check "App/ の変更・ラベル無し"                 1 "release/v1.1.5" "fix/716-hub" "" "App/HubView.swift"
 check "project.yml の変更・ラベル無し"          1 "release/v1.1.6" "chore/bump" "" "project.yml"
+check "Config/Package.resolved のみ・ラベル無し" 1 "release/v1.1.15" "chore/deps" "" "Config/Package.resolved"
 check "docs に混ぜても落ちる"                   1 "release/v1.1.5" "feat/x" "" "docs/spec-app.md" "$PKG"
 check "risk 以外のラベルだけでは落ちる"         1 "release/v1.1.5" "feat/x" "bug,ai:approved" "$PKG"
 
@@ -46,6 +47,7 @@ echo "== 2. 規程の 3 種のどれかがあれば通る =="
 check "risk:logic"                               0 "release/v1.1.5" "fix/x" "risk:logic" "$PKG"
 check "risk:ui"                                  0 "release/v1.1.5" "fix/x" "risk:ui" "App/HubView.swift"
 check "risk:sensitive"                           0 "release/v1.1.6" "feat/ads" "risk:sensitive" "project.yml"
+check "Config/Package.resolved・risk:logic"      0 "release/v1.1.15" "chore/deps" "risk:logic" "Config/Package.resolved"
 check "他のラベルと並んでいても通る"             0 "release/v1.1.5" "fix/x" "bug,risk:ui,ai:approved" "$PKG"
 
 echo "== 3. 規程に無いラベル・似た名前は通さない =="
