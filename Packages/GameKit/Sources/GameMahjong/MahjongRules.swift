@@ -54,10 +54,14 @@ public enum MahjongGameLength: String, Codable, Sendable, CaseIterable, Identifi
     }
 
     /// 局の名前（「東2局」「南1局」）。`roundNumber` は通し番号で、半荘戦の 5 局目からは南場の 1 局目から数え直す。
+    ///
+    /// 半荘戦は最終局（南 4 局）を終えると通し番号が 9 に進むので、終局リザルトの卓に「南5局」と出ないよう
+    /// 最終局で頭打ちにする。東風戦は従来どおり進んだ番号をそのまま出す（延長の東 5 局があるため）。
     public func roundName(forRound roundNumber: Int) -> String {
-        roundWind(forRound: roundNumber) == 1
-            ? tr("南%lld局", roundNumber - Self.tonpuu.roundCount)
-            : tr("東%lld局", roundNumber)
+        let shown = self == .hanchan ? min(roundNumber, roundCount) : roundNumber
+        return roundWind(forRound: shown) == 1
+            ? tr("南%lld局", shown - Self.tonpuu.roundCount)
+            : tr("東%lld局", shown)
     }
 
     /// 親の連荘（親の和了・親の聴牌流局で本場が増え、同じ局を続ける）があるか。

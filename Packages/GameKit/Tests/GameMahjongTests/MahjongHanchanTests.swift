@@ -91,6 +91,7 @@ struct MahjongHanchanTests {
         #expect(MahjongGameLength.hanchan.roundName(forRound: 4) == "東4局")
         #expect(MahjongGameLength.hanchan.roundName(forRound: 5) == "南1局")
         #expect(MahjongGameLength.hanchan.roundName(forRound: 8) == "南4局")
+        #expect(MahjongGameLength.hanchan.roundName(forRound: 9) == "南4局", "終局後に進んだ番号でも南5局とは出さない")
         #expect(MahjongGameLength.tonpuu.roundName(forRound: 5) == "東5局")
     }
 
