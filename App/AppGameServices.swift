@@ -44,7 +44,7 @@ import GameCatPuzzle
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
 @MainActor
 enum AppEnvironment {
-    static let services = GameServices(
+    static let services: GameServices = GameServices(
         // 中断データの消去（終局・やり直し・設定の切り替え）を横で捕まえ、そのゲームの
         // お知らせを取り消す（#663）。保存形式と読み書きは `FileSnapshotStore` のまま。
         snapshots: ClearObservingSnapshotStore(base: FileSnapshotStore()) { gameID in
