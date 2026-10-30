@@ -76,6 +76,27 @@ else
   ng "圧縮後は --check が通る（終了コード ${got}）"
 fi
 
+echo "== CI の差分抽出: リネームだけの PNG も検査対象になる（#3072） =="
+CI_YML="$SCRIPT_DIR/../../.github/workflows/ci.yml"
+filters="$(grep -o -e '--diff-filter=[A-Z]*' "$CI_YML" | sort -u)"
+if [ "$filters" = "--diff-filter=AMR" ]; then
+  ok "ci.yml の画像検査は --diff-filter=AMR（全箇所）"
+else
+  ng "ci.yml の画像検査は --diff-filter=AMR（実際: ${filters}）"
+fi
+GIT_REPO="$TMP/gitrepo"
+mkdir -p "$GIT_REPO/d"
+PY "$FIXTURES" "$TMP/gitfix" >/dev/null
+cp "$TMP/gitfix/big.png" "$GIT_REPO/a.png"
+(
+  cd "$GIT_REPO" && git init -q && git add -A &&
+    git -c user.name=t -c user.email=t@t commit -q -m base &&
+    git mv a.png d/a.png && git add -A &&
+    git -c user.name=t -c user.email=t@t commit -q -m rename
+)
+renamed="$(git -C "$GIT_REPO" diff --name-only --diff-filter=AMR HEAD~1 HEAD -- '*.png')"
+if [ "$renamed" = "d/a.png" ]; then ok "リネーム先の PNG が抽出される"; else ng "リネーム先の PNG が抽出される（実際: ${renamed}）"; fi
+
 echo
 echo "結果: ok $PASS / NG $FAIL"
 [ "$FAIL" -eq 0 ]
