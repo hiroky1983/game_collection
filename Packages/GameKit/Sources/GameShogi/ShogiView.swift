@@ -548,7 +548,7 @@ public struct ShogiView: View {
     /// タイトルの下のチップに出す今の条件。強さ → 手合い（駒落ちは落とす側まで・平手は先後）。
     private var conditionParts: [String] {
         let handicap = model.matchSetting.displayName
-        return [CPUStrength.strength(for: model.aiLevel).label,
+        return [ShogiMasterEngine.strengthLabel(forLevel: model.aiLevel),
                 handicap ?? (model.humanSide == .black ? tr("先手") : tr("後手"))]
     }
 
