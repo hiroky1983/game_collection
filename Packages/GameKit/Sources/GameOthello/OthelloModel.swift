@@ -269,6 +269,18 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     }
 
     public func performAIMoveIfNeeded() async {
+        // 人間側のパスの保険（#3104）。View の `onChange(of: mustPass)` が発火しない局面があり、
+        // 発火しないと着手も「待った」も塞がって投了しか残らない。局面が動くたびに回るこの経路でも
+        // 確定させる。`onChange` が先に確定していれば `mustPass` が false なので何もしない。
+        if mustPass, !isAITurn, !gameOver {
+            await withAITurnGuard(key: \.aiTurnKey) {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+            } commit: { _ in
+                guard !isAITurn, mustPass else { return }
+                confirmPass()
+            }
+            return
+        }
         guard isAITurn, !isThinking, !gameOver else { return }
         // 待ちの最中に新規対局が始まると、旧盤面での判断（パス・着手）が新しい盤面に
         // 適用されてしまう。開始時の `aiTurnKey`（対局の通し番号 × turnID）と
