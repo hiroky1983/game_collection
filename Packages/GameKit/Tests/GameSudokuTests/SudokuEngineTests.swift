@@ -64,6 +64,31 @@ struct SudokuEngineTests {
         }
     }
 
+    @Test("上級は空きが52〜56で、基本の消去法だけでは解けず、答えが1つ（種を固定）")
+    func expertNeedsMoreThanSingles() {
+        for seed in UInt64(1)...12 {
+            let puzzle = makePuzzle(.expert, seed: seed)
+            #expect(SudokuEngine.solutionCount(puzzle.board, limit: 2) == 1, "seed \(seed): 解が唯一でない")
+            #expect(SudokuDifficulty.expert.removalRange.contains(puzzle.blankCount), "seed \(seed): 空き \(puzzle.blankCount)")
+            #expect(!SudokuEngine.isSolvableBySingles(puzzle.board), "seed \(seed): 基本の消去法で解けてしまう")
+        }
+    }
+
+    @Test("むずかしいの上に上級がある（空きの範囲が重ならず上に並ぶ）")
+    func expertIsAboveHard() {
+        #expect(SudokuDifficulty.allCases.last == .expert)
+        #expect(SudokuDifficulty.expert.removalRange.lowerBound > SudokuDifficulty.hard.removalRange.upperBound)
+    }
+
+    @Test("基本の消去法の判定: 満たされた盤は解け、空の盤は解けない")
+    func singlesSolverBasics() {
+        let full = makePuzzle(.easy, seed: 5).solution
+        #expect(SudokuEngine.isSolvableBySingles(full))
+        // かんたん（空き約30）は消去法だけで解ける。
+        #expect(SudokuEngine.isSolvableBySingles(makePuzzle(.easy, seed: 5).board))
+        #expect(!SudokuEngine.isSolvableBySingles([Int](repeating: 0, count: 81)))
+    }
+
     @Test("空きマス数は難易度の指定範囲を超えない", arguments: SudokuDifficulty.allCases)
     func blankCountWithinRange(_ difficulty: SudokuDifficulty) {
         let puzzle = makePuzzle(difficulty, seed: 99)

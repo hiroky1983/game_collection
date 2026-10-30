@@ -308,6 +308,7 @@ public struct SudokuView: View {
         case .easy:   return Theme.Fill.teal
         case .normal: return Theme.Fill.yellow
         case .hard:   return Theme.Fill.coral
+        case .expert: return Theme.Fill.purple
         }
     }
 
@@ -859,13 +860,16 @@ struct SudokuNewGameSheet: View {
                     difficultyTile(.easy,   subtitle: tr("空き 約30〜35"), accent: DifficultyTile.accent(step: 0, of: 3))
                     difficultyTile(.normal, subtitle: tr("空き 約40〜45"), accent: DifficultyTile.accent(step: 1, of: 3))
                     difficultyTile(.hard,   subtitle: tr("空き 約46〜50"), accent: DifficultyTile.accent(step: 2, of: 3))
+                    difficultyTile(.expert, subtitle: tr("空き 約52〜56"), accent: Theme.Fill.purple)
                 }
             }
         }
     }
 
     private func difficultyTile(_ value: SudokuDifficulty, subtitle: String, accent: Color) -> some View {
-        GameSetupChooser(title: value.label, subtitle: subtitle,
+        // 4 枚並ぶと副題が 2 行になる。「約30〜」「35」と数字の途中で折れないよう、波ダッシュ（U+301C）の前後に
+        // 語結合子（U+2060）を入れて、折れるのを「空き」と「約…」の間だけにする（#3099）。
+        GameSetupChooser(title: value.label, subtitle: subtitle.replacingOccurrences(of: "\u{301C}", with: "\u{2060}\u{301C}\u{2060}"),
                          selected: difficulty == value, accent: accent,
                          metrics: DifficultyTile.metrics) {
             difficulty = value
