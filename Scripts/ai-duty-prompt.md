@@ -242,7 +242,7 @@ Issue を `blocked` のまま留めない。**コード・テスト・PR が完�
 
   | 変更した領域 | 必須のローカル検証 | PR の base |
   |---|---|---|
-  | アプリコード（`App/` `Packages/` `project.yml`） | **触ったターゲットのテストだけ**: `swift test --package-path Packages/GameKit --filter <ターゲット名>Tests`（例: `GameSudoku` を触ったら `--filter GameSudokuTests`。`Core` など共通層を触ったときは、変更した機能に対応するテストと、それを使うゲーム1本のテスト）。**フルスイート（`--filter` 無し）はローカルで回さない**。全体の検証は CI に任せ、PR 作成後に `gh pr checks <PR番号> --watch` で結果を見届ける（会長指示 2026-09-13。ローカルのフルテストは1回10分超で Mac の資源を独占し、5分間隔の巡回と両立しない） | その Issue のマイルストーンと同名の release ブランチ |
+  | アプリコード（`App/` `Packages/` `Config/` `project.yml`） | **触ったターゲットのテストだけ**: `swift test --package-path Packages/GameKit --filter <ターゲット名>Tests`（例: `GameSudoku` を触ったら `--filter GameSudokuTests`。`Core` など共通層を触ったときは、変更した機能に対応するテストと、それを使うゲーム1本のテスト）。**フルスイート（`--filter` 無し）はローカルで回さない**。全体の検証は CI に任せ、PR 作成後に `gh pr checks <PR番号> --watch` で結果を見届ける（会長指示 2026-09-13。ローカルのフルテストは1回10分超で Mac の資源を独占し、5分間隔の巡回と両立しない） | その Issue のマイルストーンと同名の release ブランチ |
   | `web/`（LP） | `cd web && npm ci && npm run build`（`export PATH="$HOME/.nodenv/shims:$PATH"`。システム既定の node v14 では `npm ci` が失敗する）。**新規 slug を追加したときは `.next/server/app/games/*.html` に該当ページが生成されていることまで確認する**（`generateStaticParams` 経由のため、ビルドが緑でもページが増えていないことがありうる） | リリース済み内容なら `main`、未リリースのアプリ内容を含むなら該当版の release ブランチ（上の振り分け基準） |
   | `docs/` `Scripts/` `.github/` のみ | 変更したスクリプトのテスト（例 `bash Scripts/tests/test-ai-duty-detect.sh`）または `bash -n` | `main` |
 

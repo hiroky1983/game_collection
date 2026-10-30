@@ -79,12 +79,12 @@ APP_FILES=""
 while IFS= read -r f; do
   [ -n "$f" ] || continue
   case "$f" in
-    App/*|Packages/*|project.yml) APP_FILES="${APP_FILES}${f}"$'\n' ;;
+    App/*|Packages/*|Config/*|project.yml) APP_FILES="${APP_FILES}${f}"$'\n' ;;
   esac
 done <<< "$FILES"
 
 if [ -z "$APP_FILES" ]; then
-  echo "check-pr-risk-label: アプリコード（App/ Packages/ project.yml）を含まないため検証しません"
+  echo "check-pr-risk-label: アプリコード（App/ Packages/ Config/ project.yml）を含まないため検証しません"
   exit 0
 fi
 
