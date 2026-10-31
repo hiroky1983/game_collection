@@ -1338,4 +1338,17 @@ struct DaifugoCPUTurnKeyTests {
         #expect(code.components(separatedBy: "runCPUTurnsIfNeeded()").count - 1 == 1)
         #expect(!code.contains("cpuTask") && !code.contains("runCPU()"))
     }
+
+    /// 着手のたびに `.task(id:)` が作り直されても、連続した CPU の手番の短い間合い（#2714）が切れない。
+    @Test("直前の着手が CPU なら間合いを詰め、人間の操作や新しいゲームで元に戻る")
+    func chainedDelayFollowsLastMover() {
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService())
+        let model = DaifugoModel(services: services, cpuDelay: .seconds(1), seed: 42)
+        model.startGame()
+        #expect(model.nextCPUDelay == .seconds(1), "配った直後は詰めない")
+        model.lastCPUMoveTurn = model.cpuTurnKey.ply   // CPU が指した直後
+        #expect(model.nextCPUDelay == DaifugoModel.chainedCPUDelay)
+        model.startGame()                              // 新しいゲーム（手数が進む）
+        #expect(model.nextCPUDelay == .seconds(1))
+    }
 }
