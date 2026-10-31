@@ -4,6 +4,7 @@ import SwiftUI
 import Core
 @testable import GameDaifugo
 import CoreTestSupport
+import GameKitTestSupport
 
 // MARK: - Mocks
 
@@ -1280,5 +1281,74 @@ struct DaifugoRevolutionHandOrderTests {
 
         model.configureForTesting(hands: [hand] + others, currentPlayer: 0, isRevolution: true)
         #expect(ranks(model.displayHand) == [2, 1, 9, 3, DaifugoRules.jokerRank])
+    }
+}
+
+// MARK: - CPU 手番キー（#3146）
+
+@MainActor
+struct DaifugoCPUTurnKeyTests {
+    /// `DaifugoView` は `.task(id: model.cpuTurnKey)` 1 か所で CPU を起こす。キーが変わらない操作があると、
+    /// その操作の後に CPU 番のまま止まる。
+    @Test("出す・パス・CPU の着手・早送り・新しいゲームのどれでも手番キーが変わる")
+    func keyChangesAfterEveryTurnAdvancingOperation() async {
+        let (model, _) = makeModel()
+        var seen: Set<AITurnKey> = []
+        func expectFreshKey(_ what: String) {
+            #expect(seen.insert(model.cpuTurnKey).inserted, "\(what)の後に手番キーが変わらない")
+        }
+        model.startGame()
+        expectFreshKey("新しいゲーム")
+        // 人間の番になるまで CPU を進める。
+        await model.runCPUTurnsIfNeeded()
+        if !seen.contains(model.cpuTurnKey) { expectFreshKey("CPU の着手") }
+        if model.isPlayerTurn, let play = DaifugoRules.greedyPlay(
+            hand: model.playerHand, field: model.field, isRevolution: model.isRevolution
+        ) {
+            for card in play { model.toggleSelection(card) }
+            model.playSelected()
+            expectFreshKey("札を出す")
+        }
+        await model.runCPUTurnsIfNeeded()
+        if model.isPlayerTurn, model.canPass {
+            model.pass()
+            expectFreshKey("パス")
+        }
+        model.startGame()
+        expectFreshKey("対局の作り直し")
+    }
+
+    @Test("結果まで進めるでも手番キーが変わる（間合いを詰めて回し直すため）")
+    func keyChangesOnSkipToResult() {
+        let (model, _) = makeModel()
+        model.configureForTesting(
+            hands: [[], [card(5)], [card(6)], [card(7)]],
+            currentPlayer: 1, finishOrder: [0]
+        )
+        let before = model.cpuTurnKey
+        model.skipToResult()
+        #expect(model.isSkippingToResult)
+        #expect(model.cpuTurnKey != before)
+    }
+
+    @Test("CPU の手番は手番キーの .task(id:) 1 か所で起こし、操作側から手で起こさない")
+    func viewDrivesCPUFromSingleTask() throws {
+        let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameDaifugo/DaifugoView.swift"))
+        #expect(code.contains(".task(id: CPUDriveKey(turn: model.cpuTurnKey"))
+        #expect(code.components(separatedBy: "runCPUTurnsIfNeeded()").count - 1 == 1)
+        #expect(!code.contains("cpuTask") && !code.contains("runCPU()"))
+    }
+
+    /// 着手のたびに `.task(id:)` が作り直されても、連続した CPU の手番の短い間合い（#2714）が切れない。
+    @Test("直前の着手が CPU なら間合いを詰め、人間の操作や新しいゲームで元に戻る")
+    func chainedDelayFollowsLastMover() {
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService())
+        let model = DaifugoModel(services: services, cpuDelay: .seconds(1), seed: 42)
+        model.startGame()
+        #expect(model.nextCPUDelay == .seconds(1), "配った直後は詰めない")
+        model.lastCPUMoveTurn = model.cpuTurnKey.ply   // CPU が指した直後
+        #expect(model.nextCPUDelay == DaifugoModel.chainedCPUDelay)
+        model.startGame()                              // 新しいゲーム（手数が進む）
+        #expect(model.nextCPUDelay == .seconds(1))
     }
 }

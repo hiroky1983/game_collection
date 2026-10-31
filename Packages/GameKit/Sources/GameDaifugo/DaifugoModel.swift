@@ -196,6 +196,16 @@ public final class DaifugoModel: AITurnGuarded {
     var isRunningCPUTurns = false
     /// 「結果まで進める」が押されたか（#191）。以降の CPU 手番は間合いを取らずに消化する。
     public private(set) var isSkippingToResult = false
+    /// 出す・パスの回数（このモデルが生きているあいだ増え続ける）。CPU を起こす `cpuTurnKey` の手数になる。
+    private var turnCount = 0
+    /// CPU が最後に指した直後の `turnCount`。人間の操作・新しいゲームで `turnCount` が進めば食い違い、連続手番の短い間合いが切れる（テストが書くので `internal`）。
+    var lastCPUMoveTurn = -1
+
+    /// CPU の手番を起こす `.task(id:)` の識別子（#3146）。人間の操作・CPU の着手・新しいゲーム・早送りのたびに必ず変わる
+    /// （早送りは間合いを詰めて回し直すので `epoch` に載せる）。
+    public var cpuTurnKey: AITurnKey {
+        AITurnKey(gameSerial: gameNumber, ply: turnCount, epoch: isSkippingToResult ? 1 : 0)
+    }
 
     /// 自分が上がった後の消化試合で使う間合い（#191）。自分の操作が無い区間なので短くする。
     static let finishedCPUDelay: Duration = .milliseconds(120)
@@ -493,6 +503,7 @@ public final class DaifugoModel: AITurnGuarded {
         recordResult = nil
         isSkippingToResult = false
         cpuTurnsAfterPlayerFinished = 0
+        turnCount += 1
         phase = .playing
 
         services?.feedback.impact(.card(.shuffle))   // カードが切られて配られた
@@ -613,6 +624,7 @@ public final class DaifugoModel: AITurnGuarded {
     // MARK: - 進行
 
     private func play(_ cards: [DaifugoCard], by player: Int) {
+        turnCount += 1
         let ids = Set(cards.map(\.id))
         hands[player] = hands[player].filter { !ids.contains($0.id) }
         // 人間が札を出した = 捨てたら途中離脱として数える局面（#500）。CPU が親で先に出しただけでは数えない（#2774）。
@@ -677,6 +689,7 @@ public final class DaifugoModel: AITurnGuarded {
     }
 
     private func passTurn(by player: Int) {
+        turnCount += 1
         passedPlayers.insert(player)
         if player == Self.humanIndex { services?.gameDidProgress(gameID: gameID) }
         lastActions[player] = "パス"  // i18n-keep: 中断データに保存する行動の記録（表示は localizedAction で訳す）
@@ -788,15 +801,13 @@ public final class DaifugoModel: AITurnGuarded {
         // 走者不在になり手番が止まりうるため、麻雀（#311）と同じく先行タスクの終了を
         // 待ってから引き継ぐ。待機中に自分もキャンセルされたら次のタスクに譲って抜ける（#531 で共通化）。
         await withAITurnRunner(running: \.isRunningCPUTurns) {
-            // このループで CPU が1手でも指したか。2手目以降だけ間合いを詰める（#2714）。
-            var isChained = false
             while phase == .playing, currentPlayer != Self.humanIndex {
                 // 間合いが 0 の手番（早送り中など）には suspend が無く、下の sleep 後の判定を
                 // 通らない。ループ先頭でも見て、どの経路でもキャンセル後は進めないようにする（#287）。
                 guard !Task.isCancelled else { return }
                 // 間合いは毎手番ごとに読み直す。消化試合に入った時点・早送りを押された時点から
                 // 待たずに済むようにするため（#191）。
-                let delay = currentCPUDelay(isChained: isChained)
+                let delay = nextCPUDelay
                 if delay > .zero {
                     // キャンセルを見ないと、画面を離れた瞬間に残りの CPU 手番が遅延ゼロで走り抜けてしまう（#287）。
                     // 下の状態 guard は状態しか見ないので、これの代わりにはならない。
@@ -804,16 +815,19 @@ public final class DaifugoModel: AITurnGuarded {
                     guard phase == .playing, currentPlayer != Self.humanIndex else { return }
                 }
                 performCPUTurn(currentPlayer)
-                isChained = true
+                lastCPUMoveTurn = turnCount
             }
         }
     }
 
     /// この手番で取る間合い（#191）。自分が上がった後は短くし、早送り中は取らない。
     /// `cpuDelay` が 0 のテストでは常に 0 のまま（`min` で頭打ちにしているため）。
-    private func currentCPUDelay(isChained: Bool) -> Duration {
+    ///
+    /// 直前の着手も CPU なら（人間の操作を挟んでいなければ）詰める（#2714）。着手のたびに `.task(id:)` が作り直されるので、
+    /// 連続かどうかはループの外の状態（`lastCPUMoveTurn`）で持つ。
+    var nextCPUDelay: Duration {
         guard isPlayerFinished else {
-            return isChained ? min(cpuDelay, Self.chainedCPUDelay) : cpuDelay
+            return turnCount == lastCPUMoveTurn ? min(cpuDelay, Self.chainedCPUDelay) : cpuDelay
         }
         return isSkippingToResult ? .zero : min(cpuDelay, Self.finishedCPUDelay)
     }
@@ -873,6 +887,7 @@ public final class DaifugoModel: AITurnGuarded {
         lastActions = Array(repeating: "", count: Self.playerCount)
         isSkippingToResult = false
         cpuTurnsAfterPlayerFinished = 0
+        turnCount += 1
         phase = .playing
         persist()
     }
