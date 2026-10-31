@@ -415,11 +415,13 @@ public final class MahjongModel: AITurnGuarded {
     /// 「新規対局」で失われるものがあるか（#638）。
     ///
     /// 対局が進行中なら、持ち点・局・河・供託はこの対局だけのもので、配り直すと戻せない。
-    /// 開始前（`.idle`）と決着後（`.gameResult`）は捨てるものが無いので確認を挟まない
+    /// 開始前（`.idle`）と決着後（`.gameResult`）は捨てるものが無いので確認を挟まない。
+    /// 最終局の結果（`concludesAfterCurrentResult`）も勝敗は決まっていて、`startGame` が記録するので同じ扱い（#3139）
     /// （将棋 `moves.isEmpty` / ブロック崩し `hasProgressToLose` と同じ境目）。
     public var hasGameInProgress: Bool {
         switch phase {
-        case .playing, .ronOffer, .callOffer, .handResult: return true
+        case .playing, .ronOffer, .callOffer: return true
+        case .handResult: return !concludesAfterCurrentResult
         case .idle, .gameResult: return false
         }
     }
@@ -435,11 +437,15 @@ public final class MahjongModel: AITurnGuarded {
     /// 破棄した対局の扱いは次のとおりで、未完了のまま戦績に載ることはない:
     /// - **記録（`PlayLog`）**: 勝敗を書くのは終局（`concludeGame` の `gameDidFinish`）だけなので、
     ///   打ち切った対局は通算成績にも Game Center の実績にも一切載らない。
+    ///   ただし最終局の結果が出ていた対局は、ここで `concludeGame` を呼んで記録する（#3139）。
     /// - **中断データ**: 直後の `startHand` → `persist` が新しい配牌で上書きするため、
     ///   捨てた対局の続きをあとから開ける経路は残らない。
     /// - **解析**: `gameDidRestart` が、1 枚でも切っていた対局に `game_end`（`quit`）を付けてから
     ///   次の `game_start` を送る（#500）。配っただけで切らずに捨てた対局は離脱に数えない。
     public func startGame(length: MahjongGameLength? = nil) {
+        // 最終局の結果まで出た対局は勝敗が決まっている。「結果を見る」を押さずに新規へ進んでも
+        // 成績・連勝に入れるため、配り直す前に終局を確定する（#3139。しりとりの保留分記録と同じ）。
+        if concludesAfterCurrentResult { concludeGame() }
         if let length { gameLength = length }
         scores = Array(repeating: Self.startingScore, count: Self.playerCount)
         dealer = 0
