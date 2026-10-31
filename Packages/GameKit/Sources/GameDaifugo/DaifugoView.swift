@@ -23,6 +23,15 @@ public struct DaifugoView: View {
         _model = State(initialValue: DaifugoModel(services: services))
     }
 
+    /// 勝ちが続いたら一段上の強さを勧める（#722・#3152）。並びは開始シートの「CPUの強さ」と同じ。
+    private var ladder: DifficultyLadderPrompt? {
+        DifficultyLadderPrompt(result: model.recordResult,
+                               currentLevel: CPUStrength.ladderIndex(forLevel: model.aiLevel),
+                               levelLabels: CPUStrength.labels) { index in
+            model.startGame(aiLevel: CPUStrength.level(atLadderIndex: index))
+        }
+    }
+
     public var body: some View {
         // レイアウトパターン A（全画面・会長決裁 2026-10-19・#2431 → #2531）: フェルトを画面全体に敷き、ヘッダーは 1 行
         // （戻る・大富豪・ゲーム数と手番の札・？）、バナーは画面最下部。場と手札は白い札をやめてフェルトに直に置き、
@@ -48,7 +57,7 @@ public struct DaifugoView: View {
                 }
                 HowToPlayHint(.daifugo, playLog: services.playLog)
                 actionArea
-                RecommendationSlot(services: services, isFinished: model.phase == .result)
+                RecommendationSlot(services: services, isFinished: model.phase == .result, ladder: ladder)
             }
             // 局面 → リザルトの差し替えは、上の `transition` を効かせるために**入れ替わる側ではなく
             // 残り続ける親**へ置く（枝の中に置くと消える側と一緒に修飾子も消えて効かない）（#195）。
