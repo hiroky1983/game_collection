@@ -24,6 +24,8 @@ public struct HanafudaView: View {
     /// 「？」（図で見る遊び方を含む）を開いているあいだ CPU の手番を止める（#2827）。
     @State private var isHowToPlayOpen = false
 
+    private var playback: HanafudaPlayback { model.playback }
+
     public init(services: GameServices) {
         self.services = services
         _model = State(initialValue: HanafudaModel(services: services))
@@ -63,15 +65,21 @@ public struct HanafudaView: View {
                         stripHeight: layout.scaled(HanafudaFit.baseStripHeight),
                         fieldCount: model.field.count, handCount: model.humanHand.count
                     )
-                    VStack(spacing: HanafudaFit.sectionSpacing) {
-                        opponentArea(fit)
-                        fieldArea(fit).transition(.opacity)
-                        handArea(fit)
-                        if showsOverflow {
-                            overflowBar
+                    ZStack(alignment: .topLeading) {
+                        VStack(spacing: HanafudaFit.sectionSpacing) {
+                            opponentArea(fit)
+                            fieldArea(fit).transition(.opacity)
+                            handArea(fit)
+                            if showsOverflow {
+                                overflowBar
+                            }
                         }
+                        // 札が動いているあいだは誤タップを受けない（#3138）。
+                        .allowsHitTesting(!playback.isBusy)
+                        HanafudaFlyingLayer(flying: playback.flying)
                     }
                     .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+                    .hanafudaTrackFrames(playback)
                 }
             }
             HowToPlayHint(.hanafuda, playLog: services.playLog)
@@ -123,6 +131,13 @@ public struct HanafudaView: View {
             )
         )
         // 閉じたら鍵（paused）が変わって再起動し、止めていた手番の続きを回す。
+        .onAppear { playback.isEnabled = true }
+        .onDisappear {
+            playback.isEnabled = false
+            playback.reset()
+        }
+        // 確定した 1 手番の札の動きを順に見せる（#3138）。台本が変わるたびに起こし直す。
+        .task(id: playback.serial) { await playback.run() }
         .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen)) {
             guard !isHowToPlayOpen else { return }
             await model.runCPUTurnIfNeeded()
@@ -139,6 +154,22 @@ public struct HanafudaView: View {
             guard ProcessInfo.processInfo.arguments.contains("-hanafudaShowYaku") else { return }
             if model.phase == .idle { model.startMatch(options: draft) }
             showYakuSheet = true
+        }
+        // 札の動きの撮影用（#3138）。人間の手番を自動で打つ（シミュレータはタップを自動化できないため）。
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("-hanafudaAutoPlay") else { return }
+            if model.phase == .idle { model.startMatch(options: draft) }
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(300))
+                guard model.phase == .playing, !playback.isBusy else { continue }
+                if let selection = model.selection {
+                    try? await Task.sleep(for: .seconds(1.2))
+                    model.chooseFieldCard(selection.candidates[0])
+                } else if model.turn == .human, let card = model.humanHand.first(where: { model.canPlay($0) }) {
+                    try? await Task.sleep(for: .seconds(0.8))
+                    model.play(card)
+                }
+            }
         }
         // 試合の結果画面（#1496）。同じくタップ無しでは辿り着けない画面。
         .task {
@@ -234,7 +265,8 @@ public struct HanafudaView: View {
                     .fitOneLine()
                     .foregroundStyle(Theme.inkSubText)
             }
-            capturedGroups(model.cpuCaptured, height: fit.stripHeight)
+            .hanafudaAnchor(.cpuHand)
+            capturedGroups(model.cpuCaptured, player: .cpu, height: fit.stripHeight)
         }
         .padding(10)
         .popCard(corner: Theme.cornerSmall)
@@ -246,8 +278,9 @@ public struct HanafudaView: View {
     /// 取り札を 光・タネ・短・カス の 4 つの列に束ねて見せる（#2336）。
     /// 札は列の中で横に重ね、重なりの端に出る月の数字が読める間隔を保つ。見出しの「n/m」は枚数と、
     /// 基本の役（三光・タネ・タン・カス）が成り立つ枚数。高さは枚数によらず一定。
-    private func capturedGroups(_ cards: [HanafudaCard], height: CGFloat) -> some View {
-        let groups = HanafudaCapturedGroup.groups(of: cards)
+    private func capturedGroups(_ cards: [HanafudaCard], player: HanafudaPlayer, height: CGFloat) -> some View {
+        // まだ着いていない札（動いている最中）は取り札の列に出さない（#3138）。
+        let groups = HanafudaCapturedGroup.groups(of: cards.filter { !playback.hidden.contains($0.id) })
         return GeometryReader { geo in
             let cardWidth = height / HanafudaCardArt.aspectRatio
             let widths = HanafudaFit.groupWidths(
@@ -255,14 +288,14 @@ public struct HanafudaView: View {
             )
             HStack(alignment: .top, spacing: HanafudaFit.groupSpacing) {
                 ForEach(Array(groups.enumerated()), id: \.offset) { index, group in
-                    capturedGroupColumn(group, width: widths[index], cardWidth: cardWidth, height: height)
+                    capturedGroupColumn(group, player: player, width: widths[index], cardWidth: cardWidth, height: height)
                 }
             }
         }
         .frame(height: HanafudaFit.groupHeaderHeight + HanafudaFit.groupHeaderSpacing + height)
     }
 
-    private func capturedGroupColumn(_ group: HanafudaCapturedGroup, width: CGFloat,
+    private func capturedGroupColumn(_ group: HanafudaCapturedGroup, player: HanafudaPlayer, width: CGFloat,
                                      cardWidth: CGFloat, height: CGFloat) -> some View {
         let hex = HanafudaCardArt.kindHex(for: group.kind)
         let step = HanafudaFit.overlapStep(groupWidth: width, cardWidth: cardWidth, count: group.cards.count)
@@ -288,6 +321,7 @@ public struct HanafudaView: View {
                 }
             }
             .frame(width: width, height: height, alignment: .leading)
+            .hanafudaAnchor(.captured(player, group.kind))
         }
         .frame(width: width, alignment: .leading)
     }
@@ -303,28 +337,34 @@ public struct HanafudaView: View {
                     .foregroundStyle(Theme.inkSubText)
                 Spacer()
                 if let drawn = model.drawnCard {
+                    // 合わせ先を選ぶあいだ、めくった札を表にして山札の隣に出す。文字は動きで分かるので小さく。
                     HStack(spacing: 4) {
                         Text(tr("めくり札"))
-                            .themeCaption(13, weight: .bold, maxScale: 1.5)
+                            .themeCaption(11, weight: .bold, maxScale: 1.3)
                             .fitOneLine()
                             .foregroundStyle(Theme.coralText)
                         HanafudaCardFace(card: drawn, isHighlighted: true)
                             .frame(height: HanafudaFit.drawnCardHeight)
+                            .opacity(playback.hidden.contains(drawn.id) ? 0 : 1)
+                            .hanafudaAnchor(.reveal)
                     }
                 }
-                Text(tr("山札%lld枚", model.deck.count))
+                deckPile
+                Text(tr("山札%lld枚", deckDisplayCount))
                     .themeCaption(14, weight: .heavy, maxScale: 1.5)
                     .fitOneLine()
                     .foregroundStyle(Theme.inkSubText)
             }
             LazyVGrid(columns: fit.columns, spacing: HanafudaFit.gap) {
-                ForEach(model.field) { card in
+                ForEach(displayedField) { card in
                     Button { model.chooseFieldCard(card) } label: {
                         HanafudaCardFace(
                             card: card,
                             isDimmed: isFieldDimmed(card),
                             isHighlighted: isCandidate(card)
                         )
+                        .opacity(playback.ghost.contains(card.id) ? 0 : 1)
+                        .hanafudaAnchor(.card(card.id))
                     }
                     .buttonStyle(.plain)
                     .disabled(!isCandidate(card))
@@ -337,6 +377,36 @@ public struct HanafudaView: View {
         .padding(HanafudaFit.cardPadding)
         .frame(maxWidth: .infinity)
         .popCard(corner: Theme.cornerSmall)
+    }
+
+    /// 場に見せる札。まだ着いていない札は除き、取られたばかりで動きの途中の札は足す（#3138）。
+    private var displayedField: [HanafudaCard] {
+        (model.field.filter { !playback.hidden.contains($0.id) } + playback.extraField).sorted()
+    }
+
+    private var deckDisplayCount: Int { model.deck.count + playback.deckBonus }
+
+    /// 山札。裏向きの札を少しずらして重ねた束（残りが 0 なら空の枠）。
+    private var deckPile: some View {
+        let height = HanafudaFit.drawnCardHeight
+        let width = height / HanafudaCardArt.aspectRatio
+        let layers = min(3, deckDisplayCount)
+        return ZStack {
+            if layers == 0 {
+                RoundedRectangle(cornerRadius: width * 0.12, style: .continuous)
+                    .strokeBorder(Theme.inkSub.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                    .frame(width: width, height: height)
+            }
+            ForEach(0..<layers, id: \.self) { layer in
+                HanafudaCardBack(width: width)
+                    .offset(x: CGFloat(layers - 1 - layer) * 1.5, y: -CGFloat(layers - 1 - layer) * 1.5)
+            }
+        }
+        .frame(width: width + 3, height: height + 3, alignment: .bottomLeading)
+        .overlay(alignment: .bottomLeading) {
+            Color.clear.frame(width: width, height: height).hanafudaAnchor(.deck)
+        }
+        .accessibilityHidden(true)
     }
 
     private func isCandidate(_ card: HanafudaCard) -> Bool {
@@ -365,7 +435,7 @@ public struct HanafudaView: View {
                     .minimumScaleFactor(0.7)
                 Spacer()
             }
-            capturedGroups(model.humanCaptured, height: fit.stripHeight)
+            capturedGroups(model.humanCaptured, player: .human, height: fit.stripHeight)
             LazyVGrid(columns: fit.columns, spacing: HanafudaFit.gap) {
                 ForEach(model.humanHand) { card in
                     Button { model.play(card) } label: {
@@ -374,6 +444,7 @@ public struct HanafudaView: View {
                             isDimmed: model.selection != nil,
                             isHighlighted: hintedHandCards.contains(card.id)
                         )
+                        .hanafudaAnchor(.card(card.id))
                     }
                     .buttonStyle(.plain)
                     .disabled(!model.canPlay(card))
@@ -409,8 +480,8 @@ public struct HanafudaView: View {
         switch model.phase {
         case .koiKoiPrompt:
             HStack(spacing: 10) {
-                actionButton(tr("こいこい"), role: .declaration) { model.declareKoiKoi() }
-                actionButton(tr("あがり"), role: .primary, disabled: !model.canStop) {
+                actionButton(tr("こいこい"), role: .declaration, disabled: playback.isBusy) { model.declareKoiKoi() }
+                actionButton(tr("あがり"), role: .primary, disabled: !model.canStop || playback.isBusy) {
                     model.declareStop()
                 }
             }
@@ -424,7 +495,7 @@ public struct HanafudaView: View {
                 actionButton(
                     model.round >= model.totalRounds ? tr("試合の結果へ") : tr("次の局へ"),
                     role: .primary,
-                    disabled: extendRescue.isWatching
+                    disabled: extendRescue.isWatching || playback.isBusy
                 ) { model.advanceAfterRound() }
             }
         case .matchResult:
@@ -609,7 +680,7 @@ enum HanafudaFit {
     /// 行を札の外に置いていた頃（44pt + 上下 2pt）と同じ外寸にして、札の大きさを変えない。
     static let overflowRowPadding: CGFloat = 2
     static let overflowRowHeight: CGFloat = BoardGameControlMetrics.minTapTarget + 2 * overflowRowPadding
-    /// めくり札（場の見出しの行に出る）の高さ。取り札の縮小とは別に固定し、出た瞬間に行が伸びる分だけを
+    /// 山札の束とめくり札（場の見出しの行に出る）の高さ。取り札の縮小とは別に固定し、出た瞬間に行が伸びる分だけを
     /// `fixedHeight` に見込んでおく（以前は取り札と同じ高さをもう 1 本ぶん確保していて、実寸より 70pt ほど多かった・#2336）。
     static let drawnCardHeight: CGFloat = 40
     /// 縮められない部分（見出しの文字・カードの内側の余白・段のあいだ以外）の高さ。
