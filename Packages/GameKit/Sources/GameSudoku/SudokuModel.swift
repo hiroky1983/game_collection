@@ -552,7 +552,9 @@ public final class SudokuModel {
         return true
     }
 
-    /// ミスが上限に達した。負けの記録はまだ付けない（コンティニューで続けられるため）。
+    /// ミスが上限に達した。ここで負けを付ける（マインスイーパーと同じ）。コンティニューしたら
+    /// `continueAfterAd()` が取り消す。付けておかないと、コンティニューを選ばず「新規」で
+    /// 捨てた局が負けにならず、連続クリアが途切れない。
     /// スナップショットは**消さずに**残す: ここでアプリを閉じても、次に開いたとき
     /// `failed` のまま復元され、コンティニューか諦めるかを選び直せる。
     private func fail() {
@@ -563,6 +565,7 @@ public final class SudokuModel {
         lastUndoStep = nil
         stopTimer()
         services?.feedback.notify(.error)
+        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
         persist()
     }
 
@@ -574,6 +577,9 @@ public final class SudokuModel {
     public func continueAfterAd() -> Bool {
         guard state == .failed else { return false }
         continueUsed = true
+        // 同じ盤面の続きなので、ミス上限で付けた「負け」は無かったことにする。
+        services?.playLog?.cancelLoss(gameID: gameID, variant: difficulty.rawValue)
+        recordResult = nil
         mistakes = 0
         state = .playing
         startTimer()
@@ -597,10 +603,13 @@ public final class SudokuModel {
         board = solution
         notes = [Int](repeating: 0, count: SudokuEngine.cellCount)
         selected = nil
+        let alreadyRecorded = state == .failed   // ミス上限の時点で負けを付け済み
         state = .givenUp
         stopTimer()
         services?.feedback.notify(.error)
-        recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
+        if !alreadyRecorded {
+            recordResult = services?.gameDidFinish(gameID: gameID, outcome: .loss, score: currentScore)
+        }
         services?.snapshots.clear(for: gameID)
     }
 

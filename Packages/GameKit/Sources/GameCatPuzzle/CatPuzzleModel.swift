@@ -675,13 +675,15 @@ public final class CatPuzzleModel {
         services?.snapshots.clear(for: Self.gameID)
     }
 
-    /// 3 回目のミス。負けにする前に、広告を見て続けるかを選ばせる。計時は止め、提案の最中に離れても同じ提案から
+    /// 3 回目のミス。広告を見て続けるかを選ばせる。負けはここで付ける（マインスイーパーと同じ）。コンティニューしたら
+    /// `continueAfterAd()` が取り消す。付けておかないと、提案を放置して「新規」で捨てた局が負けにならない。計時は止め、提案の最中に離れても同じ提案から
     /// 続けられるよう、ミスが上限のまま保存する（保存しないと、アプリを閉じて開き直すだけで 3 回目のミスが無かったことになる）。
     private func offerContinue() {
         syncElapsed()
         stopwatch.stop()
         isOfferingContinue = true
         services?.feedback.notify(.error)
+        recordResult = recordLoss()
         persist()
     }
 
@@ -692,6 +694,9 @@ public final class CatPuzzleModel {
         guard isOfferingContinue, !isFailed, !continueUsed else { return false }
         continueUsed = true
         isOfferingContinue = false
+        // 同じ盤面の続きなので、提案の時点で付けた「負け」は無かったことにする。
+        services?.playLog?.cancelLoss(gameID: Self.gameID, variant: size.recordVariant)
+        recordResult = nil
         mistakes = Self.maxMistakes - 1
         startTimer()
         services?.feedback.notify(.success)
@@ -707,21 +712,28 @@ public final class CatPuzzleModel {
         return continueAfterAd()
     }
 
-    /// コンティニューを断る（または使えない）。負けを確定し、まだ見つけていない猫を盤に見せる（`unfoundCats`）。
-    /// 見せたあとは続けられない。
+    /// コンティニューを断る（または使えない）。まだ見つけていない猫を盤に見せる（`unfoundCats`）。
+    /// 負けは提案の時点（`offerContinue`）で記録済みなので、ここでは付けない。見せたあとは続けられない。
     public func declineContinue() {
         guard isOfferingContinue, !isFailed else { return }
         isOfferingContinue = false
-        fail()
+        fail(recordsLoss: false)
     }
 
     /// ミスが上限に達した終局（負け）。記録・解析は負け（`game_end` result=loss）。中断データは消す。
-    private func fail() {
+    /// - Parameter recordsLoss: false のときは記録済み（`offerContinue`）なので負けを付け直さない。
+    private func fail(recordsLoss: Bool = true) {
         syncElapsed()
         stopwatch.stop()
         isFailed = true
         services?.feedback.notify(.error)
-        recordResult = services?.gameDidFinish(
+        if recordsLoss { recordResult = recordLoss() }
+        services?.snapshots.clear(for: Self.gameID)
+    }
+
+    /// 負けを 1 回だけ記録する入口（`gameDidFinish` は決着 1 回につき 1 回）。
+    private func recordLoss() -> RecordResult? {
+        services?.gameDidFinish(
             gameID: Self.gameID,
             outcome: .loss,
             score: GameScore(
@@ -729,7 +741,6 @@ public final class CatPuzzleModel {
                 variant: size.recordVariant, variantLabel: size.recordVariantLabel
             )
         )
-        services?.snapshots.clear(for: Self.gameID)
     }
 
     /// クリアのダイアログまでの残り時間（解けていなければ nil、出してよければ 0）。画面はこの分だけ待って
