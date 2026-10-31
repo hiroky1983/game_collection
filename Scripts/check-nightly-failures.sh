@@ -10,6 +10,8 @@
 #   二重に起票しない（本文の `nightly-run-id: <id>` を検索で確かめる）。success に戻ったら何もしない
 #   （Issue は開発当番が通常の手順で直して閉じる）。
 #
+# gh の失敗は終了コード 0 のまま標準エラーに 1 行ずつ残す（当番を止めず、起票できなかった理由を追えるように・#3137）。
+#
 # 呼び出し: ai-duty.sh のスロット1が毎回（仕事14 の自動ハンコの直後に）呼ぶ。失敗しても当番を止めない。
 # 使い方: Scripts/check-nightly-failures.sh
 #   環境変数: NIGHTLY_MILESTONE_CMD（積み先を出すコマンド。既定は同ディレクトリの pick-issue-milestone.sh）
@@ -18,16 +20,23 @@ set -uo pipefail
 REPO="hiroky1983/game_collection"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MILESTONE_CMD="${NIGHTLY_MILESTONE_CMD:-bash $SCRIPT_DIR/pick-issue-milestone.sh}"
+# 監視対象。schedule: を持つワークフローを足したらここも更新する（tests/test-check-nightly-failures.sh が一致を検査する）
 WORKFLOWS=(nightly-gamekit-full.yml nightly-shogi-selfplay.yml)
+
+warn() { echo "check-nightly-failures: $*" >&2; }
+# 複数行の gh のエラーを 1 行にまとめる
+oneline() { tr '\n' ' ' <<<"$1" | sed 's/ *$//'; }
 
 for wf in "${WORKFLOWS[@]}"; do
   run=$(gh run list -R "$REPO" --workflow "$wf" --branch main --event schedule --limit 1 \
-    --json conclusion,databaseId,url --jq '.[0] // empty | "\(.conclusion)\t\(.databaseId)\t\(.url)"' 2>/dev/null) || continue
+    --json conclusion,databaseId,url --jq '.[0] // empty | "\(.conclusion)\t\(.databaseId)\t\(.url)"' 2>&1) \
+    || { warn "$wf: gh run list が失敗したため検査できませんでした: $(oneline "$run")"; continue; }
   [ -n "$run" ] || continue
   IFS=$'\t' read -r conclusion id url <<<"$run"
   [ "$conclusion" = failure ] || continue
 
-  found=$(gh issue list -R "$REPO" --state all --search "nightly-run-id: $id in:body" --json number --jq 'length' 2>/dev/null) || continue
+  found=$(gh issue list -R "$REPO" --state all --search "nightly-run-id: $id in:body" --json number --jq 'length' 2>&1) \
+    || { warn "$wf: 起票済みの確認(gh issue list)が失敗したため見送りました: $(oneline "$found")"; continue; }
   [ "${found:-0}" = 0 ] || continue
 
   failed=$(gh run view "$id" -R "$REPO" --log-failed 2>/dev/null | head -20)
@@ -52,6 +61,7 @@ for wf in "${WORKFLOWS[@]}"; do
     "自動ハンコの区分: 不具合")
   args=(issue create -R "$REPO" --title "$title" --body "$body" --label bug --label ai:proposed --label stamp:auto)
   [ -n "$milestone" ] && args+=(--milestone "$milestone")
-  gh "${args[@]}" >/dev/null 2>&1
+  out=$(gh "${args[@]}" 2>&1) \
+    || warn "$wf: run $id の Issue を起票できませんでした(gh issue create): $(oneline "$out")"
 done
 exit 0

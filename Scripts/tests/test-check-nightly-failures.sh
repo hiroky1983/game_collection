@@ -23,14 +23,14 @@ case "$1 $2" in
   "run list")  [ -n "$RUN_CONCLUSION" ] && echo "$RUN_CONCLUSION	777	https://example.test/runs/777" ;;
   "run view")  printf 'FAILED test A\nline2\n' ;;
   "issue list") echo "${EXISTING:-0}" ;;
-  "issue create") echo "https://example.test/issues/1" ;;
+  "issue create") if [ -n "$CREATE_FAIL" ]; then echo "label not found" >&2; exit 1; fi; echo "https://example.test/issues/1" ;;
 esac
 exit 0
 STUB
 chmod +x "$TMP/bin/gh"
 export CALLS PATH="$TMP/bin:$PATH" NIGHTLY_MILESTONE_CMD="echo v1.1.15"
 
-run() { : >"$CALLS"; RUN_CONCLUSION="$1" EXISTING="${2:-0}" bash "$TARGET"; }
+run() { : >"$CALLS"; RUN_CONCLUSION="$1" EXISTING="${2:-0}" bash "$TARGET" 2>"$TMP/err"; }
 creates() { grep -c '^issue create' "$CALLS" || true; }
 
 echo "== failure: 夜間 2 本ぶん起票する =="
@@ -50,6 +50,19 @@ check "run が無くても起票 0" "0" "$(creates)"
 echo "== 起票済み: 二重に起票しない =="
 run failure 1
 check "起票 0" "0" "$(creates)"
+
+echo "== gh issue create の失敗は標準エラーに残し、終了コードは 0 =="
+CREATE_FAIL=1 run failure
+check "終了コード" "0" "$?"
+grep -q '^check-nightly-failures: .*gh issue create.*label not found' "$TMP/err" && ok "起票失敗の理由が標準エラーに出る" || ng "起票失敗の理由が出ない: $(cat "$TMP/err")"
+run failure
+check "正常時は標準エラーが空" "" "$(cat "$TMP/err")"
+
+echo "== WORKFLOWS が schedule: を持つワークフローと一致する =="
+ROOT="$SCRIPT_DIR/../.."
+expected=$(grep -lE '^[[:space:]]*schedule:' "$ROOT"/.github/workflows/*.yml | xargs -n1 basename | sort | tr '\n' ' ')
+actual=$(sed -n 's/^WORKFLOWS=(\(.*\))$/\1/p' "$TARGET" | tr ' ' '\n' | sort | tr '\n' ' ')
+check "監視対象の列挙" "$expected" "$actual"
 
 echo
 echo "結果: PASS=$PASS FAIL=$FAIL"
