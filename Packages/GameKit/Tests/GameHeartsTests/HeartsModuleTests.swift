@@ -77,7 +77,9 @@ struct HeartsModuleTests {
         #expect(code.contains("gameDidRestart(") && code.contains("gameDidProgress(") && code.contains("gameDidFinish("),
                 "解析は 1 対局 1 組 + 進行の 3 点で接続する")
         #expect(code.contains("withAITurnRunner(") && code.contains("pauseCPUTurn("), "CPU の手番は AITurnGuard の定石で回す")
-        #expect(code.contains(".onDisappear { cpuTask?.cancel() }"), "ボタンから起こした CPU のタスクは画面を離れたら止める")
+        // CPU の手番は `.task(id:)` 1 か所で起こす（画面を離れれば自動で止まる）。操作側から手で起こす形に戻さない（#3146）。
+        #expect(code.contains(".task(id: CPUDriveKey(turn: model.cpuTurnKey"), "CPU の手番は手番キーの .task(id:) で起こす")
+        #expect(!code.contains("cpuTask") && !code.contains("runCPU()"), "操作のたびに CPU を手で起こす形は使わない")
     }
 
     @Test("撮影用の経路は Release に残っていない")

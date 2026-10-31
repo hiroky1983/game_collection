@@ -9,9 +9,6 @@ public struct HeartsView: View {
     @State private var showReference = false
     /// 遊び方（図で見る遊び方を含む）を開いているか。開いているあいだ CPU の手番を止める（#2827）。
     @State private var isHowToPlayOpen = false
-    /// 操作の後に CPU の手番を回すタスク。画面を離れたらキャンセルする（いろリレー・CodeRabbit 指摘 PR #1339 と同じ）。
-    /// ボタンから起こした非構造化タスクは View のライフサイクルで止まらないので、離れたら自分で止める。
-    @State private var cpuTask: Task<Void, Never>?
     /// 渡す場面のヒントの広告（無料 3 回を使い切ったあと 1 本につき 1 回・#3003）。
     @State private var hintRescue = RewardedRescue()
     /// 画面の広さ（#458）。広い画面（iPad）では札の拡大に上限を掛けるのに読む。
@@ -60,9 +57,10 @@ public struct HeartsView: View {
             statusChips
         }
         .howToPlay(HowToPlayGuide.hearts.illustrated(HeartsHowToFigures.items).onboarding(HeartsOnboarding.guide),
-                   onPresent: { isHowToPlayOpen = true; cpuTask?.cancel() },
-                   onDismiss: { isHowToPlayOpen = false; runCPU() }) { HeartsRuleSheet() }
+                   onPresent: { isHowToPlayOpen = true },
+                   onDismiss: { isHowToPlayOpen = false }) { HeartsRuleSheet() }
         // 早見表を開いているあいだは CPU の手番を止め、閉じたら続きを回す（読んでいるあいだに場が進まないように）。
+        // 止める・続けるは下の `.task(id:)` が `isCPUPaused` の変化で受ける。
         .sheet(isPresented: $showReference) {
             NavigationStack {
                 HeartsReferenceSheet()
@@ -73,16 +71,9 @@ public struct HeartsView: View {
                     }
             }
         }
-        .onChange(of: showReference) { _, isOpen in
-            if isOpen { cpuTask?.cancel() } else { runCPU() }
-        }
         // 新規対局シートにも図で見る遊び方の入口があるので、開いているあいだは手番を止める（#2827）。
-        .onChange(of: showNewGame) { _, isOpen in
-            if isOpen { cpuTask?.cancel() } else { runCPU() }
-        }
         .sheet(isPresented: $showNewGame) {
             HeartsNewGameSheet(aiLevel: model.aiLevel) { level in
-                cpuTask?.cancel()
                 model.startMatch(aiLevel: level)
                 showNewGame = false
             } onCancel: { showNewGame = false }
@@ -95,7 +86,13 @@ public struct HeartsView: View {
                 message: tr("広告を見ているあいだに次の手が始まったため、ヒントを出せませんでした。\nヒントの残り回数は減っていません。")
             )
         )
-        .onDisappear { cpuTask?.cancel() }
+        // CPU の手番はここ 1 か所で動かす（麻雀と同じ作り・#3146）。手番キーが変わる（人間の操作・CPU の着手・新しい手）か、
+        // 止める画面（遊び方・早見表・新規対局）の開閉が変わると作り直され、画面を離れれば止まる。
+        // 操作のたびに手で起こす形だと、新しい操作を足したとき 1 か所呼び忘れて CPU 番のまま止まる。
+        .task(id: CPUDriveKey(turn: model.cpuTurnKey, isPaused: isCPUPaused)) {
+            guard !isCPUPaused else { return }
+            await model.runCPUTurnsIfNeeded()
+        }
         .task {
             // 開幕のモーダルは置かず、卓を見せたまま配り始める（#192）。強さは「新規対局」から選び直せる。
             // 中断から戻ったときは init が局面まで復元しているので配り直さない。
@@ -109,16 +106,16 @@ public struct HeartsView: View {
             // 撮影用（#2788）: 早見表だけを開く。
             if args.contains("-heartsReference") { showReference = true }
             #endif
-            // 中断から戻ったときに CPU の手番が止まったままにならないようにする。
-            // 早見表で止められるよう、操作の後と同じ cpuTask で回す（#2788）。
-            runCPU()
         }
     }
 
-    /// 人間の操作の後に CPU の手番を回す。前のタスクは止めてから起こす（走者は `withAITurnRunner` が 1 本に保つ）。
-    private func runCPU() {
-        cpuTask?.cancel()
-        cpuTask = Task { await model.runCPUTurnsIfNeeded() }
+    /// CPU の手番を止めておく画面（遊び方・早見表・新規対局）を開いているか（#2788・#2827）。
+    private var isCPUPaused: Bool { isHowToPlayOpen || showReference || showNewGame }
+
+    /// `.task(id:)` の識別子。手番の進行と、止める画面の開閉のどちらが変わっても CPU のタスクを作り直す。
+    private struct CPUDriveKey: Hashable {
+        let turn: Int
+        let isPaused: Bool
     }
 
     // MARK: - ステータス（ヘッダーの行の札）
@@ -431,7 +428,6 @@ public struct HeartsView: View {
                     .frame(maxWidth: 150)
                 actionButton(tr("CPU1へ3枚渡す"), role: .primary, disabled: !model.canConfirmPass || hintRescue.isWatching) {
                     model.confirmPass()
-                    runCPU()
                 }
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
@@ -440,7 +436,6 @@ public struct HeartsView: View {
             actionButton(model.selectedID == nil ? tr("札を選ぶ") : tr("出す"), role: .primary,
                          disabled: !model.canPlaySelection) {
                 model.playSelected()
-                runCPU()
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)

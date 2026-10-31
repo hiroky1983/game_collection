@@ -436,6 +436,10 @@ public final class HeartsModel: AITurnGuarded {
 
     // MARK: - CPU
 
+    /// CPU の手番を起こす `.task(id:)` の識別子（#3146）。人間の操作・CPU の着手・新しい手のたびに必ず変わる
+    /// （`turnSerial` は新規対局でも戻さず増え続けるので、対局の通し番号と組にしなくても重ならない）。
+    public var cpuTurnKey: Int { turnSerial }
+
     /// CPU の手番とそろった巡の片付けを、人間の番になるか手が終わるまで進める。
     /// View から複数の契機で呼ばれても内部で 1 本に制限する（`withAITurnRunner`・#531）。
     public func runCPUTurnsIfNeeded() async {
