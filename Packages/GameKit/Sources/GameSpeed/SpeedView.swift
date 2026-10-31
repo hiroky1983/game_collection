@@ -167,8 +167,9 @@ public struct SpeedView: View {
             if !touching { lifted = nil }
         }
         // 確認を出しているあいだも CPU は止める（迷っているうちに出し切られて負けが記録される、を防ぐ）。
+        // 開始シートの `.sheet` とは理由を分ける（確認が閉じる解除が、同時に開くシートの止めを解かないように。#3142）。
         .onChange(of: showConfirmNewGame) { _, open in
-            model.holdCPU(.sheet, open)
+            model.holdCPU(.confirm, open)
         }
         // CPU の待ちは Model が決め、ここは待つだけ。場が動くたびに `cpuRun` が進んで前のループが止まり、
         // 画面を離れれば `.task` ごと止まる。

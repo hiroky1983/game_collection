@@ -83,6 +83,9 @@ public final class SpeedModel {
         public static let inactive = CPUHold(rawValue: 1 << 1)
         /// 遊び方・速さのシートの提示中（背面で敗北が記録されないように。#1358）。
         public static let sheet = CPUHold(rawValue: 1 << 2)
+        /// 「新規対局しますか？」の確認の提示中。開始シートの `.sheet` と分けておく：「終了して新規対局」で確認が閉じる
+        /// 解除が、同時に開いた開始シートの止めを巻き込んで解くと、シートの裏で CPU が出し続ける（#3142）。
+        public static let confirm = CPUHold(rawValue: 1 << 3)
     }
     /// 勝ったときの所要秒数（切り上げ・最低 1 秒）。負け・引き分けでは nil。
     public private(set) var winSeconds: Int?

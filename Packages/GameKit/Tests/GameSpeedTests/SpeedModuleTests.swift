@@ -80,6 +80,7 @@ struct SpeedModuleTests {
         #expect(code.contains("onPresent: { model.holdCPU(.sheet, true) }") && code.contains("onDismiss: { model.holdCPU(.sheet, false) }"),
                 "遊び方のシートを開いているあいだは CPU を止め、閉じたら再開する（#1358）")
         #expect(code.contains(".onChange(of: showSetup)"), "速さのシートを開いているあいだも CPU を止める（#1358）")
+        #expect(code.contains("model.holdCPU(.confirm, open)"), "新規の確認は開始シートとは別の理由で止める（確認が閉じる解除がシートの止めを解かない。#3142）")
         #expect(code.contains(".onChange(of: scenePhase)"), "バックグラウンドでは CPU を止める（アクション枠の基盤規約）")
         #expect(code.contains("PlayingCardSurface(") && code.contains("PlayingCardFace("), "札はトランプ共通基盤（#397）で描く")
         #expect(code.contains(".actionSlowMode"), "設定の「ゆっくりモード」（アクション枠共通）を CPU の反応に掛ける")
