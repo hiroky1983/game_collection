@@ -125,6 +125,8 @@ struct CatPuzzleModuleTests {
         #expect(RecordVariantLabels.label(recordKey: "catpuzzle#normal", language: .english) == "Normal")
         #expect(RecordVariantLabels.label(recordKey: "catpuzzle#hard", language: .english) == "Hard")
         #expect(RecordVariantLabels.label(recordKey: "catpuzzle#9x9", language: .english) == nil)
+        #expect(RecordVariantLabels.label(recordKey: "catpuzzle#stage", language: .japanese) == "ステージ")
+        #expect(RecordVariantLabels.label(recordKey: "catpuzzle#stage", language: .english) == "Stages")
         for size in CatPuzzleSize.allCases {
             #expect(size.recordVariantLabel == size.label)
         }

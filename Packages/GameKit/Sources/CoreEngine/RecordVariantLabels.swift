@@ -106,6 +106,8 @@ public enum RecordVariantLabels {
             return ["3x3": "3×3", "5x5": "5×5"][variant]
         case "catpuzzle":
             // おじさんちのねこさがし（#2250）。キーは盤の大きさ（`CatPuzzleSize.rawValue`: easy / normal / hard / expert）。
+            // ステージ（面の番号で難しさが決まる）は自由に遊ぶのベストと混ぜないよう `stage` に分ける（#3145）。
+            if variant == "stage" { return tr("ステージ", language: language) }
             return variant == "expert" ? tr("とことん", language: language) : difficultyWord(variant, language: language)
         case "daifugo":
             // CPU の強さ別（#2604）。「ふつう」は区分なし（これまでの記録）なので、キーは入門・かんたん・むずかしいだけ。

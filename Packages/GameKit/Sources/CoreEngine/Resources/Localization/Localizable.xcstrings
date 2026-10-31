@@ -637,6 +637,17 @@
         }
       }
     },
+    "ステージ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stages"
+          }
+        }
+      }
+    },
     "クラブ" : {
       "extractionState" : "manual",
       "localizations" : {
