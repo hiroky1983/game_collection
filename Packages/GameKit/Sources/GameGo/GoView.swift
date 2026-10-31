@@ -270,7 +270,8 @@ public struct GoView: View {
                             let col = Int(((val.location.x - pad) / spacing).rounded())
                             let row = Int(((val.location.y - pad) / spacing).rounded())
                             // 盤外・手番違い・禁じ手の判定は Model 側に集約する（#202）。
-                            model.tap(row: row, col: col)
+                            // 設定が 2 段なら仮置き → 確定（#3149・五目並べ #2297 と同じ）。
+                            model.tapOnBoard(row: row, col: col)
                         }
                 )
                 .accessibilityRepresentation {
@@ -280,6 +281,9 @@ public struct GoView: View {
                 // ヒントが示す交点（#2027）。盤の前面に重ねるので、タップと VoiceOver の
                 // 交点グリッドを横取りしないよう両方から外す。
                 hintMark(pad: pad, spacing: spacing)
+
+                // 仮置きの印（#3149）。同じく盤の前面で、タップと VoiceOver を横取りしない。
+                pendingMark(pad: pad, spacing: spacing)
             }
             // 打てないタップを盤の横揺れで伝える（#202）。触覚・効果音は Model 側から鳴る。
             .modifier(GoShake(animatableData: CGFloat(model.rejectedTapCount)))
@@ -306,6 +310,33 @@ public struct GoView: View {
         return DifficultyLadderPrompt(result: model.recordResult, currentLevel: levels.firstIndex(of: model.aiLevel),
                                       levelLabels: levels.map(\.label)) { level in
             model.newGame(humanSide: model.humanSide, level: levels[level], handicap: model.ruleset.handicap, boardSize: model.boardSize)
+        }
+    }
+
+    /// 仮置き中の交点の印（#3149）。薄い石と、指で隠れても位置が分かる十字の強調（五目並べ #2297 と同じ）。
+    ///
+    /// 出す条件は `model.pendingPoint` だけ。確定・移動・手番交代などで Model が消す。
+    @ViewBuilder
+    private func pendingMark(pad: CGFloat, spacing: CGFloat) -> some View {
+        if let point = model.pendingPoint {
+            let x = pad + spacing * CGFloat(point.col)
+            let y = pad + spacing * CGFloat(point.row)
+            let reach = spacing * 0.9
+            ZStack {
+                Path { path in
+                    path.move(to: CGPoint(x: x - reach, y: y)); path.addLine(to: CGPoint(x: x + reach, y: y))
+                    path.move(to: CGPoint(x: x, y: y - reach)); path.addLine(to: CGPoint(x: x, y: y + reach))
+                }
+                .stroke(Theme.coral, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                Circle()
+                    .fill(model.state.sideToMove == .black ? Color(hex: 0x18140E) : Color(hex: 0xF0E8D0))
+                    .opacity(0.55)
+                    .overlay(Circle().stroke(Theme.coral, lineWidth: 2))
+                    .frame(width: spacing * 0.92, height: spacing * 0.92)
+                    .position(x: x, y: y)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
         }
     }
 
@@ -504,6 +535,12 @@ public struct GoView: View {
             model: model, services: services, rescue: undoRescue,
             hint: BoardControlBarHint(model, rescue: hintRescue, game: model.gameSerial, activity: [model.moveCount, model.rejectedTapCount]),
             extraItems: [
+                // 盤のタップの方式（#3149）。慣れた人は 1 タップで置くへ戻せる。
+                GameControlMenuItem(id: "confirmPlacement", title: tr("タップは2回で置く"), systemImage: "hand.tap",
+                                    isChecked: model.confirmsPlacement,
+                                    accessibilityHint: tr("オンのとき、1回目のタップで仮置き、同じ交点をもう一度タップで確定します")) {
+                    model.setConfirmsPlacement(!model.confirmsPlacement)
+                },
                 GameControlMenuItem(id: "pass", title: tr("パス"), systemImage: "forward.fill",
                                     isEnabled: !(model.isAITurn || model.isThinking)) { model.pass() }
             ],

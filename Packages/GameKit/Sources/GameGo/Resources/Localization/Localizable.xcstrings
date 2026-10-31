@@ -1,6 +1,28 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "タップは2回で置く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Place with two taps"
+          }
+        }
+      }
+    },
+    "オンのとき、1回目のタップで仮置き、同じ交点をもう一度タップで確定します" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When on, the first tap previews a stone and tapping the same point again places it"
+          }
+        }
+      }
+    },
     "%1$@ %2$@目勝ち" : {
       "extractionState" : "manual",
       "localizations" : {
