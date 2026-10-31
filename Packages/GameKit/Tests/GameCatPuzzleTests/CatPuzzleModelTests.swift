@@ -565,9 +565,9 @@ struct CatPuzzleModelTests {
         #expect(model.marks[sample.solutionCells[0]] == .cross, "2 回目のあとも打てる")
         placeCat(model, at: wrongs[2])
         #expect(model.mistakes == 3 && model.mistakesRemaining == 0)
-        // 3 回目のミスでは、まず広告を見て続ける提案（負けは断ってから確定する・#2780）。
+        // 3 回目のミスでは、まず広告を見て続ける提案。負けはこの時点で記録し、断っても二重には付けない（#2780・#3144）。
         #expect(model.isOfferingContinue && !model.isFailed && !model.isCounting)
-        #expect(spy.ends(of: CatPuzzleModel.gameID) == 0 && model.unfoundCats.isEmpty)
+        #expect(spy.ends(of: CatPuzzleModel.gameID) == 1 && model.unfoundCats.isEmpty)
         model.declineContinue()
         #expect(!model.isOfferingContinue)
         #expect(model.isFailed && model.isOver && !model.isSolved)
@@ -703,7 +703,7 @@ struct CatPuzzleModelTests {
         #expect(model.unfoundCats.contains(sample.solutionCells[1]))
     }
 
-    @Test("コンティニュー: 広告のあとミスが 1 回ぶん戻り、赤い × は残る。計時が再開し、解析は負けを送らない")
+    @Test("コンティニュー: 広告のあとミスが 1 回ぶん戻り、赤い × は残る。計時が再開し、提案時に付けた負けは取り消される")
     func continueAfterAd() {
         let store = MemorySnapshotStore()
         let spy = SpyAnalyticsService()
@@ -723,11 +723,34 @@ struct CatPuzzleModelTests {
         #expect(model.mistakes == CatPuzzleModel.maxMistakes - 1 && model.mistakesRemaining == 1)
         #expect(model.wrongCrosses == Set(wrongs.prefix(3)), "最後の赤い × は盤に残る")
         #expect(model.isCounting)
-        #expect(spy.ends(of: CatPuzzleModel.gameID) == 0)
         #expect(!model.continueAfterAd(), "提案が出ていないときは使えない")
         // 続けて遊べる。
         placeCat(model, at: sample.solutionCells[1])
         #expect(model.marks[sample.solutionCells[1]] == .cat)
+    }
+
+    @Test("提案を放置して新規で捨てても、負けが 1 つ付く（#3144）")
+    func abandoningOfferRecordsLoss() {
+        let log = makeLog("abandonOffer")
+        let (model, _) = atThirdMistake(log: log)
+        #expect(model.isOfferingContinue)
+        model.newGame()
+        #expect(log.record(gameID: CatPuzzleModel.gameID, variant: CatPuzzleSize.easy.recordVariant)?.losses == 1)
+    }
+
+    @Test("コンティニューで提案時の負けは取り消され、断っても二重には付かない（#3144）")
+    func continueCancelsLossAndDeclineDoesNotDouble() {
+        let log = makeLog("continueCancel")
+        let (continued, _) = atThirdMistake(log: log)
+        #expect(continued.continueAfterAd())
+        #expect((log.record(gameID: CatPuzzleModel.gameID, variant: CatPuzzleSize.easy.recordVariant)?.losses ?? 0) == 0)
+        #expect(continued.recordResult == nil)
+
+        let declineLog = makeLog("decline")
+        let (declined, _) = atThirdMistake(log: declineLog)
+        declined.declineContinue()
+        #expect(declineLog.record(gameID: CatPuzzleModel.gameID, variant: CatPuzzleSize.easy.recordVariant)?.losses == 1)
+        #expect(declined.recordResult != nil)
     }
 
     @Test("コンティニューは 1 局 1 回。使ったあとの 3 回目のミスはそのまま負け、新しい局で使える")
