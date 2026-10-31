@@ -4188,6 +4188,39 @@
         }
       }
     },
+    "今の進行を終了して始めますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit the current game and start over?"
+          }
+        }
+      }
+    },
+    "終了して始める" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit & start"
+          }
+        }
+      }
+    },
+    "今の盤面は失われます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The current board will be lost."
+          }
+        }
+      }
+    },
     "結果を閉じて盤面を見返します" : {
       "extractionState" : "manual",
       "localizations" : {

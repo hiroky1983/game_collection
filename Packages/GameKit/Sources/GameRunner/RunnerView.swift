@@ -123,7 +123,9 @@ public struct RunnerView: View {
         // 外にあるので物理的には押せてしまい、始まり → 操作ガイド → 開始シートの順番
         // （決裁の受け入れ条件 A）が崩れる。飛ばしたい人はタップか「スキップ」で抜けられる。
         .gameChrome(title: tr("チャリンコおじさん"), review: services.review,
-                    newGame: GameChromeNewGame(.restart, isDisabled: presentedStory != nil) {
+                    newGame: GameChromeNewGame(.restart, isDisabled: presentedStory != nil,
+                                               hasProgressToLose: model.hasProgressToLose,
+                                               onAskConfirm: { if model.phase == .running { model.pause() } }) {
                         if model.phase == .running { model.pause() }
                         openStartSheet(mode: model.mode, stage: 1)
                     })

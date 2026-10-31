@@ -252,6 +252,7 @@ private struct FullScreenGameHeader<Status: View>: View {
     let reference: GameChromeReference?
     let newGame: GameChromeNewGame?
     let status: Status
+    @State private var confirmsNewGame = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.howToPlayTrigger) private var howToPlay
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -290,12 +291,13 @@ private struct FullScreenGameHeader<Status: View>: View {
                 }
                 if let newGame {
                     FullScreenHeaderButton(systemImage: newGame.kind.systemImage, label: newGame.kind.accessibilityLabel,
-                                           surface: surface, action: newGame.action)
+                                           surface: surface) { newGame.tapped { confirmsNewGame = true } }
                         .disabled(newGame.isDisabled)
                 }
             }
             .anchorPreference(key: HeaderFramesKey.self, value: .bounds) { [.buttons: $0] }
         }
+        .modifier(GameChromeNewGameConfirmation(newGame: newGame, isPresented: $confirmsNewGame))
         .padding(.horizontal, Metrics.sideInset)
         .padding(.vertical, Metrics.headerVerticalPadding)
         .frame(height: Metrics.headerTotalHeight)
