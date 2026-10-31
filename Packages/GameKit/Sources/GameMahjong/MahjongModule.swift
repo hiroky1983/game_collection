@@ -39,4 +39,13 @@ public struct MahjongModule: GameModule {
             && snap.discards.allSatisfy(\.isEmpty)
             && (snap.melds ?? []).allSatisfy(\.isEmpty)
     }
+
+    /// 局の名前（「東2局」「南3局」）。リザルト中の中断は決着した局を出す（`MahjongModel.displayedRoundNumber` と同じ）。
+    /// 一局戦は進み具合が意味を持たないので出さない。
+    public func resumeProgress(in snapshots: SnapshotStore) -> String? {
+        guard let snap = snapshots.load(MahjongSnapshot.self, for: id) else { return nil }
+        let length = snap.gameLength ?? .tonpuu
+        guard length != .singleHand else { return nil }
+        return length.roundName(forRound: snap.handResult?.roundNumber ?? snap.roundNumber)
+    }
 }
