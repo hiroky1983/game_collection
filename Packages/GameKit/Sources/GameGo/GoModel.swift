@@ -101,6 +101,16 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     /// この局のヒントの残り（#2027）。回数と順位表の扱いは Core の `BoardHintBudget` が持つ（将棋・チェスと共通）。
     public private(set) var hints: BoardHintBudget
 
+    /// 仮置き中の交点（#3149・五目並べ #2297 の横展開）。1 回目のタップで照準だけ置き、同じ交点の再タップで確定する。
+    /// **永続化しない**（中断データに入れず、復元時は無し）。着手・投了・待った・新規対局で消える。
+    public private(set) var pendingPoint: GoPoint?
+    /// 盤のタップを「仮置き → 確定」の 2 段にするか（#3149）。既定は 2 段。
+    /// 端末内の固定キー 1 つ（`Self.confirmsPlacementKey`・Bool の上書き）にだけ保存し、サーバは使わない。
+    public private(set) var confirmsPlacement: Bool
+    @ObservationIgnored private let defaults: UserDefaults
+    /// 保存キー。改名すると、既に選んでいる人の設定が既定（2 段）へ戻る。
+    static let confirmsPlacementKey = "goConfirmsPlacement_v1"
+
     private var moves: [GoMove]
     private let services: GameServices?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
@@ -121,8 +131,10 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     /// View の `.task(id:)` に渡す CPU 起動トリガー（#140 と同じ理由で対局の通し番号と組にする）。
     public var aiTurnKey: AITurnKey { AITurnKey(gameSerial: gameSerial, ply: moves.count, epoch: resumeCount) }
 
-    public init(services: GameServices? = nil) {
+    public init(services: GameServices? = nil, defaults: UserDefaults = .standard) {
         self.services = services
+        self.defaults = defaults
+        self.confirmsPlacement = defaults.object(forKey: Self.confirmsPlacementKey) as? Bool ?? true
 
         var ruleset = GoRuleset(size: GoBoardSize.nine.rawValue, handicap: 0)
         var humanSide = GoStone.black
@@ -246,6 +258,33 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         apply(move)
     }
 
+    /// 指での盤タップ（#3149）。設定が 2 段のとき、1 回目は仮置き・同じ交点の再タップで確定する。
+    /// 別の交点なら仮置きがそこへ移る。打てない交点は従来どおり拒否（仮置きは動かさない）。
+    /// VoiceOver の交点グリッドは 2 度押しを強いないよう、これを通さず `tap` を直接呼ぶ。
+    public func tapOnBoard(row: Int, col: Int) {
+        guard confirmsPlacement else { return tap(row: row, col: col) }
+        guard phase == .playing else { return }
+        guard !isAITurn, !isThinking else { return reject(.notYourTurn) }
+        let move = GoMove.play(row: row, col: col)
+        if let why = state.illegalReason(for: move) { return reject(.illegal(why)) }
+        let point = GoPoint(row: row, col: col)
+        if pendingPoint == point {
+            apply(move)   // 確定。`apply` が仮置きを消す
+        } else {
+            pendingPoint = point
+            // 打てる交点を選び直したので、直前の拒否の帯は引っ込める。
+            lastRejection = nil
+            services?.feedback.impact(.light)
+        }
+    }
+
+    /// 「タップで置く」の方式を切り替える（#3149）。切り替えたら仮置きは捨てる。
+    public func setConfirmsPlacement(_ value: Bool) {
+        confirmsPlacement = value
+        pendingPoint = nil
+        defaults.set(value, forKey: Self.confirmsPlacementKey)
+    }
+
     /// パス。2 回続くと終局の確認へ進む。
     public func pass() {
         guard phase == .playing, !isAITurn, !isThinking else { return }
@@ -267,6 +306,7 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         lastMove = move.point
         // 打てた時点で直前の拒否理由は用済み（五目の `place` と同じ畳み方・#664）。
         lastRejection = nil
+        pendingPoint = nil
         // 盤が動いたらヒントの印は用済み（#2027）。示した手を打ったかどうかは問わない。
         hintMove = nil
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
@@ -362,6 +402,7 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         guard phase != .finished else { return }
         passBannerDismissID += 1
         hintMove = nil
+        pendingPoint = nil
         phase = .finished
         winner = humanSide.opponent
         endgame = nil
@@ -420,6 +461,7 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         undoUsed = true
         endgame = nil
         lastRejection = nil
+        pendingPoint = nil
         hintMove = nil
         // 戻した 2 手にパスが含まれることがあるので、札は残さない（#664）。
         passBannerDismissID += 1
@@ -467,6 +509,7 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         self.isScoringInProgress = false
         self.gameSerial += 1
         self.lastRejection = nil
+        self.pendingPoint = nil
         // 通し番号（`passEventID`）は 0 に戻さない。View は「値が変わったこと」で札を出すため、
         // 対局をまたいで単調に増やさないと巻き戻しが合図として拾われる（将棋 #519 と同じ）。
         // 前対局の札が出たままなら、新しい盤の上には残さない。
