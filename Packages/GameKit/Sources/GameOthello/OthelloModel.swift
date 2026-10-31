@@ -175,8 +175,10 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         } else {
             board        = OthelloBoard()
             currentStone = .black
-            humanSide    = .black
-            aiLevel      = 1
+            // 開始シートの初期値は最後に選んだ条件（#3151）。初回は先手・入門。
+            let last = services?.playLog?.lastStart(OthelloStartChoice.self, gameID: "othello")
+            humanSide    = last.flatMap { OthelloStone(rawValue: $0.humanSide) } ?? .black
+            aiLevel      = CPUStrength.strength(for: last?.aiLevel ?? 1).rawValue
             startedAt    = Date()
             winner       = nil
             isDraw       = false
@@ -403,6 +405,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         currentStone   = .black
         self.humanSide = humanSide
         self.aiLevel   = aiLevel
+        services?.playLog?.saveLastStart(OthelloStartChoice(humanSide: humanSide.rawValue, aiLevel: aiLevel), gameID: gameID)
         winner         = nil
         isDraw         = false
         lastMove       = nil
@@ -565,4 +568,10 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
+}
+
+/// 最後に選んだ開始条件（#3151）。中断データとは別に残り、終局しても消えない。
+struct OthelloStartChoice: Codable {
+    var humanSide: Int
+    var aiLevel: Int
 }

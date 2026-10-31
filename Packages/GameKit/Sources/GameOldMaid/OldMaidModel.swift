@@ -75,6 +75,9 @@ public final class OldMaidModel: AITurnGuarded {
             gameNumber = max(snap.gameNumber, 1)
             aiLevel = CPUStrength.strength(for: snap.game.aiLevel).rawValue
             phase = .playing
+        } else if let last = services?.playLog?.lastStart(Int.self, gameID: gameID) {
+            // 中断データが無いときの開始シートの初期値は最後に選んだ強さ（#3151）。
+            aiLevel = CPUStrength.strength(for: last).rawValue
         }
     }
 
@@ -148,6 +151,7 @@ public final class OldMaidModel: AITurnGuarded {
     /// 新しい 1 ゲームを始める。`aiLevel` を渡すとその強さで配る（開始シート・難易度の階段）。
     public func startGame(aiLevel newLevel: Int? = nil) {
         if let newLevel { aiLevel = CPUStrength.strength(for: newLevel).rawValue }
+        services?.playLog?.saveLastStart(aiLevel, gameID: gameID)
         var deck = OldMaidCard.makeDeck()
         deck.shuffle(using: &generator)
         gameNumber += 1

@@ -447,6 +447,8 @@ public final class MahjongModel: AITurnGuarded {
         // 成績・連勝に入れるため、配り直す前に終局を確定する（#3139。しりとりの保留分記録と同じ）。
         if concludesAfterCurrentResult { concludeGame() }
         if let length { gameLength = length }
+        // 開始シートの初期値は最後に選んだ長さ（#3151）。決着して中断データが消えても残る。
+        services?.playLog?.saveLastStart(gameLength.rawValue, gameID: gameID)
         scores = Array(repeating: Self.startingScore, count: Self.playerCount)
         dealer = 0
         roundNumber = 1

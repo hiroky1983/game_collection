@@ -543,13 +543,13 @@
         }
       }
     },
-    "CPU3人と東風戦。立直・鳴きあり！" : {
+    "CPU3人と東風戦・半荘戦。立直・鳴きあり！" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "An East Round against 3 CPUs. Riichi and calls included!"
+            "value" : "East Round or Hanchan against 3 CPUs. Riichi and calls included!"
           }
         }
       }

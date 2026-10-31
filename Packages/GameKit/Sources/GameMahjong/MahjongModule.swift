@@ -7,7 +7,7 @@ public struct MahjongModule: GameModule {
     /// 一度出したら変えられない（変えると過去の記録と結びつかなくなる）。
     public let id = "mahjong4"
     public var title: String { tr("麻雀") }
-    public var description: String { tr("CPU3人と東風戦。立直・鳴きあり！") }
+    public var description: String { tr("CPU3人と東風戦・半荘戦。立直・鳴きあり！") }
     /// 並んだ牌に見える記号。将棋が `square.grid.3x3.fill` を使っているので同じ形は避ける
     /// （ハブのカードはアイコンで見分けるため、被ると別のゲームに見える）。
     public var icon: Image { Image(systemName: "rectangle.3.group.fill") }
