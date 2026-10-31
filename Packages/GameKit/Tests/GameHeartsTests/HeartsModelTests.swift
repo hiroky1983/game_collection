@@ -380,3 +380,51 @@ struct HeartsCancelTests {
         #expect(model.isPlayerTurn || model.phase != .playing, "走者不在で CPU の手番が止まった")
     }
 }
+
+// MARK: - CPU 手番キー（#3146）
+
+@MainActor
+struct HeartsCPUTurnKeyTests {
+    /// `HeartsView` は `.task(id: model.cpuTurnKey)` 1 か所で CPU を起こす。キーが変わらない操作があると、
+    /// その操作の後に CPU 番のまま止まる。
+    @Test("渡す・出す・CPU の着手・次の手・新規対局のどれでも手番キーが変わる")
+    func keyChangesAfterEveryTurnAdvancingOperation() async {
+        let model = makeModel()
+        var seen: Set<Int> = []
+        func expectFreshKey(_ what: String) {
+            #expect(seen.insert(model.cpuTurnKey).inserted, "\(what)の後に手番キーが変わらない")
+        }
+        model.startMatch()
+        expectFreshKey("新規対局")
+        for card in model.playerHand.prefix(3) { model.togglePass(card) }
+        model.confirmPass()
+        expectFreshKey("札を渡す")
+        // 人間の番が来るまで CPU を進め、人間が 1 枚出すたびにキーが変わることを見る。
+        await model.runCPUTurnsIfNeeded()
+        expectFreshKey("CPU の着手")
+        if model.isPlayerTurn, let id = model.playableCardIDs.min(),
+           let card = model.playerHand.first(where: { $0.id == id }) {
+            model.toggleSelection(card)
+            model.playSelected()
+            expectFreshKey("札を出す")
+        }
+        model.startMatch()
+        expectFreshKey("対局の作り直し")
+    }
+
+    @Test("手が締まったあとの次の手でも手番キーが変わる")
+    func keyChangesOnNextHand() async {
+        let model = makeModel()
+        model.configureForTesting(
+            hands: [[c(.heart, 14)], [c(.heart, 2)], [c(.spade, 12)], [c(.club, 3)]],
+            heartsBroken: true, trickNumber: 12, takenPoints: [3, 2, 0, 7], totals: [10, 4, 20, 6]
+        )
+        model.toggleSelection(c(.heart, 14))
+        model.playSelected()
+        await model.runCPUTurnsIfNeeded()
+        #expect(model.phase == .handResult)
+        let before = model.cpuTurnKey
+        model.nextHand()
+        #expect(model.cpuTurnKey != before)
+    }
+}
