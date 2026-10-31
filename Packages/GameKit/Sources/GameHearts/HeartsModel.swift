@@ -38,6 +38,8 @@ struct HeartsSnapshot: Codable {
     let turnSerial: Int
     /// 渡す場面のヒントを使った回数（#3003）。鍵を持たない古い中断データは未使用として読む。
     let hintsUsed: Int?
+    /// 渡す場面で光らせている 3 枚の札 ID（#3140）。鍵を持たない古い中断データは印なしとして読む。
+    let passHintIDs: [Int]?
 }
 
 // MARK: - Model
@@ -141,6 +143,11 @@ public final class HeartsModel: AITurnGuarded {
             aiLevel         = snap.aiLevel
             turnSerial      = snap.turnSerial
             passHints       = BoardHintBudget(used: snap.hintsUsed ?? 0)
+            // 印は渡す場面で、いまの手札にある札だけ戻す（食い違う保存は印なしにして回数だけ残す）。
+            if snap.phase == .passing, let ids = snap.passHintIDs, !ids.isEmpty,
+               Set(ids).isSubset(of: Set(snap.hands[Self.humanIndex].map(\.id))) {
+                passHintIDs = Set(ids)
+            }
         }
     }
 
@@ -576,7 +583,8 @@ public final class HeartsModel: AITurnGuarded {
             receivedIDs: receivedIDs.sorted(),
             aiLevel: aiLevel,
             turnSerial: turnSerial,
-            hintsUsed: passHints.used
+            hintsUsed: passHints.used,
+            passHintIDs: passHintIDs.sorted()
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
