@@ -51,6 +51,7 @@ public struct HanoiView: View {
         }
         // 画面を離れたら・背面に回ったら計時を止め、戻ったら再開する（#375・#1734。`gameTimerLifecycle`・#1857）。
         .gameTimerLifecycle(
+            isHeld: showConfirmReset,
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )
