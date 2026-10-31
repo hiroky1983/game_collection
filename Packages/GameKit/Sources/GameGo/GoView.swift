@@ -384,7 +384,7 @@ public struct GoView: View {
                         .accessibilityLabel(GoAccessibility.pointLabel(
                             row: row,
                             col: col,
-                            stone: model.board[row, col],
+                            stone: model.board.stone(row: row, col: col),
                             isLastMove: model.lastMove == GoPoint(row: row, col: col),
                             isDead: dead.contains(GoPoint(row: row, col: col)),
                             isHint: model.hintPoint == GoPoint(row: row, col: col)

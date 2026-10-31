@@ -820,3 +820,19 @@ struct CatPuzzleModelTests {
         #expect(!CatPuzzleSnapshot.isResumable(broken))
     }
 }
+
+@MainActor
+@Suite("盤が縮む新規でも View の読み出しが落ちない（#3141）")
+struct CatPuzzleStaleIndexTests {
+    @Test("大→小の新規のあと、旧盤面の添字は nil を返す")
+    func staleIndexReturnsNil() {
+        let model = CatPuzzleModel(services: makeServices(), size: .expert, seed: 1)
+        let oldCount = model.puzzle.cellCount
+        model.newGame(size: .easy)
+        let newCount = model.puzzle.cellCount
+        #expect(newCount < oldCount)
+        for index in 0..<newCount { #expect(model.cellState(at: index) != nil) }
+        for index in newCount..<oldCount { #expect(model.cellState(at: index) == nil) }
+        #expect(model.cellState(at: -1) == nil)
+    }
+}
