@@ -126,3 +126,24 @@ struct MasterEngineTests {
         #expect(Date().timeIntervalSince(t) < 2.0)
     }
 }
+
+/// #3147: 共通外の段（達人）を 1 か所で引ける。番号の重なり・知らない番号を検出できる。
+@Suite("共通外の段 CPULevel")
+struct CPULevelTests {
+    @Test func extrasResolveAndNeverOverlapStrengths() {
+        let extra = ShogiMasterEngine.extraLevel
+        #expect(CPULevel(level: extra.level, extras: [extra]) == .extra(extra))
+        #expect(!ShogiMasterEngine.cpuLevel(forLevel: extra.level).isOnLadder)
+        for s in CPUStrength.allCases {
+            #expect(CPULevel(level: s.rawValue, extras: [extra]) == .strength(s))
+            #expect(ShogiMasterEngine.cpuLevel(forLevel: s.rawValue).isOnLadder)
+        }
+    }
+
+    @Test func unknownLevelIsDetectableAndOverlapIsRejected() {
+        let extra = ShogiMasterEngine.extraLevel
+        #expect(CPULevel(level: 99, extras: [extra]) == nil)
+        let clash = CPUExtraLevel(level: CPUStrength.hard.rawValue, label: "x", recordVariantKey: "x", analyticsLevel: .expert)
+        #expect(CPULevel(level: clash.level, extras: [clash]) == nil)
+    }
+}

@@ -320,7 +320,7 @@ public struct ShogiView: View {
     /// 勝ちが続いたら一段上の強さを勧める（#722）。並びは開始シートの「CPUの強さ」と同じ。
     private var ladder: DifficultyLadderPrompt? {
         // 達人（#2698）は共通の並びの外にある最上段なので、勧める先が無い。
-        guard model.aiLevel != ShogiMasterEngine.level else { return nil }
+        guard ShogiMasterEngine.cpuLevel(forLevel: model.aiLevel).isOnLadder else { return nil }
         return DifficultyLadderPrompt(result: model.recordResult,
                                currentLevel: CPUStrength.ladderIndex(forLevel: model.aiLevel),
                                levelLabels: CPUStrength.labels) { index in
