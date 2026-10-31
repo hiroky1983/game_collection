@@ -171,6 +171,7 @@ public struct FreeCellView: View {
         // （#375・#1734・#1382。止め方・動かし方は `GameStopwatch` / `gameTimerLifecycle` に共通化・#1857）。
         .gameTimerLifecycle(
             rescues: [undoRescue, hintRescue],
+            isHeld: showConfirmNewGame || showUndoRefillPrompt,
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )

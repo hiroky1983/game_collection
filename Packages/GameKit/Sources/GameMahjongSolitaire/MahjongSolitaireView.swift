@@ -227,7 +227,7 @@ public struct MahjongSolitaireView: View {
         // （#375・#1734・#1382。止め方・動かし方は `GameStopwatch` / `gameTimerLifecycle` に共通化・#1857）。
         .gameTimerLifecycle(
             rescues: [shuffleRescue, hintRescue, undoRescue],
-            isHeld: showSetup || isWatchingRewardAd,
+            isHeld: showSetup || isWatchingRewardAd || showShuffleConfirm || showHintConfirm || showUndoRefillPrompt,
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )

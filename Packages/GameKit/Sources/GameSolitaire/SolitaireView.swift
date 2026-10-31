@@ -218,7 +218,7 @@ public struct SolitaireView: View {
         // （#375・#1734・#1382。止め方・動かし方は `GameStopwatch` / `gameTimerLifecycle` に共通化・#1857）。
         .gameTimerLifecycle(
             rescues: [jokerRescue, undoRescue, hintRescue],
-            isHeld: showSetup,
+            isHeld: showSetup || showUndoRefillPrompt,
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )

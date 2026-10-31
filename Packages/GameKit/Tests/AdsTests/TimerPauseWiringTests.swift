@@ -83,4 +83,26 @@ struct TimerPauseWiringTests {
             #expect(call.contains("isHeld:") && call.contains(flag), "\(path): \(flag) のシート表示中に計時を止めていない")
         }
     }
+
+    /// 確認ダイアログ・アラートを出している間も計時が進み、迷った時間がタイムに乗っていた（#3143）。
+    @Test("タイムを競うゲームは、確認ダイアログ・アラートの表示中も isHeld で計時を止めている",
+          arguments: [
+            "GameSudoku/SudokuView.swift", "GameMinesweeper/MinesweeperView.swift",
+            "GameSolitaire/SolitaireView.swift", "GameSpider/SpiderView.swift",
+            "GameFreeCell/FreeCellView.swift", "GameHanoi/HanoiView.swift",
+            "GameMahjongSolitaire/MahjongSolitaireView.swift", "GameAkariKeshi/AkariKeshiView.swift",
+          ])
+    func timedGamesHoldWhileConfirmIsShown(path: String) throws {
+        let text = try String(contentsOf: Self.sourcesRoot.appendingPathComponent(path), encoding: .utf8)
+        let start = try #require(text.range(of: ".gameTimerLifecycle("), "\(path): gameTimerLifecycle が無い")
+        let call = String(text[start.upperBound...].prefix(600))
+        let pattern = try NSRegularExpression(pattern: #"\.(?:confirmationDialog|alert)\([^\n]*isPresented: \$(\w+)"#)
+        let flags = pattern.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap { match in
+            Range(match.range(at: 1), in: text).map { String(text[$0]) }
+        }
+        // 広告の視聴は救済側（`rescues`）が止める。ここで見るのは `@State` の真偽値で出す確認だけ。
+        for flag in flags where text.contains("@State private var \(flag)") {
+            #expect(call.contains("isHeld:") && call.contains(flag), "\(path): \(flag) の確認表示中に計時を止めていない")
+        }
+    }
 }
