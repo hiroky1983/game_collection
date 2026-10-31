@@ -1079,9 +1079,32 @@ struct SpeedPlayableNavigationTests {
         #expect(flipModel.playableNavigationWait() == SpeedRules.playableNavigationDelay)
     }
 
+    @Test("新規の確認が閉じても、同時に開いた開始シートの止めは解けない（#3142）")
+    func confirmReleaseKeepsSetupSheetHold() {
+        let clock = ManualClock()
+        let model = SpeedModel(services: makeServices(), seed: 7, now: { clock.current }, elapsedNow: clock.elapsed.now)
+        model.configureForTesting(
+            humanHand: [card(.hearts, 9), card(.hearts, 11)],
+            humanStock: [card(.diamonds, 10), card(.diamonds, 2)],
+            cpuHand: [card(.spades, 5)], cpuStock: [card(.clubs, 2)],
+            piles: [[card(.spades, 6)], [card(.clubs, 3)]],
+            settings: SpeedSettings(level: .fast)
+        )
+        model.holdCPU(.confirm, true)
+        // 「終了して新規対局」: 開始シートが開く → 確認が閉じる、の順に onChange が走る。
+        model.holdCPU(.sheet, true)
+        model.holdCPU(.confirm, false)
+        #expect(model.isCPUHeld && model.nextCPUWait() == nil, "確認が閉じてもシートが開いているあいだは止まったまま")
+        clock.advance(60)
+        model.performCPUAction()
+        #expect(model.piles[0].last == card(.spades, 6), "シートの裏で CPU は出さない")
+        model.holdCPU(.sheet, false)
+        #expect(!model.isCPUHeld)
+    }
+
     @Test("広告の視聴中・シートの表示中・背面では数えず、解いたところから 5 秒を数え直す")
     func holdsPauseCounting() {
-        for reason in [SpeedModel.CPUHold.ad, .sheet, .inactive] {
+        for reason in [SpeedModel.CPUHold.ad, .sheet, .inactive, .confirm] {
             let clock = ManualClock()
             let model = makeModel("hold.\(reason.rawValue)", clock: clock)
             clock.advance(4)
