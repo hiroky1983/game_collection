@@ -229,6 +229,13 @@ public final class CatPuzzleModel {
         return puzzle.solutionCells.filter { marks.indices.contains($0) && marks[$0] != .cat }.sorted()
     }
 
+    /// 範囲内ならそのマスの部屋番号と印、範囲外なら `nil`（#3141）。View は `nil` のとき空のマスを返す。
+    /// 盤が小さくなる新規（9×9→5×5 等）の差分更新で、旧盤面の添字のまま残った子が評価されても落ちないようにする（#489・#3084 と同じ型）。
+    public func cellState(at cell: Int) -> (room: Int, mark: Mark)? {
+        guard puzzle.rooms.indices.contains(cell), marks.indices.contains(cell) else { return nil }
+        return (puzzle.rooms[cell], marks[cell])
+    }
+
     /// 負けたあとの正解の場所か（読み上げ用）。
     public func isUnfoundCat(cell: Int) -> Bool { unfoundCats.contains(cell) }
 

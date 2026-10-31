@@ -318,30 +318,39 @@ public struct CatPuzzleView: View {
     private func cells(cellSide: CGFloat, inset: CGFloat) -> some View {
         let n = model.puzzle.side
         return ForEach(0..<model.puzzle.cellCount, id: \.self) { index in
-            Color.clear
-                .frame(width: cellSide, height: cellSide)
-                .contentShape(Rectangle())
-                .offset(x: inset + CGFloat(index % n) * cellSide, y: inset + CGFloat(index / n) * cellSide)
-                .accessibilityElement()
-                .accessibilityLabel(CatPuzzleAccessibility.cellLabel(
-                    row: index / n, col: index % n,
-                    roomName: CatPuzzleHouse.room(model.puzzle.rooms[index]).name,
-                    mark: model.marks[index],
-                    isConflict: model.wrongCrosses.contains(index),
-                    isHint: model.hintCells.contains(index) || model.hintCrosses.contains(index),
-                    isUnfoundCat: model.isUnfoundCat(cell: index)
-                ))
-                .accessibilityHint(model.isOver ? "" : model.hintCells.contains(index)
-                                   ? tr("ヒントで置いた猫は消せません") : model.hintCrosses.contains(index)
-                                   ? tr("ヒントで置いた × は消せません") : model.wrongCrosses.contains(index)
-                                   ? tr("ここに猫はいません。赤い × は消せません") : model.marks[index] == .cat
-                                   ? "" : tr("押すと × を付け外しします。猫を見つけるときはアクションの「猫を見つける」を選びます"))
-                .accessibilityAddTraits(.isButton)
-                // VoiceOver では × の付け外しと猫を見つけるを別の操作に分ける（ダブルタップは VoiceOver の「押す」と重なるため）。
-                .accessibilityAction { withGameAnimation { _ = model.toggleCross(cell: index) } }
-                .accessibilityAction(named: tr("× を付け外し")) { withGameAnimation { _ = model.toggleCross(cell: index) } }
-                .accessibilityAction(named: tr("猫を見つける")) { withGameAnimation { model.findCat(cell: index) } }
+            // 盤が縮む新規の差分更新で旧盤面の添字が残っても範囲外を引かない（#3141）。
+            if let state = model.cellState(at: index) {
+                cellElement(index: index, n: n, room: state.room, mark: state.mark, cellSide: cellSide, inset: inset)
+            } else {
+                Color.clear.frame(width: cellSide, height: cellSide)
+            }
         }
+    }
+
+    private func cellElement(index: Int, n: Int, room: Int, mark: CatPuzzleModel.Mark, cellSide: CGFloat, inset: CGFloat) -> some View {
+        Color.clear
+            .frame(width: cellSide, height: cellSide)
+            .contentShape(Rectangle())
+            .offset(x: inset + CGFloat(index % n) * cellSide, y: inset + CGFloat(index / n) * cellSide)
+            .accessibilityElement()
+            .accessibilityLabel(CatPuzzleAccessibility.cellLabel(
+                row: index / n, col: index % n,
+                roomName: CatPuzzleHouse.room(room).name,
+                mark: mark,
+                isConflict: model.wrongCrosses.contains(index),
+                isHint: model.hintCells.contains(index) || model.hintCrosses.contains(index),
+                isUnfoundCat: model.isUnfoundCat(cell: index)
+            ))
+            .accessibilityHint(model.isOver ? "" : model.hintCells.contains(index)
+                               ? tr("ヒントで置いた猫は消せません") : model.hintCrosses.contains(index)
+                               ? tr("ヒントで置いた × は消せません") : model.wrongCrosses.contains(index)
+                               ? tr("ここに猫はいません。赤い × は消せません") : mark == .cat
+                               ? "" : tr("押すと × を付け外しします。猫を見つけるときはアクションの「猫を見つける」を選びます"))
+            .accessibilityAddTraits(.isButton)
+            // VoiceOver では × の付け外しと猫を見つけるを別の操作に分ける（ダブルタップは VoiceOver の「押す」と重なるため）。
+            .accessibilityAction { withGameAnimation { _ = model.toggleCross(cell: index) } }
+            .accessibilityAction(named: tr("× を付け外し")) { withGameAnimation { _ = model.toggleCross(cell: index) } }
+            .accessibilityAction(named: tr("猫を見つける")) { withGameAnimation { model.findCat(cell: index) } }
     }
 
     // MARK: - コンティニュー・答え合わせ
