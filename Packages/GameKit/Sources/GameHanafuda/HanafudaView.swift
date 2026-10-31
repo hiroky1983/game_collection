@@ -63,7 +63,7 @@ public struct HanafudaView: View {
                         availableWidth: geo.size.width,
                         availableHeight: geo.size.height - (showsOverflow ? HanafudaFit.overflowRowHeight + HanafudaFit.sectionSpacing : 0),
                         stripHeight: layout.scaled(HanafudaFit.baseStripHeight),
-                        fieldCount: model.field.count, handCount: model.humanHand.count
+                        fieldCount: playback.isBusy ? max(model.field.count, playback.peakFieldCount) : model.field.count, handCount: model.humanHand.count
                     )
                     ZStack(alignment: .topLeading) {
                         VStack(spacing: HanafudaFit.sectionSpacing) {
@@ -164,9 +164,11 @@ public struct HanafudaView: View {
                 guard model.phase == .playing, !playback.isBusy else { continue }
                 if let selection = model.selection {
                     try? await Task.sleep(for: .seconds(1.2))
+                    guard !Task.isCancelled else { return }
                     model.chooseFieldCard(selection.candidates[0])
                 } else if model.turn == .human, let card = model.humanHand.first(where: { model.canPlay($0) }) {
                     try? await Task.sleep(for: .seconds(0.8))
+                    guard !Task.isCancelled else { return }
                     model.play(card)
                 }
             }
@@ -367,7 +369,7 @@ public struct HanafudaView: View {
                         .hanafudaAnchor(.card(card.id))
                     }
                     .buttonStyle(.plain)
-                    .disabled(!isCandidate(card))
+                    .disabled(!isCandidate(card) || playback.isBusy)
                     .accessibilityLabel(HanafudaSpeech.fieldLabel(
                         for: card, isSelecting: model.selection != nil, isCandidate: isCandidate(card)
                     ))
@@ -447,7 +449,7 @@ public struct HanafudaView: View {
                         .hanafudaAnchor(.card(card.id))
                     }
                     .buttonStyle(.plain)
-                    .disabled(!model.canPlay(card))
+                    .disabled(!model.canPlay(card) || playback.isBusy)
                     .accessibilityLabel(HanafudaSpeech.handLabel(
                         for: card, matches: HanafudaRules.matches(for: card, in: model.field)
                     ))
@@ -544,7 +546,7 @@ public struct HanafudaView: View {
                 .minimumScaleFactor(0.6)
         }
         .buttonStyle(GameButtonStyle(role: .ad, shape: .block))
-        .disabled(extendRescue.isWatching)
+        .disabled(extendRescue.isWatching || playback.isBusy)
     }
 
     private var roundResultCard: some View {

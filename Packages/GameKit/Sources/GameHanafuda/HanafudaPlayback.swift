@@ -84,6 +84,8 @@ final class HanafudaPlayback {
     private(set) var flying: [Flying] = []
     /// 山札の表示枚数に足す数（まだめくっていない札）。
     private(set) var deckBonus = 0
+    /// 動いているあいだに場が最大で何枚になりうるか。この枚数で札の大きさを固定し、途中で札が縮んだり段が増えたりしない。
+    private(set) var peakFieldCount = 0
 
     /// 動いているあいだは盤の操作を受けない。台本を持つ間は true。
     var isBusy: Bool { script != nil }
@@ -113,6 +115,9 @@ final class HanafudaPlayback {
         extraField = extra
         flying = []
         deckBonus = new.moves.filter { $0.source == .deck }.count
+        // 最後に場に残る札 ＋ もとから場にいて取られる札 ＋ 置いたあと同じ台本の中で取られる札。
+        peakFieldCount = new.finalFieldIDs.count + extra.count
+            + new.moves.filter { $0.matched.isEmpty && !new.finalFieldIDs.contains($0.card.id) }.count
     }
 
     /// 動きを捨てて、表示をモデルの状態に戻す。
@@ -128,6 +133,7 @@ final class HanafudaPlayback {
         extraField = []
         flying = []
         deckBonus = 0
+        peakFieldCount = 0
     }
 
     // MARK: 再生
@@ -219,11 +225,9 @@ final class HanafudaPlayback {
         let player = script.player
         await animate(reduceMotion ? HanafudaPlaybackTiming.fade : HanafudaPlaybackTiming.captureFlight) {
             for index in flying.indices {
-                if reduceMotion {
-                    flying[index].opacity = 0
-                } else if let rect = capturedRect(for: flying[index].card, player: player) {
+                if let rect = capturedRect(for: flying[index].card, player: player) {
                     flying[index].rect = rect
-                    flying[index].opacity = 0.9
+                    flying[index].opacity = reduceMotion ? 0 : 0.9
                 } else {
                     flying[index].opacity = 0
                 }
