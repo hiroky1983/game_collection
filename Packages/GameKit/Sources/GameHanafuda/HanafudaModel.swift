@@ -181,6 +181,9 @@ public final class HanafudaModel: AITurnGuarded {
     private var rng: HanafudaRandom
     /// CPU の手番が二重に走らないようにする門番。テストが開始を待ち合わせるので internal。
     var isRunningCPUTurn = false
+    /// 札の動き（#3138）。モデルが確定させた 1 手番を、画面が順に見せる。
+    let playback = HanafudaPlayback()
+    private var scriptMoves: [HanafudaPlaybackMove] = []
     /// 新規対局の通し番号（`.task(id:)` の再起動に使う・`AITurnKey`）。
     public private(set) var gameSerial = 0
     /// その局で消化した手番数。単調に増えるので `.task(id:)` のキーに使える。
@@ -256,6 +259,7 @@ public final class HanafudaModel: AITurnGuarded {
     }
 
     private func apply(_ snap: HanafudaSnapshot) {
+        playback.reset()
         options = snap.options ?? HanafudaOptions()
         round = snap.round
         dealer = snap.dealer
@@ -326,6 +330,8 @@ public final class HanafudaModel: AITurnGuarded {
 
     /// 次の局を配る。
     public func startRound() {
+        playback.reset()
+        scriptMoves = []
         round += 1
         gameSerial += 1
         let deal = HanafudaRules.deal(using: &rng)
@@ -391,7 +397,8 @@ public final class HanafudaModel: AITurnGuarded {
         case .hand:
             applyHandPlay(selection.card, chosen: target, for: .human)
         case .deck:
-            applyDraw(selection.card, chosen: target, for: .human)
+            applyDraw(selection.card, chosen: target, for: .human, fromReveal: true)
+            emitScript(for: .human)
             finishTurn(for: .human)
         }
     }
@@ -404,6 +411,7 @@ public final class HanafudaModel: AITurnGuarded {
         let result = HanafudaRules.resolve(playing: card, field: field, chosen: chosen)
         field = result.field.sorted()
         capture(result.captured, for: player)
+        scriptMoves = [HanafudaPlaybackMove(card: card, source: .hand, matched: Array(result.captured.dropFirst()), awaitsChoice: false)]
         if player == .cpu {
             pendingCPUTurn = HanafudaCPUTurnSummary(played: card, playedCaptured: result.captured.count)
         }
@@ -426,6 +434,7 @@ public final class HanafudaModel: AITurnGuarded {
     private func drawFromDeck(for player: HanafudaPlayer) {
         guard !deck.isEmpty else {
             drawnCard = nil
+            emitScript(for: player)
             finishTurn(for: player)
             return
         }
@@ -435,6 +444,8 @@ public final class HanafudaModel: AITurnGuarded {
         if case .mustChoose(let candidates) = outcome, player == .human {
             selection = HanafudaSelection(source: .deck, card: card, candidates: candidates)
             message = tr("めくり札「%@」に合わせる札を選んでください", card.displayName)
+            scriptMoves.append(HanafudaPlaybackMove(card: card, source: .deck, matched: [], awaitsChoice: true))
+            emitScript(for: player)
             save()
             return
         }
@@ -448,13 +459,26 @@ public final class HanafudaModel: AITurnGuarded {
             return nil
         }()
         applyDraw(card, chosen: chosen, for: player)
+        emitScript(for: player)
         finishTurn(for: player)
     }
 
-    private func applyDraw(_ card: HanafudaCard, chosen: HanafudaCard?, for player: HanafudaPlayer) {
+    /// 確定した 1 手番（または選んだあとの残り）の動きを画面へ渡す。
+    private func emitScript(for player: HanafudaPlayer) {
+        let moves = scriptMoves
+        scriptMoves = []
+        playback.begin(HanafudaPlaybackScript(player: player, moves: moves, finalFieldIDs: Set(field.map(\.id))))
+    }
+
+    private func applyDraw(_ card: HanafudaCard, chosen: HanafudaCard?, for player: HanafudaPlayer,
+                           fromReveal: Bool = false) {
         let result = HanafudaRules.resolve(playing: card, field: field, chosen: chosen)
         field = result.field.sorted()
         capture(result.captured, for: player)
+        scriptMoves.append(HanafudaPlaybackMove(
+            card: card, source: fromReveal ? .reveal : .deck,
+            matched: Array(result.captured.dropFirst()), awaitsChoice: false
+        ))
         if player == .cpu {
             pendingCPUTurn?.drawn = card
             pendingCPUTurn?.drawnCaptured = result.captured.count
@@ -679,6 +703,7 @@ public final class HanafudaModel: AITurnGuarded {
     /// 試合を投げる（ツールバーの「投了」）。負けとして記録する。
     public func resign() {
         guard phase == .playing || phase == .koiKoiPrompt || phase == .roundResult else { return }
+        playback.reset()
         selection = nil
         drawnCard = nil
         phase = .matchResult
@@ -741,7 +766,12 @@ public final class HanafudaModel: AITurnGuarded {
                 guard !Task.isCancelled else { return }
                 // 画面を離れると `.task(id:)` がキャンセルされる。状態の guard だけでは通過してしまい、
                 // 離れた後に CPU が待ち時間ゼロで打ち、その結果（役・あがり）が中断データに残る（#726）。
-                guard await pauseCPUTurn(for: cpuDelay), phase == .playing, turn == .cpu else { return }
+                guard await pauseCPUTurn(for: cpuDelay) else { return }
+                // 人間の手の札がまだ動いているあいだは待つ（動きが重ならないように・#3138）。
+                while playback.isBusy {
+                    guard await pauseCPUTurn(for: .milliseconds(50)) else { return }
+                }
+                guard phase == .playing, turn == .cpu else { return }
                 stepCPU()
             }
         }
