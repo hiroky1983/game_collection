@@ -5,10 +5,8 @@ public struct OldMaidView: View {
     @State private var model: OldMaidModel
     private let services: GameServices
     @State private var showNewGame = false
-    /// 操作の後に CPU の手番を回すタスク。画面を離れたらキャンセルする（いろリレー #1339 と同じ）。
-    /// `.task` の側は View のライフサイクルで自動的にキャンセルされるが、ボタンから起こした
-    /// 非構造化タスクはそのままでは生き残り、画面外で CPU が引き続けて決着・記録まで進んでしまう。
-    @State private var cpuTask: Task<Void, Never>?
+    /// 遊び方（図で見る遊び方を含む）を開いているか。開いているあいだ CPU の手番を止める（#2824）。
+    @State private var isHowToPlayOpen = false
     /// 画面の広さ（#458）。札と同じ倍率で枠を拡大するために読む。
     @Environment(\.adaptiveLayout) private var layout
 
@@ -65,19 +63,22 @@ public struct OldMaidView: View {
         }
         // 図で見る遊び方（#2824）は「？」の中から開くので、開いているあいだは CPU の手番を止め、閉じたら続きを回す。
         .howToPlay(HowToPlayGuide.oldMaid.illustrated(OldMaidHowToFigures.items).onboarding(OldMaidOnboarding.guide),
-                   onPresent: { cpuTask?.cancel() }, onDismiss: { runCPU() })
+                   onPresent: { isHowToPlayOpen = true }, onDismiss: { isHowToPlayOpen = false })
         // 開始シートにも図で見る遊び方の入口があるので、開いているあいだは手番を止める。
-        .onChange(of: showNewGame) { _, isOpen in
-            if isOpen { cpuTask?.cancel() } else { runCPU() }
-        }
+        // 止める・続けるは下の `.task(id:)` が `isCPUPaused` の変化で受ける。
         .sheet(isPresented: $showNewGame) {
             OldMaidNewGameSheet(aiLevel: model.aiLevel, discardsProgress: model.phase == .playing) { level in
                 showNewGame = false
                 model.startGame(aiLevel: level)
-                runCPU()
             } onCancel: { showNewGame = false }
         }
-        .onDisappear { cpuTask?.cancel() }
+        // CPU の手番はここ 1 か所で動かす（麻雀と同じ作り・#3146）。手番キーが変わる（あなたの操作・CPU の着手・新しいゲーム）か、
+        // 止める画面（遊び方・新規対局）の開閉が変わると作り直され、画面を離れれば止まる。
+        // 操作のたびに手で起こす形だと、新しい操作を足したとき 1 か所呼び忘れて CPU 番のまま止まる。
+        .task(id: CPUDriveKey(turn: model.cpuTurnKey, isPaused: isCPUPaused)) {
+            guard !isCPUPaused else { return }
+            await model.runCPUTurnsIfNeeded()
+        }
         .task {
             // 開幕のモーダルは置かず、卓を見せたまま配り始める（#192）。強さは右上の「新規対局」で選び直す。
             // 中断から戻ったときは init が `.playing` まで復元しているので配り直さない。
@@ -89,15 +90,16 @@ public struct OldMaidView: View {
                 model.applyDebugScenario(args[i + 1])
             }
             #endif
-            // 中断から戻ったときに CPU の手番が止まったままにならないようにする。
-            runCPU()
         }
     }
 
-    /// あなたの操作の後に CPU の手番を回す。前のタスクは止めてから起こす（走者は `withAITurnRunner` が 1 本に保つ）。
-    private func runCPU() {
-        cpuTask?.cancel()
-        cpuTask = Task { await model.runCPUTurnsIfNeeded() }
+    /// CPU の手番を止めておく画面（遊び方・新規対局）を開いているか（#2824）。
+    private var isCPUPaused: Bool { isHowToPlayOpen || showNewGame }
+
+    /// `.task(id:)` の識別子。手番の進行と、止める画面の開閉のどちらが変わっても CPU のタスクを作り直す。
+    private struct CPUDriveKey: Hashable {
+        let turn: AITurnKey
+        let isPaused: Bool
     }
 
     /// 勝ちが続いたら一段上の強さを勧める（#722）。並びは開始シートの「CPUの強さ」と同じ。
@@ -106,7 +108,6 @@ public struct OldMaidView: View {
                                currentLevel: CPUStrength.ladderIndex(forLevel: model.aiLevel),
                                levelLabels: CPUStrength.labels) { index in
             model.startGame(aiLevel: CPUStrength.level(atLadderIndex: index))
-            runCPU()
         }
     }
 
@@ -491,14 +492,12 @@ public struct OldMaidView: View {
         case .playing:
             actionButton(drawButtonTitle, role: .primary, disabled: !model.canDraw) {
                 model.drawSelected()
-                runCPU()
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
         case .result:
             actionButton(tr("もう一回"), role: .primary) {
                 model.startGame()
-                runCPU()
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
