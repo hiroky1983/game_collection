@@ -654,6 +654,15 @@ public final class CatPuzzleModel {
 
     // MARK: - 決着・保存
 
+    /// 記録の区分。ステージは面ごとに難しさが違うので、自由に遊ぶの大きさ別ベストに混ぜず `stage` に分ける（#3145）。
+    private var recordVariant: String { stage == nil ? size.recordVariant : Self.stageRecordVariant }
+
+    private var recordVariantLabel: String {
+        stage == nil ? size.recordVariantLabel : RecordVariantLabels.stored(gameID: Self.gameID, variant: Self.stageRecordVariant)
+    }
+
+    static let stageRecordVariant = "stage"
+
     private func finish() {
         syncElapsed()
         stopwatch.stop()
@@ -669,7 +678,7 @@ public final class CatPuzzleModel {
             outcome: .win,
             score: GameScore(
                 metric: .shortestTime, seconds: elapsedSeconds,
-                variant: size.recordVariant, variantLabel: size.recordVariantLabel
+                variant: recordVariant, variantLabel: recordVariantLabel
             )
         )
         services?.snapshots.clear(for: Self.gameID)
@@ -726,7 +735,7 @@ public final class CatPuzzleModel {
             outcome: .loss,
             score: GameScore(
                 metric: .shortestTime, seconds: elapsedSeconds,
-                variant: size.recordVariant, variantLabel: size.recordVariantLabel
+                variant: recordVariant, variantLabel: recordVariantLabel
             )
         )
         services?.snapshots.clear(for: Self.gameID)

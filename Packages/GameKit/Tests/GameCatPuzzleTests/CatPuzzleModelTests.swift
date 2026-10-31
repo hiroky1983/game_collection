@@ -344,6 +344,36 @@ struct CatPuzzleModelTests {
         #expect(model.nextHint?.highlights.contains(.room(2)) == false)
     }
 
+    @Test("ステージのクリアは「ステージ」の区分に記録し、自由に遊ぶの大きさ別ベストは変わらない（#3145）")
+    func stageClearDoesNotTouchFreePlayBest() throws {
+        let log = makeLog("stageSplit")
+        let defaults = UserDefaults(suiteName: "asobiba.catpuzzle.tests.stageSplit.progress")!
+        defaults.removePersistentDomain(forName: "asobiba.catpuzzle.tests.stageSplit.progress")
+        let clock = ManualClock()
+        // 先に自由に遊ぶ（かんたん）で 65 秒の記録を作る。
+        let free = CatPuzzleModel(services: makeServices(log: log), puzzle: sample, size: .easy)
+        free.clockNow = clock.now
+        for cell in sample.solutionCells.dropLast() { placeCat(free, at: cell) }
+        clock.advance(by: .seconds(65))
+        free.syncElapsed()
+        placeCat(free, at: sample.solutionCells.last!)
+        #expect(log.record(gameID: CatPuzzleModel.gameID, variant: "easy")?.bestSeconds == 65)
+        // ステージ（かんたんの盤）を 10 秒でクリアしても、かんたんのベストは 65 のまま。
+        let stage = CatPuzzleModel(
+            services: makeServices(log: log), puzzle: sample, size: .easy, stage: 1, stageDefaults: defaults
+        )
+        let stageClock = ManualClock()
+        stage.clockNow = stageClock.now
+        for cell in sample.solutionCells.dropLast() { placeCat(stage, at: cell) }
+        stageClock.advance(by: .seconds(10))
+        stage.syncElapsed()
+        placeCat(stage, at: sample.solutionCells.last!)
+        #expect(stage.isSolved)
+        #expect(log.record(gameID: CatPuzzleModel.gameID, variant: "easy")?.bestSeconds == 65)
+        let stageRecord = try #require(log.record(gameID: CatPuzzleModel.gameID, variant: "stage"))
+        #expect(stageRecord.wins == 1 && stageRecord.variantLabel == "ステージ")
+    }
+
     @Test("全部の猫を置くとクリアし、記録はタイム（大きさごと）。中断データは消える")
     func solving() {
         let store = MemorySnapshotStore()
