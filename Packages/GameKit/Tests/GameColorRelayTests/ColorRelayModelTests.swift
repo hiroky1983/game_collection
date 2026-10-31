@@ -3,6 +3,7 @@ import Foundation
 import Core
 @testable import GameColorRelay
 import CoreTestSupport
+import GameKitTestSupport
 
 // MARK: - 組み立て
 
@@ -706,5 +707,72 @@ struct ColorRelayCancelTests {
         await taskB.value
         #expect(model.phase != .playing || model.currentPlayer == ColorRelayModel.humanIndex,
                 "走者不在で CPU の手番が止まった")
+    }
+}
+
+// MARK: - CPU 手番キー（#3146）
+
+@MainActor
+struct ColorRelayCPUTurnKeyTests {
+    /// `ColorRelayView` は `.task(id: model.cpuTurnKey)` 1 か所で CPU を起こす。人間の操作で CPU の番になったのに
+    /// キーが変わらないと、その操作の後に CPU 番のまま止まる。
+    @Test("人間のどの操作でも、CPU の番になるならキーが変わる（ゲームを最後まで通す）")
+    func keyChangesWheneverOperationHandsTurnToCPU() async {
+        let (model, _) = makeModel()
+        model.startGame()
+        var handOffs = 0
+        var turns = 0
+        while model.phase == .playing, turns < 3_000 {
+            turns += 1
+            await model.runCPUTurnsIfNeeded()
+            if !model.isPlayerTurn || model.phase != .playing { continue }
+            let before = model.cpuTurnKey
+            if model.isPlayerPenalized {
+                model.takePenalty()
+            } else if let id = model.playableCardIDs.sorted().first,
+                      let card = model.playerHand.first(where: { $0.id == id }) {
+                model.toggleSelection(card)
+                model.playSelected(color: card.isWild ? ColorRelayRules.dominantColor(in: model.playerHand) : nil)
+            } else if model.canDraw {
+                model.drawCard()
+            } else {
+                model.endTurn()
+            }
+            if model.phase == .playing, !model.isPlayerTurn {
+                handOffs += 1
+                #expect(model.cpuTurnKey != before, "人間の操作で CPU の番になったのに手番キーが変わらない")
+            }
+        }
+        #expect(handOffs > 0)
+    }
+
+    @Test("新しいゲームでも、CPU が親でも手番キーが変わる")
+    func keyChangesOnNewGame() {
+        let (model, _) = makeModel()
+        model.startGame()
+        let first = model.cpuTurnKey
+        model.startGame()
+        #expect(model.cpuTurnKey != first)
+    }
+
+    @Test("CPU の手番は手番キーの .task(id:) 1 か所で起こし、操作側から手で起こさない")
+    func viewDrivesCPUFromSingleTask() throws {
+        let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameColorRelay/ColorRelayView.swift"))
+        #expect(code.contains(".task(id: CPUDriveKey(turn: model.cpuTurnKey"))
+        #expect(code.components(separatedBy: "runCPUTurnsIfNeeded()").count - 1 == 1)
+        #expect(!code.contains("cpuTask") && !code.contains("runCPU()"))
+    }
+
+    /// 着手のたびに `.task(id:)` が作り直されても、連続した CPU の手番の短い間合い（#2714）が切れない。
+    @Test("直前の着手が CPU なら間合いを詰め、人間の操作や新しいゲームで元に戻る")
+    func chainedDelayFollowsLastMover() {
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService())
+        let model = ColorRelayModel(services: services, cpuDelay: .seconds(1), seed: 42)
+        model.startGame()
+        #expect(model.nextCPUDelay == .seconds(1), "配った直後は詰めない")
+        model.lastCPUMoveSerial = model.turnSerial   // CPU が指した直後
+        #expect(model.nextCPUDelay == ColorRelayModel.chainedCPUDelay)
+        model.startGame()                            // 新しいゲーム（turnSerial が進む）
+        #expect(model.nextCPUDelay == .seconds(1))
     }
 }

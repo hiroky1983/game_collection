@@ -440,6 +440,18 @@ public final class ColorRelayModel: AITurnGuarded {
 
     // MARK: - 進行
 
+    /// CPU の手番を起こす `.task(id:)` の識別子（#3146）。人間の操作・CPU の着手・新しいゲーム・引き札の免除のたびに必ず変わる
+    /// （`turnSerial` は新しいゲームでも戻さず増え続けるので、ゲームの通し番号と組にしなくても重ならない）。
+    public var cpuTurnKey: Int { turnSerial }
+    /// CPU が最後に指した直後の `turnSerial`。人間の操作・新しいゲームで `turnSerial` が進めば食い違い、連続手番の短い間合いが切れる。
+    /// 着手のたびに `.task(id:)` が作り直されるので、連続かどうかはループの外の状態で持つ（テストが読み書きするので `internal`）。
+    var lastCPUMoveSerial = -1
+
+    /// 次の CPU の手番の前に取る間合い。直前の着手も CPU なら（人間の操作を挟んでいなければ）詰める（#2714）。
+    var nextCPUDelay: Duration {
+        turnSerial == lastCPUMoveSerial ? min(cpuDelay, Self.chainedCPUDelay) : cpuDelay
+    }
+
     private func play(_ card: RelayCard, by player: Int, chosenColor: RelayColor?) {
         isUntouchedDeal = false
         if player == Self.humanIndex { humanHasActed = true }
@@ -547,19 +559,17 @@ public final class ColorRelayModel: AITurnGuarded {
     /// View から複数の契機で呼ばれても内部で 1 本に制限する（`withAITurnRunner`・#531）。
     public func runCPUTurnsIfNeeded() async {
         await withAITurnRunner(running: \.isRunningCPUTurns) {
-            // このループで CPU が1手でも指したか。2手目以降だけ間合いを詰める（#2714）。
-            var isChained = false
             while phase == .playing, currentPlayer != Self.humanIndex {
                 // 間合いが 0 の手番には suspend が無く、下の sleep 後の判定を通らない。ループ先頭でも見る（#287）。
                 guard !Task.isCancelled else { return }
-                let delay = isChained ? min(cpuDelay, Self.chainedCPUDelay) : cpuDelay
+                let delay = nextCPUDelay
                 if delay > .zero {
                     // sleep の直後にキャンセルを見る。見ないと画面を離れた瞬間に残りの手番が間合いゼロで走り抜ける（#287）。
                     guard await pauseCPUTurn(for: delay) else { return }
                     guard phase == .playing, currentPlayer != Self.humanIndex else { return }
                 }
                 performCPUTurn(currentPlayer)
-                isChained = true
+                lastCPUMoveSerial = turnSerial
             }
         }
     }
