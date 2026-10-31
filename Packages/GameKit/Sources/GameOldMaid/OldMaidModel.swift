@@ -225,6 +225,10 @@ public final class OldMaidModel: AITurnGuarded {
 
     // MARK: - CPU
 
+    /// CPU の手番を起こす `.task(id:)` の識別子（#3146）。あなたの操作・CPU の着手・新しいゲームのたびに必ず変わる
+    /// （`turnSerial` は引くたびに増える手数。配り直しは `gameNumber` で区別する）。
+    public var cpuTurnKey: AITurnKey { AITurnKey(gameSerial: gameNumber, ply: game?.turnSerial ?? 0) }
+
     /// CPU の手番が続く限り進める。あなたの番になるか決着したら止まる。
     /// View から複数の契機で呼ばれても内部で 1 本に制限する（`withAITurnRunner`・#531）。
     public func runCPUTurnsIfNeeded() async {
