@@ -27,13 +27,24 @@ jobs:
           script: |
             const { closingIssueNumbers } = require('./Scripts/closing-issue-numbers.js');
             const issueNumbers = closingIssueNumbers(context.payload.pull_request.body);
+            // 1 件の更新失敗（存在しない番号・権限など）で残りを止めない（#3134）。
+            let failed = 0;
             for (const issueNumber of issueNumbers) {
-              await github.rest.issues.update({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: issueNumber,
-                state: 'closed',
-                state_reason: 'completed'
-              });
-              core.info(`Closed issue #${issueNumber}`);
+              try {
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issueNumber,
+                  state: 'closed',
+                  state_reason: 'completed'
+                });
+                core.info(`Closed issue #${issueNumber}`);
+              } catch (error) {
+                failed += 1;
+                core.warning(`Failed to close issue #${issueNumber}: ${error.message}`);
+              }
+            }
+            // すべて失敗したときだけジョブを赤にする（一部成功は緑）。
+            if (issueNumbers.length > 0 && failed === issueNumbers.length) {
+              core.setFailed(`Failed to close all ${failed} linked issue(s)`);
             }
