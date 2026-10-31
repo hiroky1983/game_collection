@@ -148,6 +148,9 @@ public final class HeartsModel: AITurnGuarded {
                Set(ids).isSubset(of: Set(snap.hands[Self.humanIndex].map(\.id))) {
                 passHintIDs = Set(ids)
             }
+        } else if let last = services?.playLog?.lastStart(Int.self, gameID: gameID) {
+            // 中断データが無いときの開始シートの初期値は最後に選んだ強さ（#3151）。
+            aiLevel = CPUStrength.strength(for: last).rawValue
         }
     }
 
@@ -250,6 +253,7 @@ public final class HeartsModel: AITurnGuarded {
     /// 新しい対局を始める（合計点を 0 に戻して 1 手目を配る）。
     public func startMatch(aiLevel: Int? = nil) {
         if let aiLevel { self.aiLevel = aiLevel }
+        services?.playLog?.saveLastStart(self.aiLevel, gameID: gameID)
         totals = Array(repeating: 0, count: Self.playerCount)
         handNumber = 0
         ranking = []

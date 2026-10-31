@@ -105,9 +105,16 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // 手数の範囲に収める（切り詰めが起きた手順や壊れた値でも添字が範囲外にならないように）。
         self.reviewPly = min(max(snap?.reviewPly ?? moveList.count, 0), moveList.count)
         // 既定は CPU 対戦（人間=先手 / CPU=後手）。
-        self.sente = snap?.sente ?? .human
-        self.gote = snap?.gote ?? .ai
-        self.aiLevel = snap?.aiLevel ?? 1
+        // 中断データが無いときの初期値は最後に選んだ条件（#3151）。初回は人間=先手・入門・平手。
+        let last = snap == nil ? services?.playLog?.lastStart(ShogiStartChoice.self, gameID: "shogi") : nil
+        let lastHuman = last.flatMap { Side(rawValue: $0.humanSide) } ?? .black
+        self.sente = snap?.sente ?? (lastHuman == .black ? .human : .ai)
+        self.gote = snap?.gote ?? (lastHuman == .black ? .ai : .human)
+        self.aiLevel = snap?.aiLevel ?? last?.aiLevel ?? 1
+        self.lastStartSetting = last.map {
+            ShogiMatchSetting(handicap: ShogiHandicap(rawValue: $0.handicap) ?? .even,
+                              dropper: ShogiHandicapDropper(rawValue: $0.dropper) ?? .player)
+        }
         self.startedAt = snap?.startedAt ?? Date()
         self.undoUsed = snap?.undoUsed ?? false
         self.resigned = snap?.resigned ?? false
@@ -586,6 +593,11 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         self.sente = humanSide == .black ? .human : .ai
         self.gote = humanSide == .black ? .ai : .human
         self.aiLevel = aiLevel
+        lastStartSetting = nil
+        services?.playLog?.saveLastStart(
+            ShogiStartChoice(humanSide: humanSide.rawValue, aiLevel: aiLevel,
+                             handicap: handicap.rawValue, dropper: dropper.rawValue),
+            gameID: gameID)
         startedAt = startedAtFallback()
         gameSerial += 1
         bookSeed = UInt64.random(in: .min ... .max)
@@ -616,6 +628,11 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         score.variantLabel = recordVariant.map { RecordVariantLabels.stored(gameID: "shogi", variant: $0) }
         return score
     }
+
+    /// 開始シートの初期の手合い（#3151）。中断データが無い最初の局だけ最後に選んだ手合いで、
+    /// 対局を始めたら（`newGame`）nil に戻り、以後は進行中の局の `matchSetting` を見る。
+    private var lastStartSetting: ShogiMatchSetting?
+    public var startSheetSetting: ShogiMatchSetting { lastStartSetting ?? matchSetting }
 
     /// 人間が指している側（CPU 戦の表示用）。
     public var humanSide: Side { sente == .human ? .black : .white }
@@ -956,4 +973,12 @@ extension ShogiMasterEngine {
     public static func analyticsLevel(forLevel level: Int) -> AnalyticsLevel {
         cpuLevel(forLevel: level).analyticsLevel
     }
+}
+
+/// 最後に選んだ開始条件（#3151）。中断データとは別に残り、終局しても消えない。
+struct ShogiStartChoice: Codable {
+    var humanSide: Int
+    var aiLevel: Int
+    var handicap: String
+    var dropper: String
 }

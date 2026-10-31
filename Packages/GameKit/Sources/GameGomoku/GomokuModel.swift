@@ -182,9 +182,11 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         } else {
             board        = GomokuBoard()
             currentStone = .black
-            humanSide    = .black
-            aiLevel      = 1
-            forbiddenMoves = false
+            // 開始シートの初期値は最後に選んだ条件（#3151）。初回は先手・入門・禁じ手なし。
+            let last = services?.playLog?.lastStart(GomokuStartChoice.self, gameID: "gomoku")
+            humanSide    = last.flatMap { GomokuStone(rawValue: $0.humanSide) } ?? .black
+            aiLevel      = last?.aiLevel ?? 1
+            forbiddenMoves = last?.forbiddenMoves ?? false
             startedAt    = Date()
             moveCount    = 0
             moves        = []
@@ -507,6 +509,8 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         self.humanSide = humanSide
         self.aiLevel   = aiLevel
         forbiddenMovesEnabled = forbiddenMoves
+        services?.playLog?.saveLastStart(
+            GomokuStartChoice(humanSide: humanSide.rawValue, aiLevel: aiLevel, forbiddenMoves: forbiddenMoves), gameID: gameID)
         lastRejection  = nil
         winningLine    = nil
         winner         = nil
@@ -645,4 +649,11 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public func clearSnapshot() {
         services?.snapshots.clear(for: gameID)
     }
+}
+
+/// 最後に選んだ開始条件（#3151）。中断データとは別に残り、終局しても消えない。
+struct GomokuStartChoice: Codable {
+    var humanSide: Int
+    var aiLevel: Int
+    var forbiddenMoves: Bool
 }

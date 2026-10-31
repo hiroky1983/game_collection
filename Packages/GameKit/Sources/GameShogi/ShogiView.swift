@@ -69,7 +69,7 @@ public struct ShogiView: View {
         .howToPlay(HowToPlayGuide.shogi.illustrated(ShogiHowToFigures.items).onboarding(ShogiOnboarding.guide)) { ShogiPieceGuideSheet() }
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             NewGameSheet(
-                initialSide: model.humanSide, initialLevel: model.aiLevel, initialSetting: model.matchSetting
+                initialSide: model.humanSide, initialLevel: model.aiLevel, initialSetting: model.startSheetSetting
             ) { side, level, setting in
                 model.newGame(humanSide: side, aiLevel: level, handicap: setting.handicap, dropper: setting.dropper)
                 showNewGame = false
