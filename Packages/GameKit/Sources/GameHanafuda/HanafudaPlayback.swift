@@ -152,7 +152,7 @@ final class HanafudaPlayback {
 
     private func animate(_ seconds: Double, _ body: () -> Void) async {
         if seconds > 0 {
-            withAnimation(.easeInOut(duration: seconds), body)
+            withGameAnimation(.easeInOut(duration: seconds), body)
         } else {
             body()
         }
@@ -187,7 +187,7 @@ final class HanafudaPlayback {
         let flightTime = reduceMotion ? 0 : (startsFaceDown ? HanafudaPlaybackTiming.drawFlight : HanafudaPlaybackTiming.playFlight)
 
         if reduceMotion {
-            // フェードだけ: 着地先に現れる。
+            // 動かさず着地先に現れる（Reduce Motion のアニメーションは Core のヘルパーが即時に落とす）。
             flying = [Flying(id: card.id, card: card, baseWidth: base, rect: landing, flip: 0, opacity: 0)]
             await animate(HanafudaPlaybackTiming.fade) { flying[0].opacity = 1 }
         } else {
