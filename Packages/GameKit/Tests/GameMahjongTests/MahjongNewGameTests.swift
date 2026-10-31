@@ -92,6 +92,54 @@ struct MahjongNewGameTests {
         #expect(!model.hasGameInProgress, "終わった対局は捨てるも何も無い")
     }
 
+    @Test("最終局の結果から「結果を見る」を押さず新規対局しても、その対局は成績に入る（#3139）")
+    func startingNewGameFromFinalHandResultRecordsIt() {
+        let (playLog, defaults, name) = makeIsolatedPlayLog()
+        defer { defaults.removePersistentDomain(forName: name) }
+        let model = makeModel(playLog: playLog)
+        model.startGame()
+        model.configureForTesting(
+            hands: Array(repeating: junkHand(), count: MahjongModel.playerCount),
+            wall: [],
+            dealer: 3,
+            scores: [40_000, 20_000, 20_000, 20_000],
+            roundNumber: 4
+        )
+        model.exhaustWallForTesting()
+        #expect(model.phase == .handResult)
+        #expect(model.concludesAfterCurrentResult)
+        #expect(!model.hasGameInProgress, "勝敗は決まっているので確認を挟まない")
+        #expect(playLog.record(gameID: "mahjong4") == nil)
+
+        model.startGame()
+
+        #expect(playLog.record(gameID: "mahjong4")?.plays == 1, "終わった半荘が成績に残る")
+        #expect(model.phase == .playing)
+        #expect(model.roundNumber == 1)
+    }
+
+    @Test("最終局ではない結果画面からの新規対局は従来どおり記録しない")
+    func startingNewGameFromMidHandResultDoesNotRecord() {
+        let (playLog, defaults, name) = makeIsolatedPlayLog()
+        defer { defaults.removePersistentDomain(forName: name) }
+        let model = makeModel(playLog: playLog)
+        model.startGame()
+        model.configureForTesting(
+            hands: Array(repeating: junkHand(), count: MahjongModel.playerCount),
+            wall: [],
+            dealer: 0,
+            scores: [40_000, 20_000, 20_000, 20_000],
+            roundNumber: 1
+        )
+        model.exhaustWallForTesting()
+        #expect(model.phase == .handResult)
+        #expect(model.hasGameInProgress)
+
+        model.startGame()
+
+        #expect(playLog.record(gameID: "mahjong4") == nil)
+    }
+
     @Test("局が進んでいても新規対局で東1局・25000点持ちに戻る")
     func restartResetsToFirstHand() {
         let model = makeModel()
