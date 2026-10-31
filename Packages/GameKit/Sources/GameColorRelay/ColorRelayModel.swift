@@ -440,6 +440,10 @@ public final class ColorRelayModel: AITurnGuarded {
 
     // MARK: - 進行
 
+    /// CPU の手番を起こす `.task(id:)` の識別子（#3146）。人間の操作・CPU の着手・新しいゲーム・引き札の免除のたびに必ず変わる
+    /// （`turnSerial` は新しいゲームでも戻さず増え続けるので、ゲームの通し番号と組にしなくても重ならない）。
+    public var cpuTurnKey: Int { turnSerial }
+
     private func play(_ card: RelayCard, by player: Int, chosenColor: RelayColor?) {
         isUntouchedDeal = false
         if player == Self.humanIndex { humanHasActed = true }
