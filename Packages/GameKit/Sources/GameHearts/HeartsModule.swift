@@ -18,4 +18,10 @@ public struct HeartsModule: GameModule {
     @MainActor public func makeView(services: GameServices) -> AnyView {
         AnyView(HeartsView(services: services))
     }
+
+    /// 何手目か（画面の「n手目」と同じ数え方）。
+    public func resumeProgress(in snapshots: SnapshotStore) -> String? {
+        guard let snap = snapshots.load(HeartsSnapshot.self, for: id) else { return nil }
+        return tr("%lld手目", max(snap.handNumber, 1))
+    }
 }

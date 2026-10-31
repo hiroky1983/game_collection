@@ -47,4 +47,11 @@ public struct HanafudaModule: GameModule {
             && snap.hands.first?.count == 8
             && snap.captured.first?.isEmpty == true
     }
+
+    /// 何局目か（「3 / 6局」。広告で延長した局は「延長戦」。画面の表示と同じ形）。
+    public func resumeProgress(in snapshots: SnapshotStore) -> String? {
+        guard let snap = snapshots.load(HanafudaSnapshot.self, for: id) else { return nil }
+        let rounds = (snap.options ?? HanafudaOptions()).rounds
+        return snap.round > rounds ? tr("延長戦") : tr("%1$lld / %2$lld局", snap.round, rounds)
+    }
 }
