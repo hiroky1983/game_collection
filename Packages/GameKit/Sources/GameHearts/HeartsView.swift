@@ -19,6 +19,15 @@ public struct HeartsView: View {
         _model = State(initialValue: HeartsModel(services: services))
     }
 
+    /// 勝ちが続いたら一段上の強さを勧める（#722・#3152）。並びは開始シートの「CPUの強さ」と同じ。
+    private var ladder: DifficultyLadderPrompt? {
+        DifficultyLadderPrompt(result: model.recordResult,
+                               currentLevel: CPUStrength.ladderIndex(forLevel: model.aiLevel),
+                               levelLabels: CPUStrength.labels) { index in
+            model.startMatch(aiLevel: CPUStrength.level(atLadderIndex: index))
+        }
+    }
+
     public var body: some View {
         // レイアウトパターン A（全画面・会長 QA 2026-10-23・#2531）: 大富豪・いろリレーと同じく、フェルトを画面全体に敷き、
         // ヘッダーは 1 行（戻る・ハーツ・手数と終了点と手番の札・？・＋）、バナーは画面最下部。
@@ -41,7 +50,7 @@ public struct HeartsView: View {
                 }
                 HowToPlayHint(.hearts, playLog: services.playLog)
                 actionArea
-                RecommendationSlot(services: services, isFinished: model.phase == .result)
+                RecommendationSlot(services: services, isFinished: model.phase == .result, ladder: ladder)
             }
             // 局面 → 点の一覧の差し替えは、残り続ける親に置かないと `transition` が効かない（#195）。
             .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
