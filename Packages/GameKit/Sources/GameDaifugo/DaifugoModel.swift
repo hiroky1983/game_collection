@@ -196,6 +196,14 @@ public final class DaifugoModel: AITurnGuarded {
     var isRunningCPUTurns = false
     /// 「結果まで進める」が押されたか（#191）。以降の CPU 手番は間合いを取らずに消化する。
     public private(set) var isSkippingToResult = false
+    /// 出す・パスの回数（このモデルが生きているあいだ増え続ける）。CPU を起こす `cpuTurnKey` の手数になる。
+    private var turnCount = 0
+
+    /// CPU の手番を起こす `.task(id:)` の識別子（#3146）。人間の操作・CPU の着手・新しいゲーム・早送りのたびに必ず変わる
+    /// （早送りは間合いを詰めて回し直すので `epoch` に載せる）。
+    public var cpuTurnKey: AITurnKey {
+        AITurnKey(gameSerial: gameNumber, ply: turnCount, epoch: isSkippingToResult ? 1 : 0)
+    }
 
     /// 自分が上がった後の消化試合で使う間合い（#191）。自分の操作が無い区間なので短くする。
     static let finishedCPUDelay: Duration = .milliseconds(120)
@@ -613,6 +621,7 @@ public final class DaifugoModel: AITurnGuarded {
     // MARK: - 進行
 
     private func play(_ cards: [DaifugoCard], by player: Int) {
+        turnCount += 1
         let ids = Set(cards.map(\.id))
         hands[player] = hands[player].filter { !ids.contains($0.id) }
         // 人間が札を出した = 捨てたら途中離脱として数える局面（#500）。CPU が親で先に出しただけでは数えない（#2774）。
@@ -677,6 +686,7 @@ public final class DaifugoModel: AITurnGuarded {
     }
 
     private func passTurn(by player: Int) {
+        turnCount += 1
         passedPlayers.insert(player)
         if player == Self.humanIndex { services?.gameDidProgress(gameID: gameID) }
         lastActions[player] = "パス"  // i18n-keep: 中断データに保存する行動の記録（表示は localizedAction で訳す）
@@ -873,6 +883,7 @@ public final class DaifugoModel: AITurnGuarded {
         lastActions = Array(repeating: "", count: Self.playerCount)
         isSkippingToResult = false
         cpuTurnsAfterPlayerFinished = 0
+        turnCount += 1
         phase = .playing
         persist()
     }

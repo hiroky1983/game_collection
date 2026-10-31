@@ -11,8 +11,8 @@ public struct DaifugoView: View {
     @State private var showReference = false
     /// 大貧民の献上を広告で免除する救済（#1048）。
     @State private var waiveRescue = RewardedRescue()
-    /// ボタンから起こす CPU の手番。画面を離れたら止める（#1380。`.task` と違いボタンの Task は自動で止まらない）。
-    @State private var cpuTask: Task<Void, Never>?
+    /// 遊び方（図で見る遊び方を含む）を開いているか。開いているあいだ CPU の手番を止める（#2824）。
+    @State private var isHowToPlayOpen = false
     /// 画面の広さ（#458）。広い画面（iPad）では札の拡大に上限を掛けるのに読む。
     @Environment(\.adaptiveLayout) private var layout
     /// Reduce Motion のときは革命・8切りの弾みを出さない（#2713）。
@@ -82,13 +82,8 @@ public struct DaifugoView: View {
                     }
             }
         }
-        .onChange(of: showReference) { _, isOpen in
-            if isOpen { cpuTask?.cancel() } else { runCPU() }
-        }
         // 開始シートにも図で見る遊び方の入口があるので、開いているあいだは手番を止める（#2824）。
-        .onChange(of: showNewGame) { _, isOpen in
-            if isOpen { cpuTask?.cancel() } else { runCPU() }
-        }
+        // 止める・続けるは下の `.task(id:)` が `isCPUPaused` の変化で受ける。
         // 右上の新規で開く開始シート（CPU の強さを選ぶ・#2604）。途中の局を捨てる確認はシートの開始ボタンが兼ねる。
         .sheet(isPresented: $showNewGame) {
             DaifugoNewGameSheet(
@@ -97,13 +92,12 @@ public struct DaifugoView: View {
                 showNewGame = false
                 model.choosePreferredRuleSet(ruleSet)
                 model.startGame(aiLevel: level)
-                runCPU()
             } onCancel: { showNewGame = false }
         }
         // 革命・8切り・階級まで含む細かいルールは3行に収まらないので「くわしいルール」へ送る（#118）。
         // 図で見る遊び方（#2824）は「？」の中から開くので、開いているあいだは CPU の手番を止め、閉じたら続きを回す。
         .howToPlay(HowToPlayGuide.daifugo.illustrated(DaifugoHowToFigures.items).onboarding(DaifugoOnboarding.guide),
-                   onPresent: { cpuTask?.cancel() }, onDismiss: { runCPU() }) { DaifugoRuleSheet() }
+                   onPresent: { isHowToPlayOpen = true }, onDismiss: { isHowToPlayOpen = false }) { DaifugoRuleSheet() }
         .dialogs { anchor in
             anchor.confirmationDialog(tr("投了しますか？"), isPresented: $showResignConfirm, titleVisibility: .visible) {
                 Button(tr("投了する"), role: .destructive) { model.resign() }
@@ -123,6 +117,13 @@ public struct DaifugoView: View {
                 message: tr("広告を見ているあいだに次のゲームが始まったため、免除できませんでした。")
             )
         )
+        // CPU の手番はここ 1 か所で動かす（麻雀と同じ作り・#3146）。手番キーが変わる（人間の操作・CPU の着手・新しいゲーム・早送り）か、
+        // 止める画面（遊び方・早見表・新規対局）の開閉が変わると作り直され、画面を離れれば止まる。
+        // 操作のたびに手で起こす形だと、新しい操作を足したとき 1 か所呼び忘れて CPU 番のまま止まる。
+        .task(id: CPUDriveKey(turn: model.cpuTurnKey, isPaused: isCPUPaused)) {
+            guard !isCPUPaused else { return }
+            await model.runCPUTurnsIfNeeded()
+        }
         .task {
             // 開幕の全画面モーダルは廃止したので、盤を見せたまま既定値で配り始める（#192）。
             // 中断から戻ったときは init が `.playing` まで復元しているので配り直さない。
@@ -131,11 +132,16 @@ public struct DaifugoView: View {
             // 撮影用（#2788）: 早見表だけを開く。
             if ProcessInfo.processInfo.arguments.contains("-daifugoReference") { showReference = true }
             #endif
-            // 中断から戻ったときに CPU の手番が止まったままにならないようにする。
-            // 早見表で止められるよう、操作の後と同じ cpuTask で回す（#2788）。
-            runCPU()
         }
-        .onDisappear { cpuTask?.cancel() }
+    }
+
+    /// CPU の手番を止めておく画面（遊び方・早見表・新規対局）を開いているか（#2788・#2824）。
+    private var isCPUPaused: Bool { isHowToPlayOpen || showReference || showNewGame }
+
+    /// `.task(id:)` の識別子。手番の進行と、止める画面の開閉のどちらが変わっても CPU のタスクを作り直す。
+    private struct CPUDriveKey: Hashable {
+        let turn: AITurnKey
+        let isPaused: Bool
     }
 
     /// 配った直後の交換の帯（#2607）。数秒で消える・タップで閉じる。VoiceOver には出た時点で読み上げる。
@@ -177,11 +183,6 @@ public struct DaifugoView: View {
             try? await Task.sleep(for: .seconds(5))
             if !Task.isCancelled { model.dismissExchangeNotice() }
         }
-    }
-
-    private func runCPU() {
-        cpuTask?.cancel()
-        cpuTask = Task { await model.runCPUTurnsIfNeeded() }
     }
 
     // MARK: - ステータス（ヘッダーの行の札）
@@ -498,7 +499,6 @@ public struct DaifugoView: View {
             // 自分が上がった後は操作が無くなるので、無効なパス／出すではなく早送りを出す（#191）。
             actionButton(tr("結果まで進める"), role: .primary, disabled: model.isSkippingToResult) {
                 model.skipToResult()
-                runCPU()
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
@@ -507,11 +507,9 @@ public struct DaifugoView: View {
                 // 出せる手が無いときは押してほしいボタンとして主役の色にする（#2693）。
                 actionButton(tr("パス"), role: model.mustPass ? .primary : .skip, disabled: !model.canPass) {
                     model.pass()
-                    runCPU()
                 }
                 actionButton(playButtonTitle, role: .primary, disabled: !model.canPlaySelection) {
                     model.playSelected()
-                    runCPU()
                 }
                 // 投了は盤下の「⋯」メニューに入れる（#1418・会長決裁 #1011 D1）。ヘッダー右は
                 // 役・？・新規の並びに固定するため文字の「投了」は置けない。中断すると次回は必ず
@@ -535,7 +533,6 @@ public struct DaifugoView: View {
                 // 視聴中に次のゲームを始めると、見終えた広告が局ガードで弾かれて見損になる（#911 と同型）。
                 actionButton(tr("もう一回"), role: .primary, disabled: waiveRescue.isWatching) {
                     model.startGame()
-                    runCPU()
                 }
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
