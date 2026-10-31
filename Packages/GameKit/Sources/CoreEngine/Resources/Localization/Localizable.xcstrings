@@ -505,6 +505,28 @@
         }
       }
     },
+    "上級追加" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expert added"
+          }
+        }
+      }
+    },
+    "ステージ追加" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stages added"
+          }
+        }
+      }
+    },
     "新ステージ追加" : {
       "extractionState" : "manual",
       "localizations" : {

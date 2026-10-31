@@ -308,11 +308,14 @@ struct NewGamesMoveToTopTests {
 /// 更新タグ（#2790）。一覧に入ったゲームだけにタグが出る。
 @Suite("更新タグ")
 struct UpdatedGamesTests {
-    @Test("一覧に入ったゲームだけにタグが出る。v1.1.15 はチャリンコおじさん（runner）の新ステージ追加")
+    @Test("一覧に入ったゲームだけにタグが出る。v1.1.15 は runner・麻雀・ナンプレ・ねこさがしの 4 本")
     func onlyListedGames() {
         #expect(UpdatedGames.tag(for: "runner") == .newStage)
+        #expect(UpdatedGames.tag(for: "mahjong4") == .hanchan)
+        #expect(UpdatedGames.tag(for: "sudoku") == .expertLevel)
+        #expect(UpdatedGames.tag(for: "catpuzzle") == .stagesAdded)
         #expect(UpdatedGames.tag(for: "2048") == nil)
-        #expect(UpdatedGames.currentVersion.count == 1)
+        #expect(UpdatedGames.currentVersion.count == 4)
     }
 
     @Test("ブロック崩し（blocks）は一覧に 1 行足すだけでタグが出る。いまは付けない")
@@ -326,7 +329,8 @@ struct UpdatedGamesTests {
     func labelsAreLocalized() throws {
         let catalog = try SourceScan.packageSource("Sources/CoreEngine/Resources/Localization/Localizable.xcstrings")
         for tag in UpdateTag.allCases {
-            let key = ["newStage": "新ステージ追加"][tag.rawValue] ?? ""
+            let key = ["newStage": "新ステージ追加", "hanchan": "半荘戦", "expertLevel": "上級追加",
+                       "stagesAdded": "ステージ追加"][tag.rawValue] ?? ""
             #expect(catalog.contains("\"\(key)\" : {"), "\(tag.rawValue) の英訳が無い")
         }
     }
