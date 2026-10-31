@@ -22,18 +22,18 @@ private struct LastStartFixture {
 @MainActor
 @Suite("最後に選んだ開始条件（#3151）・GameGomoku")
 struct GomokuLastStartTests {
-    @Test("後手・強さ 3・禁じ手ありで始めると、次のモデルの初期値に残る。記録が無ければ先手・1・なし")
+    @Test("後手・強さ 2・禁じ手ありで始めると、次のモデルの初期値に残る。記録が無ければ先手・1・なし")
     func remembersSideLevelAndRenju() {
         let f = LastStartFixture()
         let first = GomokuModel(services: f.services())
         #expect(first.humanSide == .black)
         #expect(first.aiLevel == 1)
         #expect(!first.forbiddenMovesEnabled)
-        first.newGame(humanSide: .white, aiLevel: 3, forbiddenMoves: true)
+        first.newGame(humanSide: .white, aiLevel: 2, forbiddenMoves: true)
         f.store.clear(for: "gomoku")
         let next = GomokuModel(services: f.services())
         #expect(next.humanSide == .white)
-        #expect(next.aiLevel == 3)
+        #expect(next.aiLevel == 2)
         #expect(next.forbiddenMovesEnabled)
     }
 }

@@ -110,7 +110,9 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         let lastHuman = last.flatMap { Side(rawValue: $0.humanSide) } ?? .black
         self.sente = snap?.sente ?? (lastHuman == .black ? .human : .ai)
         self.gote = snap?.gote ?? (lastHuman == .black ? .ai : .human)
-        self.aiLevel = snap?.aiLevel ?? last?.aiLevel ?? 1
+        // 保存値が今の段に無い（旧版の値など）ときは入門に倒す。達人（#2698）は共通の段の外にある。
+        let supportedLevels = Set(CPUStrength.allCases.map(\.rawValue) + [ShogiMasterEngine.level])
+        self.aiLevel = snap?.aiLevel ?? last.flatMap { supportedLevels.contains($0.aiLevel) ? $0.aiLevel : nil } ?? 1
         self.lastStartSetting = last.map {
             ShogiMatchSetting(handicap: ShogiHandicap(rawValue: $0.handicap) ?? .even,
                               dropper: ShogiHandicapDropper(rawValue: $0.dropper) ?? .player)

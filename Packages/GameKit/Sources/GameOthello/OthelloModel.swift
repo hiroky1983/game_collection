@@ -178,7 +178,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             // 開始シートの初期値は最後に選んだ条件（#3151）。初回は先手・入門。
             let last = services?.playLog?.lastStart(OthelloStartChoice.self, gameID: "othello")
             humanSide    = last.flatMap { OthelloStone(rawValue: $0.humanSide) } ?? .black
-            aiLevel      = last?.aiLevel ?? 1
+            aiLevel      = CPUStrength.strength(for: last?.aiLevel ?? 1).rawValue
             startedAt    = Date()
             winner       = nil
             isDraw       = false

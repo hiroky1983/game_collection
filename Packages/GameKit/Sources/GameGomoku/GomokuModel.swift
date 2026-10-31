@@ -185,7 +185,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             // 開始シートの初期値は最後に選んだ条件（#3151）。初回は先手・入門・禁じ手なし。
             let last = services?.playLog?.lastStart(GomokuStartChoice.self, gameID: "gomoku")
             humanSide    = last.flatMap { GomokuStone(rawValue: $0.humanSide) } ?? .black
-            aiLevel      = last?.aiLevel ?? 1
+            aiLevel      = CPUStrength.strength(for: last?.aiLevel ?? 1).rawValue
             forbiddenMoves = last?.forbiddenMoves ?? false
             startedAt    = Date()
             moveCount    = 0
