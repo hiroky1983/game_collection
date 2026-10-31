@@ -469,6 +469,7 @@ public struct DaifugoView: View {
     @ViewBuilder
     private func hintLine(_ handHint: DaifugoHandHint?) -> some View {
         let message = model.selectionIssue
+            ?? (model.selectionIsFoulFinish ? tr("反則上がりになります（出すと最下位）") : nil)
             ?? (handHint?.playable.isEmpty == true ? tr("出せる組がありません。パスしてください") : nil)
         if let message {
             CardTableInkReader { ink in
@@ -896,7 +897,10 @@ struct DaifugoNewGameSheet: View {
                     ruleToggle(tr("しばり"), tr("同じ柄が2回続くとその柄だけ"), $ruleSet.isBindEnabled)
                     ruleToggle(tr("階段"), tr("同じ柄の連番3枚以上を出せる"), $ruleSet.isSequenceEnabled)
                     ruleToggle(tr("都落ち"), tr("前の大富豪が1位でないと大貧民へ"), $ruleSet.isDownfallEnabled)
-                    ruleToggle(tr("反則上がり"), tr("最後が 2・ジョーカー・8 だと最下位"), $ruleSet.isFoulFinishEnabled)
+                    ruleToggle(
+                        tr("反則上がり"),
+                        ruleSet.isEightCutEnabled ? tr("最後が 2・ジョーカー・8 だと最下位") : tr("最後が 2・ジョーカーだと最下位"),
+                        $ruleSet.isFoulFinishEnabled)
                 }
             }
         }

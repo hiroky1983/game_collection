@@ -1764,6 +1764,28 @@
           }
         }
       }
+    },
+    "反則上がりになります（出すと最下位）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Going out on this is a foul (you finish last)"
+          }
+        }
+      }
+    },
+    "最後が 2・ジョーカーだと最下位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finishing on a 2 or Joker puts you last"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

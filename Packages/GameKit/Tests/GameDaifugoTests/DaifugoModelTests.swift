@@ -548,6 +548,23 @@ struct DaifugoHandHintTests {
         #expect(model.selectionIssue == nil)
     }
 
+    @Test("最後の手札を 2 で出し切る選択だけ、反則上がりの予告になる（8 は 8切りありのときだけ）")
+    func selectionIsFoulFinishOnlyForLastCards() {
+        let model = makeModel()
+        model.configureForTesting(
+            hands: [[card(2), card(9)], [card(4)], [card(5)], [card(6)]], field: [], fieldOwner: 0)
+        model.toggleSelection(card(2))
+        #expect(!model.selectionIsFoulFinish, "まだ手札が残る手は反則ではない")
+        model.toggleSelection(card(2))
+        model.toggleSelection(card(9))
+        #expect(!model.selectionIsFoulFinish, "最後の手が 9 なら反則ではない")
+
+        let last = makeModel()
+        last.configureForTesting(hands: [[card(2)], [card(4)], [card(5)], [card(6)]], field: [], fieldOwner: 0)
+        last.toggleSelection(card(2))
+        #expect(last.selectionIsFoulFinish)
+    }
+
     @Test("出せない組を選ぶと理由が出て、出せる組に変えると消える")
     func selectionIssueFollowsSelection() {
         let model = makeModel()
