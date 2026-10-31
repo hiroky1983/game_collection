@@ -124,21 +124,34 @@ struct HeartsPassHintTests {
         let restored = makeModel(store: store)
         #expect(restored.phase == .passing)
         #expect(restored.passHints.used == 2)
-        #expect(restored.passHintIDs.isEmpty)       // 印は保存しない
+        // 光らせた 3 枚も持ち回り、戻したあとにもう 1 回使わせない（#3140）。
+        #expect(restored.passHintIDs == model.passHintIDs)
+        #expect(restored.passHintIDs.count == 3)
+        #expect(!restored.canUseHint)
+        restored.requestHint()
+        #expect(restored.passHints.used == 2)
 
         let legacy = MemorySnapshotStore()
         try legacy.save(passingSnapshot(hintsUsed: nil), for: HeartsModel.gameID)
         #expect(makeModel(store: legacy).passHints.used == 0)
+        #expect(makeModel(store: legacy).passHintIDs.isEmpty)
+
+        // 手札に無い札を指す壊れた印は捨て、回数だけ戻す。
+        let broken = MemorySnapshotStore()
+        try broken.save(passingSnapshot(hintsUsed: 1, passHintIDs: [900, 901, 902]), for: HeartsModel.gameID)
+        let brokenModel = makeModel(store: broken)
+        #expect(brokenModel.passHintIDs.isEmpty)
+        #expect(brokenModel.passHints.used == 1)
     }
 }
 
 /// 2 手目の渡す場面の中断データ（52 枚を 13 枚ずつ）。
-private func passingSnapshot(hintsUsed: Int?) -> HeartsSnapshot {
+private func passingSnapshot(hintsUsed: Int?, passHintIDs: [Int]? = nil) -> HeartsSnapshot {
     let deck = HeartsCard.makeDeck()
     let hands = (0..<4).map { Array(deck[($0 * 13)..<(($0 + 1) * 13)]) }
     return HeartsSnapshot(
         phase: .passing, hands: hands, currentTrick: [], currentPlayer: 0, heartsBroken: false, trickNumber: 0,
         takenPoints: [0, 0, 0, 0], totals: [10, 10, 3, 3], handNumber: 2, playedIDs: [], lastTrick: [],
-        lastTrickWinner: nil, receivedIDs: [], aiLevel: 1, turnSerial: 5, hintsUsed: hintsUsed
+        lastTrickWinner: nil, receivedIDs: [], aiLevel: 1, turnSerial: 5, hintsUsed: hintsUsed, passHintIDs: passHintIDs
     )
 }
