@@ -336,6 +336,13 @@ public final class DaifugoModel: AITurnGuarded {
             selectedCards, field: field, isRevolution: isRevolution, bindSuits: bindSuits, ruleSet: ruleSet)
     }
 
+    /// 選択中の組を出すと反則上がりになるか（最後の手札を出し切る手で、2・ジョーカー・8 を含むとき）。
+    /// 出すこと自体は止めない。出す前に知らせるための判定で、ヒントの設定には関係なく決める。
+    public var selectionIsFoulFinish: Bool {
+        canPlaySelection && selected.count == playerHand.count
+            && DaifugoRules.isFoulFinish(selectedCards, ruleSet: ruleSet)
+    }
+
     /// 人間がパスできるか（親のときはパスできない = 場を流せないため）。
     public var canPass: Bool { isPlayerTurn && !field.isEmpty }
 
