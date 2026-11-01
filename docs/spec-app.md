@@ -1392,8 +1392,8 @@ v1.1.4 までの公開版は3種）。
   `leaveGame` したときの 1 回だけ（アプリを終了してクリア画面から戻らなかった場合は出ない）。GA4 の流れは
   挑戦=`game_start` → ミス→再挑戦=win の `miss_count`>0 → ミス→離脱=quit の `exit=after_miss` → クリア→次へ=次の面の `game_start` → クリア→離脱=`clear_exit`。
   **`miss_count` / `miss_at` / `exit` はカスタムディメンション（イベントスコープ）の登録が要る（会長操作）。**
-- `event_points`（#3204）は**ねこさがしの 1 か月ランキングイベント（2026-11-09〜12-09 JST）で、ステージのクリアが稼いだ pt**（ミス 0 回 3・1 回 2・2 回 1。
-  コンティニューで戻したミスも数えるので、広告で続けてのクリアは 0）。期間外・自由に遊ぶ盤・負けには載せない。合計は端末の `UserDefaults`
+- `event_points`（#3204）は**ねこさがしの 1 か月ランキングイベント（2026-11-09〜12-09 JST）で、ステージのクリアが稼いだ pt**（ミス 0 回 3・1 回 2・2 回 1。ミスは画面に出ている数で、
+  コンティニューで戻したぶんは含まない）。期間外・自由に遊ぶ盤・負けには載せない。合計は端末の `UserDefaults`
   （`catPuzzleEventTotal202611`）に貯め、Game Center のリーダーボード `asobiba.catpuzzle.event202611`（High to Low・ASC 作成は社長）へ送る
   （未ログインなら貯めるだけで、ログイン後に画面を開いたとき／次のクリアで送る）。期間は `CatPuzzleEvent.start/end` の 1 か所。
   ハブの「イベント開催中」の印は `HubEventBadge.eventGameID`（v1.1.15 は `catpuzzle`）。
