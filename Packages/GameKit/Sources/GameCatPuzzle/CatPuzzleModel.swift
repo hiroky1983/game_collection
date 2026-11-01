@@ -31,6 +31,12 @@ public final class CatPuzzleModel {
     /// 無料を使い切ったあと、広告で足せるヒントの上限（1 局で合計 `freeHints + adHints` = 4 回・会長決裁 2026-10-28・#3048）。
     /// いちばん小さい 6×6（猫 6 匹）でも、ヒントだけでは全部見つからないようにする。
     public static let adHints = 3
+    /// ステージモードの「ヒント」「猫を 1 匹教える」それぞれの全ステージ共通の持ち回数（会長指示 2026-11-01・#3203）。
+    /// 面ごとには戻らず、0 になったら広告 1 回で 1 回使える（何度でも）。自由に遊ぶ盤は従来どおり `freeHints` + `adHints`。
+    public static let stageSupplyCount = 5
+    /// 残りの保存キー（中断データとは別。新規・やり直し・ステージ移動でも減ったぶんは戻らない）。鍵が無い既存の利用者は 5 回から始める。
+    public static let stageHintsLeftKey = "catPuzzleStageHintsLeft"
+    public static let stageTeachLeftKey = "catPuzzleStageTeachLeft"
     /// 赤い ×（ミス）の上限。この回数目で終局（負け）。
     public nonisolated static let maxMistakes = 3
     /// 計時中に保存し直す間隔（秒）。他の計時のあるゲームと同じ幅。
@@ -60,8 +66,14 @@ public final class CatPuzzleModel {
     public private(set) var lastWrongCell: Int?
     /// この局のヒントの回数（無料 `freeHints` 回 + 広告で最大 `adHints` 回）。勘定は Core の `BoardHintBudget`。
     public private(set) var hints = BoardHintBudget(freeLimit: CatPuzzleModel.freeHints, adLimit: CatPuzzleModel.adHints)
-    /// この局で使ったヒントの回数（無料・広告の合計。中断データに保存する）。
-    public var hintsUsed: Int { hints.used }
+    /// この局で使ったヒントの回数（無料・広告の合計。中断データに保存する）。ステージでは「猫を教える」も数える。
+    public var hintsUsed: Int { stage == nil ? hints.used : stageAssistsUsed }
+    /// ステージのこの局で使ったヒント・「猫を教える」の合計（`hintsUsed` の元）。
+    private var stageAssistsUsed = 0
+    /// ステージ共通のヒントの残り（無料ぶん）。0 のとき次の 1 回に広告が要る。
+    public private(set) var stageHintsLeft = CatPuzzleModel.stageSupplyCount
+    /// ステージ共通の「猫を 1 匹教える」の残り（無料ぶん）。
+    public private(set) var stageTeachLeft = CatPuzzleModel.stageSupplyCount
     /// 局の通し番号。広告を出す前に控え、視聴中に新しい局へ入れ替わっていたら報酬を乗せない（#815）。
     public private(set) var gameSerial = 0
     /// ヒントで置いた猫のマス（印付き・タップでも「戻す」「やり直し」でも消えない。会長の決まり 2026-10-21）。
@@ -135,6 +147,8 @@ public final class CatPuzzleModel {
                 stageDefaults: UserDefaults = .standard) {
         self.services = services
         self.stageDefaults = stageDefaults
+        stageHintsLeft = Self.storedSupply(stageDefaults, Self.stageHintsLeftKey)
+        stageTeachLeft = Self.storedSupply(stageDefaults, Self.stageTeachLeftKey)
         var seeded = seed.map { SplitMix64(seed: $0) }
         if let snap = services?.snapshots.load(CatPuzzleSnapshot.self, for: Self.gameID),
            CatPuzzleSnapshot.isResumable(snap), let restoredSize = CatPuzzleSize(rawValue: snap.size) {
@@ -148,6 +162,7 @@ public final class CatPuzzleModel {
             // ミスが上限のまま保存されている = コンティニューの提案の最中に離れた局。提案から続ける。
             isOfferingContinue = snap.mistakes >= Self.maxMistakes
             hints = BoardHintBudget(used: snap.hintsUsed, freeLimit: Self.freeHints, adLimit: Self.adHints)
+            stageAssistsUsed = snap.stage == nil ? 0 : snap.hintsUsed
             hintCells = Set(snap.hintCells ?? [])
             hintCrosses = Set(snap.hintCrosses ?? [])
             wrongCrosses = Set(snap.wrongCrosses ?? [])
@@ -192,6 +207,8 @@ public final class CatPuzzleModel {
                 stageDefaults: UserDefaults = .standard) {
         self.services = services
         self.stageDefaults = stageDefaults
+        stageHintsLeft = Self.storedSupply(stageDefaults, Self.stageHintsLeftKey)
+        stageTeachLeft = Self.storedSupply(stageDefaults, Self.stageTeachLeftKey)
         self.stage = stage
         self.size = size
         self.puzzle = puzzle
@@ -209,10 +226,28 @@ public final class CatPuzzleModel {
     public var remainingCats: Int { max(0, puzzle.side - catCells.count) }
 
     /// いま使えるヒントの回数（無料ぶんの残り）。ボタンの「あと n 回」はこの数で、広告で足せる分は含めない（#1897）。
-    public var hintsRemaining: Int { hints.freeRemaining }
+    /// ステージでは全ステージ共通の残り（`stageHintsLeft`）。
+    public var hintsRemaining: Int { stage == nil ? hints.freeRemaining : stageHintsLeft }
 
-    /// 無料ぶんを使い切っていて、次の 1 回に広告が要るか（広告の追加まで使い切ったら false）。
-    public var needsAdForHint: Bool { !hints.hasFreeRemaining && !hints.isExhausted }
+    /// 無料ぶんを使い切っていて、次の 1 回に広告が要るか（自由に遊ぶは広告の追加まで使い切ったら false。
+    /// ステージは広告で何度でも足せるので、0 なら常に true）。
+    public var needsAdForHint: Bool {
+        stage == nil ? !hints.hasFreeRemaining && !hints.isExhausted : stageHintsLeft == 0
+    }
+
+    /// 猫を 1 匹教えるボタンの残り（ステージだけ。無料ぶん）。
+    public var teachRemaining: Int { stageTeachLeft }
+
+    /// 次の 1 回に広告が要るか（ステージだけ）。
+    public var needsAdForTeach: Bool { stageTeachLeft == 0 }
+
+    /// 猫を 1 匹教えられるか（ステージの遊んでいる間で、まだ置いていない猫があるとき）。
+    public var canTeach: Bool { stage != nil && !isFrozen && nextUnplacedCat != nil }
+
+    /// 教える猫（まだ置いていない答えのマスのうち番号が最小のもの）。
+    private var nextUnplacedCat: Int? {
+        puzzle.solutionCells.filter { marks.indices.contains($0) && marks[$0] != .cat }.min()
+    }
 
     /// 次のヒントの中身（推理の 1 歩。選び方は `CatPuzzleLogic.hint`）。解けていれば nil。
     public var nextHint: CatPuzzleHint? { CatPuzzleLogic.hint(puzzle: puzzle, marks: marks) }
@@ -244,7 +279,7 @@ public final class CatPuzzleModel {
 
     /// ヒントを押せるか。終局した・広告の追加まで使い切った・盤を進める手が無いときは押せない（回数は減らない）。
     /// 無料ぶんを使い切っていても広告で足せるうちは押せる（押すと広告・`needsAdForHint`）。
-    public var canHint: Bool { !isFrozen && !hints.isExhausted && nextHint != nil }
+    public var canHint: Bool { !isFrozen && (stage != nil || !hints.isExhausted) && nextHint != nil }
     public var canUndo: Bool { !history.isEmpty && !isFrozen }
 
     /// 決まった印（ヒントの猫・×、赤い ×）のマスか。タップしても変わらない。
@@ -460,7 +495,13 @@ public final class CatPuzzleModel {
     /// 回数は必ず 1 だけ減り、盤は必ず 1 歩進む。置いた結果で盤が完成すればそのままクリア。
     /// 無料ぶんだけを使う。使い切っていたら何もしない（広告の 1 回は `grantAdHint(forGame:)`）。
     public func useHint() {
-        guard canHint, !needsAdForHint, let hint = nextHint, hints.consume() else { return }
+        guard canHint, !needsAdForHint, let hint = nextHint else { return }
+        if stage != nil {
+            stageHintsLeft -= 1
+            stageDefaults.set(stageHintsLeft, forKey: Self.stageHintsLeftKey)
+        } else if !hints.consume() {
+            return
+        }
         apply(hint)
     }
 
@@ -468,9 +509,55 @@ public final class CatPuzzleModel {
     /// 局が入れ替わっていた・終局した・無料ぶんが残っている・盤を進める手が無いときは適用せず false（回数も減らさない）。
     @discardableResult
     public func grantAdHint(forGame game: Int) -> Bool {
-        guard game == gameSerial, canHint, needsAdForHint, let hint = nextHint, hints.consumeAd() else { return false }
+        guard game == gameSerial, canHint, needsAdForHint, let hint = nextHint else { return false }
+        // ステージは広告 1 回で 1 回ぶん（残りは 0 のまま）。自由に遊ぶは広告枠を 1 つ使う。
+        if stage == nil, !hints.consumeAd() { return false }
         apply(hint)
         return true
+    }
+
+    /// 猫を 1 匹教える（ステージだけ）。無料ぶんを使う。使い切っていたら何もしない（広告の 1 回は `grantAdTeach(forGame:)`）。
+    public func teachCat() {
+        guard canTeach, !needsAdForTeach, let cell = nextUnplacedCat else { return }
+        stageTeachLeft -= 1
+        stageDefaults.set(stageTeachLeft, forKey: Self.stageTeachLeftKey)
+        placeTaughtCat(at: cell)
+    }
+
+    /// 広告を最後まで見たあとの「猫を 1 匹教える」1 回。局が入れ替わっていた・終局した・無料ぶんが残っているときは適用せず false。
+    @discardableResult
+    public func grantAdTeach(forGame game: Int) -> Bool {
+        guard game == gameSerial, canTeach, needsAdForTeach, let cell = nextUnplacedCat else { return false }
+        placeTaughtCat(at: cell)
+        return true
+    }
+
+    /// 教えた猫を正解のマスに置く。ヒントで置いた猫と同じ扱い（印付き・固定）。置いた結果で盤が完成すればそのままクリア。
+    private func placeTaughtCat(at cell: Int) {
+        pendingTap = nil
+        crossDrag = nil  // 進行中のスライドは捨てる（盤が変わるため）
+        startPlayIfPending()
+        marks[cell] = .cat
+        hintCells.insert(cell)
+        stageAssistsUsed += 1
+        lastHint = nil
+        lastWrongCell = nil
+        moves += 1
+        if !stopwatch.isRunning { startTimer() }
+        services?.gameDidUseHint(gameID: Self.gameID)
+        services?.gameDidProgress(gameID: Self.gameID)
+        services?.feedback.impact(.medium)
+        if CatPuzzleLogic.isSolved(puzzle: puzzle, cats: catCells) {
+            finish()
+        } else {
+            persist()
+        }
+    }
+
+    /// 保存してある残り。鍵が無ければ（初回・既存の利用者）全回数、壊れた値は範囲に丸める。
+    private static func storedSupply(_ defaults: UserDefaults, _ key: String) -> Int {
+        guard defaults.object(forKey: key) != nil else { return stageSupplyCount }
+        return min(max(defaults.integer(forKey: key), 0), stageSupplyCount)
     }
 
     /// ヒントの中身を盤に反映する（回数の消費は呼び出し側が済ませている）。
@@ -488,6 +575,7 @@ public final class CatPuzzleModel {
         }
         lastHint = hint
         lastWrongCell = nil
+        if stage != nil { stageAssistsUsed += 1 }
         moves += 1
         if !stopwatch.isRunning { startTimer() }
         services?.gameDidUseHint(gameID: Self.gameID)
@@ -601,6 +689,7 @@ public final class CatPuzzleModel {
         continueUsed = false
         isOfferingContinue = false
         hints.reset()
+        stageAssistsUsed = 0
         gameSerial += 1
         hintCells = []
         hintCrosses = []

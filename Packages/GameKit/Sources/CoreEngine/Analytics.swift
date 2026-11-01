@@ -58,6 +58,10 @@ public enum RewardPurpose: String, Equatable, Sendable, CaseIterable {
     ///
     /// 盤面を救う 7 種とは違い、**回数制の枠そのものを買い足す**ため 8 つ目として足した（詳細は PR の「社長判断」）。
     case challenge
+    /// 正解の猫を 1 匹置いてもらう（ねこさがしのステージ・#3203）。
+    ///
+    /// 答えそのものを置くので、推理の 1 歩を示すヒント（`hint`）とは別の面として 9 つ目に足した。
+    case teach
 }
 
 /// `reward_offer` の `result`。リワード広告を**提示した 1 回がどう終わったか**（#780）。
