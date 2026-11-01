@@ -141,11 +141,11 @@ struct CatPuzzleStageSupplyTests {
     func teachingEveryCatSolves() async {
         let (model, ads, _, services, _) = make("teachall")
         let rescue = RewardedRescue()
-        while !model.isSolved {
+        for _ in 0..<50 where !model.isSolved {
             CatPuzzleView.requestTeach(model: model, teachRescue: rescue, services: services)
             await settle()
         }
-        #expect(model.isSolved)
+        #expect(model.isSolved, "教えた猫で盤が完成しなかった")
         #expect(Set(model.catCells) == Set(model.puzzle.solutionCells))
         // 6×6 は猫 6 匹。5 回ぶん使い切ったあとの 1 匹は広告。
         #expect(model.puzzle.side == 6 && ads.shownCount == 1)
