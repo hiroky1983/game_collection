@@ -273,7 +273,7 @@ public struct GomokuView: View {
                         .foregroundStyle(Theme.coralText)
                         .padding(.horizontal, 12)
                         .frame(minHeight: 44)
-                        .background(Capsule().fill(Color.white))
+                        .background(Capsule().fill(Theme.surface))
                 }
             }
             .padding(.leading, 14).padding(.trailing, 4)
