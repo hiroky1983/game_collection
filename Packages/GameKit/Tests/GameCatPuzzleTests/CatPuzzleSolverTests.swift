@@ -78,7 +78,7 @@ struct CatPuzzleSolverTests {
 @Suite("おじさんちのねこさがしのステージ")
 struct CatPuzzleStageTests {
 
-    @Test("10 面ごとに盤が 1 回り広がり、31 面目から 9×9")
+    @Test("10 面ごとに盤が 1 回り広がり、31 面目から 9×9、61 面目から 12×12")
     func sizeByStage() {
         #expect(CatPuzzleStage(1).size == .easy)
         #expect(CatPuzzleStage(10).size == .easy)
@@ -86,7 +86,14 @@ struct CatPuzzleStageTests {
         #expect(CatPuzzleStage(21).size == .hard)
         #expect(CatPuzzleStage(30).size == .hard)
         #expect(CatPuzzleStage(31).size == .expert)
-        #expect(CatPuzzleStage(500).size == .expert)
+        #expect(CatPuzzleStage(40).size == .expert)
+        #expect(CatPuzzleStage(41).size == .size10)
+        #expect(CatPuzzleStage(50).size == .size10)
+        #expect(CatPuzzleStage(51).size == .size11)
+        #expect(CatPuzzleStage(60).size == .size11)
+        #expect(CatPuzzleStage(61).size == .size12)
+        #expect(CatPuzzleStage(500).size == .size12)
+        #expect([6, 7, 8, 9, 10, 11, 12] == [1, 11, 21, 31, 41, 51, 61].map { CatPuzzleStage($0).size.side })
         #expect(CatPuzzleStage(0).number == 1, "0 以下は 1 面目に丸める")
     }
 
@@ -99,6 +106,53 @@ struct CatPuzzleStageTests {
         #expect(CatPuzzleStage(15).tiers == 1...3)
         #expect(CatPuzzleStage(26).tiers == 4...4)
         #expect(CatPuzzleStage(31).tiers == 1...4)
+        #expect(CatPuzzleStage(41).tiers == 1...3)
+        #expect(CatPuzzleStage(46).tiers == 4...4)
+        #expect(CatPuzzleStage(65).tiers == 1...4, "12×12 の前半も段 4 までのどれでも")
+        #expect(CatPuzzleStage(66).tiers == 4...4)
+        #expect(CatPuzzleStage(70).tiers == 4...4)
+    }
+
+    @Test("部屋の入り組み: 9×9 までは従来どおり 0、10×10 以上は前半 1・後半 2")
+    func windingByStage() {
+        #expect([1, 6, 11, 16, 21, 26, 31, 36, 40].allSatisfy { CatPuzzleStage($0).winding == 0 })
+        #expect(CatPuzzleStage(41).winding == 1)
+        #expect(CatPuzzleStage(45).winding == 1)
+        #expect(CatPuzzleStage(46).winding == 2)
+        #expect(CatPuzzleStage(61).winding == 1)
+        #expect(CatPuzzleStage(70).winding == 2)
+        #expect(CatPuzzleLogic.windingDenominator(0) == 4, "従来の確率は変えない")
+        #expect(CatPuzzleLogic.windingDenominator(1) > CatPuzzleLogic.windingDenominator(2))
+    }
+
+    @Test("部屋の数は盤の大きさ（辺のマス数）と同じで、盤が広がるほど増える")
+    func roomCountGrowsWithBoard() {
+        let rooms = [1, 31, 41, 51, 61].map { CatPuzzleStage($0).makePuzzle() }
+        #expect(rooms.map { Set($0.rooms).count } == rooms.map(\.side))
+        #expect(rooms.map(\.side) == [6, 9, 10, 11, 12])
+    }
+
+    @Test("12×12 でも iPhone SE（幅 375pt・左右の余白 16pt）でマスが 26pt 以上")
+    @MainActor
+    func cellSideOnIPhoneSE() {
+        let boardSide: CGFloat = 375 - 16 * 2
+        #expect(CatPuzzleView.cellSide(boardSide: boardSide, side: 12) >= 26)
+        #expect(CatPuzzleView.cellSide(boardSide: boardSide, side: 6) > CatPuzzleView.cellSide(boardSide: boardSide, side: 12))
+    }
+
+    @Test("スライドと決める動きは、小さいマスでも 14pt を下回らない")
+    @MainActor
+    func slideDistanceHasFloor() {
+        #expect(CatPuzzleModel.slideDistance(cellSide: 27) == 14)
+        #expect(abs(CatPuzzleModel.slideDistance(cellSide: 36) - 36 * CGFloat(CatPuzzleModel.slideThreshold)) < 0.001)
+        #expect(abs(CatPuzzleModel.slideDistance(cellSide: 60) - 60 * CGFloat(CatPuzzleModel.slideThreshold)) < 0.001)
+    }
+
+    @Test("10×10 以上は自由に遊ぶの難易度に出ない（ステージ専用）")
+    func largeSizesAreStageOnly() {
+        #expect(CatPuzzleSize.allCases == [.easy, .normal, .hard, .expert])
+        #expect(CatPuzzleSize(rawValue: "size12") == .size12)
+        #expect([CatPuzzleSize.easy, .expert, .size10, .size12].map(\.freePlaySize) == [.easy, .expert, .expert, .expert])
     }
 
     @Test("種は番号ごとに違い、同じ番号なら同じ")
@@ -109,7 +163,7 @@ struct CatPuzzleStageTests {
     }
 
     /// CI では各盤の前半・後半の端と 8×8・9×9 の代表（6×6・7×7 の全面は点数のテストが作る）、夜間は 50 面まで全部。
-    static let checkedStages: [Int] = NightlyScale.value(ci: [1, 5, 6, 10, 11, 15, 16, 20, 21, 26, 31],
+    static let checkedStages: [Int] = NightlyScale.value(ci: [1, 5, 6, 10, 11, 15, 16, 20, 21, 26, 31, 41, 46, 51, 56, 61, 66],
                                                          nightly: Array(1...50))
 
     @Test("どの面も解が 1 つで、段 5 が要らず、段が決まりの範囲に入る", arguments: checkedStages)

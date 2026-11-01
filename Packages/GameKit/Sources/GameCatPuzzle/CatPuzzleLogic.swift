@@ -2,9 +2,10 @@ import Foundation
 import CoreEngine
 
 /// 盤の大きさ（難易度・#2250）。かんたん 6×6・ふつう 7×7・むずかしい 8×8・とことん 9×9。
+/// ステージモードだけ、さらに 10×10・11×11・12×12 まで広がる（#3201。`size10`〜`size12`）。
 /// `rawValue` は記録の区分キー・中断データにそのまま使う。
-public enum CatPuzzleSize: String, CaseIterable, Codable, Sendable {
-    case easy, normal, hard, expert
+public enum CatPuzzleSize: String, Codable, Sendable {
+    case easy, normal, hard, expert, size10, size11, size12
 
     /// 1 辺のマス数 = 部屋の数 = 猫の数。
     public var side: Int {
@@ -13,8 +14,20 @@ public enum CatPuzzleSize: String, CaseIterable, Codable, Sendable {
         case .normal: 7
         case .hard: 8
         case .expert: 9
+        case .size10: 10
+        case .size11: 11
+        case .size12: 12
         }
     }
+}
+
+extension CatPuzzleSize: CaseIterable {
+    /// 自由に遊ぶ（難易度の選択・段階の提案）で選べる大きさ。10×10 以上はステージ専用なので含めない。
+    public static var allCases: [CatPuzzleSize] { [.easy, .normal, .hard, .expert] }
+
+    /// 自由に遊ぶで使える大きさ。ステージ専用の 10×10 以上は、いちばん大きい 9×9 に丸める
+    /// （ステージの途中から開始シートを開いても、選べない大きさで始まらないように・#3201）。
+    var freePlaySize: CatPuzzleSize { Self.allCases.contains(self) ? self : .expert }
 }
 
 /// 1 問ぶん。マスは行優先の番号（`row * side + col`）。
@@ -254,33 +267,38 @@ public enum CatPuzzleLogic {
     /// 4. 盤を乱数で回す・裏返し（8 通り）、部屋の番号を乱数で振り直す（`shuffled`）。
     ///    育てる段階では部屋 k の種が行 k の答えなので、そのままだと「玄関（部屋 6）の猫は必ず最下行」の
     ///    ように部屋と行の対応が毎回同じになり、慣れた解き手に答えが読めてしまう（#2250）。
-    public static func generate<G: RandomNumberGenerator>(size: CatPuzzleSize, using generator: inout G) -> CatPuzzle {
+    ///
+    /// `winding`（#3201）は部屋の入り組み具合。0 が従来どおりで、大きいほど細長い・曲がった部屋が増える。
+    public static func generate<G: RandomNumberGenerator>(
+        size: CatPuzzleSize, winding: Int = 0, using generator: inout G
+    ) -> CatPuzzle {
         let n = size.side
         while true {
             let solution = randomPlacement(side: n, using: &generator)
             // 同じ答えで部屋を育て直すのは数回まで。育て方が悪ければ答えから変える。
             for _ in 0..<8 {
-                var rooms = growRooms(side: n, solution: solution, using: &generator)
-                var count = countSolutions(side: n, rooms: rooms, limit: 64)
+                var rooms = growRooms(side: n, solution: solution, winding: winding, using: &generator)
+                var (count, other) = countSolutionsRecordingOther(side: n, rooms: rooms, solution: solution, limit: 64)
                 var stale = 0
                 while count != 1 && stale < 150 {
                     stale += 1
                     // 盤が広いと、でたらめな付け替えでは別解がなかなか消えない。別解を 1 つ探し、
                     // それを壊す付け替え（別解の猫のマスを、別解の別の猫がいる部屋へ移す）を優先する。
-                    let directed = count <= directedThreshold ? otherSolution(side: n, rooms: rooms, excluding: solution) : nil
+                    let directed = count <= directedThreshold ? other : nil
                     guard let move = directed.flatMap({ directedMove(rooms: rooms, side: n, solution: solution, other: $0, using: &generator) })
                             ?? randomMove(rooms: rooms, side: n, solution: solution, using: &generator) else { break }
                     var trial = rooms
                     trial[move.cell] = move.room
                     let vacated = rooms[move.cell]
                     guard isConnected(cells: trial.indices.filter { trial[$0] == vacated }, side: n) else { continue }
-                    let trialCount = countSolutions(side: n, rooms: trial, limit: 64)
+                    let (trialCount, trialOther) = countSolutionsRecordingOther(side: n, rooms: trial, solution: solution, limit: 64)
                     // 減る手は必ず採り、同じ数の手はたまに採る（行き詰まりを抜けるため。毎回採ると部屋の形が崩れる）。
                     // 部屋の広さの偏りは `randomMove` の上限で抑える。
                     if trialCount < count || (trialCount == count && Int.random(in: 0..<3, using: &generator) == 0) {
                         if trialCount < count { stale = 0 }
                         rooms = trial
                         count = trialCount
+                        other = trialOther
                     }
                 }
                 if count == 1 {
@@ -293,26 +311,45 @@ public enum CatPuzzleLogic {
     /// 別解の数がこの値以下なら、別解を壊す付け替えを狙う（それより多いうちは、でたらめな付け替えで十分減る）。
     static let directedThreshold = 64
 
-    /// 答え `excluding` 以外の解を 1 つ返す（無ければ nil）。
-    static func otherSolution(side: Int, rooms: [Int], excluding solution: [Int]) -> [Int]? {
-        var cols: [Int] = []
+    /// `countSolutions` と同じ数え上げをしながら、答え `solution` 以外の解を探索の順で最初に見つけた 1 つも返す（無ければ nil）。
+    /// 別解を探す探索を数え上げと別にもう 1 回走らせると、12×12 の生成時間の半分以上を占めていた（#3201）。
+    static func countSolutionsRecordingOther(side: Int, rooms: [Int], solution: [Int], limit: Int) -> (count: Int, other: [Int]?) {
+        var count = 0
+        var other: [Int]?
+        var path = Array(repeating: 0, count: side)
         let reachable = reachableColumns(side: side, rooms: rooms)
-        func search(row: Int, usedCols: Int, usedRooms: Int) -> Bool {
-            if row == side { return cols != solution }
-            guard reachable.withUnsafeBufferPointer({
-                canFinish(side: side, reachable: $0, row: row, usedCols: usedCols, usedRooms: usedRooms)
-            }) else { return false }
-            for col in 0..<side where usedCols & (1 << col) == 0 {
-                if let previous = cols.last, abs(col - previous) <= 1 { continue }
-                let room = rooms[row * side + col]
-                if usedRooms & (1 << room) != 0 { continue }
-                cols.append(col)
-                if search(row: row + 1, usedCols: usedCols | (1 << col), usedRooms: usedRooms | (1 << room)) { return true }
-                cols.removeLast()
+        rooms.withUnsafeBufferPointer { rooms in
+            reachable.withUnsafeBufferPointer { reachable in
+                path.withUnsafeMutableBufferPointer { path in
+                    countSolutions(side: side, rooms: rooms, reachable: reachable, solution: solution, limit: limit, row: 0,
+                                   usedCols: 0, usedRooms: 0, previousCol: -1, path: path, count: &count, other: &other)
+                }
             }
-            return false
         }
-        return search(row: 0, usedCols: 0, usedRooms: 0) ? cols : nil
+        return (count, other)
+    }
+
+    private static func countSolutions(
+        side: Int, rooms: UnsafeBufferPointer<Int>, reachable: UnsafeBufferPointer<Int>, solution: [Int], limit: Int,
+        row: Int, usedCols: Int, usedRooms: Int, previousCol: Int, path: UnsafeMutableBufferPointer<Int>,
+        count: inout Int, other: inout [Int]?
+    ) {
+        if row == side {
+            count += 1
+            if other == nil && !path.elementsEqual(solution) { other = Array(path) }
+            return
+        }
+        guard canFinish(side: side, reachable: reachable, row: row, usedCols: usedCols, usedRooms: usedRooms) else { return }
+        for col in 0..<side where usedCols & (1 << col) == 0 {
+            if previousCol >= 0 && abs(col - previousCol) <= 1 { continue }
+            let room = rooms[row * side + col]
+            if usedRooms & (1 << room) != 0 { continue }
+            path[row] = col
+            countSolutions(side: side, rooms: rooms, reachable: reachable, solution: solution, limit: limit, row: row + 1,
+                           usedCols: usedCols | (1 << col), usedRooms: usedRooms | (1 << room), previousCol: col, path: path,
+                           count: &count, other: &other)
+            if count >= limit { return }
+        }
     }
 
     /// 別解 `other` を壊す付け替え: 別解の猫のマス（答えの猫ではないもの）を、別解の別の猫がいる隣の部屋へ移す。
@@ -402,7 +439,10 @@ public enum CatPuzzleLogic {
     /// 答えの猫のマスを種に、部屋を育てて全マスを割り当てる。
     /// いちばん小さい部屋から順に 1 マスずつ広げる（部屋の広さが揃う）。広げる先は、その部屋と
     /// 接している面が多い空きマスを優先する（部屋が四角に近くなり、間取りらしく見える）。
-    static func growRooms<G: RandomNumberGenerator>(side n: Int, solution: [Int], using generator: inout G) -> [Int] {
+    /// `winding` が大きいほど、接している面が多いマスではなく、ほかのマスへ広げる割合を増やす（部屋が入り組む）。
+    static func growRooms<G: RandomNumberGenerator>(
+        side n: Int, solution: [Int], winding: Int = 0, using generator: inout G
+    ) -> [Int] {
         var rooms = Array(repeating: -1, count: n * n)
         var sizes = Array(repeating: 1, count: n)
         for row in 0..<n { rooms[row * n + solution[row]] = row }
@@ -427,7 +467,7 @@ public enum CatPuzzleLogic {
             var tally: [Int: Int] = [:]
             for cell in frontier[room]! { tally[cell, default: 0] += 1 }
             let best = tally.values.max()!
-            let threshold = Int.random(in: 0..<4, using: &generator) == 0 ? 1 : best
+            let threshold = Int.random(in: 0..<windingDenominator(winding), using: &generator) == 0 ? 1 : best
             let cell = tally.filter { $0.value >= threshold }.keys.sorted().randomElement(using: &generator)!
             rooms[cell] = room
             sizes[room] += 1
@@ -435,6 +475,9 @@ public enum CatPuzzleLogic {
         }
         return rooms
     }
+
+    /// 「接している面が多いマス」以外へ広げる確率の分母（1 / 分母）。0 は従来の 1 / 4、1 は 1 / 3、2 以上は 1 / 2。
+    static func windingDenominator(_ winding: Int) -> Int { winding <= 0 ? 4 : winding == 1 ? 3 : 2 }
 
     /// 山登りの 1 手: 部屋の境目にあるマスを、隣の部屋へ付け替える候補を 1 つ選ぶ。
     /// 答えの猫のマスと、2 マスしかない部屋のマスは動かさず、上限まで広がった部屋へは足さない。

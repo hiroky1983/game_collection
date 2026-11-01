@@ -95,10 +95,10 @@ struct CatPuzzleModuleTests {
         #expect(CatPuzzleArt.aspect(.sleep) > 1, "寝ている姿は横長")
     }
 
-    @Test("家の部屋は 9 つあり、名前が重ならず、9×9 まで足りる")
+    @Test("家の部屋は 12 あり、名前が重ならず、12×12 まで足りる")
     func houseRooms() {
         let rooms = CatPuzzleHouse.rooms
-        #expect(rooms.count >= CatPuzzleSize.expert.side)
+        #expect(rooms.count >= CatPuzzleSize.size12.side)
         #expect(Set(rooms.map(\.name)).count == rooms.count)
         #expect(CatPuzzleHouse.room(0).name == "居間")
         #expect(CatPuzzleHouse.room(rooms.count).name == rooms[0].name, "表より大きい番号は折り返す")

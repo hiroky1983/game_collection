@@ -37,7 +37,7 @@ enum CatPuzzleHouse {
         let clearPose: CatPuzzleArt.Pose
     }
 
-    /// 部屋の並び。盤の大きさが 6 なら先頭 6 部屋、9 なら 9 部屋全部を使う。
+    /// 部屋の並び。盤の大きさが 6 なら先頭 6 部屋、12 なら 12 部屋全部を使う。
     /// 名前は表示のたびに引く（言語切り替えに追従）。
     ///
     /// 色は「部屋ごとにはっきり違う・楽しい」色味にしつつ、ライトは明るめ（L≈80〜88%）・ダークは
@@ -62,6 +62,13 @@ enum CatPuzzleHouse {
                  tint: Color(light: 0xE6AE6A, dark: 0x60431F), patternStrength: 1.0, clearPose: .sitFront),
             Room(name: tr("廊下"), floor: .tile,
                  tint: Color(light: 0xB6E3C6, dark: 0x2F5A44), patternStrength: 1.0, clearPose: .sleep),
+            // 10〜12 番目の部屋（ステージの 10×10 以上でだけ使う・#3201）。名前も色も 9 部屋と重ならない。
+            Room(name: tr("洗面所"), floor: .tile,
+                 tint: Color(light: 0x9FB8F0, dark: 0x2F4272), patternStrength: 1.0, clearPose: .stretch),
+            Room(name: tr("子ども部屋"), floor: .carpet,
+                 tint: Color(light: 0xF7A98F, dark: 0x6E3A2C), patternStrength: 1.0, clearPose: .pounce),
+            Room(name: tr("物置"), floor: .planks,
+                 tint: Color(light: 0xB8C4C0, dark: 0x3F4A48), patternStrength: 1.0, clearPose: .sitUp),
         ]
     }
 

@@ -871,6 +871,39 @@
         }
       }
     },
+    "洗面所" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Washroom"
+          }
+        }
+      }
+    },
+    "子ども部屋" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kids' Room"
+          }
+        }
+      }
+    },
+    "物置" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Storeroom"
+          }
+        }
+      }
+    },
     "とことん" : {
       "extractionState" : "manual",
       "localizations" : {

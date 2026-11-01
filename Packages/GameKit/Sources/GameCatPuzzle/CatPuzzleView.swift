@@ -250,12 +250,20 @@ public struct CatPuzzleView: View {
 
     // MARK: - 盤
 
+    /// 盤の枠の内側の余白。
+    static let boardInset: CGFloat = 8
+
+    /// 1 マスの一辺。12×12 でも iPhone SE（幅 375pt・左右の余白 16pt ずつ）で 26pt 以上になる（#3201）。
+    static func cellSide(boardSide: CGFloat, side n: Int) -> CGFloat {
+        max(1, (boardSide - boardInset * 2) / CGFloat(n))
+    }
+
     private var board: some View {
         GeometryReader { geo in
             let n = model.puzzle.side
-            let inset: CGFloat = 8
+            let inset = Self.boardInset
             let boardSide = min(geo.size.width, geo.size.height)
-            let cellSide = max(1, (boardSide - inset * 2) / CGFloat(n))
+            let cellSide = Self.cellSide(boardSide: boardSide, side: n)
             ZStack(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
                     .fill(Theme.surface)
@@ -315,7 +323,7 @@ public struct CatPuzzleView: View {
                 }
                 guard let startCell = boardTouch.startCell else { return }
                 let moved = hypot(value.location.x - value.startLocation.x, value.location.y - value.startLocation.y)
-                if !boardTouch.isSliding, moved >= cellSide * CatPuzzleModel.slideThreshold {
+                if !boardTouch.isSliding, moved >= CatPuzzleModel.slideDistance(cellSide: cellSide) {
                     boardTouch.isSliding = true
                     withGameAnimation { model.beginCrossDrag(cell: startCell) }
                 }
@@ -838,7 +846,7 @@ struct CatPuzzleNewGameSheet: View {
         self.onStart = onStart
         self.onCancel = onCancel
         _mode = State(initialValue: initialMode)
-        _size = State(initialValue: initial)
+        _size = State(initialValue: initial.freePlaySize)
     }
 
     var body: some View {
