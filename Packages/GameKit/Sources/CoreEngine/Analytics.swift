@@ -328,7 +328,8 @@ public enum AnalyticsEvent: Equatable, Sendable {
     case gameEnd(
         gameID: String, result: AnalyticsResult, durationSec: Int,
         mode: AnalyticsMode? = nil, cause: AnalyticsEndCause? = nil, hintsUsed: Int = 0,
-        credit: AnalyticsCredit? = nil, level: AnalyticsLevel? = nil, misses: AnalyticsMissSummary? = nil
+        credit: AnalyticsCredit? = nil, level: AnalyticsLevel? = nil, misses: AnalyticsMissSummary? = nil,
+        eventPoints: Int? = nil
     )
     /// 面をクリアしたあと、次の面へ進まず（もう一度も押さず）画面を離れた（#2848）。パラメータは `game_id` / `level`。
     /// 面を進めるゲーム（`level` が `stage-N`）のクリア（win）の直後に離れたときだけ、離れた 1 回につき 1 回。
@@ -393,7 +394,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
                 if let days = engagement.daysSinceLastPlay { parameters["days_since_last_play"] = .int(days) }
             }
             return parameters
-        case let .gameEnd(gameID, result, durationSec, mode, cause, hintsUsed, credit, level, misses):
+        case let .gameEnd(gameID, result, durationSec, mode, cause, hintsUsed, credit, level, misses, eventPoints):
             var parameters: [String: AnalyticsValue] = [
                 "game_id": .string(gameID),
                 // `AnalyticsResult` は win / loss / draw / quit の4値に閉じた enum。
@@ -416,6 +417,8 @@ public enum AnalyticsEvent: Equatable, Sendable {
                 if let at = misses.lastAtPercent { parameters["miss_at"] = .int(at) }
                 if let exit = misses.exit { parameters["exit"] = .string(exit.rawValue) }
             }
+            // イベントのポイントを稼いだクリアだけ（ねこさがしの 1 か月イベント・#3204）。
+            if let eventPoints { parameters["event_points"] = .int(eventPoints) }
             return parameters
         case let .clearExit(gameID, level):
             return ["game_id": .string(gameID), "level": .string(level.parameterValue)]
@@ -581,6 +584,8 @@ public final class GameAnalytics {
     private var causes: [String: AnalyticsEndCause] = [:]
     /// 進行中のプレイのミスの回数・最後の地点（#2848）。終わりの `game_end` に載せる。プレイを始め直すと消える。
     private var missCounts: [String: Int] = [:]
+    /// そのプレイのクリアで稼いだイベントのポイント（#3204）。終わりの `game_end` に載せる。
+    private var eventPoints: [String: Int] = [:]
     private var missPercents: [String: Int] = [:]
     /// 直前のミスがまだ挽回されていない（走り直していない）プレイ。`quit` の `exit` の元。
     private var unresolvedMisses: Set<String> = []
@@ -713,6 +718,13 @@ public final class GameAnalytics {
         missCounts[gameID, default: 0] += 1
         missPercents[gameID] = progressPercent
         unresolvedMisses.insert(gameID)
+    }
+
+    /// そのプレイのクリアで稼いだイベントのポイントを覚える（#3204）。**イベントは送らない**。
+    /// `finishPlay` より前に呼ぶと、その `game_end` に `event_points` として載る。
+    public func recordEventPoints(gameID: String, points: Int) {
+        guard case .inFlight = plays[gameID] else { return }
+        eventPoints[gameID] = points
     }
 
     /// 終局したときに呼ぶ。進行中のプレイが無いときは**何も送らない**
@@ -954,7 +966,7 @@ public final class GameAnalytics {
         service.log(.gameEnd(
             gameID: gameID, result: result, durationSec: seconds,
             mode: modes[gameID], cause: causes[gameID], hintsUsed: hintsUsed, credit: credits[gameID],
-            level: levels[gameID], misses: misses
+            level: levels[gameID], misses: misses, eventPoints: eventPoints[gameID]
         ))
     }
 
@@ -969,6 +981,7 @@ public final class GameAnalytics {
         // 前のプレイの死因を次のプレイへ持ち越さない。
         causes[gameID] = nil
         missCounts[gameID] = nil
+        eventPoints[gameID] = nil
         missPercents[gameID] = nil
         unresolvedMisses.remove(gameID)
         finishedResults[gameID] = nil

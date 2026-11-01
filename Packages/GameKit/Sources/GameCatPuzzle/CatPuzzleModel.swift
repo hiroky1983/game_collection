@@ -106,6 +106,16 @@ public final class CatPuzzleModel {
     public private(set) var isPreparingStage = false
     /// ステージの進み具合（次に遊ぶ面の番号）の保存先。テストは専用の `UserDefaults` を渡す。
     @ObservationIgnored private let stageDefaults: UserDefaults
+    /// 1 か月のランキングイベント（#3204）の現在時刻の取り出し口（テストが期間内外を作るために差し替える）。
+    @ObservationIgnored var eventNow: () -> Date = { Date() }
+    /// イベントで貯めた合計 pt（端末に保存・`CatPuzzleEvent`）。
+    public private(set) var eventTotal = 0
+    /// 直前のステージのクリアで得た pt。期間外・クリアしていないときは nil。
+    public private(set) var lastEventPoints: Int?
+    /// Game Center へ合計を送っている最中の Task（二重に送らない・テストが完了を待つ）。
+    @ObservationIgnored var eventSubmitTask: Task<Void, Never>?
+    /// イベント開催中か（期間は `CatPuzzleEvent` の 1 か所）。
+    public var isEventActive: Bool { CatPuzzleEvent.isActive(now: eventNow()) }
     /// ステージの問題の作成を頼んだ回数。作っている間に別の局へ切り替わったら、出来上がった問題は捨てる。
     @ObservationIgnored private var stageRequest = 0
     /// 次の面を先に作っておく（遊んでいる間に裏で作り、「次のステージへ」で待たせない）。
@@ -149,6 +159,7 @@ public final class CatPuzzleModel {
         self.stageDefaults = stageDefaults
         stageHintsLeft = Self.storedSupply(stageDefaults, Self.stageHintsLeftKey)
         stageTeachLeft = Self.storedSupply(stageDefaults, Self.stageTeachLeftKey)
+        eventTotal = CatPuzzleEvent.total(stageDefaults)
         var seeded = seed.map { SplitMix64(seed: $0) }
         if let snap = services?.snapshots.load(CatPuzzleSnapshot.self, for: Self.gameID),
            CatPuzzleSnapshot.isResumable(snap), let restoredSize = CatPuzzleSize(rawValue: snap.size) {
@@ -209,6 +220,7 @@ public final class CatPuzzleModel {
         self.stageDefaults = stageDefaults
         stageHintsLeft = Self.storedSupply(stageDefaults, Self.stageHintsLeftKey)
         stageTeachLeft = Self.storedSupply(stageDefaults, Self.stageTeachLeftKey)
+        eventTotal = CatPuzzleEvent.total(stageDefaults)
         self.stage = stage
         self.size = size
         self.puzzle = puzzle
@@ -703,6 +715,7 @@ public final class CatPuzzleModel {
         // 開始シートで始めた局は `gameDidRestart` だけで数える（遅らせていた開始は捨てる）。
         pendingInitialStart = false
         showsClearCard = false
+        lastEventPoints = nil
         solvedAt = nil
         recordResult = nil
         services?.snapshots.clear(for: Self.gameID)
@@ -761,6 +774,7 @@ public final class CatPuzzleModel {
         if let stage, stage + 1 > savedStage { stageDefaults.set(stage + 1, forKey: Self.stageProgressKey) }
         showsClearCard = false
         services?.feedback.notify(.success)
+        awardEventPoints()
         // 決着 1 回につき `gameDidFinish` は 1 回だけ呼ぶ。記録は大きさごとに分ける。
         recordResult = services?.gameDidFinish(
             gameID: Self.gameID,
@@ -771,6 +785,34 @@ public final class CatPuzzleModel {
             )
         )
         services?.snapshots.clear(for: Self.gameID)
+    }
+
+    /// ステージのクリアで、開催中ならイベントの pt を貯めて Game Center へ送る（#3204）。`gameDidFinish` より前に呼び、
+    /// `game_end` に `event_points` を載せる。ミスはコンティニューで戻したぶんも数える。ヒント・猫を教えるは見ない。
+    private func awardEventPoints() {
+        guard stage != nil, isEventActive else { return }
+        let earned = CatPuzzleEvent.points(mistakes: mistakes + (continueUsed ? 1 : 0))
+        lastEventPoints = earned
+        eventTotal = CatPuzzleEvent.add(earned, to: stageDefaults)
+        services?.gameDidEarnEventPoints(gameID: Self.gameID, points: earned)
+        submitEventTotalIfNeeded()
+    }
+
+    /// 貯めた合計のうち Game Center へ未送信のぶんがあれば送る。未ログイン・オフラインでも pt は貯まり、
+    /// 送れなかったら送り済みの控えを進めない（次の決着か画面を開いたときに送り直す）。
+    public func submitEventTotalIfNeeded() {
+        let total = CatPuzzleEvent.total(stageDefaults)
+        guard total > CatPuzzleEvent.sent(stageDefaults), eventSubmitTask == nil,
+              let reporter = services?.gameCenter, reporter.isSignedIn else { return }
+        eventSubmitTask = Task { [weak self] in
+            let sent = await reporter.submitWeeklyAndWait(
+                gameID: Self.gameID, leaderboardID: GameCenterLeaderboard.catPuzzleEvent, value: total)
+            guard let self else { return }
+            if sent { CatPuzzleEvent.markSent(total, in: self.stageDefaults) }
+            self.eventSubmitTask = nil
+            // 送っているあいだにさらに貯まっていたら続けて送る（失敗したときは繰り返さない）。
+            if sent { self.submitEventTotalIfNeeded() }
+        }
     }
 
     /// 3 回目のミス。広告を見て続けるかを選ばせる。負けはここで付ける（マインスイーパーと同じ）。コンティニューしたら

@@ -103,7 +103,9 @@ public struct CatPuzzleView: View {
         .howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items).onboarding(CatPuzzleOnboarding.guide))
         .sheet(isPresented: $showNewGame) {
             CatPuzzleNewGameSheet(initialMode: CatPuzzlePlayMode(rawValue: preferredMode) ?? .stage,
-                                  initial: model.size, nextStage: model.savedStage) { mode, size in
+                                  initial: model.size, nextStage: model.savedStage,
+                                  eventTotal: model.isEventActive ? model.eventTotal : nil,
+                                  onOpenRanking: services.openGameCenter) { mode, size in
                 showNewGame = false
                 start(mode: mode, size: size)
             } onCancel: {
@@ -198,6 +200,8 @@ public struct CatPuzzleView: View {
             resume: { model.resumeTimerIfNeeded() }
         )
         .task {
+            // 未ログインで貯めたイベントの pt を、ログイン後に開いたときに送る（#3204）。
+            model.submitEventTotalIfNeeded()
             #if DEBUG
             // 撮影・動作確認用: `-catpuzzleScenario <名前>` で開始シートを閉じ、狙った盤を作る（#3048）。
             let args = ProcessInfo.processInfo.arguments
@@ -648,7 +652,12 @@ public struct CatPuzzleView: View {
                RecordFormat.time(model.elapsedSeconds), model.mistakes, model.hintsUsed),
             tr("%1$@・手数 %2$lld", boardLabel, model.moves),
         ]
-        if model.mistakes == 0 { lines.append(tr("ミスなしのパーフェクト！")) }
+        if let earned = model.lastEventPoints {
+            // イベント開催中のステージ。SE で行が増えすぎないよう、パーフェクトの行は +3pt に譲る（#3204）。
+            lines.append(tr("イベント +%1$lldpt・合計 %2$lldpt", earned, model.eventTotal))
+        } else if model.mistakes == 0 {
+            lines.append(tr("ミスなしのパーフェクト！"))
+        }
         return lines
     }
 
@@ -826,15 +835,22 @@ struct CatPuzzleNextStageBar: View {
 /// 他のゲームと同じ共通の枠（`GameSetupSheet`）。
 struct CatPuzzleNewGameSheet: View {
     let nextStage: Int
+    /// イベント開催中なら貯めた合計 pt（期間外は nil で、イベントの欄を出さない・#3204）。
+    let eventTotal: Int?
+    /// Game Center のランキングを開く入口（無ければボタンを出さない）。
+    let onOpenRanking: (@MainActor () -> Void)?
     let onStart: (CatPuzzlePlayMode, CatPuzzleSize) -> Void
     let onCancel: () -> Void
     @State private var mode: CatPuzzlePlayMode
     @State private var size: CatPuzzleSize
 
     init(initialMode: CatPuzzlePlayMode, initial: CatPuzzleSize, nextStage: Int,
+         eventTotal: Int? = nil, onOpenRanking: (@MainActor () -> Void)? = nil,
          onStart: @escaping (CatPuzzlePlayMode, CatPuzzleSize) -> Void,
          onCancel: @escaping () -> Void) {
         self.nextStage = nextStage
+        self.eventTotal = eventTotal
+        self.onOpenRanking = onOpenRanking
         self.onStart = onStart
         self.onCancel = onCancel
         _mode = State(initialValue: initialMode)
@@ -848,6 +864,9 @@ struct CatPuzzleNewGameSheet: View {
             onStart: { onStart(mode, size) }, onCancel: onCancel
         ) {
             Self.modeSection(selection: $mode, nextStage: nextStage)
+            if let eventTotal, mode == .stage {
+                Self.eventSection(total: eventTotal, onOpenRanking: onOpenRanking)
+            }
             if mode == .free {
                 Self.sizeSection(selection: $size)
             }
@@ -869,6 +888,32 @@ struct CatPuzzleNewGameSheet: View {
                     }
                 }
             }
+        }
+    }
+
+    /// ランキングイベントの節（開催中のステージだけ・#3204）。ポイントのつき方、貯めた合計、ランキングを開く導線。
+    static func eventSection(total: Int, onOpenRanking: (@MainActor () -> Void)?) -> some View {
+        GameSetupSection(tr("イベント開催中")) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(tr("ステージをクリアして pt を貯めよう。ミス 0 回で 3pt・1 回で 2pt・2 回で 1pt"))
+                    .themeBody(13).foregroundStyle(Theme.inkSubText)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Text(tr("合計 %lldpt", total))
+                        .themeBody(15).monospacedDigit()
+                    Spacer(minLength: 8)
+                    if let onOpenRanking {
+                        Button { onOpenRanking() } label: {
+                            Text(tr("ランキングを見る"))
+                                .themeBody(14)
+                                .padding(.horizontal, 12)
+                                .frame(minHeight: 44)
+                                .contentShape(Rectangle())
+                        }
+                    }
+                }
+            }
+            .accessibilityElement(children: .contain)
         }
     }
 

@@ -882,8 +882,9 @@ enum HubCountBadge {
 
 enum HubEventBadge {
     /// 「イベント開催中」の印を出すゲームの ID。イベントを入れ替えるときはここ 1 か所だけ直す
-    /// （#2958。v1.1.15 は将棋「将棋の達人に挑め」＝#2722。柵越えおじさんの週間ランキング自体は続く）。
-    static let eventGameID = "shogi"
+    /// （v1.1.15 はねこさがしの 1 か月ランキングイベント＝#3204。将棋のイベント #2722・#2958 は保留。
+    /// 柵越えおじさんの週間ランキング自体は続く）。
+    static let eventGameID = "catpuzzle"
 
     static func isShown(gameID: String) -> Bool {
         gameID == eventGameID

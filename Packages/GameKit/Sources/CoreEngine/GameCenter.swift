@@ -164,6 +164,10 @@ public enum GameCenterLeaderboard {
     /// 送信もランキングページへの遷移もしなくなる（未作成の環境向けの逃げ道として Optional のまま残す）。
     /// 常設の表と違い決着の対応表（`score(gameID:outcome:score:)`）を通らないため、`allIDs` には入れない。
     public static let homerunWeekly: String? = "asobiba.homerun.weekly"
+    /// ねこさがしの 1 か月イベント（#3204・2026-11-09〜12-09）。ステージのクリアで貯めた合計 pt（High to Low）を送る。
+    /// 決着の対応表（`score(gameID:outcome:score:)`）を通らず別経路で送るため、`allIDs` には入れない。
+    /// App Store Connect での作成は社長。
+    public static let catPuzzleEvent = "asobiba.catpuzzle.event202611"
     /// 週間ランキングで月まで飛んだ打球 1 本を数える距離（m）。384,400 km。
     public static let homerunWeeklyMoonMeters = 384_400_000
     /// 週間ランキングに送る総飛距離の上限（m）。月 2 回（月が割れた時点で挑戦は終わる）＋ 180 m × 8 球。これを超える値は送らない。
