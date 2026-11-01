@@ -111,7 +111,7 @@ struct BlackjackMetricsTests {
         #expect(V.regular.estimatedSplitTableHeight == 363)
         #expect(V.regular.actionAreaMinHeight == BlackjackMetrics.actionButtonMinHeight * 2 + 8)
         let code = SourceScan.strippingComments(try Self.viewSource())
-        #expect(code.contains(".frame(maxHeight: layout.scaled(metrics.estimatedSplitTableHeight))"),
+        #expect(code.contains(".frame(maxHeight: metrics.estimatedSplitTableHeight * layout.cardScale)"),
                 "卓の高さに上限が無い（全画面でディーラーとあなたの間が大きく空く）")
         #expect(code.contains(".frame(minHeight: metrics.actionAreaMinHeight, alignment: .top)"),
                 "操作欄の高さを取っておかないと、ボタンの出入りで真ん中の卓が動く")

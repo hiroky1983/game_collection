@@ -157,6 +157,7 @@ public struct PokerView: View {
     private var mainColumn: some View {
         VStack(spacing: 8) {
             scoreBar
+                .frame(maxWidth: layout.tableMaxWidth)
             // CPU・役・あなた・操作欄を 1 つのまとまりにして、帯の下の残りの真ん中に置く（ブラックジャック #2671 と同じ）。
             // 全画面にして縦が伸びた分を札のあいだで吸うと、真ん中が大きく空く。
             VStack(spacing: 0) {
@@ -185,6 +186,7 @@ public struct PokerView: View {
                             .frame(minHeight: PokerMetrics.actionButtonMinHeight, alignment: .top)
                     }
                 }
+                .frame(maxWidth: layout.tableMaxWidth)
                 Spacer(minLength: 0)
             }
             RecommendationSlot(services: services, isFinished: model.sessionOver)
@@ -208,14 +210,14 @@ public struct PokerView: View {
                     ? tr("単発戦")
                     : tr("%1$lld回目 / %2$lld", max(model.round, 1), PokerModel.roundsPerSession),
                   systemImage: "flag.checkered")
-                .themeBody(14)
+                .themeBody(layout.scaled(14))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .foregroundStyle(Theme.ink)
             if model.showsFinalRoundMark { FinalRoundBadge() }
             Spacer()
             Label(tr("連勝 %lld", model.streak), systemImage: "flame.fill")
-                .themeBody(14)
+                .themeBody(layout.scaled(14))
                 .foregroundStyle(Theme.coralText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -264,7 +266,7 @@ public struct PokerView: View {
             CardTableInkReader { ink in
                 HStack(spacing: 8) {
                     Text("CPU")
-                        .themeBody(13)
+                        .themeBody(layout.scaled(13))
                         .foregroundStyle(ink.labelSub)
                         // 役名の行が「CPU、…」と主体まで読むので、見出しは重ねて読まない（#2589）。
                         .accessibilityHidden(model.phase == .result)
@@ -315,7 +317,7 @@ public struct PokerView: View {
                     cpuCard(card, index: index)
                 }
             }
-            .shrinkToFitWidth(naturalWidth: PlayingCardMetrics.standard.scaled(by: layout.elementScale)
+            .shrinkToFitWidth(naturalWidth: PlayingCardMetrics.standard.scaled(by: layout.cardScale)
                 .rowWidth(count: model.cpuHand.count, spacing: 8))
         }
         .padding(.horizontal, 6).padding(.vertical, 2)
@@ -327,7 +329,7 @@ public struct PokerView: View {
     private func cpuCard(_ card: PokerCard, index: Int) -> some View {
         let exchanged = model.cpuExchangedIndices.contains(index)
         let showsMark = exchanged && model.phase == .result
-        let metrics = PlayingCardMetrics.standard.scaled(by: layout.elementScale)
+        let metrics = PlayingCardMetrics.standard.scaled(by: layout.cardScale)
         ZStack {
             FlipRevealCardView(card: card, progress: cpuRevealed ? 1 : 0)
                 .gameAnimation(PokerMotion.showdownFlip(index: index), value: cpuRevealed)
@@ -392,7 +394,7 @@ public struct PokerView: View {
             CardTableInkReader { ink in
                 HStack {
                     Text(tr("あなた"))
-                        .themeBody(13)
+                        .themeBody(layout.scaled(13))
                         .foregroundStyle(ink.label)
                         .accessibilityHidden(model.phase == .result)
                     Spacer()
@@ -450,7 +452,7 @@ public struct PokerView: View {
                         .gameAnimation(PokerMotion.handSelection, value: isSelected)
                 }
             }
-            .shrinkToFitWidth(naturalWidth: PlayingCardMetrics.standard.scaled(by: layout.elementScale)
+            .shrinkToFitWidth(naturalWidth: PlayingCardMetrics.standard.scaled(by: layout.cardScale)
                 .rowWidth(count: model.playerHand.count, spacing: 8))
             // 選んだ札は 10pt 下がる（`offset`）。下がったぶんを取っておき、操作欄に重ならないようにする。
             // 10 回勝負の決着は選べないうえ縦が足りない（iPhone SE）ので取らない。
@@ -461,7 +463,7 @@ public struct PokerView: View {
 
     /// 自分が替えた札の枠（#2704）。CPU の札（`cpuCard`）と同じ紫の枠。
     private var exchangedMark: some View {
-        let metrics = PlayingCardMetrics.standard.scaled(by: layout.elementScale)
+        let metrics = PlayingCardMetrics.standard.scaled(by: layout.cardScale)
         return RoundedRectangle(cornerRadius: metrics.cornerRadius)
             .strokeBorder(Theme.purple, lineWidth: 2)
             .frame(width: metrics.width, height: metrics.height)
@@ -534,7 +536,7 @@ public struct PokerView: View {
                     exchangeRescue.requestHandledByModel(withOutcome: { await model.extraExchangeAfterAd() })
                 } label: {
                     Label(tr("広告でもう1回交換"), systemImage: "play.rectangle.fill")
-                        .themeBody(14)
+                        .themeBody(layout.scaled(14))
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                         .padding(.horizontal, 4)
@@ -645,7 +647,7 @@ public struct PokerView: View {
                               action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .themeBody(14)
+                .themeBody(layout.scaled(14))
                 // 文字を拡大すると折り返してボタンの高さが跳ねるため、折り返さずに縮めて収める（#189）。
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)

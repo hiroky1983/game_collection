@@ -13,7 +13,7 @@ struct CardView: View {
     @Environment(\.adaptiveLayout) private var layout
 
     private var metrics: PlayingCardMetrics {
-        PlayingCardMetrics.standard.scaled(by: layout.elementScale)
+        PlayingCardMetrics.standard.scaled(by: layout.cardScale)
     }
 
     var body: some View {
