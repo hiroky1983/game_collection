@@ -6,6 +6,7 @@ public struct BlackjackView: View {
     private let services: GameServices
     /// 画面の広さ（#458）。スプリット行の高さを札（`.compact` = 42×60）と同じ倍率で拡大する。
     @Environment(\.adaptiveLayout) private var layout
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// 負けた回のやり直し（#2552）のリワード広告の段取り（連打ガード・失敗アラート。#526）。
     @State private var retryRescue = RewardedRescue()
     /// ナビバーの「点数のルール」シート（#2596。ポーカーの「役の点数表」と同じ位置）。
@@ -147,26 +148,34 @@ public struct BlackjackView: View {
 
     /// 上の帯。「n 回目 / 10」「勝ち n 点」「連勝 n」を並べる。
     private func matchBar(_ metrics: BlackjackVerticalMetrics) -> some View {
-        HStack(spacing: 12) {
-            Text(model.format == .single
-                    ? tr("単発戦")
-                    : tr("%1$lld回目 / %2$lld", model.currentRound, BlackjackModel.roundsPerMatch))
-                .themeBody(layout.scaled(14))
-                .foregroundStyle(Theme.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            if model.showsFinalRoundMark { FinalRoundBadge() }
-            Spacer(minLength: 0)
-            Label(tr("勝ち %lld点", model.points), systemImage: "star.fill")
-                .themeBody(layout.scaled(14))
-                .foregroundStyle(Theme.tealText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            Label(tr("連勝 %lld", model.streak), systemImage: "flame.fill")
-                .themeBody(layout.scaled(14))
-                .foregroundStyle(Theme.coralText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+        // 文字サイズが「アクセシビリティ」の段では横一列に収まらないので、回数と得点を 2 段に分ける（#3180）。
+        let layoutBar = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+            : AnyLayout(HStackLayout(spacing: 12))
+        return layoutBar {
+            HStack(spacing: 12) {
+                Text(model.format == .single
+                        ? tr("単発戦")
+                        : tr("%1$lld回目 / %2$lld", model.currentRound, BlackjackModel.roundsPerMatch))
+                    .themeBody(layout.scaled(14))
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                if model.showsFinalRoundMark { FinalRoundBadge() }
+            }
+            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
+            HStack(spacing: 12) {
+                Label(tr("勝ち %lld点", model.points), systemImage: "star.fill")
+                    .themeBody(layout.scaled(14))
+                    .foregroundStyle(Theme.tealText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Label(tr("連勝 %lld", model.streak), systemImage: "flame.fill")
+                    .themeBody(layout.scaled(14))
+                    .foregroundStyle(Theme.coralText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
         }
         .padding(.horizontal, 14).padding(.vertical, metrics.chipsVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
