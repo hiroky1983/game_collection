@@ -306,6 +306,12 @@ public final class CatPuzzleModel {
     /// 指の動きがマスの一辺のこの割合に届くまではタップとして扱う（届いたらスライド）。
     public static let slideThreshold: Double = 0.4
 
+    /// スライドと決める指の動き（pt）。マスの一辺の `slideThreshold` 倍だが、12×12 のような小さいマス
+    /// （iPhone SE で約 27pt）でタップのわずかな指のぶれがスライドにならないよう、9×9 の SE と同じ 14pt を下限にする（#3201）。
+    public static func slideDistance(cellSide: CGFloat) -> CGFloat {
+        max(cellSide * slideThreshold, 14)
+    }
+
     /// 盤の座標（盤の左上が原点）から、いま指があるマスの番号。盤の外（余白・枠の外）は nil。
     public static func cell(at point: CGPoint, side: Int, cellSide: CGFloat, inset: CGFloat) -> Int? {
         let col = Int(((point.x - inset) / cellSide).rounded(.down))
@@ -802,7 +808,7 @@ extension CatPuzzleSize {
         case .easy: .beginner
         case .normal: .normal
         case .hard: .hard
-        case .expert: .expert
+        case .expert, .size10, .size11, .size12: .expert
         }
     }
 
@@ -818,7 +824,7 @@ extension CatPuzzleSize {
         case .easy: tr("かんたん")
         case .normal: tr("ふつう")
         case .hard: tr("むずかしい")
-        case .expert: tr("とことん")
+        case .expert, .size10, .size11, .size12: tr("とことん")
         }
     }
 
