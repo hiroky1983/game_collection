@@ -13,6 +13,8 @@ public struct SudokuView: View {
     @State private var hintRescue = RewardedRescue()
     /// 「色なしで区別」の設定。ON のとき、間違いのマスに色以外の印（×・内枠）を足す（#2405）。
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    /// 広い画面（iPad）で数字パッドを盤に釣り合う大きさにする倍率（#3185）。iPhone では恒等。
+    @Environment(\.adaptiveLayout) private var layout
     /// コンティニューのリワード広告の段取り（同上）。
     @State private var continueRescue = RewardedRescue()
     /// 「戻す」を使い切ったときの補充の提案と、そのリワード広告の段取り（#1855）。
@@ -600,11 +602,11 @@ public struct SudokuView: View {
             model.enter(digit: digit)
         } label: {
             Text("\(digit)")
-                .scaledFont(20, weight: .bold, design: .rounded)
+                .scaledFont(layout.scaled(20), weight: .bold, design: .rounded)
                 // 使い切った数字は文字だけを薄くする（#666）。ボタンの面は残し、並びの位置は変えない。
                 .opacity(exhausted ? SudokuMetrics.exhaustedDigitOpacity : 1)
                 .frame(maxWidth: .infinity)
-                .frame(minHeight: SudokuMetrics.padButtonMinSide)
+                .frame(minHeight: layout.scaled(SudokuMetrics.padButtonMinSide))
                 .background(
                     RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
                         .fill(model.noteMode ? Theme.purple.opacity(0.18) : Theme.surface)
@@ -613,7 +615,7 @@ public struct SudokuView: View {
                     // 残り個数（#2802）。使い切った数字は薄くするだけで数は出さない。
                     if !exhausted {
                         Text(verbatim: "\(remaining)")
-                            .scaledFont(10, weight: .semibold, design: .rounded)
+                            .scaledFont(layout.scaled(10), weight: .semibold, design: .rounded)
                             .foregroundStyle(Theme.inkSubText)
                             .padding(.top, 3)
                             .padding(.trailing, 5)
@@ -633,9 +635,9 @@ public struct SudokuView: View {
             model.erase()
         } label: {
             Image(systemName: "delete.left")
-                .scaledFont(17, weight: .bold)
+                .scaledFont(layout.scaled(17), weight: .bold)
                 .frame(maxWidth: .infinity)
-                .frame(minHeight: SudokuMetrics.padButtonMinSide)
+                .frame(minHeight: layout.scaled(SudokuMetrics.padButtonMinSide))
                 .background(
                     RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
                         .fill(Theme.surface)
