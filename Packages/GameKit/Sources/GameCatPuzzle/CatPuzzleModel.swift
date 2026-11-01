@@ -704,7 +704,7 @@ public final class CatPuzzleModel {
         continueUsed = true
         isOfferingContinue = false
         // 同じ盤面の続きなので、提案の時点で付けた「負け」は無かったことにする。
-        services?.playLog?.cancelLoss(gameID: Self.gameID, variant: size.recordVariant)
+        services?.playLog?.cancelLoss(gameID: Self.gameID, variant: recordVariant)
         recordResult = nil
         mistakes = Self.maxMistakes - 1
         startTimer()
