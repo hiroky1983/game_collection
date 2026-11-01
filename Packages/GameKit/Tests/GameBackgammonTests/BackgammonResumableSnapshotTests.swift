@@ -86,4 +86,29 @@ struct BackgammonResumableSnapshotTests {
         services.analytics?.leaveGame(gameID: "backgammon", isResumable: false)
         #expect(spy.quits.map(\.gameID) == ["backgammon"])
     }
+
+    @Test("「待った」で開始局面まで戻したら中断データを消し、離脱に数えない（#3133）")
+    func undoToStartClearsSnapshot() async {
+        let spy = SpyAnalyticsService()
+        let store = MemorySnapshotStore()
+        let services = makeServices(store: store, spy: spy)
+        let model = BackgammonModel(services: services, cpuDelay: .zero, seed: 1)
+        model.configureForTesting(board: BackgammonBoard(), side: .white, roll: (3, 1))
+        playHuman(model)
+        playHuman(model)
+        var guardCount = 0
+        while model.isAITurn, guardCount < 40 {
+            guardCount += 1
+            await model.performAIMoveIfNeeded()
+        }
+        #expect(store.exists(for: "backgammon"), "前提: 動かすと保存される")
+        #expect(model.canUndo, "前提: 待ったを押せる")
+        model.undoLastExchange()
+        #expect(model.board == BackgammonBoard(), "前提: 開始局面まで戻った")
+        #expect(!store.exists(for: "backgammon"))
+        #expect(!module.hasResumableSnapshot(in: store))
+        services.gameDidStart(gameID: "backgammon")
+        services.gameDidLeave(gameID: "backgammon")
+        #expect(spy.quits.isEmpty, "手つかずの局は離脱に数えない")
+    }
 }

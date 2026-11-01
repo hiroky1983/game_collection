@@ -660,6 +660,16 @@ public final class GameAnalytics {
         )
     }
 
+    /// 「待った」で開始局面まで戻し、手つかずの盤に戻ったときに呼ぶ（#3133）。`recordProgress` の逆。
+    /// 戻さないと、開始直後と同じ盤を捨てても途中離脱に数えてしまう。
+    public func clearProgress(gameID: String) {
+        guard case let .inFlight(startedAt, didProgress, canResume, hintsUsed) = plays[gameID], didProgress
+        else { return }
+        plays[gameID] = .inFlight(
+            startedAt: startedAt, didProgress: false, canResume: canResume, hintsUsed: hintsUsed
+        )
+    }
+
     /// この局は**画面を離れたら失われる**ことを伝える（#500）。
     ///
     /// 既定では「中断データが在る = 続きから戻れる」と見なすが、それが成り立たないゲームがある。

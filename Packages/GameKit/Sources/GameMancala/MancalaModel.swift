@@ -86,7 +86,9 @@ public final class MancalaModel: AITurnGuarded, BoardUndoModel {
         !gameOver && !isAITurn && !isThinking && !undoHistory.isEmpty
     }
     /// 「新規対局」で失われる進行があるか（1 手でも打った未決着の局）。
-    public var hasProgressToLose: Bool { !gameOver && turnID > 0 }
+    public var hasProgressToLose: Bool { !gameOver && turnID > 0 && !isAtStart }
+    /// 初期配置のまま（「待った」で開始局面まで戻した局を含む）。
+    private var isAtStart: Bool { board == MancalaBoard() }
     public var humanStore: Int { board.store(humanSide) }
     public var cpuStore: Int { board.store(humanSide.opponent) }
 
@@ -154,6 +156,7 @@ public final class MancalaModel: AITurnGuarded, BoardUndoModel {
         lastCPUMoveKey = nil
         undoUsed = true
         turnID += 1
+        if isAtStart { services?.gameDidUndoToStart(gameID: gameID) }
         persist()
     }
 
@@ -257,8 +260,12 @@ public final class MancalaModel: AITurnGuarded, BoardUndoModel {
             services?.snapshots.clear(for: gameID)
             return
         }
-        // 開いただけ（1 手も打っていない）の局は保存しない（#240）。
-        guard turnID > 0 else { return }
+        // 開いただけ（1 手も打っていない）の局は保存しない（#240）。「待った」で初期配置まで戻した局も同じ
+        // （`turnID` は戻らないので盤で見る）。前の保存が残らないよう消す。
+        guard turnID > 0, !isAtStart else {
+            services?.snapshots.clear(for: gameID)
+            return
+        }
         let snap = MancalaSnapshot(
             slots: board.slots, currentSide: currentSide.rawValue, humanFirst: humanFirst,
             aiLevel: aiLevel, turnID: turnID, startedAt: startedAt,

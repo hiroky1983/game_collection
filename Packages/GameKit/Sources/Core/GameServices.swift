@@ -167,6 +167,13 @@ public struct GameServices {
         reminders?.gameDidBeginPlay(gameID: gameID)
     }
 
+    /// 「待った」で**開始局面まで戻した**（盤が手つかずに戻った）ときに各 Model から呼ぶ（#3133）。
+    /// `gameDidProgress` で立てた「捨てたら途中離脱」の印を戻す。冪等。
+    @MainActor
+    public func gameDidUndoToStart(gameID: String) {
+        analytics?.clearProgress(gameID: gameID)
+    }
+
     /// ヒントを**1回使った**（無料・広告のどちらでも）ときに各 Model から呼ぶ（#1326・#1500）。`game_end` の `hints_used` に載る。
     ///
     /// 途中離脱の `game_end` は Model を経由せず共通経路で出るため、決着時に値を渡す形ではなく
