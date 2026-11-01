@@ -76,7 +76,8 @@ enum AppEnvironment {
         haptics: GatedFeedbackService(base: haptic) { settings.hapticsEnabled },
         isResumable: { gameID, snapshots in registry.hasResumableSnapshot(gameID: gameID, in: snapshots) },
         // ねこさがしのイベントの「ランキングを見る」（#3204）。ハブの実績・ランキングと同じダッシュボードを開く。
-        openGameCenter: { GameCenterEntry.open() }
+        // 未サインインで案内が要るときは、ハブと同じ案内をシートの上に出す。
+        openGameCenter: { GameCenterEntry.openShowingGuidance() }
     )
 
     /// 触覚の実体（`feedback` と `haptics` で共有。ジェネレータを使い回す）。

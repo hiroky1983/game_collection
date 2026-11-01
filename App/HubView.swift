@@ -1,6 +1,7 @@
 import SwiftUI
 import Core
 import GameHomerun
+import GameCatPuzzle
 
 /// ハブからゲーム画面への遷移先（#659）。
 ///
@@ -537,10 +538,10 @@ struct HubView: View {
             .presentationDetents([.large])
         }
         .dialogs { anchor in
-            anchor.alert(tr("Game Center にサインインしていません"), isPresented: $showGameCenterSignInGuidance) {
+            anchor.alert(GameCenterEntry.signInGuidanceTitle, isPresented: $showGameCenterSignInGuidance) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text(tr("iPhone の「設定」＞「Game Center」からサインインすると、実績と世界のランキングを見られます。サインインしなくても、あそびはすべてそのまま遊べます。"))
+                Text(GameCenterEntry.signInGuidanceMessage)
             }
         }
     }
@@ -886,8 +887,9 @@ enum HubEventBadge {
     /// 柵越えおじさんの週間ランキング自体は続く）。
     static let eventGameID = "catpuzzle"
 
-    static func isShown(gameID: String) -> Bool {
-        gameID == eventGameID
+    /// 開催期間の外（v1.1.15 の公開から 11/9 まで・12/10 以降）は出さない。期間はゲーム側の 1 か所（`CatPuzzleEvent`）を見る。
+    static func isShown(gameID: String, now: Date = Date()) -> Bool {
+        gameID == eventGameID && CatPuzzleModel.isEventPeriod(now: now)
     }
 }
 

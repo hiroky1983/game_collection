@@ -116,6 +116,8 @@ public final class CatPuzzleModel {
     @ObservationIgnored var eventSubmitTask: Task<Void, Never>?
     /// イベント開催中か（期間は `CatPuzzleEvent` の 1 か所）。
     public var isEventActive: Bool { CatPuzzleEvent.isActive(now: eventNow()) }
+    /// ランキングイベントの開催中か（ハブのタイルの「イベント開催中」の印が使う・#3204）。期間は `CatPuzzleEvent` の 1 か所。
+    nonisolated public static func isEventPeriod(now: Date = Date()) -> Bool { CatPuzzleEvent.isActive(now: now) }
     /// ステージの問題の作成を頼んだ回数。作っている間に別の局へ切り替わったら、出来上がった問題は捨てる。
     @ObservationIgnored private var stageRequest = 0
     /// 次の面を先に作っておく（遊んでいる間に裏で作り、「次のステージへ」で待たせない）。
