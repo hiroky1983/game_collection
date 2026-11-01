@@ -758,6 +758,14 @@ public final class CatPuzzleModel {
 
     static let stageRecordVariant = "stage"
 
+    /// 決着 1 回ぶんの記録。ステージは秒数を持たない（クリア・負けの回数だけ・#3210）。自由に遊ぶは大きさ別の最短タイム。
+    var recordScore: GameScore {
+        GameScore(
+            metric: .shortestTime, seconds: stage == nil ? elapsedSeconds : nil,
+            variant: recordVariant, variantLabel: recordVariantLabel
+        )
+    }
+
     private func finish() {
         syncElapsed()
         stopwatch.stop()
@@ -771,10 +779,7 @@ public final class CatPuzzleModel {
         recordResult = services?.gameDidFinish(
             gameID: Self.gameID,
             outcome: .win,
-            score: GameScore(
-                metric: .shortestTime, seconds: elapsedSeconds,
-                variant: recordVariant, variantLabel: recordVariantLabel
-            )
+            score: recordScore
         )
         services?.snapshots.clear(for: Self.gameID)
     }
@@ -840,10 +845,7 @@ public final class CatPuzzleModel {
         services?.gameDidFinish(
             gameID: Self.gameID,
             outcome: .loss,
-            score: GameScore(
-                metric: .shortestTime, seconds: elapsedSeconds,
-                variant: recordVariant, variantLabel: recordVariantLabel
-            )
+            score: recordScore
         )
     }
 

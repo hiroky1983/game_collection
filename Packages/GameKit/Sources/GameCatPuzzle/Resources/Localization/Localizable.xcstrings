@@ -1543,6 +1543,39 @@
         }
       }
     },
+    "ミス %1$lld・ヒント %2$lld回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Misses %1$lld · Hints %2$lld"
+          }
+        }
+      }
+    },
+    "途中で終了すると、いまの盤面が失われます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you quit now, the current board will be lost."
+          }
+        }
+      }
+    },
+    "同じ問題を最初から解きます。ミスはそのままです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You'll solve the same puzzle from the start. Mistakes are kept."
+          }
+        }
+      }
+    },
     "ステージ %lld クリア！" : {
       "extractionState" : "manual",
       "localizations" : {

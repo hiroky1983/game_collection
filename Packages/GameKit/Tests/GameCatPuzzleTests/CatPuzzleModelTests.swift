@@ -372,6 +372,9 @@ struct CatPuzzleModelTests {
         #expect(log.record(gameID: CatPuzzleModel.gameID, variant: "easy")?.bestSeconds == 65)
         let stageRecord = try #require(log.record(gameID: CatPuzzleModel.gameID, variant: "stage"))
         #expect(stageRecord.wins == 1 && stageRecord.variantLabel == "ステージ")
+        // ステージの記録は秒数を持たない（#3210）。
+        #expect(stageRecord.bestSeconds == nil)
+        #expect(stage.recordScore.seconds == nil && free.recordScore.seconds == 65, "自由に遊ぶは今のまま最短タイム")
     }
 
     @Test("全部の猫を置くとクリアし、記録はタイム（大きさごと）。中断データは消える")
