@@ -18,7 +18,7 @@ extension MahjongView {
                     ForEach(Array(result.yaku.enumerated()), id: \.offset) { _, line in
                         // 保存値（日本語）を表示言語にする（#2166）。
                         Text(MahjongHandResult.displayYakuLine(line))
-                            .scaledFont(12, weight: .semibold, design: .rounded)
+                            .scaledFont(adaptiveLayout.scaled(12), weight: .semibold, design: .rounded)
                             .foregroundStyle(Theme.inkSubText)
                     }
                 }
@@ -47,7 +47,13 @@ extension MahjongView {
         .frame(maxWidth: .infinity)
         .padding(16)
         .popCard(corner: Theme.cornerSmall)
+        // 広い画面では点数表が画面幅いっぱいに間延びするので、カードの幅に上限を置いて中央に寄せる（#3182）。
+        .frame(maxWidth: adaptiveLayout.isWide ? Self.wideResultCardMaxWidth : .infinity)
+        .frame(maxWidth: .infinity)
     }
+
+    /// 広い画面でのリザルトカードの幅の上限（pt・#3182）。
+    private static let wideResultCardMaxWidth: CGFloat = 520
 
     /// 和了者の手（門前 + 副露 + 和了牌）。「なぜ負けたか」を学べるようにリザルトで開く（#351）。
     /// 和了牌は `isHinted` のハイライトで半歩離して並べ、どれで和了ったかをひと目で分かるようにする。
@@ -57,8 +63,8 @@ extension MahjongView {
         let sorted = tiles.sorted { MahjongTileOrder.index(of: $0) < MahjongTileOrder.index(of: $1) }
         // 門前13枚 + 和了牌でもカード幅（約300pt）に収まる小ささ。副露があるぶん門前は減るので
         // これより横に伸びることはない。
-        let tileWidth: CGFloat = 17
-        let tileHeight: CGFloat = 23
+        let tileWidth: CGFloat = adaptiveLayout.scaled(17)
+        let tileHeight: CGFloat = adaptiveLayout.scaled(23)
         return HStack(spacing: 6) {
             HStack(spacing: 2) {
                 ForEach(Array(sorted.enumerated()), id: \.offset) { _, tile in
@@ -82,10 +88,10 @@ extension MahjongView {
     private func uraDoraRow(_ tiles: [MahjongTile]) -> some View {
         HStack(spacing: 4) {
             Text(tr("裏ドラ"))
-                .scaledFont(11, weight: .bold, design: .rounded)
+                .scaledFont(adaptiveLayout.scaled(11), weight: .bold, design: .rounded)
                 .foregroundStyle(Theme.inkSubText)
             ForEach(Array(tiles.enumerated()), id: \.offset) { _, tile in
-                MahjongTileView(tile: tile, width: 14, height: 19)
+                MahjongTileView(tile: tile, width: adaptiveLayout.scaled(14), height: adaptiveLayout.scaled(19))
             }
         }
         .accessibilityElement(children: .combine)
@@ -162,7 +168,7 @@ extension MahjongView {
             ForEach(0..<MahjongModel.playerCount, id: \.self) { player in
                 HStack {
                     Text(model.playerName(player))
-                        .scaledFont(12, weight: .semibold, design: .rounded)
+                        .scaledFont(adaptiveLayout.scaled(12), weight: .semibold, design: .rounded)
                         .foregroundStyle(Theme.inkSubText)
                     if let result = model.handResult, result.kind == .exhaustiveDraw {
                         drawStatus(player: player, result: result)
@@ -170,16 +176,16 @@ extension MahjongView {
                     Spacer()
                     if let change = model.handResult?.pointChanges[player], change != 0 {
                         Text(change > 0 ? "+\(change)" : "\(change)")
-                            .scaledFont(12, weight: .bold, design: .rounded)
+                            .scaledFont(adaptiveLayout.scaled(12), weight: .bold, design: .rounded)
                             .foregroundStyle(change > 0 ? Theme.tealText : Theme.coralText)
                             .fixedSize()
                     }
                     Text(Self.pointsText(model.scores[player]))
-                        .scaledFont(12, weight: .black, design: .rounded)
+                        .scaledFont(adaptiveLayout.scaled(12), weight: .black, design: .rounded)
                         .foregroundStyle(model.scores[player] < 0 ? Theme.coralText : Theme.ink)
                         // 英語（"25000 pts"）は日本語より長く、幅が固定の欄に 1 行で収める。
                         .lineLimit(1).minimumScaleFactor(0.7)
-                        .frame(width: 66, alignment: .trailing)
+                        .frame(width: adaptiveLayout.scaled(66), alignment: .trailing)
                 }
             }
         }
