@@ -123,7 +123,7 @@ struct MancalaResumableSnapshotTests {
         await playCPUTurn(model)
         model.tap(pit: model.legalPits[0])
         await playCPUTurn(model)
-        guard model.canUndo else { return }
+        #expect(model.canUndo, "前提: 待ったを押せる")
         model.undoLastExchange()
         #expect(model.board != MancalaBoard())
         #expect(module.hasResumableSnapshot(in: store))
