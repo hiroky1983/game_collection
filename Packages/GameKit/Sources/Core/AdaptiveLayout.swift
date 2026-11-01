@@ -100,6 +100,14 @@ public struct AdaptiveLayout: Equatable, Sendable {
     /// （盤は幅ではなく高さで頭打ちになりうる）。見劣りしない範囲で盤を削らない中間に置いている。
     public var elementScale: CGFloat { isWide ? 1.5 : 1 }
 
+    /// トランプの札に掛ける倍率（#3181）。ポーカー・ブラックジャックは縦が十分空くので、`elementScale` より大きく取る。
+    /// 札の行は `shrinkToFitWidth` が `tableMaxWidth` に収まるよう縮めるので、5 枚並べてもはみ出さない。
+    public var cardScale: CGFloat { isWide ? 2.0 : 1 }
+
+    /// 卓のまとまり（見出し・札・ボタン・結果パネル）の幅の上限（#3181）。狭い画面では上限なし。
+    /// 広い画面で左右の端に見出しが離れず、文字とボタンが画面幅いっぱいに伸びないようにする。
+    public var tableMaxWidth: CGFloat { isWide ? 640 : .infinity }
+
     /// 固定 pt の寸法を広い画面向けに拡大する。狭い画面では恒等なので、iPhone の見た目は動かない。
     public func scaled(_ points: CGFloat) -> CGFloat { points * elementScale }
 }
