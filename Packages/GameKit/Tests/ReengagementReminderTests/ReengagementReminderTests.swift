@@ -484,6 +484,26 @@ struct ReengagementReminderServiceTests {
         #expect(spy.scheduled["go"]?.contains(goSevenDay) != true, "衝突に負けた go の7日後がスキップされていない")
     }
 
+    @Test("永続停止はトグルのオフでは戻らず、オンに戻したときだけ解除され、次の背面で再び予約される（#3135）")
+    func permanentStopIsLiftedOnlyWhenTurnedBackOn() async {
+        let spy = SpyScheduler()
+        let env = Environment(now: date(8, 8))
+        let store = freshStore()
+        store.isPermanentlyStopped = true
+        let service = makeService(spy, env, store: store)
+        let games = [ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: date(1, 8))]
+
+        service.cancelAll()
+        #expect(store.isPermanentlyStopped)
+
+        service.notificationsDidTurnOn()
+        #expect(!store.isPermanentlyStopped)
+
+        service.applicationDidEnterBackground(games: games, availableIDs: ["shogi"])
+        await service.pendingWork?.value
+        #expect(spy.scheduled["shogi"] != nil)
+    }
+
     @Test("60日後通知が発火して24時間経っても未反応なら、ユーザー全体でこの機能を永続停止する")
     func permanentlyStopsAfterSixtyDaySilence() async {
         let spy = SpyScheduler()
