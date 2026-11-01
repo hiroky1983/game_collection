@@ -1488,6 +1488,61 @@
         }
       }
     },
+    "イベント +%1$lldpt・合計 %2$lldpt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Event +%1$lld pt · Total %2$lld pt"
+          }
+        }
+      }
+    },
+    "イベント開催中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Event"
+          }
+        }
+      }
+    },
+    "ステージをクリアして pt を貯めよう。ミス 0 回で 3pt・1 回で 2pt・2 回で 1pt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear stages to earn points: 3 pts for no misses, 2 for one miss, 1 for two"
+          }
+        }
+      }
+    },
+    "合計 %lldpt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Total %lld pt"
+          }
+        }
+      }
+    },
+    "ランキングを見る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View ranking"
+          }
+        }
+      }
+    },
     "次のステージへ" : {
       "extractionState" : "manual",
       "localizations" : {

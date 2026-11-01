@@ -74,7 +74,10 @@ enum AppEnvironment {
         homerunSound: GatedHomerunSoundService(base: sound) { settings.soundEnabled },
         // 触覚だけの入口（効果音に相乗りしない）。柵越えおじさんの場面ごとの触覚（`HomerunFeedbackCue`）が使う。
         haptics: GatedFeedbackService(base: haptic) { settings.hapticsEnabled },
-        isResumable: { gameID, snapshots in registry.hasResumableSnapshot(gameID: gameID, in: snapshots) }
+        isResumable: { gameID, snapshots in registry.hasResumableSnapshot(gameID: gameID, in: snapshots) },
+        // ねこさがしのイベントの「ランキングを見る」（#3204）。ハブの実績・ランキングと同じダッシュボードを開く。
+        // 未サインインで案内が要るときは、ハブと同じ案内をシートの上に出す。
+        openGameCenter: { GameCenterEntry.openShowingGuidance() }
     )
 
     /// 触覚の実体（`feedback` と `haptics` で共有。ジェネレータを使い回す）。

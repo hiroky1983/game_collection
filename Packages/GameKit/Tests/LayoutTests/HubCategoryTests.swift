@@ -166,10 +166,10 @@ struct HubCategoryTests {
         #expect(source.contains("ForEach(shownGridEntries, id: \\.module.id)"))
     }
 
-    @Test("「イベント開催中」の印は eventGameID（v1.1.15 は将棋）のタイルにだけ出し、柵越えおじさんには出さず、NEW を優先する（#2566・#2958）")
+    @Test("「イベント開催中」の印は eventGameID（v1.1.15 はねこさがし）のタイルにだけ出し、柵越えおじさんには出さず、NEW を優先する（#2566・#3204）")
     func eventBadge() throws {
         let source = try SourceScan.appSources()
-        #expect(source.contains(#"static let eventGameID = "shogi""#))
+        #expect(source.contains(#"static let eventGameID = "catpuzzle""#))
         #expect(source.contains("gameID == eventGameID"))
         #expect(!source.contains("weeklyLeaderboardID"), "週間ランキングの有無で印を出さない（#2958）")
         let ids = SourceScan.matchCount(of: #"HubEventBadge\.isShown\(gameID: module\.id\)"#, in: source)

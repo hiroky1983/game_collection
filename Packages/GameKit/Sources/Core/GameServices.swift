@@ -82,6 +82,9 @@ public struct GameServices {
     /// 「続きから戻れる途中の局か」の判定（#1847）。ハブの「続きから」と同じ `GameModule.hasResumableSnapshot` を
     /// App 層が差し込む。nil（テスト・プレビュー）のときは「中断データが在る」だけで見る。
     public let isResumable: ((String, SnapshotStore) -> Bool)?
+    /// Game Center のダッシュボード（実績・ランキング）を開く入口（#3204。ねこさがしのイベントの「ランキングを見る」）。
+    /// App 層が差し込む。nil（テスト・プレビュー）のときは導線を出さない。
+    public let openGameCenter: (@MainActor () -> Void)?
 
     public init(
         snapshots: SnapshotStore,
@@ -98,7 +101,8 @@ public struct GameServices {
         returnReminder: ChallengeReturnReminderService? = nil,
         homerunSound: HomerunSoundService = NoopHomerunSoundService(),
         haptics: FeedbackService = NoopFeedbackService(),
-        isResumable: ((String, SnapshotStore) -> Bool)? = nil
+        isResumable: ((String, SnapshotStore) -> Bool)? = nil,
+        openGameCenter: (@MainActor () -> Void)? = nil
     ) {
         self.snapshots = snapshots
         self.ads = ads
@@ -115,6 +119,7 @@ public struct GameServices {
         self.homerunSound = homerunSound
         self.haptics = haptics
         self.isResumable = isResumable
+        self.openGameCenter = openGameCenter
     }
 
     /// ゲーム画面を開いて新規にプレイが始まったときに各 Model から呼ぶ（#158）。
@@ -181,6 +186,13 @@ public struct GameServices {
     @MainActor
     public func gameDidUseHint(gameID: String) {
         analytics?.recordHintUsed(gameID: gameID)
+    }
+
+    /// ステージのクリアで稼いだイベントのポイントを伝える（#3204）。そのクリアの `gameDidFinish` の**前**に呼ぶと、
+    /// `game_end` に `event_points` として載る。
+    @MainActor
+    public func gameDidEarnEventPoints(gameID: String, points: Int) {
+        analytics?.recordEventPoints(gameID: gameID, points: points)
     }
 
     /// この局は**画面を離れたら失われる**ことを各 Model から伝える（#500）。
