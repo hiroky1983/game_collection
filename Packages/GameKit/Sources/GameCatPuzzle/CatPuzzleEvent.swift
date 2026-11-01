@@ -4,8 +4,8 @@ import Foundation
 /// 期間中に貯めた合計を Game Center のリーダーボード（`GameCenterLeaderboard.catPuzzleEvent`）へ送る。
 ///
 /// - ポイント: ミス 0 回 = 3pt・1 回 = 2pt・2 回 = 1pt。ミス 3 回はゲームオーバーなのでクリアできず 0pt。
-///   **ヒント・「猫を 1 匹教える」を使っても減らさない**。コンティニューで戻したミスは数え直す（広告を見て
-///   3 回目のミスを無かったことにしても、そのミスはポイントに響く）。
+///   **ヒント・「猫を 1 匹教える」を使っても減らさない**。ミスは画面に出ている数で数える（コンティニューで戻した
+///   ぶんは含まない。広告で続けて 2 回ミスのままクリアしたら 1pt）。
 /// - 期間外のクリアは加算しない。合計は端末に保存し、Game Center に未ログインでも貯まる（ログインしたら送る）。
 enum CatPuzzleEvent {
     /// 開催期間（JST）。**期間はここ 1 か所だけで持つ**。終わりは 12/9 の終わりまで（翌日 0:00 の手前）。
@@ -20,7 +20,7 @@ enum CatPuzzleEvent {
 
     static func isActive(now: Date = Date()) -> Bool { now >= start && now < end }
 
-    /// その面のクリアで得られるポイント。`mistakes` はコンティニューで戻したぶんも含めたミスの数。
+    /// その面のクリアで得られるポイント。`mistakes` は画面に出ているミスの数。
     static func points(mistakes: Int) -> Int {
         switch mistakes {
         case ..<0, 0: 3

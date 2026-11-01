@@ -788,10 +788,10 @@ public final class CatPuzzleModel {
     }
 
     /// ステージのクリアで、開催中ならイベントの pt を貯めて Game Center へ送る（#3204）。`gameDidFinish` より前に呼び、
-    /// `game_end` に `event_points` を載せる。ミスはコンティニューで戻したぶんも数える。ヒント・猫を教えるは見ない。
+    /// `game_end` に `event_points` を載せる。ミスは画面に出ている数（コンティニューで戻したぶんは含まない）。ヒント・猫を教えるは見ない。
     private func awardEventPoints() {
         guard stage != nil, isEventActive else { return }
-        let earned = CatPuzzleEvent.points(mistakes: mistakes + (continueUsed ? 1 : 0))
+        let earned = CatPuzzleEvent.points(mistakes: mistakes)
         lastEventPoints = earned
         eventTotal = CatPuzzleEvent.add(earned, to: stageDefaults)
         services?.gameDidEarnEventPoints(gameID: Self.gameID, points: earned)

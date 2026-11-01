@@ -104,16 +104,17 @@ struct CatPuzzleEventTests {
         #expect(model.lastEventPoints == 3)
     }
 
-    @Test("コンティニューで戻したミスも数える（3 回ミス → 広告で続ける → クリアは 0pt）")
-    func continueCountsTheMistake() async {
+    @Test("コンティニューで戻したあとは画面のミス数で数える（3 回ミス → 広告で続ける → クリアは 2 回扱いで 1pt）")
+    func continueUsesDisplayedMistakes() async {
         let model = makeModel(defaults: makeDefaults(), now: jst(2026, 11, 10))
         await start(model, 1)
         miss(model, times: 3)
         #expect(model.continueAfterAd())
         solve(model)
         #expect(model.isSolved)
-        #expect(model.lastEventPoints == 0)
-        #expect(model.eventTotal == 0)
+        #expect(model.mistakes == 2)
+        #expect(model.lastEventPoints == 1)
+        #expect(model.eventTotal == 1)
     }
 
     @Test("期間外のクリアは加算せず、game_end にも載せない。負けも 0")
