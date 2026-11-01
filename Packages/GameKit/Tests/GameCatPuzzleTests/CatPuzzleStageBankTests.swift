@@ -47,6 +47,15 @@ struct CatPuzzleStageBankTests {
         #expect(stage.makePuzzle() == stage.generatePuzzle())
     }
 
+    @Test("12×12 のステージから自由に遊ぶへ移っても、盤は 9×9 までの大きさで作る（選べない大きさで始めない）")
+    @MainActor
+    func freePlayAfterLargeStageUsesSelectableSize() {
+        let model = CatPuzzleModel(puzzle: CatPuzzleStage(61).makePuzzle(), size: .size12, stage: 61)
+        model.newGame()
+        #expect(model.stage == nil)
+        #expect(model.size == .expert && model.puzzle.side == 9)
+    }
+
     /// 同梱の行を書き出す（作り直し用）。`CAT_PUZZLE_BANK_OUT` に出力先を渡したときだけ動く。
     @Test("同梱の行の書き出し（作り直し用）")
     func exportBank() throws {

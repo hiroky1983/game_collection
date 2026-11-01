@@ -514,7 +514,7 @@ public final class CatPuzzleModel {
 
     /// 新規ゲーム（自由に遊ぶ）。`size` を渡すと盤の大きさを変える。ステージの途中からでも自由に遊ぶへ切り替わる。
     public func newGame(size newSize: CatPuzzleSize? = nil) {
-        if let newSize { size = newSize }
+        size = (newSize ?? size).freePlaySize
         cancelStagePreparation()
         begin(puzzle: Self.makePuzzle(size: size, generator: &generator), size: size, stage: nil)
     }

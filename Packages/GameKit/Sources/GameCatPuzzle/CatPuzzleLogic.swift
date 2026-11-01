@@ -24,6 +24,10 @@ public enum CatPuzzleSize: String, Codable, Sendable {
 extension CatPuzzleSize: CaseIterable {
     /// 自由に遊ぶ（難易度の選択・段階の提案）で選べる大きさ。10×10 以上はステージ専用なので含めない。
     public static var allCases: [CatPuzzleSize] { [.easy, .normal, .hard, .expert] }
+
+    /// 自由に遊ぶで使える大きさ。ステージ専用の 10×10 以上は、いちばん大きい 9×9 に丸める
+    /// （ステージの途中から開始シートを開いても、選べない大きさで始まらないように・#3201）。
+    var freePlaySize: CatPuzzleSize { Self.allCases.contains(self) ? self : .expert }
 }
 
 /// 1 問ぶん。マスは行優先の番号（`row * side + col`）。

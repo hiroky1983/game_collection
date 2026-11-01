@@ -152,6 +152,7 @@ struct CatPuzzleStageTests {
     func largeSizesAreStageOnly() {
         #expect(CatPuzzleSize.allCases == [.easy, .normal, .hard, .expert])
         #expect(CatPuzzleSize(rawValue: "size12") == .size12)
+        #expect([CatPuzzleSize.easy, .expert, .size10, .size12].map(\.freePlaySize) == [.easy, .expert, .expert, .expert])
     }
 
     @Test("種は番号ごとに違い、同じ番号なら同じ")

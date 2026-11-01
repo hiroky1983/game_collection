@@ -784,7 +784,7 @@ struct CatPuzzleNewGameSheet: View {
         self.onStart = onStart
         self.onCancel = onCancel
         _mode = State(initialValue: initialMode)
-        _size = State(initialValue: initial)
+        _size = State(initialValue: initial.freePlaySize)
     }
 
     var body: some View {
