@@ -234,11 +234,11 @@ public struct ShiritoriView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(ShiritoriPresentation.prompt(tail: model.requiredTail, isPlayerTurn: model.isPlayerTurn, phase: model.phase))
-                    .scaledFont(15, weight: .black, design: .rounded)
+                    .scaledFont(layout.scaled(15), weight: .black, design: .rounded)
                     .foregroundStyle(model.isPlayerTurn ? Theme.tealText : Theme.inkSubText)
                     .lineLimit(2).minimumScaleFactor(0.7)
                 Text(model.lastEvent.map(ShiritoriPresentation.eventText) ?? " ")
-                    .scaledFont(12, weight: .bold, design: .rounded)
+                    .scaledFont(layout.scaled(12), weight: .bold, design: .rounded)
                     .foregroundStyle(isMiss ? Theme.coralText : Theme.inkSubText)
                     .lineLimit(1).minimumScaleFactor(0.6)
                 scoreLine
@@ -262,7 +262,7 @@ public struct ShiritoriView: View {
                     .foregroundStyle(Theme.inkSubText)
             }
         }
-        .scaledFont(12, weight: .bold, design: .rounded)
+        .scaledFont(layout.scaled(12), weight: .bold, design: .rounded)
         .lineLimit(1).minimumScaleFactor(0.7)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(tr("あなた%1$lld枚、CPU%2$lld枚", model.playerCount, model.cpuCount)
