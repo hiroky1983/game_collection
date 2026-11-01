@@ -117,13 +117,16 @@ public struct CatPuzzleView: View {
                 Button(tr("終了して新規ゲーム"), role: .destructive) { showNewGame = true }
                 Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text(tr("途中で終了すると、いまの盤面とタイムが失われます。"))
+                // ステージは秒数を持たないので、タイムには触れない（#3210）。
+                Text(Self.showsClock(model) ? tr("途中で終了すると、いまの盤面とタイムが失われます。")
+                                            : tr("途中で終了すると、いまの盤面が失われます。"))
             }
             anchor.confirmationDialog(tr("印を全部消しますか？"), isPresented: $showConfirmClear, titleVisibility: .visible) {
                 Button(tr("全部消してやり直す"), role: .destructive) { withGameAnimation { model.reset() } }
                 Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text(tr("同じ問題を最初から解きます。タイムとミスはそのままです。"))
+                Text(Self.showsClock(model) ? tr("同じ問題を最初から解きます。タイムとミスはそのままです。")
+                                            : tr("同じ問題を最初から解きます。ミスはそのままです。"))
             }
         }
         .rewardedRescueAlerts(

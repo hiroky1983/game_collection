@@ -211,5 +211,8 @@ struct CatPuzzleStageModeTests {
         #expect(model.isFailed)
         let record = try #require(log.record(gameID: CatPuzzleModel.gameID, variant: "stage"))
         #expect(record.losses == 1 && record.bestSeconds == nil)
+        // 負けの記録（`recordLoss`）も同じ `recordScore` を渡す。PlayRecord は負けの秒数を取り込まないので、渡す値そのものを見る。
+        #expect(model.elapsedSeconds >= 0 && model.recordScore.seconds == nil)
+        #expect(model.recordScore.variant == CatPuzzleModel.stageRecordVariant)
     }
 }
