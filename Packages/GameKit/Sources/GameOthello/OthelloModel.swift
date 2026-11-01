@@ -130,7 +130,8 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         return othelloBoardSize * othelloBoardSize - blackCount - whiteCount
     }
     public var canUndo: Bool {
-        !gameOver && !isAITurn && !isThinking && !mustPass && !undoHistory.isEmpty
+        // ヒントの読み中は戻さない（古い局面のヒントを適用しない・#2236 / #3179）。
+        !gameOver && !isAITurn && !isThinking && !isHintThinking && !mustPass && !undoHistory.isEmpty
     }
 
     /// View の `.task(id:)` に渡す CPU 起動トリガー。

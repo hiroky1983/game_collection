@@ -134,7 +134,8 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel, BoardHintMode
     /// 「待った」が押せるのは**自分の手番の頭（まだ目を使っていない）**だけ。手番の途中は「やり直し」の領分で、
     /// ここでも押せると無料枠や広告を「やり直し」と同じ結果に使わせてしまう（verifier 指摘・PR #1344）。
     public var canUndo: Bool {
-        !gameOver && !isAITurn && !isThinking && !mustPass && !undoHistory.isEmpty
+        // ヒントの読み中は戻さない（古い局面のヒントを適用しない・#2236 / #3179）。
+        !gameOver && !isAITurn && !isThinking && !isHintThinking && !mustPass && !undoHistory.isEmpty
             && remainingDice.count == dice.count
     }
     public var humanPips: Int { board.pipCount(humanSide) }

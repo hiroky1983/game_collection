@@ -178,4 +178,37 @@ struct BackgammonHintTests {
         #expect(model.mustPass)
         #expect(!model.canUseHint)
     }
+
+    @Test("ヒントの読み中は待ったできない（古い局面のヒントを適用しない・#3179）")
+    func undoIsRefusedWhileHintThinking() async throws {
+        let (model, _, _) = makeModel()
+        // 自分の手番を打ち切り、CPU の応手まで進めて、待ったできる局面にする。
+        var guardCount = 0
+        while !model.gameOver, !model.isAITurn, guardCount < 8 {
+            guardCount += 1
+            if model.mustPass { model.confirmPass(); break }
+            guard let move = model.legalMoves.first else { break }
+            model.tap(move.from); model.tap(move.to)
+        }
+        guardCount = 0
+        while !model.gameOver, model.isAITurn, guardCount < 8 {
+            guardCount += 1
+            await model.performAIMoveIfNeeded()
+        }
+        try #require(model.canUseHint && model.canUndo, "前提: 人間の手番に戻り、待ったもヒントも使える")
+        let board = model.board
+
+        let reading = Task { @MainActor in await model.requestHint() }
+        await Task.yield()
+        try #require(model.isHintThinking, "前提: 読みの最中を捉えている")
+        #expect(!model.canUndo, "ヒントの読み中に待ったできてしまう")
+        model.undoLastExchange()
+        #expect(model.board == board, "読み中の待ったが盤を戻している")
+        #expect(!model.undoLastExchange(forTurn: model.aiTurnKey), "読み中に広告の待ったが通っている")
+        await reading.value
+
+        #expect(model.hintsRemaining == BoardHintBudget.total - 1, "待った無しならヒントは 1 回だけ消費される")
+        #expect(model.hintMove != nil)
+        #expect(model.canUndo, "読み終えたら待ったできる")
+    }
 }
