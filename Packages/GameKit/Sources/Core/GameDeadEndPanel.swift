@@ -63,6 +63,8 @@ public struct GameDeadEndPanel<Buttons: View>: View {
             }
         }
         .padding(28)
+        // iPad の全画面でカードとボタンが画面幅いっぱいに伸びないようにする（#3136）。
+        .frame(maxWidth: RewardedPanelLayout.maxContentWidth)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
         .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
     }
