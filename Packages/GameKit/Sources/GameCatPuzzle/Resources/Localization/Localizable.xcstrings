@@ -1542,6 +1542,72 @@
           }
         }
       }
+    },
+    "猫を教える" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show a Cat"
+          }
+        }
+      }
+    },
+    "猫を教えられませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Show a Cat"
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに新しいゲームが始まったか、盤面が変わったため、猫を教えられませんでした。\n残り回数は減っていません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new game started or the board changed while the ad was playing, so the cat couldn't be shown.\nYour remaining uses weren't used."
+          }
+        }
+      }
+    },
+    "猫を1匹教える、無料の回数は使い切りました。広告を見ると1回追加" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show a cat. You've used your free uses. Watch an ad to add 1"
+          }
+        }
+      }
+    },
+    "猫を1匹教える、あと%lld回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show a cat, %lld left"
+          }
+        }
+      }
+    },
+    "まだ置いていない猫を1匹、正解のマスに置きます。置いた猫は消せません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Places one cat you haven't found yet on its correct cell. Cats placed this way can't be removed"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

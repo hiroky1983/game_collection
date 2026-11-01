@@ -59,7 +59,8 @@ struct CatPuzzleModuleTests {
         #expect(code.contains("var hintRescue = RewardedRescue()"))
         #expect(code.contains("hintRescue.request(") && code.contains("purpose: .hint") && code.contains("guardedBy: .checkedByGrant"))
         #expect(code.contains(".rewardedRescueAlerts(\n            hintRescue,"))
-        #expect(code.contains("rescues: [hintRescue, continueRescue]"), "広告の視聴中は計時を止める")
+        #expect(code.contains("rescues: [hintRescue, teachRescue, continueRescue]"), "広告の視聴中は計時を止める")
+        #expect(code.contains("teachRescue.request(") && code.contains("purpose: .teach"), "猫を教えるの広告も同じ部品・局ガードつき（#3203）")
         // 3 回目のミスで出すのは負けの結果カード 1 枚だけで、その中でコンティニューかあきらめるかを選ぶ（#2904）。
         // 広告は押したときだけ（局ガードつき）出し、提案の計測も揃える（#2780）。
         #expect(code.contains(".boardGameResultCard(isPresented: Self.showsFailCard(model, closed: failCardClosed))"))
