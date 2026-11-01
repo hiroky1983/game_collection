@@ -82,6 +82,9 @@ final class GameSettings {
                 AppEnvironment.reminders.cancelAll()
                 AppEnvironment.reengagement.cancelAll()
                 AppEnvironment.returnReminder.cancel()
+            } else if !oldValue {
+                // オフ→オンは自分で再開を選んだ意思表示。久しぶり通知の永続停止を解く（#3135）。
+                AppEnvironment.reengagement.notificationsDidTurnOn()
             }
         }
     }

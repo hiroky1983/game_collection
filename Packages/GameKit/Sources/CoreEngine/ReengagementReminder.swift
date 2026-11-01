@@ -265,6 +265,14 @@ public final class ReengagementReminderService {
         scheduler.cancelAll()
     }
 
+    /// 設定でオフからオンに戻した。永続停止を解除する（自分で再開を選んだ意思表示と見なす・#3135）。
+    /// 予約はここでは入れない（次に背面へ入ったときの判定で入る）。`cancelAll()` は停止を戻さない
+    /// （オフにしただけでは停止は解けず、オンに戻したときだけ解く）。
+    public func notificationsDidTurnOn() {
+        epoch += 1
+        store.isPermanentlyStopped = false
+    }
+
     /// 通知がタップされた。対象外の ID（アプリの更新で外れたゲーム等）は無視する。
     public func notificationTapped(gameID: String) {
         guard reminderTitle(gameID) != nil else { return }
