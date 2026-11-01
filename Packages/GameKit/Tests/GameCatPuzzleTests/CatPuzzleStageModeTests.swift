@@ -174,4 +174,42 @@ struct CatPuzzleStageModeTests {
         #expect(view.clearDetails.count <= 3)
         #expect(view.clearDetails.contains { $0.contains("ステージ 1") })
     }
+
+    @Test("ステージは時計を出さず、クリアのカードにタイムが無い。自由に遊ぶは今のまま（#3210）")
+    func stageHasNoClock() async {
+        let services = makeServices()
+        let model = CatPuzzleModel(services: services, stageDefaults: makeDefaults("noClock"))
+        await start(model, 1)
+        #expect(!CatPuzzleView.showsClock(model))
+        solve(model)
+        let view = CatPuzzleView(services: services, model: model)
+        #expect(!view.clearDetails.contains { $0.contains("タイム") })
+        #expect(view.clearDetails.first == "ミス 0・ヒント 0回")
+        #expect(model.recordScore.seconds == nil, "記録に秒数を渡さない")
+
+        model.newGame(size: .easy)
+        #expect(CatPuzzleView.showsClock(model))
+        solve(model)
+        #expect(CatPuzzleView(services: services, model: model).clearDetails.first?.hasPrefix("タイム ") == true)
+        #expect(model.recordScore.seconds != nil)
+    }
+
+    @Test("ステージの負けも記録に秒数を残さない（#3210）")
+    func stageLossHasNoSeconds() async throws {
+        let suite = "asobiba.catpuzzle.stage.tests.lossLog"
+        let logDefaults = try #require(UserDefaults(suiteName: suite))
+        logDefaults.removePersistentDomain(forName: suite)
+        let log = PlayLog(defaults: logDefaults)
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), playLog: log)
+        let model = CatPuzzleModel(services: services, stageDefaults: makeDefaults("loss"))
+        await start(model, 1)
+        let solution = Set(model.puzzle.solutionCells)
+        for cell in (0..<model.puzzle.cellCount).filter({ !solution.contains($0) }).prefix(CatPuzzleModel.maxMistakes) {
+            model.findCat(cell: cell)
+        }
+        model.declineContinue()
+        #expect(model.isFailed)
+        let record = try #require(log.record(gameID: CatPuzzleModel.gameID, variant: "stage"))
+        #expect(record.losses == 1 && record.bestSeconds == nil)
+    }
 }

@@ -1543,6 +1543,17 @@
         }
       }
     },
+    "ミス %1$lld・ヒント %2$lld回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Misses %1$lld · Hints %2$lld"
+          }
+        }
+      }
+    },
     "ステージ %lld クリア！" : {
       "extractionState" : "manual",
       "localizations" : {

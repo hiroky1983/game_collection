@@ -239,8 +239,11 @@ public struct CatPuzzleView: View {
                     .scaledFont(13, weight: .bold, design: .rounded, maxScale: 1.3)
                     .foregroundStyle(Theme.inkSubText)
                     .accessibilityLabel(model.stage.map { tr("ステージ %lld", $0) } ?? tr("難易度 %@", model.size.label))
-                Text(tr("・")).foregroundStyle(Theme.inkSubText).accessibilityHidden(true)
-                GameClockLabel(RecordFormat.time(model.elapsedSeconds), elapsedSeconds: model.elapsedSeconds)
+                // ステージは秒数を出さない（#3210）。自由に遊ぶだけ時計を置く。
+                if Self.showsClock(model) {
+                    Text(tr("・")).foregroundStyle(Theme.inkSubText).accessibilityHidden(true)
+                    GameClockLabel(RecordFormat.time(model.elapsedSeconds), elapsedSeconds: model.elapsedSeconds)
+                }
             }
             .fixedSize()
             .layoutPriority(1)
@@ -500,7 +503,7 @@ public struct CatPuzzleView: View {
                         onReplay: { replay() },
                         onChangeSettings: { showNewGame = true }
                     ) {
-                        RecordLabel(model.recordResult)
+                        RecordLabel(shownRecord)
                     }
                 }
             } playing: {
@@ -648,17 +651,26 @@ public struct CatPuzzleView: View {
         return tr("%1$@（%2$@）", model.size.label, model.size.sizeLabel)
     }
 
+    /// 経過時間の時計を出すか。ステージは秒数を持たないので出さない（#3210）。
+    static func showsClock(_ model: CatPuzzleModel) -> Bool { model.stage == nil }
+
     /// クリアのカードの行。SE の画面に収まるよう 2〜3 行に詰める（#3048。以前は 5 行で盤からはみ出しスクロールになっていた）。
-    /// ヒントは 0 回でも省かず出す（#2613・#2801）。
+    /// ヒントは 0 回でも省かず出す（#2613・#2801）。ステージはタイムを出さない（#3210）。
     var clearDetails: [String] {
         var lines = [
-            tr("タイム %1$@・ミス %2$lld・ヒント %3$lld回",
-               RecordFormat.time(model.elapsedSeconds), model.mistakes, model.hintsUsed),
+            Self.showsClock(model)
+                ? tr("タイム %1$@・ミス %2$lld・ヒント %3$lld回",
+                     RecordFormat.time(model.elapsedSeconds), model.mistakes, model.hintsUsed)
+                : tr("ミス %1$lld・ヒント %2$lld回", model.mistakes, model.hintsUsed),
             tr("%1$@・手数 %2$lld", boardLabel, model.moves),
         ]
         if model.mistakes == 0 { lines.append(tr("ミスなしのパーフェクト！")) }
         return lines
     }
+
+    /// 結果に添える記録の行。ステージの記録は秒数を持たず、共通の 1 行（最短タイム）では「クリア記録なし」に
+    /// 化けるので出さない（#3210）。
+    private var shownRecord: RecordResult? { Self.showsClock(model) ? model.recordResult : nil }
 
     /// クリアのカード（画面全体に重ねる）。ステージは見出しを「ステージ n クリア！」にし、「次のステージへ」を置く。
     private var clearCard: some View {
@@ -693,8 +705,8 @@ public struct CatPuzzleView: View {
         return BoardGameResultCard(
             verdict: .loss,
             reason: tr("%lld回まちがえた…", CatPuzzleModel.maxMistakes),
-            details: [tr("%1$@・タイム %2$@", boardLabel, RecordFormat.time(model.elapsedSeconds))],
-            record: offering ? nil : model.recordResult,
+            details: [Self.showsClock(model) ? tr("%1$@・タイム %2$@", boardLabel, RecordFormat.time(model.elapsedSeconds)) : boardLabel],
+            record: offering ? nil : shownRecord,
             secondaryAction: offering
                 ? BoardGameResultCard.SecondaryAction(
                     title: tr("広告を見てコンティニュー"),
