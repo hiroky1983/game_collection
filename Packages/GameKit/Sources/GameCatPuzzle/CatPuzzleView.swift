@@ -270,10 +270,24 @@ public struct CatPuzzleView: View {
     }
 
     /// 盤を押している指の状態。指を置いた位置のマスと、スライドと決まったかを持つ。
-    private struct BoardTouch {
+    /// 参照型にして中身の書き換えでは View を再評価させない（`@State` の値型だと、指が動くたびに盤・マス n² 個を含む
+    /// 画面全体の body が作り直されて、× の表示が遅れる・#3202）。
+    private final class BoardTouch {
         var start: CGPoint?
         var startCell: Int?
         var isSliding = false
+
+        func begin(at start: CGPoint, cell: Int?) {
+            self.start = start
+            startCell = cell
+            isSliding = false
+        }
+
+        func reset() {
+            start = nil
+            startCell = nil
+            isSliding = false
+        }
     }
 
     /// 盤全体のタップとスライド（#3116）。指の動きがマスの一辺の `slideThreshold` 未満のまま離したらタップとして
@@ -285,9 +299,9 @@ public struct CatPuzzleView: View {
                 if boardTouch.start != value.startLocation {
                     // 前の指が離れ損ねていたら（システムの割り込み）確定してから新しい指として扱う。
                     if boardTouch.isSliding { model.endCrossDrag() }
-                    boardTouch = BoardTouch(
-                        start: value.startLocation,
-                        startCell: CatPuzzleModel.cell(at: value.startLocation, side: side, cellSide: cellSide, inset: inset))
+                    boardTouch.begin(
+                        at: value.startLocation,
+                        cell: CatPuzzleModel.cell(at: value.startLocation, side: side, cellSide: cellSide, inset: inset))
                 }
                 guard let startCell = boardTouch.startCell else { return }
                 let moved = hypot(value.location.x - value.startLocation.x, value.location.y - value.startLocation.y)
@@ -301,7 +315,7 @@ public struct CatPuzzleView: View {
                 }
             }
             .onEnded { value in
-                defer { boardTouch = BoardTouch() }
+                defer { boardTouch.reset() }
                 if boardTouch.isSliding {
                     model.endCrossDrag()
                 } else if let cell = boardTouch.startCell,
