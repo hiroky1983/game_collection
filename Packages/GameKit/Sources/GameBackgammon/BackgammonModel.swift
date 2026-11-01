@@ -258,6 +258,15 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel, BoardHintMode
         mustPass = false
         undoUsed = true
         turnID += 1
+        // 開始局面（初期配置）まで戻したら手つかずの局に戻す。残すと開始直後と同じ盤が「続きから」になり、
+        // 離れたときに途中離脱に数えられる。
+        if board == BackgammonBoard() {
+            hasProgressed = false
+            humanHasMoved = false
+            services?.gameDidUndoToStart(gameID: gameID)
+            services?.snapshots.clear(for: gameID)
+            return
+        }
         persist()
     }
 

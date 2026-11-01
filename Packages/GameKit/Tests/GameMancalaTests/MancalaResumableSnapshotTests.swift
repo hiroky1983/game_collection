@@ -91,4 +91,42 @@ struct MancalaResumableSnapshotTests {
         services.analytics?.leaveGame(gameID: "mancala", isResumable: false)
         #expect(spy.quits.map(\.gameID) == ["mancala"])
     }
+
+    @Test("「待った」で初期配置まで戻したら中断データを消す。新規対局の確認も出さない（#3133）")
+    func undoToStartClearsSnapshot() async {
+        let spy = SpyAnalyticsService()
+        let store = MemorySnapshotStore()
+        let services = makeServices(store: store, spy: spy)
+        services.gameDidStart(gameID: "mancala")
+        let model = MancalaModel(services: services, cpuDelay: .zero, seed: 1)
+        model.newGame(humanFirst: true)
+        model.tap(pit: 2)
+        await playCPUTurn(model)
+        #expect(store.exists(for: "mancala"), "前提: 1 手打つと保存される")
+        #expect(model.hasProgressToLose)
+        #expect(model.canUndo)
+        model.undoLastExchange()
+        #expect(model.board == MancalaBoard(), "前提: 初期配置まで戻った")
+        #expect(!store.exists(for: "mancala"))
+        #expect(!module.hasResumableSnapshot(in: store))
+        #expect(!model.hasProgressToLose)
+        services.gameDidLeave(gameID: "mancala")
+        #expect(spy.quits.isEmpty, "手つかずの局は離脱に数えない")
+    }
+
+    @Test("「待った」で戻しても開始局面でなければ従来どおり保存する（#3133）")
+    func undoToMidGameKeepsSnapshot() async {
+        let store = MemorySnapshotStore()
+        let model = MancalaModel(services: makeServices(store: store), cpuDelay: .zero, seed: 1)
+        model.newGame(humanFirst: true)
+        model.tap(pit: 2)
+        await playCPUTurn(model)
+        model.tap(pit: model.legalPits[0])
+        await playCPUTurn(model)
+        #expect(model.canUndo, "前提: 待ったを押せる")
+        model.undoLastExchange()
+        #expect(model.board != MancalaBoard())
+        #expect(module.hasResumableSnapshot(in: store))
+        #expect(model.hasProgressToLose)
+    }
 }
