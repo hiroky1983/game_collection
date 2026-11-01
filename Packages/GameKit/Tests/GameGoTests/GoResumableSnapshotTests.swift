@@ -85,4 +85,45 @@ struct GoResumableSnapshotTests {
         services.analytics?.leaveGame(gameID: "go", isResumable: false)
         #expect(spy.quits.map(\.gameID) == ["go"], "自分が指した後は従来どおり数える（対照）")
     }
+
+    @Test("「待った」で開始局面まで戻したら中断データを消し、離脱に数えない（#3200）")
+    func undoToStartClearsSnapshot() async {
+        let spy = SpyAnalyticsService()
+        let store = MemorySnapshotStore()
+        let services = GameServices(
+            snapshots: store, ads: NoopAdService(),
+            analytics: GameAnalytics(service: spy, allowedGameIDs: ["go"]),
+            isResumable: { _, snapshots in GoModule().hasResumableSnapshot(in: snapshots) }
+        )
+        services.gameDidStart(gameID: "go")
+        let model = GoModel(services: services)
+        model.newGame()
+        model.tap(row: 4, col: 4)
+        await model.performAIMoveIfNeeded()
+        #expect(store.exists(for: "go"), "前提: 1 往復指すと保存される")
+        #expect(model.canUndo, "前提: 待ったを押せる")
+        model.undoLastExchange()
+        #expect(model.moveCount == 0, "前提: 開始局面まで戻った")
+        #expect(!store.exists(for: "go"))
+        #expect(GoModule().hasUntouchedSnapshot(in: store) == false)
+        // 再開できない盤として離れる（`game_end` quit は「進行済みで再開できない」ときだけ送られる）。
+        services.analytics?.leaveGame(gameID: "go", isResumable: false)
+        #expect(spy.quits.isEmpty, "手つかずの局は離脱に数えない")
+    }
+
+    @Test("「待った」で戻しても開始局面でなければ従来どおり保存し、続きとして残す（#3200）")
+    func undoToMidGameKeepsSnapshot() async {
+        let store = MemorySnapshotStore()
+        let model = GoModel(services: GameServices(snapshots: store, ads: NoopAdService()))
+        model.newGame()
+        model.tap(row: 4, col: 4)
+        await model.performAIMoveIfNeeded()
+        let point = (0..<9).lazy.flatMap { r in (0..<9).map { (r, $0) } }
+            .first { model.state.illegalReason(for: .play(row: $0.0, col: $0.1)) == nil }
+        if let point { model.tap(row: point.0, col: point.1) }
+        await model.performAIMoveIfNeeded()
+        #expect(model.canUndo, "前提: 待ったを押せる")
+        model.undoLastExchange()
+        #expect(GoModule().hasResumableSnapshot(in: store))
+    }
 }

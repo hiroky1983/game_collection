@@ -593,6 +593,16 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             lastMove     = nil
             currentStone = .black
         }
+        // 人間がまだ指していない局（開始局面）まで戻したら、離脱の印を戻す。手が 0 手なら中断データも残さない（#3200）。
+        // 手順を持たない旧形式から復元した局は、復元前の石が baseBoard に残る。それは開始局面ではない。
+        let fromEmptyBoard = baseBoard.moveCount == 0
+        if fromEmptyBoard, !(0..<moves.count).contains(where: { mover(at: $0) == humanSide }) {
+            services?.gameDidUndoToStart(gameID: gameID)
+        }
+        if fromEmptyBoard, moves.isEmpty {
+            services?.snapshots.clear(for: gameID)
+            return
+        }
         persist()
     }
 

@@ -884,6 +884,14 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         reviewPly = moves.count
         undoUsed = true
         clearSelection()
+        // 人間がまだ指していない局（開始局面）まで戻したら、離脱の印を戻す。手が 0 手なら中断データも残さない（#3200）。
+        if !(0..<moves.count).contains(where: { mover(at: $0) == humanSide }) {
+            services?.gameDidUndoToStart(gameID: gameID)
+        }
+        if moves.isEmpty {
+            services?.snapshots.clear(for: gameID)
+            return
+        }
         persist()
     }
 
