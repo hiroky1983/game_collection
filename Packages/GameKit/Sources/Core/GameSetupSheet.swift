@@ -60,6 +60,7 @@ public struct GameSetupSheet<Content: View>: View {
         }
         .popBackground()
         .presentationDetents([.large])
+        .setupSheetPageSizing()
         #if DEBUG
         // 撮影用（DEBUG 限定・#2044）: `-autoStartSetup` で既定の選択のまま開始する（「？」のシートを
         // `-showHowToPlay` で撮るとき、開始シートが先に出ていると重ねて出せないため）。
@@ -308,5 +309,21 @@ private struct ShrinkToFit: ViewModifier {
             .lineLimit(lineLimit)
             .minimumScaleFactor(minimumScale ?? 0.6)
             .padding(.horizontal, 4)
+    }
+}
+
+// MARK: - iPad での大きさ（#3186）
+
+private extension View {
+    /// iPad では何も指定しないと約 578×645pt の定型サイズで開き、下が大きく空く／ルールの要点が切れる。
+    /// iOS 18 以上は `.page`（画面に合わせた大きさ）にする。iPhone は常に全幅の `.large` なので見た目は変わらない。
+    /// 最低 OS が 17 のため、17 では従来どおり（何も付けない）。
+    @ViewBuilder
+    func setupSheetPageSizing() -> some View {
+        if #available(iOS 18.0, macOS 15.0, *) {
+            self.presentationSizing(.page)
+        } else {
+            self
+        }
     }
 }
