@@ -783,6 +783,30 @@ struct CatPuzzleModelTests {
         #expect(declined.recordResult != nil)
     }
 
+    @Test("ステージのコンティニューは、ステージ側の負けだけを取り消す（自由に遊ぶ側は動かさない・#3177）")
+    func stageContinueCancelsStageLossOnly() throws {
+        let log = makeLog("stageContinueCancel")
+        let defaults = UserDefaults(suiteName: "asobiba.catpuzzle.tests.stageContinueCancel.progress")!
+        defaults.removePersistentDomain(forName: "asobiba.catpuzzle.tests.stageContinueCancel.progress")
+        // 自由に遊ぶ（かんたん）で先に 1 敗しておく。
+        let (free, _) = atThirdMistake(log: log)
+        free.declineContinue()
+        #expect(log.record(gameID: CatPuzzleModel.gameID, variant: "easy")?.losses == 1)
+        // ステージを 3 回ミスして提案 → 広告で続ける。
+        let stage = CatPuzzleModel(
+            services: makeServices(log: log), puzzle: sample, size: .easy, stage: 1, stageDefaults: defaults
+        )
+        let wrongs = (0..<sample.cellCount).filter { !sample.solutionCells.contains($0) }
+        placeCat(stage, at: sample.solutionCells[0])
+        for cell in wrongs.prefix(3) { placeCat(stage, at: cell) }
+        #expect(stage.isOfferingContinue)
+        #expect(try #require(log.record(gameID: CatPuzzleModel.gameID, variant: "stage")).losses == 1)
+        #expect(stage.continueAfterAd())
+        #expect((log.record(gameID: CatPuzzleModel.gameID, variant: "stage")?.losses ?? 0) == 0)
+        #expect((log.record(gameID: CatPuzzleModel.gameID, variant: "stage")?.plays ?? 0) == 0)
+        #expect(log.record(gameID: CatPuzzleModel.gameID, variant: "easy")?.losses == 1, "自由に遊ぶ側の負けは消えない")
+    }
+
     @Test("コンティニューは 1 局 1 回。使ったあとの 3 回目のミスはそのまま負け、新しい局で使える")
     func continueOncePerGame() {
         let spy = SpyAnalyticsService()
