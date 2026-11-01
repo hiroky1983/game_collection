@@ -116,6 +116,8 @@ struct GameActionCapsule: View {
     /// ヒントの促し（#1424）。段にヒントがあるときは吹き出しではなく、ヒントのカプセルを光らせて指す。
     @Environment(\.hintNudgeIsShowing) private var isNudging
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// 広い画面（iPad）では文字と記号を拡大する。狭い画面は倍率 1 で iPhone の見た目は動かない（#3183）。
+    @Environment(\.adaptiveLayout) private var layout
 
     private var glows: Bool { item.role == .hint && item.isEnabled && !item.looksDisabled && isNudging }
 
@@ -134,9 +136,9 @@ struct GameActionCapsule: View {
     private var label: some View {
         HStack(spacing: 5) {
             Image(systemName: item.systemImage)
-                .scaledFont(16, weight: .bold)
+                .scaledFont(layout.scaled(16), weight: .bold)
             VStack(alignment: .leading, spacing: -1) {
-                Text(item.title).themeBody(14, weight: .bold, maxScale: 1.3)
+                Text(item.title).themeBody(layout.scaled(14), weight: .bold, maxScale: 1.3)
                 secondLine
             }
         }
@@ -155,13 +157,13 @@ struct GameActionCapsule: View {
                     Text(countText)
                 }
                 if item.badge.needsAd {
-                    Image(systemName: "play.rectangle.fill").scaledFont(9)
+                    Image(systemName: "play.rectangle.fill").scaledFont(layout.scaled(9))
                 }
                 if let text = item.badge.text {
                     Text(text)
                 }
             }
-            .themeCaption(10, maxScale: 1.3)
+            .themeCaption(layout.scaled(10), maxScale: 1.3)
             .opacity(0.85)
         }
     }
