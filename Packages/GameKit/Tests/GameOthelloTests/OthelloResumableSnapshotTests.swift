@@ -67,4 +67,43 @@ struct OthelloResumableSnapshotTests {
         services.analytics?.leaveGame(gameID: "othello", isResumable: false)
         #expect(spy.quits.map(\.gameID) == ["othello"], "自分が指した後は従来どおり数える（対照）")
     }
+
+    @Test("「待った」で開始局面まで戻したら中断データを消し、離脱に数えない（#3200）")
+    func undoToStartClearsSnapshot() async {
+        let spy = SpyAnalyticsService()
+        let store = MemorySnapshotStore()
+        let services = GameServices(
+            snapshots: store, ads: NoopAdService(),
+            analytics: GameAnalytics(service: spy, allowedGameIDs: ["othello"]),
+            isResumable: { _, snapshots in OthelloModule().hasResumableSnapshot(in: snapshots) }
+        )
+        services.gameDidStart(gameID: "othello")
+        let model = OthelloModel(services: services)
+        model.newGame()
+        model.tap(row: 2, col: 3)
+        await model.performAIMoveIfNeeded()
+        #expect(store.exists(for: "othello"), "前提: 1 往復指すと保存される")
+        #expect(model.canUndo, "前提: 待ったを押せる")
+        model.undoLastExchange()
+        #expect(model.blackCount + model.whiteCount == 4, "前提: 開始局面まで戻った")
+        #expect(!store.exists(for: "othello"))
+        #expect(OthelloModule().hasUntouchedSnapshot(in: store) == false)
+        // 再開できない盤として離れる（`game_end` quit は「進行済みで再開できない」ときだけ送られる）。
+        services.analytics?.leaveGame(gameID: "othello", isResumable: false)
+        #expect(spy.quits.isEmpty, "手つかずの局は離脱に数えない")
+    }
+
+    @Test("「待った」で戻しても開始局面でなければ従来どおり保存し、続きとして残す（#3200）")
+    func undoToMidGameKeepsSnapshot() async {
+        let store = MemorySnapshotStore()
+        let model = OthelloModel(services: GameServices(snapshots: store, ads: NoopAdService()))
+        model.newGame()
+        model.tap(row: 2, col: 3)
+        await model.performAIMoveIfNeeded()
+        if let point = model.board.validMoves(for: .black).first { model.tap(row: point.0, col: point.1) }
+        await model.performAIMoveIfNeeded()
+        #expect(model.canUndo, "前提: 待ったを押せる")
+        model.undoLastExchange()
+        #expect(OthelloModule().hasResumableSnapshot(in: store))
+    }
 }

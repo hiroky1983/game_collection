@@ -91,4 +91,45 @@ struct ShogiResumableSnapshotTests {
         services.analytics?.leaveGame(gameID: "shogi", isResumable: false)
         #expect(spy.quits.map(\.gameID) == ["shogi"], "自分が指した後は従来どおり数える（対照）")
     }
+
+    @Test("「待った」で開始局面まで戻したら中断データを消し、離脱に数えない（#3200）")
+    func undoToStartClearsSnapshot() async {
+        let spy = SpyAnalyticsService()
+        let store = MemorySnapshotStore()
+        let services = GameServices(
+            snapshots: store, ads: NoopAdService(),
+            analytics: GameAnalytics(service: spy, allowedGameIDs: ["shogi"]),
+            isResumable: { _, snapshots in ShogiModule().hasResumableSnapshot(in: snapshots) }
+        )
+        services.gameDidStart(gameID: "shogi")
+        let model = ShogiGameModel(services: services)
+        model.newGame()
+        model.tapSquare(Sq.fromUSI("7g")!)
+        model.tapSquare(Sq.fromUSI("7f")!)
+        await model.performAIMoveIfNeeded()
+        #expect(store.exists(for: "shogi"), "前提: 1 往復指すと保存される")
+        #expect(model.canUndo, "前提: 待ったを押せる")
+        model.undoLastExchange()
+        #expect(model.moves.isEmpty, "前提: 開始局面まで戻った")
+        #expect(!store.exists(for: "shogi"))
+        #expect(ShogiModule().hasUntouchedSnapshot(in: store) == false)
+        // 再開できない盤として離れる（`game_end` quit は「進行済みで再開できない」ときだけ送られる）。
+        services.analytics?.leaveGame(gameID: "shogi", isResumable: false)
+        #expect(spy.quits.isEmpty, "手つかずの局は離脱に数えない")
+    }
+
+    @Test("「待った」で戻しても開始局面でなければ従来どおり保存し、続きとして残す（#3200）")
+    func undoToMidGameKeepsSnapshot() async {
+        let store = MemorySnapshotStore()
+        let model = ShogiGameModel(services: GameServices(snapshots: store, ads: NoopAdService()))
+        model.newGame()
+        model.tapSquare(Sq.fromUSI("7g")!)
+        model.tapSquare(Sq.fromUSI("7f")!)
+        await model.performAIMoveIfNeeded()
+        model.apply(model.legalMovesCache.first!)
+        await model.performAIMoveIfNeeded()
+        #expect(model.canUndo, "前提: 待ったを押せる")
+        model.undoLastExchange()
+        #expect(ShogiModule().hasResumableSnapshot(in: store))
+    }
 }

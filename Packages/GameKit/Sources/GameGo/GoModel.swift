@@ -465,6 +465,15 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         hintMove = nil
         // 戻した 2 手にパスが含まれることがあるので、札は残さない（#664）。
         passBannerDismissID += 1
+        // 人間がまだ指していない局（開始局面）まで戻したら、離脱の印を戻す。手が 0 手なら中断データも残さない（#3200）。
+        let cpuFirst = humanSide == .white || ruleset.handicap >= 2
+        if !CPUOpening.humanHasMoved(totalMoves: moves.count, cpuMovesFirst: cpuFirst) {
+            services?.gameDidUndoToStart(gameID: gameID)
+        }
+        if moves.isEmpty {
+            services?.snapshots.clear(for: gameID)
+            return
+        }
         persist()
     }
 

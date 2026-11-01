@@ -251,6 +251,15 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         // 決着・パスの有無は**戻した盤面から導出し直す**（#414）。無条件に false へ倒すと、
         // 打てる手が無い局面へ戻ったときに誰も着手できず、投了か新規対局しか手が無くなる。
         checkTermination()
+        // 人間がまだ指していない局（開始局面）まで戻したら、離脱の印を戻す。手が 0 手なら中断データも残さない（#3200）。
+        let placed = blackCount + whiteCount - 4
+        if !CPUOpening.humanHasMoved(totalMoves: placed, cpuMovesFirst: humanSide == .white) {
+            services?.gameDidUndoToStart(gameID: gameID)
+        }
+        if placed == 0 {
+            services?.snapshots.clear(for: gameID)
+            return
+        }
         persist()
     }
 
