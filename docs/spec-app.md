@@ -1312,7 +1312,7 @@ CPU と役の強さで比べる流れは変えない。
 `release/v1.1.7` の柵越えおじさん（v1.1.9 でハブに公開済み）は、1 日の挑戦回数を使い切った後、広告を見ると救済プレイを 1 回行える（保存済みの挑戦回数は増やさない）
 （`purpose` は `challenge`・#1348・#1475。1 日 5 本まで。打席前と結果の 2 か所に同じボタンを置き、広告の呼び出しは
 `HomerunRecoveryButton` の 1 か所）。
-救済の種類（`RewardPurpose`）は次の8つに閉じる:
+救済の種類（`RewardPurpose`）は次の9つに閉じる:
 
 | purpose | 内容 |
 |---|---|
@@ -1324,6 +1324,7 @@ CPU と役の強さで比べる流れは変えない。
 | `checkpoint` | チェックポイントからのやり直し |
 | `shuffle` | 手詰まりの盤面を、取り切れる配置へ並べ替える（麻雀ソリティア） |
 | `challenge` | 1 日の挑戦回数を 1 回ぶん増やす（柵越えおじさん・#1348・#1475）。盤面を救う 7 種とは違い、**回数制の枠そのものを買い足す** |
+| `teach` | 正解の猫を 1 匹置いてもらう（おじさんちのねこさがしのステージ・#3203。推理の 1 歩を示す `hint` とは別の面。ステージ全体で 5 回ぶんを持ち、0 になったら広告 1 回で 1 回） |
 
 ---
 
@@ -1342,7 +1343,7 @@ v1.1.4 までの公開版は3種）。
 | `game_start` | 1プレイの開始（冪等。中断からの復元では送らない。ただし**手つかずの中断データ**＝一手も指していない保存を開き直した回は、画面が出たあとにハブが `GameServices.gameScreenDidAppear` で数える。判定は `GameModule.hasUntouchedSnapshot`・対象は 2048・将棋・チェス・15パズル・囲碁・オセロ・五目並べ・ブロック崩し・神経衰弱・花札・ナンプレ。`hasResumableSnapshot` を持つ Module は `hasUntouchedSnapshot` も持つ決まりで、免除はブラックジャック・ポーカー・ハノイだけ（ルーレットは #2545 で削除）（走査テストが見張る）・#2161・#2301） | `game_id`、難易度を持つゲームのみ `level`、遊び方を選べるゲームのみ `mode`（#783・#820）、遊び込み具合として `play_count`（そのゲームの通算の終局回数。初めてなら 0）と、一度でも遊んだゲームのみ `days_since_last_play`（前回の決着からの経過日数・24 時間単位の切り捨て。#1195）、回数制のゲーム（柵越えおじさん）のみ消費した枠 `credit`（#1685） |
 | `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`（前面にいた秒数。バックグラウンド・ハブでの休憩は除き、上限 7200・#1373）、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal\|sink・最後のミスの原因。#796・#1089)、将棋・チェス・五目並べ・オセロ・マインスイーパー・15パズルでヒントを 1 回でも使ったプレイのみ `hints_used`（使った回数。無料・広告の合計・#1326）、開始に `credit` を付けたプレイのみ同じ `credit`（#1685）、開始に `level` を付けたプレイのみ同じ `level`（#1888）、ミスしたプレイのみ `miss_count`（ミス回数）・`miss_at`（最後のミスの進行率 %・5 刻み）、ミス直後に離脱した quit のみ `exit`(after_miss)（#2848） |
 | `clear_exit` | 面をクリアした直後の画面を、次の面にも「もう一度」にも進まず離れた（チャリンコおじさんのステージ制。`GameAnalytics.leaveGame` の1か所・#2848） | `game_id` / `level`(`stage-N`) |
-| `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の8値） |
+| `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の9値） |
 | `notification_permission` | 通知の許可ダイアログを**実際に出した** 1 回につき 1 回（すでに許可 / 拒否が決まっている状態の問い合わせでは送らない。各 `UserNotification*Scheduler.requestExplicitAuthorization` の1か所・#2008） | `result`(granted\|denied) / `trigger`(resume\|challenge\|reengagement。`reengagement` は #2938 以降は発火しない)。ゲーム ID は載せない。GA4 のカスタムディメンション登録が要る（会長操作） |
 | `review_prompt` | 評価のお願いの段階（#3061）。カードを出した（`shown`）・「App Store で感想を書く」（`write_review`）・「あとで」（`later`）・OS の評価ダイアログを依頼した（`os_requested`。出たかどうかは OS しか知らない）の 1 回につき 1 回 | `kind`(regular\|new_game_card) / `step`(shown\|write_review\|later\|os_requested) / `trigger`(days_7\|days_30。遊んだ日数の節目のときだけ・#3078)。ゲーム ID は載せない。GA4 のカスタムディメンション登録が要る（会長操作） |
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
