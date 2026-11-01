@@ -111,4 +111,22 @@ struct BackgammonResumableSnapshotTests {
         services.gameDidLeave(gameID: "backgammon")
         #expect(spy.quits.isEmpty, "手つかずの局は離脱に数えない")
     }
+
+    @Test("「待った」で戻しても開始局面でなければ従来どおり保存し、続きとして残す（#3133）")
+    func undoToMidGameKeepsSnapshot() async {
+        let store = MemorySnapshotStore()
+        let model = await cpuOpenedModel(makeServices(store: store))
+        playHuman(model)
+        playHuman(model)
+        var guardCount = 0
+        while model.isAITurn, guardCount < 40 {
+            guardCount += 1
+            await model.performAIMoveIfNeeded()
+        }
+        #expect(model.canUndo, "前提: 待ったを押せる")
+        model.undoLastExchange()
+        #expect(model.board != BackgammonBoard(), "前提: CPU の初手が入った盤へ戻った（開始局面ではない）")
+        #expect(store.exists(for: "backgammon"))
+        #expect(module.hasResumableSnapshot(in: store))
+    }
 }
