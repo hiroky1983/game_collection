@@ -259,6 +259,9 @@ public enum RewardGuard: Sendable {
 public enum RewardedPanelLayout {
     /// 幕の内側の余白。横幅いっぱいのボタンが盤の端に接しないようにする。
     public static let contentPadding: CGFloat = 16
+    /// 幕の中身の幅の上限。iPad の全画面で全幅ボタンが画面幅いっぱいに伸びないようにする（#3136）。
+    /// iPhone の幅（最大でも 430pt − 余白）では効かない。`GameDeadEndPanel` のカードも同じ値。
+    public static let maxContentWidth: CGFloat = 420
 }
 
 /// 決着した盤に被せる「広告を見て続ける」の幕（#829）。
@@ -377,6 +380,7 @@ public struct RewardedContinueOverlay<Detail: View>: View {
                 secondaryAction()
             }
         }
+        .frame(maxWidth: RewardedPanelLayout.maxContentWidth)
     }
 }
 

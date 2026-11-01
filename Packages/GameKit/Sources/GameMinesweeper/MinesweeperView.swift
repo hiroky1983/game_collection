@@ -294,6 +294,8 @@ public struct MinesweeperView: View {
                 showContinue = false
             }
         }
+        // iPad の全画面でボタンが画面幅いっぱいに伸びないようにする（#3136）。
+        .frame(maxWidth: RewardedPanelLayout.maxContentWidth)
         // 他の失敗パネル（2048・ブロックならべ・ナンプレ・フルーツ）と同じ余白（#1520）。
         .padding(RewardedPanelLayout.contentPadding)
     }
