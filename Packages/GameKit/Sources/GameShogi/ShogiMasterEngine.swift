@@ -52,17 +52,27 @@ public struct ShogiMasterEngine: ShogiEngine {
     }
 
     /// 計測用: 手と、読んだ局面数・読み切った深さ・評価値（手番側から見た値）を返す。
-    func analyze(sfen: String) -> (usi: String?, nodes: Int, depth: Int, score: Int)? {
+    ///
+    /// `restrictTo` を渡すと、根の手をその USI の集合に絞って読む（ヒントが「詰まされない手」だけから選ぶため・#3253）。
+    /// 絞った結果が空になるときは絞らない。
+    func analyze(sfen: String, restrictTo: Set<String>? = nil)
+        -> (usi: String?, nodes: Int, depth: Int, score: Int)? {
         let startedAt = Date()
         guard let pos = Position.fromSFEN(sfen) else { return nil }
-        let legal = pos.legalMoves()
+        var legal = pos.legalMoves()
         guard !legal.isEmpty else { return nil }
+        var restrict = restrictTo
+        if let allowed = restrict {
+            let kept = legal.filter { allowed.contains($0.usi) }
+            if kept.isEmpty { restrict = nil } else { legal = kept }
+        }
         if legal.count == 1 { return (legal[0].usi, 0, 0, 0) }
         let searcher = MasterSearcher(pos, options: options)
         defer { searcher.release() }
         let deadline = timeLimit.isFinite
             ? startedAt.addingTimeInterval(timeLimit - Self.overhead) : Date.distantFuture
-        let r = searcher.think(deadline: deadline, startedAt: startedAt, timeLimit: timeLimit, nodeLimit: nodeLimit)
+        let r = searcher.think(deadline: deadline, startedAt: startedAt, timeLimit: timeLimit, nodeLimit: nodeLimit,
+                               restrictTo: restrict)
         // 自前の手生成が万一食い違っても、非合法手は指さない（既存の合法手生成で必ず確かめる）。
         if let usi = r.usi, let m = Move.fromUSI(usi), legal.contains(m) {
             return (usi, r.nodes, r.depth, r.score)
@@ -1009,7 +1019,8 @@ private final class MasterSearcher {
 
     // MARK: 根
 
-    func think(deadline: Date, startedAt: Date, timeLimit: TimeInterval, nodeLimit: Int?)
+    func think(deadline: Date, startedAt: Date, timeLimit: TimeInterval, nodeLimit: Int?,
+               restrictTo: Set<String>? = nil)
         -> (usi: String?, nodes: Int, depth: Int, score: Int) {
         self.deadline = deadline
         self.nodeLimit = nodeLimit ?? .max
@@ -1022,7 +1033,7 @@ private final class MasterSearcher {
             make(buf[i])
             let ok = lastMoveIsLegal()
             unmake()
-            if ok { buf[k] = buf[i]; k += 1 }
+            if ok, restrictTo?.contains(usi(buf[i])) ?? true { buf[k] = buf[i]; k += 1 }
         }
         n = k
         guard n > 0 else { return (nil, 0, 0, 0) }
