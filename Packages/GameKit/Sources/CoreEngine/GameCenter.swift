@@ -44,9 +44,11 @@ public struct GameCenterBoard: Equatable, Sendable {
     public let end: Date?
     /// 先週の自分の順位（先週参加していない・取れなかったときは nil）。
     public let lastWeekRank: Int?
+    /// 先週の回の始まり（#3256。「前回の回」が本当に直前の回かを確かめるため。取れなければ nil）。
+    public let lastWeekStart: Date?
 
     public init(rows: [GameCenterBoardRow], myRank: Int?, myScore: Int?, participants: Int,
-                start: Date?, end: Date?, lastWeekRank: Int?) {
+                start: Date?, end: Date?, lastWeekRank: Int?, lastWeekStart: Date? = nil) {
         self.rows = rows
         self.myRank = myRank
         self.myScore = myScore
@@ -54,6 +56,7 @@ public struct GameCenterBoard: Equatable, Sendable {
         self.start = start
         self.end = end
         self.lastWeekRank = lastWeekRank
+        self.lastWeekStart = lastWeekStart
     }
 }
 

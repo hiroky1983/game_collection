@@ -114,7 +114,7 @@ final class CatPuzzleRankingModel {
     static func today(_ board: GameCenterBoard, now: Date) -> GameCenterBoard {
         guard isPastOccurrence(board, now: now) else { return board }
         return GameCenterBoard(rows: [], myRank: nil, myScore: nil, participants: 0,
-                               start: nil, end: nil, lastWeekRank: board.myRank)
+                               start: nil, end: nil, lastWeekRank: board.myRank, lastWeekStart: board.start)
     }
 }
 
@@ -161,7 +161,7 @@ struct CatPuzzleRankingView: View {
                         }
                         .buttonStyle(.bordered).controlSize(.large)
                     }
-                    Text(tr("前日の上位 3 位には、翌日にヒントか猫を教えるをプレゼント"))
+                    Text(tr("前日の上位 3 位には、翌日に特典をプレゼント（1 位はヒントと猫を教える、2 位は猫を教える、3 位はヒント）"))
                         .themeCaption(12).foregroundStyle(Theme.inkSubText)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)

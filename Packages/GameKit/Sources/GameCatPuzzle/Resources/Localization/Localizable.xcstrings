@@ -2269,6 +2269,237 @@
         }
       }
     },
+    "全員見つかったわい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Found every last one!"
+          }
+        }
+      }
+    },
+    "ようやく静かになったのう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finally, some peace and quiet."
+          }
+        }
+      }
+    },
+    "ふう、これで夕飯にできる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Phew, now we can have dinner."
+          }
+        }
+      }
+    },
+    "猫らしい隠れ方じゃった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Such a cat-like hiding spot."
+          }
+        }
+      }
+    },
+    "わしより家に詳しいのう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You know this house better than I do."
+          }
+        }
+      }
+    },
+    "今日もよう見つけたな" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another good find today."
+          }
+        }
+      }
+    },
+    "やるのう、お主" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Well done, my friend."
+          }
+        }
+      }
+    },
+    "まったく、どこにでも入りおる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Honestly, they get into everywhere."
+          }
+        }
+      }
+    },
+    "見事な探しっぷりじゃ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What a splendid search!"
+          }
+        }
+      }
+    },
+    "猫たちもほっとしておる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The cats seem relieved, too."
+          }
+        }
+      }
+    },
+    "これで安心して昼寝ができるわい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Now I can nap in peace."
+          }
+        }
+      }
+    },
+    "一度も外さんとは、恐れ入った" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not a single miss? I'm impressed."
+          }
+        }
+      }
+    },
+    "ぴたりと当てたな、見事じゃ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Right on the mark. Splendid!"
+          }
+        }
+      }
+    },
+    "鍵の猫まで見つけるとは、たいしたもんじゃ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You even found the key cat. Impressive!"
+          }
+        }
+      }
+    },
+    "家が広うなっても、お主にかかれば楽勝じゃな" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Even in a bigger house, it's easy for you."
+          }
+        }
+      }
+    },
+    "こんな広い家でよう見つけたのう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You found them all in such a big house!"
+          }
+        }
+      }
+    },
+    "うーむ、今日は猫の勝ちじゃな" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hmm, the cats win today."
+          }
+        }
+      }
+    },
+    "猫のほうが一枚上手じゃったか" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The cats outsmarted us."
+          }
+        }
+      }
+    },
+    "次こそは見つけてやるわい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next time, I'll find them!"
+          }
+        }
+      }
+    },
+    "どこに隠れたんじゃ、まったく" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Where did they hide, honestly?"
+          }
+        }
+      }
+    },
+    "惜しかったのう、もう一度じゃ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "So close! Let's try once more."
+          }
+        }
+      }
+    },
     "昨日のランキング %lld位！" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2302,13 +2533,13 @@
         }
       }
     },
-    "前日の上位 3 位には、翌日にヒントか猫を教えるをプレゼント" : {
+    "前日の上位 3 位には、翌日に特典をプレゼント（1 位はヒントと猫を教える、2 位は猫を教える、3 位はヒント）" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Yesterday's top 3 get a free hint or a free \"show a cat\" the next day"
+            "value" : "Yesterday's top 3 get a gift the next day (1st: a hint and a \"show a cat\", 2nd: a \"show a cat\", 3rd: a hint)"
           }
         }
       }

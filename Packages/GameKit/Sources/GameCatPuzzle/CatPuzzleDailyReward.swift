@@ -37,8 +37,10 @@ enum CatPuzzleDailyReward {
     enum Lookup: Equatable {
         /// 読めなかった（未サインイン・通信なし・Game Center の不調）。次に開いたときにやり直す。
         case unavailable
-        /// 読めた。前回の回に参加していなければ nil。
+        /// 読めた。前日の回に参加していなければ nil（読み損ねと区別できない）。
         case rank(Int?)
+        /// 読めたが、前回の回が前日の回ではなかった（前日に遊んでいない。Game Center は自分がスコアを送った直近の回を返しうる）。
+        case notYesterday
     }
 
     /// その順位の特典。4 位以下・順位なしは nil。
@@ -74,7 +76,19 @@ enum CatPuzzleDailyReward {
                                                          leaderboardID: GameCenterLeaderboard.catPuzzleEvent,
                                                          topCount: 1, includesLastWeek: true)
         else { return .unavailable }
-        return .rank(CatPuzzleRankingModel.today(board, now: now).lastWeekRank)
+        let yesterday = CatPuzzleRankingModel.today(board, now: now)
+        guard let rank = yesterday.lastWeekRank else { return .rank(nil) }
+        return isYesterdaysOccurrence(start: yesterday.lastWeekStart, now: now) ? .rank(rank) : .notYesterday
+    }
+
+    /// その回が**前日の回**か。回の始まりが「今日の 0 時（JST）の 36 時間前から今日の 0 時まで」に入っていれば前日の回
+    /// （一つ前の日の回は始まりが 48 時間前になる）。始まりが分からない回は確かめられないので前日と認めない。
+    static func isYesterdaysOccurrence(start: Date?, now: Date) -> Bool {
+        guard let start else { return false }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        let today = calendar.startOfDay(for: now)
+        return start >= today.addingTimeInterval(-36 * 60 * 60) && start < today
     }
 }
 
@@ -93,7 +107,13 @@ extension CatPuzzleModel {
         // 読んでいる間に日付が変わった・別の経路で受け取った場合は、順位が今日のものか分からないので捨てる。
         guard !Task.isCancelled, CatPuzzleEvent.day(of: now) == CatPuzzleEvent.day(of: started),
               !CatPuzzleDailyReward.isClaimed(stageDefaults, now: now),
-              case .rank(let rank) = result else { return }
+              result != .unavailable else { return }
+        // 前日に遊んでいない（前回の回が前日より前）と分かった日は 4 位以下と同じく読み直さない。
+        if result == .notYesterday {
+            stageDefaults.set(CatPuzzleEvent.day(of: now), forKey: CatPuzzleDailyReward.claimedDayKey)
+            return
+        }
+        guard case .rank(let rank) = result else { return }
         guard let grant = CatPuzzleDailyReward.grant(forRank: rank) else {
             // 4 位以下と分かった日は読み直さない。順位なし（nil）は前回の回の読み損ねかもしれないので保存せず、次に開いたときに読む。
             if rank != nil { stageDefaults.set(CatPuzzleEvent.day(of: now), forKey: CatPuzzleDailyReward.claimedDayKey) }

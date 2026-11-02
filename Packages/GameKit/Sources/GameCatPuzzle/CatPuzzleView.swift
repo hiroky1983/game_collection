@@ -572,9 +572,9 @@ public struct CatPuzzleView: View {
         ZStack {
             if model.isSolved {
                 // おじさんの一言は横いっぱいの吹き出しにして、文字が窮屈にならないようにする（会長 QA 2026-10-21・build 42）。
-                ojisanLine(face: .cheer, text: tr("みんなでくつろいでおる"))
+                ojisanLine(face: .cheer, text: tr(model.uncleLine ?? CatPuzzleUncleLines.clearNormal[0]))
             } else if model.isFailed {
-                ojisanLine(face: .frown, text: tr("猫はどこへ行ったんじゃ…"))
+                ojisanLine(face: .frown, text: tr(model.uncleLine ?? CatPuzzleUncleLines.fail[0]))
             } else if model.lastWrongCell != nil, model.mistakesRemaining == 1 {
                 // 残りミス 1 回は一段強く（アイコン付き・太字）。次の 1 回で終わることを見逃さないようにする。
                 Label(tr("あと1回で終わり！ そこに猫はいない"), systemImage: "exclamationmark.triangle.fill")

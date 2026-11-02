@@ -136,4 +136,30 @@ struct CatPuzzleDailyRewardTests {
         #expect(CatPuzzleRankingModel.today(fresh, now: now).lastWeekRank == 2)
         #expect(CatPuzzleRankingModel.today(stale, now: now).lastWeekRank == 3)
     }
+
+    @Test("前回の回が前日の回のときだけ順位を使う。2 日前の回・始まり不明は前日と認めない")
+    func yesterdaysOccurrenceOnly() {
+        let now = jst(2026, 11, 20, 9)
+        #expect(CatPuzzleDailyReward.isYesterdaysOccurrence(start: jst(2026, 11, 19, 0), now: now))
+        #expect(!CatPuzzleDailyReward.isYesterdaysOccurrence(start: jst(2026, 11, 18, 0), now: now), "2 日前の回")
+        #expect(!CatPuzzleDailyReward.isYesterdaysOccurrence(start: jst(2026, 11, 20, 0), now: now), "今日の回")
+        #expect(!CatPuzzleDailyReward.isYesterdaysOccurrence(start: nil, now: now))
+    }
+
+    @Test("前日に遊んでいないと分かった日は何も足さず、その日は読み直さない")
+    func notYesterdayStopsRetry() async {
+        let (model, spy, defaults) = make("notyesterday", now: jst(2026, 11, 20))
+        await model.claimDailyReward { .notYesterday }
+        #expect(model.hintsRemaining == 5 && model.teachRemaining == 5 && spy.grants.isEmpty)
+        #expect(CatPuzzleDailyReward.isClaimed(defaults, now: jst(2026, 11, 20)))
+    }
+
+    @Test("日付が変わった直後に前の回が返ったとき、その回の始まりも前日の確認に使える")
+    func staleBoardKeepsStart() {
+        let now = jst(2026, 11, 20, 0).addingTimeInterval(60)
+        let stale = GameCenterBoard(rows: [], myRank: 3, myScore: 1, participants: 10, start: jst(2026, 11, 19, 0),
+                                    end: jst(2026, 11, 20, 0), lastWeekRank: 7, lastWeekStart: jst(2026, 11, 18, 0))
+        let day = CatPuzzleRankingModel.today(stale, now: now)
+        #expect(day.lastWeekRank == 3 && CatPuzzleDailyReward.isYesterdaysOccurrence(start: day.lastWeekStart, now: now))
+    }
 }

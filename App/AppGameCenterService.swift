@@ -85,15 +85,17 @@ struct AppGameCenterService: GameCenterService {
             )
         }
         var lastWeekRank: Int?
+        var lastWeekStart: Date?
         if includesLastWeek,
            let previous = try? await leaderboard.loadPreviousOccurrence(),
            let last = try? await previous.loadEntries(for: .global, timeScope: .allTime, range: NSRange(location: 1, length: 1)) {
             lastWeekRank = last.0?.rank
+            lastWeekStart = previous.startDate
         }
         let end = leaderboard.startDate.map { $0.addingTimeInterval(leaderboard.duration) }
         return GameCenterBoard(
             rows: rows, myRank: page.0?.rank, myScore: page.0?.score, participants: page.2,
-            start: leaderboard.startDate, end: end, lastWeekRank: lastWeekRank
+            start: leaderboard.startDate, end: end, lastWeekRank: lastWeekRank, lastWeekStart: lastWeekStart
         )
     }
 

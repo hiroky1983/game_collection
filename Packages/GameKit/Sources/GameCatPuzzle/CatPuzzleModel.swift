@@ -141,6 +141,10 @@ public final class CatPuzzleModel {
     /// ヒント・猫を教えるは途切れの条件にしない（ランキングの pt と同じ考え方）。
     public private(set) var noMissStreak = 0
     public private(set) var noMissBest = 0
+    /// 終局のおじさんの一言（文言の表のキー・#3255）。クリア・負けの瞬間に面番号（自由に遊ぶは局の通し番号）から決め、保存しない。
+    public private(set) var uncleLine: String?
+    /// 直前に出した一言（同じ一言を続けて出さないための記憶）。アプリを開いている間だけ覚える。
+    @ObservationIgnored private var lastUncleLine: String?
     /// 直前のクリアで連続の最高を更新した。クリアのカードに「自己ベスト」と添える。
     public private(set) var beatNoMissBest = false
     /// 開始シートに出す今日の合計。画面を開いたまま 0:00 JST を過ぎても前日の値を出さないよう、保存から都度読む。
@@ -822,6 +826,7 @@ public final class CatPuzzleModel {
         marks = Array(repeating: .empty, count: puzzle.cellCount)
         history.removeAll()
         mistakes = 0
+        uncleLine = nil
         continueUsed = false
         isOfferingContinue = false
         hints.reset()
@@ -907,6 +912,7 @@ public final class CatPuzzleModel {
         // ステージは決着の時点で次の面へ進める（クリアのカードを閉じずにアプリを落としても進み具合は残る）。
         if let stage, stage + 1 > savedStage { stageDefaults.set(stage + 1, forKey: Self.stageProgressKey) }
         showsClearCard = false
+        chooseUncleLine(solved: true)
         services?.feedback.impact(.cat(.clear))
         recordNoMissClear()
         awardEventPoints()
@@ -917,6 +923,22 @@ public final class CatPuzzleModel {
             score: recordScore
         )
         services?.snapshots.clear(for: Self.gameID)
+    }
+
+    /// 終局のおじさんの一言を選ぶ（#3255）。ミスは画面に出ている数（コンティニューで戻したぶんは含まない）。
+    private func chooseUncleLine(solved: Bool) {
+        let number = stage ?? gameSerial
+        let line: String
+        if solved {
+            let stageInfo = stage.map { CatPuzzleStage($0) }
+            line = CatPuzzleUncleLines.clear(
+                number: number, mistakes: mistakes, isKey: keyCat != nil,
+                entersNewBoard: stageInfo?.entersNewBoard ?? false, side: puzzle.side, previous: lastUncleLine)
+        } else {
+            line = CatPuzzleUncleLines.failed(number: number, previous: lastUncleLine)
+        }
+        uncleLine = line
+        lastUncleLine = line
     }
 
     /// ステージのクリアで、ノーミスの連続を更新する（#3244）。ミスがあれば 0 に戻す。ミスは画面に出ている数
@@ -1020,6 +1042,7 @@ public final class CatPuzzleModel {
         syncElapsed()
         stopwatch.stop()
         isFailed = true
+        chooseUncleLine(solved: false)
         resetNoMissStreak()
         services?.feedback.notify(.error)
         if recordsLoss { recordResult = recordLoss() }
