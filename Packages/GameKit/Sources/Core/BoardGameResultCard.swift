@@ -181,6 +181,19 @@ public extension View {
             .gameAnimation(.easeOut(duration: 0.25), value: isPresented)
         }
     }
+
+    /// 画面全体（バナーを含む View）に結果カードを重ねる版。カードと暗幕はバナーの上までで止め、バナーは
+    /// 覆わない（#3247。`overlayAboveBanner`）。盤だけに重ねるゲームは上の `boardGameResultCard` を使う。
+    func boardGameResultCardAboveBanner<Card: View>(isPresented: Bool, @ViewBuilder card: () -> Card) -> some View {
+        overlayAboveBanner {
+            ZStack {
+                if isPresented {
+                    card().transition(.opacity)
+                }
+            }
+            .gameAnimation(.easeOut(duration: 0.25), value: isPresented)
+        }
+    }
 }
 
 extension View {

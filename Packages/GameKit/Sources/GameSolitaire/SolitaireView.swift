@@ -157,7 +157,7 @@ public struct SolitaireView: View {
                 SolitaireAccessibility.hintLabel(move: move, board: model.board)
             ).post()
         }
-        .overlay {
+        .overlayAboveBanner {
             if model.showsRescuePrompt {
                 SolitaireRescueOverlay(
                     model: model,

@@ -95,7 +95,7 @@ public struct ChessView: View {
             }
         }
         .overlay { checkOverlay }
-        .overlay { promotionOverlay }
+        .overlayAboveBanner { promotionOverlay }
         // 「？」と新規対局シート（図で見る遊び方の入口がある）を開いているあいだは読ませない。
         // 閉じたら鍵（paused）が変わって再起動し、止めていた思考をやり直す。
         .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen || showNewGame)) {

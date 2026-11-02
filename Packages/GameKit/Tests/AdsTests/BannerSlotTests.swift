@@ -61,3 +61,30 @@ struct BannerSlotTests {
         #expect(!BannerSlot.shouldMakeBanner(width: second, currentWidth: first))
     }
 }
+
+/// 暗幕・結果カードはバナーを覆わない（#3247）。バナーが画面の下にあれば上端まで、上にあれば下端から。
+@Suite("幕を置いてよい範囲（バナーを避ける）")
+struct BannerAvoidanceTests {
+    @Test("バナーが下にあれば、その上端までが幕の範囲")
+    func stopsAtBannerTop() {
+        let banner = CGRect(x: 0, y: 760, width: 393, height: 50)
+        let region = BannerAvoidance.region(containerHeight: 852, banner: banner)
+        #expect(region.top == 0)
+        #expect(region.height == 760)
+    }
+
+    @Test("バナーが上端にあれば、その下からが幕の範囲（打席）")
+    func startsBelowTopBanner() {
+        let banner = CGRect(x: 0, y: 0, width: 393, height: 50)
+        let region = BannerAvoidance.region(containerHeight: 800, banner: banner)
+        #expect(region.top == 50)
+        #expect(region.height == 750)
+    }
+
+    @Test("バナーが無ければ全体に重ねる")
+    func coversAllWithoutBanner() {
+        let region = BannerAvoidance.region(containerHeight: 800, banner: nil)
+        #expect(region.top == 0)
+        #expect(region.height == 800)
+    }
+}

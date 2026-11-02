@@ -120,11 +120,11 @@ public struct CatPuzzleView: View {
         // 3 回目のミスで出すダイアログはこの結果カード 1 枚だけ。中に「広告を見てコンティニュー」と
         // 「あきらめて正解を見る」を並べ、あきらめたら盤に正解を出して終わる（もう 1 枚は重ねない・#2904）。
         // 盤（正方形）ではなく画面全体に重ねる。盤の高さだけでは SE でボタンまで見えないため（#2931）。
-        .boardGameResultCard(isPresented: Self.showsFailCard(model, closed: failCardClosed)) { failCard }
+        .boardGameResultCardAboveBanner(isPresented: Self.showsFailCard(model, closed: failCardClosed)) { failCard }
         // クリアのカードも盤ではなく画面全体に重ねる。盤に重ねるとカードの方が背が高く、SE でスクロールになっていた（#3048）。
         // 最後の猫が出る演出を見せてから 1 拍（`CatPuzzleModel.clearCardDelay`）おいて出す。
         // 「次のステージへ」を押して次の面を作っている間はカードを下げ、盤の「問題を用意しています…」を見せる。
-        .boardGameResultCard(isPresented: model.showsClearCard && !clearCardClosed && !model.isPreparingStage) { clearCard }
+        .boardGameResultCardAboveBanner(isPresented: model.showsClearCard && !clearCardClosed && !model.isPreparingStage) { clearCard }
         .gameChrome(title: tr("おじさんちのねこさがし"), review: services.review,
                     newGame: GameChromeNewGame(.solo, isDisabled: hintRescue.isWatching || teachRescue.isWatching || continueRescue.isWatching) { requestNewGame() })
         .howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items).onboarding(CatPuzzleOnboarding.guide))
