@@ -831,8 +831,8 @@ public final class CatPuzzleModel {
             guard let self else { return }
             if sent { CatPuzzleEvent.markSent(total, day: day, in: self.stageDefaults) }
             self.eventSubmitTask = nil
-            // 送っているあいだにさらに貯まっていたら続けて送る（失敗したときは繰り返さない）。
-            if sent { self.submitEventTotalIfNeeded() }
+            // 送っているあいだにさらに貯まっていたら続けて送る。失敗したときは繰り返さないが、日をまたいでいたら新しい日の分は送る。
+            if sent || CatPuzzleEvent.day(of: self.eventNow()) != day { self.submitEventTotalIfNeeded() }
         }
     }
 

@@ -918,7 +918,7 @@ struct CatPuzzleNewGameSheet: View {
     static func eventSection(total: Int, onOpenRanking: (@MainActor () -> Void)?) -> some View {
         GameSetupSection(tr("イベント開催中")) {
             VStack(alignment: .leading, spacing: 8) {
-                Text(tr("ステージをクリアして今日の pt を貯めよう（毎日 0 時にリセット）。ミス 0 回で 3pt・1 回で 2pt・2 回で 1pt"))
+                Text(tr("ステージをクリアして今日の pt を貯めよう（毎日 日本時間の 0 時にリセット）。ミス 0 回で 3pt・1 回で 2pt・2 回で 1pt"))
                     .themeBody(13).foregroundStyle(Theme.inkSubText)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack {

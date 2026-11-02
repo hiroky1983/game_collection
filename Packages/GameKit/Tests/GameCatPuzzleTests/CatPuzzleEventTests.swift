@@ -230,6 +230,26 @@ struct CatPuzzleEventTests {
         #expect(center.submitted == [GameCenterScore(leaderboardID: "asobiba.catpuzzle.daily", value: 2)])
     }
 
+    @Test("前日分の送信が失敗しても、日をまたいでいれば新しい日の分を送り直す")
+    func resendsNewDayAfterFailure() async {
+        let defaults = makeDefaults()
+        let center = SpyGameCenter()
+        center.succeeds = false
+        var clock = jst(2026, 11, 10, 23, 59)
+        let model = makeModel(defaults: defaults, now: clock, center: center)
+        model.eventNow = { clock }
+        await start(model, 1)
+        solve(model)
+        clock = jst(2026, 11, 11)
+        center.succeeds = true
+        await model.eventSubmitTask?.value
+        #expect(center.submitted.count == 1, "前日分は失敗し、新しい日の合計はまだ 0 なので送るものが無い")
+        await start(model, 2)
+        solve(model)
+        await model.eventSubmitTask?.value
+        #expect(center.submitted.last?.value == 3 && CatPuzzleEvent.sent(defaults, now: clock) == 3)
+    }
+
     @Test("期間外は日付が違っても加算しない（開始前・終了後）")
     func outsidePeriodByDay() async {
         let defaults = makeDefaults()
