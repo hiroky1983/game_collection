@@ -2,23 +2,23 @@ import Core
 import CoreEngine
 import Observation
 
-/// サイコロ役づくりの「役選びを戻す」の回数制（#2940）。値は `RewardedUndoBudget` が持ち、ここは
-/// このゲームの文脈に名前を残すための転送（`Game2048UndoBudget` と同じ作り）。
-public enum DiceComboUndoBudget {
-    /// 1 局につき無料で戻せる回数。
-    public static let free = RewardedUndoBudget.free
-    /// リワード広告 1 本の視聴完了で補充する回数。
-    public static let refill = RewardedUndoBudget.refill
-}
-
 /// サイコロ役づくり（#1752）のゲーム状態。1 人用で、12 役ぜんぶに点を入れたら 1 局の決着。
 ///
 /// 1 ターン = 最大 3 回振る → 役を 1 つ選んで点を入れる。キープした目は振り直さない。
+/// 3 回振り切ったあと、広告 1 本につき 1 回ずつ、1 ターンに最大 `maxAdRerolls` 回まで振り直せる（#3257）。
+/// 12 役を埋めたとき 0 点の役があれば、広告 1 本でそのうち 1 役を 1 局に 1 回だけやり直せる（#3257）。
+///
+/// **Game Center のリーダーボード・実績にはサイコロ役づくりを載せない**（広告で多く振った局と
+/// 振っていない局を同じ順位表で競わせないため。今も載せていないし、今後も足さない・#3257）。
+/// 端末内の記録（自己ベスト・通算）には載せてよい。
 /// 役の判定と得点は `DiceComboLogic` に委譲し、ここは乱数・永続化・記録・解析だけを担う。
 @MainActor
 @Observable
 public final class DiceComboModel {
     public static let gameID = "dicecombo"
+
+    /// 1 ターンに広告で振り直せる回数の上限（通常の `DiceComboLogic.maxRolls` 回に加えて・#3257）。
+    public static let maxAdRerolls = 3
 
     /// 大きな役として祝う点（#2804）。ファイブダイス（50）・ビッグストレート（30）・スモールストレート（25）。
     /// 通常の役（フルハウスの合計・チョイスなど）では超えにくい線に置く。
@@ -43,12 +43,19 @@ public final class DiceComboModel {
     /// サイコロが転がっている演出の最中か（#2365）。出目は振った瞬間に `dice` へ確定済みで、
     /// これは「まだ見せていない」だけの印。永続化しない（中断から戻ったら止まった目を出す）。
     public private(set) var isRolling = false
-    /// 「役選びを戻す」の残り回数（#2940）。1 局の無料枠から始まり、広告の視聴完了で補充される。
-    public private(set) var undosRemaining = DiceComboUndoBudget.free
-    /// 何局目か。広告を出す前に控え、ロード中に始めた新しい局へ補充を乗せないための印。永続化しない。
+    /// このターンに広告で振った回数（0〜`maxAdRerolls`）。通常の 3 回を振り切ったあとにだけ増え、役を選ぶと 0 に戻る。
+    public private(set) var adRollsUsed = 0
+    /// 12 役が埋まり、0 点の役があるので、広告で 1 役やり直すかを選ばせている間（#3257）。
+    /// この間は `isFinished` だが記録・解析は確定しない。断る（`declineContinue`）・やり直す（`grantContinue`）・
+    /// 新しいゲームのどれかで決まる。中断データには残るので、アプリを離れても提案から再開できる。
+    public private(set) var isOfferingContinue = false
+    /// この局でコンティニュー（広告での 1 役やり直し）を使ったか。1 局 1 回まで。
+    public private(set) var continueUsed = false
+    /// 何局目か。広告を出す前に控え、ロード中に始めた新しい局へ報酬を乗せないための印。永続化しない。
     public private(set) var gameSerial = 0
-    /// 直前の役選び。次のターンを振るまで（`rollsUsed == 0` のあいだ）だけ戻せる。
-    private var lastChoice: DiceComboSnapshot.Choice?
+    /// 何ターン目の操作か（役を選ぶ・やり直す・新しいゲームで増える）。広告を出す前に控え、
+    /// ロード中にターンが変わっていたら振り直しを乗せない。永続化しない。
+    public private(set) var turnSerial = 0
 
     private let services: GameServices?
     private var generator: SplitMix64?
@@ -70,8 +77,10 @@ public final class DiceComboModel {
             held = restored.held
             rollsUsed = restored.rollsUsed
             scores = restored.scores
-            undosRemaining = restored.undosRemaining
-            lastChoice = restored.lastChoice
+            adRollsUsed = restored.adRollsUsed
+            continueUsed = restored.continueUsed
+            isOfferingContinue = restored.isOfferingContinue
+            isFinished = restored.isOfferingContinue
         } else {
             // 中断からの復元は「新しいプレイ」ではないので開始は数えない。
             services?.gameDidStart(gameID: Self.gameID)
@@ -90,8 +99,19 @@ public final class DiceComboModel {
     /// 振れるか。転がっている最中は振れない（連打で二重に振らない・#2365）。
     public var canRoll: Bool { !isFinished && !isRolling && rollsUsed < DiceComboLogic.maxRolls }
 
-    /// キープを切り替えられるか（振ったあとで止まっていて、まだ振り直せるとき）。
-    public var canHold: Bool { !isFinished && !isRolling && rollsUsed > 0 && rollsUsed < DiceComboLogic.maxRolls }
+    /// 通常の 3 回を振り切ったあと、広告で振り直せるか（#3257）。
+    public var canAdReroll: Bool {
+        !isFinished && !isRolling && rollsUsed == DiceComboLogic.maxRolls && adRollsUsed < Self.maxAdRerolls
+    }
+
+    /// このターンに広告であと何回振り直せるか。
+    public var adRerollsRemaining: Int { Self.maxAdRerolls - adRollsUsed }
+
+    /// キープを切り替えられるか（振ったあとで止まっていて、通常か広告でまだ振り直せるとき）。
+    public var canHold: Bool {
+        !isFinished && !isRolling && rollsUsed > 0
+            && (rollsUsed < DiceComboLogic.maxRolls || adRollsUsed < Self.maxAdRerolls)
+    }
 
     /// その役にいま点を入れられるか。転がっている最中は止まった目をまだ見せていないので選べない。
     public func canChoose(_ category: DiceComboCategory) -> Bool {
@@ -120,7 +140,7 @@ public final class DiceComboModel {
 
     // MARK: - 操作
 
-    /// キープしていないサイコロを振る。1 ターン 3 回まで。
+    /// キープしていないサイコロを振る。1 ターン 3 回まで（そのあとは広告で `grantReroll`）。
     ///
     /// 出目はここで確定して保存する。`rollInterval` があれば `isRolling` を立て、その間だけ画面が転がる演出を出す。
     public func roll() {
@@ -130,13 +150,29 @@ public final class DiceComboModel {
             services?.feedback.notify(.warning)
             return
         }
+        performRoll(viaAd: false)
+    }
+
+    /// リワード広告の**視聴完了後**に 1 回振る（#3257）。キープは通常の振りと同じに効く。
+    ///
+    /// - Parameters:
+    ///   - serial: 広告を出す前に控えた `gameSerial`。
+    ///   - turn: 広告を出す前に控えた `turnSerial`。広告のロード中に局やターンが変わっていたら振らない。
+    /// - Returns: 振れたか。false のとき View は「振り直せなかった」と伝える。
+    @discardableResult
+    public func grantReroll(forGame serial: Int, turn: Int) -> Bool {
+        guard serial == gameSerial, turn == turnSerial, canAdReroll else { return false }
+        adRollsUsed += 1
+        performRoll(viaAd: true)
+        return true
+    }
+
+    private func performRoll(viaAd: Bool) {
         if rollsUsed == 0 { held = Array(repeating: false, count: DiceComboLogic.diceCount) }
         dice = rollDice()
-        rollsUsed += 1
+        if !viaAd { rollsUsed += 1 }
         rollSerial += 1
         lastFilled = nil
-        // 次の出目を見たあとには戻せない（覗いてから戻す抜け道を作らない）。
-        lastChoice = nil
         // 振った = 捨てたら途中離脱として数える局（冪等）。
         services?.gameDidProgress(gameID: Self.gameID)
         services?.feedback.impact(.medium)
@@ -182,18 +218,15 @@ public final class DiceComboModel {
             return
         }
         let points = DiceComboLogic.score(category, dice: dice)
-        lastChoice = DiceComboSnapshot.Choice(
-            category: category.rawValue, dice: dice, held: held, rollsUsed: rollsUsed
-        )
         scores[category] = points
         lastFilled = category
         if points >= Self.bigScoreThreshold { services?.feedback.notify(.milestone) }
         dice = []
         held = []
         rollsUsed = 0
+        adRollsUsed = 0
+        turnSerial += 1
         if DiceComboLogic.isComplete(scores) {
-            // 最後の役で決着したら戻せない（記録が確定する）。
-            lastChoice = nil
             finish()
         } else {
             if points < Self.bigScoreThreshold { services?.feedback.impact(.light) }
@@ -201,55 +234,56 @@ public final class DiceComboModel {
         }
     }
 
-    // MARK: - 役選びを戻す（#2940）
+    // MARK: - コンティニュー（#3257）
 
-    /// 戻せる役選びがあるか。直前に役を選んで、まだ次のターンを振っていないあいだだけ。
-    public var canUndo: Bool { !isFinished && !isRolling && rollsUsed == 0 && lastChoice != nil }
-
-    /// 残り回数があるか。
-    public var hasUndoCredit: Bool { undosRemaining > 0 }
-
-    /// 押せるが回数を使い切っている（View は広告の提案を出す）。
-    public var needsUndoRefill: Bool { canUndo && !hasUndoCredit }
-
-    /// 直前の役選びを 1 回戻す。役の点を消し、選ぶ前の出目・キープ・振った回数に戻す（続けて振り直せる）。
-    /// **1 局につき無料 `DiceComboUndoBudget.free` 回まで**（使い切ったら `grantUndos(forGame:)` で補充）。
-    @discardableResult
-    public func undoChoice() -> Bool {
-        guard canUndo, hasUndoCredit, let choice = lastChoice,
-              let category = DiceComboCategory(rawValue: choice.category) else { return false }
-        undosRemaining -= 1
-        scores[category] = nil
-        dice = choice.dice
-        held = choice.held
-        rollsUsed = choice.rollsUsed
-        lastFilled = nil
-        lastChoice = nil
-        services?.feedback.impact(.medium)
-        persist()
-        return true
+    /// 広告でやり直せる役（0 点で埋めた役）。提案中だけ空でない。
+    public var continueCandidates: [DiceComboCategory] {
+        guard isOfferingContinue else { return [] }
+        return DiceComboCategory.allCases.filter { scores[$0] == 0 }
     }
 
-    /// リワード広告の**視聴完了後**に「戻す」を補充する。
+    /// 広告を見て 1 役やり直す。**視聴が済んでから** View が呼ぶ。`category` の点を消し、その役だけを開けた
+    /// 3 回振れるターンに戻す（キープも広告の振り直しも通常どおり使える）。点は入れ直して合計・ボーナスを出し直す。
+    /// 1 局 1 回まで。
     ///
-    /// - Parameter serial: 広告を出す前に控えた `gameSerial`。広告のロード中に新しいゲームを始めたら補充しない
-    ///   （`newGame` は残数を無料枠へ戻すので、そのまま足すと無料 + 補充から始まる）。
-    /// - Returns: 補充できたか。false のとき View は「補充できなかった」と伝える。
+    /// - Parameter serial: 広告を出す前に控えた `gameSerial`。
+    /// - Returns: やり直せたか。false のとき View は「やり直せなかった」と伝える。
     @discardableResult
-    public func grantUndos(forGame serial: Int) -> Bool {
-        // 決着した局へは足さない（`persist` は決着後に保存せず、`newGame` で無料枠へ戻るので使い道が無い）。
-        guard serial == gameSerial, !isFinished else { return false }
-        undosRemaining += DiceComboUndoBudget.refill
+    public func grantContinue(forGame serial: Int, category: DiceComboCategory) -> Bool {
+        guard serial == gameSerial, isOfferingContinue, !continueUsed, scores[category] == 0 else { return false }
+        scores[category] = nil
+        isOfferingContinue = false
+        isFinished = false
+        continueUsed = true
+        dice = []
+        held = []
+        rollsUsed = 0
+        adRollsUsed = 0
+        turnSerial += 1
+        lastFilled = nil
         services?.feedback.notify(.success)
         persist()
         return true
     }
 
+    /// コンティニューを断って、そのまま終える。記録・解析はここで確定する。
+    public func declineContinue() {
+        guard isOfferingContinue else { return }
+        isOfferingContinue = false
+        commitFinish()
+    }
+
     /// 新しいゲーム。
     public func newGame() {
+        // 提案中に始め直したら、断ったのと同じ（まだ確定していない決着をここで確定する）。
+        if isOfferingContinue {
+            isOfferingContinue = false
+            commitFinish()
+        }
         gameSerial += 1
-        undosRemaining = DiceComboUndoBudget.free
-        lastChoice = nil
+        turnSerial += 1
+        adRollsUsed = 0
+        continueUsed = false
         rollTask?.cancel()
         rollTask = nil
         isRolling = false
@@ -268,6 +302,17 @@ public final class DiceComboModel {
 
     private func finish() {
         isFinished = true
+        // 0 点の役があり、まだ使っていなければ、記録を確定する前に広告でのやり直しを提案する。
+        if !continueUsed, scores.values.contains(0) {
+            isOfferingContinue = true
+            persist()
+            return
+        }
+        commitFinish()
+    }
+
+    /// 決着を確定する。決着 1 回につき `gameDidFinish` は 1 回だけ（提案中は呼ばない）。
+    private func commitFinish() {
         services?.feedback.notify(.success)
         // 1 人用の得点ゲーム。12 役を埋め切ったら勝ちとして数え、合計点を自己ベストの対象にする（2048 と同じ）。
         // 評価リクエストの見せ場は自己ベストの更新だけにする（毎局が勝ちになるため）。
@@ -291,22 +336,23 @@ public final class DiceComboModel {
     }
 
     private func persist() {
-        guard !isFinished else { return }
+        guard !isFinished || isOfferingContinue else { return }
         let snap = DiceComboSnapshot(
             dice: dice,
             held: held,
             rollsUsed: rollsUsed,
             scores: Dictionary(uniqueKeysWithValues: scores.map { ($0.key.rawValue, $0.value) }),
-            undosRemaining: undosRemaining,
-            lastChoice: lastChoice
+            adRollsUsed: adRollsUsed,
+            continueUsed: continueUsed
         )
         try? services?.snapshots.save(snap, for: Self.gameID)
     }
 
     /// 中断データを検証して局面に戻す。壊れたデータ・終わった局は nil（新規で始める）。
+    /// 12 役が埋まっていても、コンティニューの提案中（0 点の役があり未使用）なら提案から再開する。
     static func restore(_ snap: DiceComboSnapshot) -> (
         dice: [Int], held: [Bool], rollsUsed: Int, scores: [DiceComboCategory: Int],
-        undosRemaining: Int, lastChoice: DiceComboSnapshot.Choice?
+        adRollsUsed: Int, continueUsed: Bool, isOfferingContinue: Bool
     )? {
         guard (0...DiceComboLogic.maxRolls).contains(snap.rollsUsed) else { return nil }
         if snap.rollsUsed == 0 {
@@ -320,21 +366,20 @@ public final class DiceComboModel {
                   DiceComboLogic.isPossibleScore(value, for: category) else { return nil }
             scores[category] = value
         }
-        guard !DiceComboLogic.isComplete(scores) else { return nil }
-        // 戻す関連は後から足した鍵（optional）。鍵が無い旧データは無料枠・戻せる手なしで読む。
-        let undos = min(max(0, snap.undosRemaining ?? DiceComboUndoBudget.free), 99)
-        var choice: DiceComboSnapshot.Choice?
-        if let saved = snap.lastChoice, snap.rollsUsed == 0,
-           let category = DiceComboCategory(rawValue: saved.category), scores[category] != nil,
-           (0...DiceComboLogic.maxRolls).contains(saved.rollsUsed), saved.rollsUsed > 0,
-           DiceComboLogic.isValidDice(saved.dice), saved.held.count == DiceComboLogic.diceCount {
-            choice = saved
+        // 後から足した鍵（optional）。鍵が無い・壊れた旧データは未使用として読む。
+        let continueUsed = snap.continueUsed ?? false
+        let offering = DiceComboLogic.isComplete(scores)
+        if offering {
+            guard !continueUsed, snap.rollsUsed == 0, scores.values.contains(0) else { return nil }
         }
-        return (snap.dice, snap.held, snap.rollsUsed, scores, undos, choice)
+        // 広告で振った回数は、通常の 3 回を振り切ったあとにだけ意味がある。
+        let adRolls = snap.rollsUsed == DiceComboLogic.maxRolls
+            ? min(max(0, snap.adRollsUsed ?? 0), maxAdRerolls) : 0
+        return (snap.dice, snap.held, snap.rollsUsed, scores, adRolls, continueUsed, offering)
     }
 
     #if DEBUG
-    /// 撮影・動作確認用（`-dicecomboScenario rolled|late|result`）。局面を固定して絵を安定させる。
+    /// 撮影・動作確認用（`-dicecomboScenario rolled|late|continue|result`）。局面を固定して絵を安定させる。
     public func applyDebugScenario(_ name: String) {
         let sample: [DiceComboCategory: Int] = [
             .ones: 3, .twos: 6, .threes: 9, .fours: 12, .fives: 15, .sixes: 18,
@@ -351,6 +396,14 @@ public final class DiceComboModel {
             dice = [5, 5, 5, 5, 3]
             held = [true, true, true, true, false]
             rollsUsed = 2
+        case "continue":
+            // 0 点の役が残る終局（広告でのやり直しの提案）。
+            scores = sample.merging([.fiveDice: 50]) { a, _ in a }
+            dice = []
+            held = []
+            rollsUsed = 0
+            isFinished = true
+            isOfferingContinue = true
         case "result":
             scores = sample.merging([.fiveDice: 50]) { a, _ in a }
             dice = []

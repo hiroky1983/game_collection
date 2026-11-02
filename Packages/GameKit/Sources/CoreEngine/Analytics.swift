@@ -68,6 +68,10 @@ public enum RewardPurpose: String, Equatable, Sendable, CaseIterable {
     case peek
     /// 引いたジョーカーを取り消して引く前に戻し、そのターンだけ場所を見て引き直す（ババ抜き・#3251）。
     case redraw
+    /// 通常の 3 回を振り切ったあと、もう 1 回振る（サイコロ役づくり・#3257）。1 ターンに最大 3 回。
+    ///
+    /// 盤を救うのではなく、回数制の枠を 1 回ぶん買い足す面だが、`challenge`（1 日の挑戦回数）とは単位が違うため別に足した。
+    case reroll
 }
 
 /// `reward_offer` の `result`。リワード広告を**提示した 1 回がどう終わったか**（#780）。

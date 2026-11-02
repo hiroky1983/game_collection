@@ -8,9 +8,13 @@ public struct DiceComboView: View {
     private let services: GameServices
     @State private var model: DiceComboModel
     @State private var showConfirmReset = false
-    /// 「役選びを戻す」の回数補充のリワード広告の段取り（#2940）。
-    @State private var undoRescue = RewardedRescue()
-    @State private var showUndoRefillPrompt = false
+    /// 通常の 3 回のあとの「広告で振る」の段取り（#3257）。常設のボタンから広告へ進む（確認は挟まない）。
+    @State private var rerollRescue = RewardedRescue()
+    /// 12 役を埋めたあと、0 点の役を広告でやり直す段取り（#3257）。やり直す役を選んだあとに確認を出す。
+    @State private var continueRescue = RewardedRescue()
+    /// やり直しを確認中の役。
+    @State private var continueTarget: DiceComboCategory?
+    private var isWatchingAd: Bool { rerollRescue.isWatching || continueRescue.isWatching }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(services: GameServices) {
@@ -26,22 +30,27 @@ public struct DiceComboView: View {
                 .overlay {
                     // 結果はフェードで出す。修飾子は 1 つのビューに 1 つだけ（入れ子にすると打ち消し合う・#199）。
                     ZStack {
-                        if model.isFinished {
+                        // 提案中は得点表の 0 点の行を押すので、覆わない（提案は下の段に出す）。
+                        if showsResult {
                             resultOverlay
                                 .transition(.opacity)
                         }
                     }
-                    .gameAnimation(.easeOut(duration: 0.25), value: model.isFinished)
+                    .gameAnimation(.easeOut(duration: 0.25), value: showsResult)
                 }
-            diceRow
-            // 縦に 1 段足さない（iPhone SE では 52pt 増えるとサイコロの段が潰れる）。振るボタンの右に「戻す」を並べる。
-            HStack(spacing: 8) {
-                rollButton
-                undoControl
+            if model.isOfferingContinue {
+                continuePanel
+            } else {
+                diceRow
+                // 縦に 1 段足さない（iPhone SE では 52pt 増えるとサイコロの段が潰れる）。振るボタンの右に「広告で振る」を並べる。
+                HStack(spacing: 8) {
+                    rollButton
+                    rerollControl
+                }
             }
             // 初回だけ出す 1 行（以降は `?` ボタンからいつでも読める）。
             HowToPlayHint(.diceCombo, playLog: services.playLog)
-            RecommendationArea(services: services, isFinished: model.isFinished)
+            RecommendationArea(services: services, isFinished: showsResult)
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }
@@ -62,21 +71,30 @@ public struct DiceComboView: View {
             } message: {
                 Text(tr("途中で終了すると、いまの得点表が失われます。"))
             }
-            anchor.alert(tr("無料の「戻す」を使い切りました"), isPresented: $showUndoRefillPrompt) {
-                Button(tr("広告を見て%lld回補充する", DiceComboUndoBudget.refill)) { requestUndoRefill() }
+            anchor.alert(tr("広告を見て「%@」をやり直しますか？", continueTarget.map(DiceComboText.name) ?? ""),
+                         isPresented: continueTargetBinding) {
+                Button(tr("広告を見てやり直す")) { requestContinue() }
                 Button(tr("キャンセル"), role: .cancel) {}
             } message: {
-                Text(tr("広告を最後まで視聴すると「戻す」を%lld回ぶん補充します。\n得点表はそのままです。", DiceComboUndoBudget.refill))
+                Text(tr("広告を最後まで視聴すると、この役を3回振れる番でやり直せます。\nやり直しは1局に1回までです。"))
             }
         }
-        .rewardOffer(undoRescue, for: .undo, isPresented: showUndoRefillPrompt,
+        .rewardOffer(continueRescue, for: .continue, isPresented: continueTarget != nil,
                      services: services, gameID: DiceComboModel.gameID)
         .rewardedRescueAlerts(
-            undoRescue,
-            notEarned: tr("「戻す」を補充できませんでした"),
+            rerollRescue,
+            notEarned: tr("振り直せませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: tr("「戻す」を補充できませんでした"),
-                message: tr("広告を見ているあいだに新しいゲームが始まったため、補充できませんでした。\n新しい局の「戻す」は無料の回数まで戻っています。")
+                title: tr("振り直せませんでした"),
+                message: tr("広告を見ているあいだに番が進んだため、振り直せませんでした。")
+            )
+        )
+        .rewardedRescueAlerts(
+            continueRescue,
+            notEarned: tr("やり直せませんでした"),
+            unavailable: RewardUnavailableAlert(
+                title: tr("やり直せませんでした"),
+                message: tr("広告を見ているあいだに新しいゲームが始まったため、やり直せませんでした。")
             )
         )
         .task {
@@ -88,6 +106,13 @@ public struct DiceComboView: View {
             }
             #endif
         }
+    }
+
+    /// 決着が確定して結果を出す間。コンティニューの提案中（記録は未確定）は含めない。
+    private var showsResult: Bool { model.isFinished && !model.isOfferingContinue }
+
+    private var continueTargetBinding: Binding<Bool> {
+        Binding(get: { continueTarget != nil }, set: { if !$0 { continueTarget = nil } })
     }
 
     // MARK: - ヘッダー
@@ -149,21 +174,28 @@ public struct DiceComboView: View {
     private func row(_ category: DiceComboCategory) -> some View {
         let scored = model.scores[category]
         let preview = model.preview(category)
+        let redoable = model.continueCandidates.contains(category)
         return Button {
-            withGameAnimation { model.choose(category) }
+            if redoable {
+                continueTarget = category
+            } else {
+                withGameAnimation { model.choose(category) }
+            }
         } label: {
             DiceComboScoreRow(
                 name: DiceComboText.name(category),
                 rule: DiceComboText.rule(category),
                 scored: scored,
                 preview: preview,
-                isJustFilled: model.lastFilled == category
+                isJustFilled: model.lastFilled == category,
+                isRedoable: redoable
             )
         }
         .buttonStyle(.pop)
-        .disabled(!model.canChoose(category) || undoRescue.isWatching)
+        .disabled(!(model.canChoose(category) || redoable) || isWatchingAd)
         .accessibilityLabel(DiceComboAccessibility.categoryLabel(category, scored: scored, preview: preview))
-        .accessibilityHint(preview != nil ? tr("この役に点を入れます") : "")
+        .accessibilityHint(redoable ? tr("広告を見て、この役をやり直します")
+                           : (preview != nil ? tr("この役に点を入れます") : ""))
     }
 
     /// 上段の小計とボーナス（63 点以上で +35）。
@@ -250,7 +282,7 @@ public struct DiceComboView: View {
                 }
                 .buttonStyle(.pop)
                 // 転がっている間は押しても何も起きない（Model が弾く）が、見た目は薄くしない（0.8 秒ごとに点滅して見えるため）。
-                .disabled(!model.canHold && !model.isRolling || undoRescue.isWatching)
+                .disabled(!model.canHold && !model.isRolling || isWatchingAd)
                 // 読み上げは常に確定した目（`value`）。途中の目（`shown`）は読まない。
                 .accessibilityLabel(value.map { DiceComboAccessibility.dieLabel(index: index, value: $0, isHeld: isHeld) }
                     ?? tr("サイコロ%lld、まだ振っていません", index + 1))
@@ -269,58 +301,59 @@ public struct DiceComboView: View {
         } label: {
             Label(rollTitle, systemImage: "dice.fill")
                 .scaledFont(17, weight: .heavy, design: .rounded, maxScale: 1.2)
-                .lineLimit(1).minimumScaleFactor(0.7)  // 「戻す」と並べるぶん狭い
+                .lineLimit(1).minimumScaleFactor(0.7)  // 「広告で振る」と並べるぶん狭い
         }
         .buttonStyle(.game(.primary, shape: .block))
         // 転がっている間の連打は Model が黙って捨てる。ボタンは薄くしない（振るたびに点滅して見えるため）。
-        .disabled(!model.canRoll && !model.isRolling || undoRescue.isWatching)
+        .disabled(!model.canRoll && !model.isRolling || isWatchingAd)
         .accessibilityLabel(DiceComboAccessibility.rollLabel(remaining: model.rollsRemaining))
     }
 
-    // MARK: - 役選びを戻す（#2940）
+    // MARK: - 広告で振る（#3257）
 
-    /// 振るボタンの右の「戻す」。広告の絡む操作の部品（`GameActionItem`）を 1 つだけ置く（2048 と同じ部品）。
-    private var undoControl: some View {
+    /// 振るボタンの右の「広告で振る」。通常の 3 回を振り切るまでは薄くして場所を残す（段の高さ・幅を変えない）。
+    /// 2 行目は広告で振れる残りで、無料ぶんの回数とは別物だと分かる文言にする。
+    private var rerollControl: some View {
         GameOverflowBar(actions: [
             GameActionItem(
-                id: "undo", title: tr("戻す"), systemImage: "arrow.uturn.backward", role: .undo,
-                badge: model.undosRemaining > 0 ? .count(model.undosRemaining) : .ad(gain: RewardedUndoBudget.refill),
-                isEnabled: model.canUndo && !undoRescue.isWatching,
-                // 専用の読み上げ文を渡すと 2 行目（▶ 広告を見て）は読まれないので、使い切ったら広告が要ることを文に含める。
-                accessibilityLabel: model.undosRemaining > 0
-                    ? tr("役選びを戻す（残り%lld回）", model.undosRemaining)
-                    : tr("役選びを戻す（広告を見て補充）"),
-                accessibilityHint: model.canUndo
-                    ? tr("直前に選んだ役を取り消して、選ぶ前の出目に戻します")
-                    : tr("戻せる役選びがありません")
-            ) { requestUndo() },
+                id: "reroll", title: tr("広告で振る"), systemImage: "play.rectangle.fill", role: .ad,
+                note: tr("広告で あと%lld回", model.adRerollsRemaining),
+                isEnabled: model.canAdReroll && !isWatchingAd,
+                accessibilityLabel: tr("広告を見てもう1回振る、広告で振れるのはあと%lld回", model.adRerollsRemaining),
+                accessibilityHint: model.canAdReroll
+                    ? tr("広告を最後まで見ると、もう1回振れます。キープも使えます")
+                    : tr("通常の3回を振り切ると使えます")
+            ) { requestReroll() },
         ], verticalPadding: 0)
         .lineLimit(1)
-        .frame(width: Self.undoControlWidth)
+        .frame(width: Self.rerollControlWidth)
     }
 
-    /// 「戻す」のカプセルの幅。使い切ったときの「0回 ▶ 広告を見て +3」も 2 行目で縮めて収まる幅。
-    private static let undoControlWidth: CGFloat = 124
+    private static let rerollControlWidth: CGFloat = 124
 
-    /// 「戻す」の入口。残りがあればそのまま戻し、使い切っていたら**提案を出すだけ**にする（押した瞬間に広告を出さない）。
-    private func requestUndo() {
-        guard !undoRescue.isWatching else { return }
-        if model.needsUndoRefill {
-            showUndoRefillPrompt = true
-        } else {
-            withGameAnimation { _ = model.undoChoice() }
+    /// リワード広告 → 1 回振る。局とターンを広告を出す前に控え、ロード中に変わっていたら乗せない。
+    private func requestReroll() {
+        guard !isWatchingAd, model.canAdReroll else { return }
+        let game = model.gameSerial
+        let turn = model.turnSerial
+        rerollRescue.request(
+            services, gameID: DiceComboModel.gameID, purpose: .reroll,
+            guardedBy: .checkedByGrant
+        ) {
+            withGameAnimation { model.grantReroll(forGame: game, turn: turn) }
         }
     }
 
-    /// リワード広告 → 「戻す」の補充。どの局かを広告を出す前に控え、ロード中に始めた新しい局へは乗せない。
-    private func requestUndoRefill() {
-        guard !undoRescue.isWatching else { return }
+    /// リワード広告 → 0 点の役を 1 つやり直す。
+    private func requestContinue() {
+        guard !isWatchingAd, let category = continueTarget else { return }
+        continueTarget = nil
         let game = model.gameSerial
-        undoRescue.request(
-            services, gameID: DiceComboModel.gameID, purpose: .undo,
+        continueRescue.request(
+            services, gameID: DiceComboModel.gameID, purpose: .continue,
             guardedBy: .checkedByGrant
         ) {
-            model.grantUndos(forGame: game)
+            withGameAnimation { model.grantContinue(forGame: game, category: category) }
         }
     }
 
@@ -328,6 +361,29 @@ public struct DiceComboView: View {
         if model.rollsUsed == 0 { return tr("振る") }
         if model.canRoll { return tr("振り直す（あと%lld回）", model.rollsRemaining) }
         return tr("役を選んでください")
+    }
+
+    // MARK: - コンティニューの提案（#3257）
+
+    /// 12 役が埋まり、0 点の役があるときの下の段。得点表の 0 点の行をタップすると、広告を見て 1 役だけやり直せる。
+    private var continuePanel: some View {
+        VStack(spacing: 8) {
+            Text(tr("ゲーム終了　合計%lld点", model.total))
+                .scaledFont(17, weight: .heavy, design: .rounded, maxScale: 1.2)
+                .foregroundStyle(Theme.ink)
+            Text(tr("0点の役を1つ、広告を見てやり直せます。\n得点表の色のついた0点の役をタップしてください。"))
+                .scaledFont(12, weight: .semibold, design: .rounded, maxScale: 1.2)
+                .foregroundStyle(Theme.inkSubText)
+                .multilineTextAlignment(.center)
+            Button { withGameAnimation { model.declineContinue() } } label: {
+                Text(tr("このまま終える")).scaledFont(15, weight: .heavy, design: .rounded, maxScale: 1.2)
+            }
+            .buttonStyle(.game(.primary, shape: .block))
+            .disabled(isWatchingAd)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity)
+        .popCard(corner: Theme.cornerSmall)
     }
 
     // MARK: - 結果
@@ -363,6 +419,8 @@ struct DiceComboScoreRow: View {
     let scored: Int?
     let preview: Int?
     var isJustFilled = false
+    /// 広告でやり直せる 0 点の役（終局後の提案中・#3257）。
+    var isRedoable = false
 
     var body: some View {
         HStack(spacing: 4) {
@@ -413,6 +471,7 @@ struct DiceComboScoreRow: View {
     }
 
     private var background: Color {
+        if isRedoable { return Theme.yellow.opacity(0.55) }
         if isCelebrated { return Theme.yellow.opacity(0.7) }
         if isJustFilled { return Theme.yellow.opacity(0.35) }
         if scored != nil { return Theme.inkSub.opacity(0.12) }
