@@ -1340,8 +1340,8 @@ v1.1.4 までの公開版は3種）。
 
 | イベント名 | 発火タイミング | パラメータ |
 |---|---|---|
-| `game_start` | 1プレイの開始（冪等。中断からの復元では送らない。ただし**手つかずの中断データ**＝一手も指していない保存を開き直した回は、画面が出たあとにハブが `GameServices.gameScreenDidAppear` で数える。判定は `GameModule.hasUntouchedSnapshot`・対象は 2048・将棋・チェス・15パズル・囲碁・オセロ・五目並べ・ブロック崩し・神経衰弱・花札・ナンプレ。`hasResumableSnapshot` を持つ Module は `hasUntouchedSnapshot` も持つ決まりで、免除はブラックジャック・ポーカー・ハノイだけ（ルーレットは #2545 で削除）（走査テストが見張る）・#2161・#2301） | `game_id`、難易度を持つゲームのみ `level`、遊び方を選べるゲームのみ `mode`（#783・#820）、遊び込み具合として `play_count`（そのゲームの通算の終局回数。初めてなら 0）と、一度でも遊んだゲームのみ `days_since_last_play`（前回の決着からの経過日数・24 時間単位の切り捨て。#1195）、回数制のゲーム（柵越えおじさん）のみ消費した枠 `credit`（#1685） |
-| `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`（前面にいた秒数。バックグラウンド・ハブでの休憩は除き、上限 7200・#1373）、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal\|sink・最後のミスの原因。#796・#1089)、将棋・チェス・五目並べ・オセロ・マインスイーパー・15パズルでヒントを 1 回でも使ったプレイのみ `hints_used`（使った回数。無料・広告の合計・#1326）、開始に `credit` を付けたプレイのみ同じ `credit`（#1685）、開始に `level` を付けたプレイのみ同じ `level`（#1888）、ミスしたプレイのみ `miss_count`（ミス回数）・`miss_at`（最後のミスの進行率 %・5 刻み）、ミス直後に離脱した quit のみ `exit`(after_miss)（#2848）、ねこさがしのイベント期間中のステージのクリアのみ `event_points`（その面で稼いだ pt。0〜3・#3204） |
+| `game_start` | 1プレイの開始（冪等。中断からの復元では送らない。ただし**手つかずの中断データ**＝一手も指していない保存を開き直した回は、画面が出たあとにハブが `GameServices.gameScreenDidAppear` で数える。判定は `GameModule.hasUntouchedSnapshot`・対象の一覧は各 `*Module.swift` の実装と走査テスト `UntouchedSnapshotScanTests` を正とする（ここに個別の列挙は持たない）。`hasResumableSnapshot` を持つ Module は `hasUntouchedSnapshot` も持つ決まりで、免除はブラックジャック・ポーカー・ハノイだけ（ルーレットは #2545 で削除）（走査テストが見張る）・#2161・#2301） | `game_id`、難易度を持つゲームのみ `level`、遊び方を選べるゲームのみ `mode`（#783・#820）、遊び込み具合として `play_count`（そのゲームの通算の終局回数。初めてなら 0）と、一度でも遊んだゲームのみ `days_since_last_play`（前回の決着からの経過日数・24 時間単位の切り捨て。#1195）、回数制のゲーム（柵越えおじさん）のみ消費した枠 `credit`（#1685） |
+| `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`（前面にいた秒数。バックグラウンド・ハブでの休憩は除き、上限 7200・#1373）、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal\|sink・最後のミスの原因。#796・#1089)、ヒントを 1 回でも使ったプレイのみ `hints_used`（使った回数。無料・広告の合計・#1326）、開始に `credit` を付けたプレイのみ同じ `credit`（#1685）、開始に `level` を付けたプレイのみ同じ `level`（#1888）、ミスしたプレイのみ `miss_count`（ミス回数）・`miss_at`（最後のミスの進行率 %・5 刻み）、ミス直後に離脱した quit のみ `exit`(after_miss)（#2848）、ねこさがしのイベント期間中のステージのクリアのみ `event_points`（その面で稼いだ pt。0〜3・#3204） |
 | `clear_exit` | 面をクリアした直後の画面を、次の面にも「もう一度」にも進まず離れた（チャリンコおじさんのステージ制。`GameAnalytics.leaveGame` の1か所・#2848） | `game_id` / `level`(`stage-N`) |
 | `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の9値） |
 | `notification_permission` | 通知の許可ダイアログを**実際に出した** 1 回につき 1 回（すでに許可 / 拒否が決まっている状態の問い合わせでは送らない。各 `UserNotification*Scheduler.requestExplicitAuthorization` の1か所・#2008） | `result`(granted\|denied) / `trigger`(resume\|challenge\|reengagement。`reengagement` は #2938 以降は発火しない)。ゲーム ID は載せない。GA4 のカスタムディメンション登録が要る（会長操作） |
@@ -1397,7 +1397,7 @@ v1.1.4 までの公開版は3種）。
   （`catPuzzleEventTotal202611`）に貯め、Game Center のリーダーボード `asobiba.catpuzzle.event202611`（High to Low・ASC 作成は社長）へ送る
   （未ログインなら貯めるだけで、ログイン後に画面を開いたとき／次のクリアで送る）。期間は `CatPuzzleEvent.start/end` の 1 か所。
   ハブの「イベント開催中」の印は `HubEventBadge.eventGameID`（v1.1.15 は `catpuzzle`）。
-- `hints_used`（#1326）は**そのプレイで使ったヒントの回数**（将棋・チェス・五目並べ・オセロは1〜8、マインスイーパーは1〜4・#2024、15パズルは1〜8・#1975、神経衰弱は1〜4・#2026、ソリティア・スパイダー・フリーセルは1〜8・#2025）。この10本だけが送る。
+- `hints_used`（#1326）は**そのプレイで使ったヒントの回数**（回数の上限はゲームごとの `BoardHintBudget` で決まる・#2024・#1975・#2026・#2025）。送るゲームの一覧は文章で持たず、`gameDidEnd` に `hintsUsed:` を渡している Model を正とする。
   各 Model が `BoardHintBudget.consume()` の成功ごとに `gameDidUseHint` を呼び、`GameAnalytics` が進行中の
   プレイに覚えて `game_end` に載せる。**送信は `sendEnd` の1か所**なので、決着（`finishPlay`）でも
   途中離脱（`leaveGame` / `restartPlay`）でも同じ値が載る。使わなかったプレイ・ヒントを持たないゲームは鍵ごと送らない。
