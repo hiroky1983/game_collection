@@ -2499,6 +2499,61 @@
           }
         }
       }
+    },
+    "昨日のランキング %lld位！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday's ranking: #%lld!"
+          }
+        }
+      }
+    },
+    "ヒント ＋%lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint +%lld"
+          }
+        }
+      }
+    },
+    "猫を教える ＋%lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show a cat +%lld"
+          }
+        }
+      }
+    },
+    "前日の上位 3 位には、翌日に特典をプレゼント（1 位はヒントと猫を教える、2 位は猫を教える、3 位はヒント）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday's top 3 get a gift the next day (1st: a hint and a \"show a cat\", 2nd: a \"show a cat\", 3rd: a hint)"
+          }
+        }
+      }
+    },
+    "OK" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

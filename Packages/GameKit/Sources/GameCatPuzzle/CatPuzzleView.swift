@@ -165,6 +165,14 @@ public struct CatPuzzleView: View {
                 Text(Self.showsClock(model) ? tr("同じ問題を最初から解きます。タイムとミスはそのままです。")
                                             : tr("同じ問題を最初から解きます。ミスはそのままです。"))
             }
+            // 前日のランキング 1〜3 位の特典を渡した直後の知らせ（#3256）。
+            anchor.alert(tr("昨日のランキング %lld位！", model.dailyRewardCard?.rank ?? 0),
+                         isPresented: Binding(get: { model.dailyRewardCard != nil },
+                                              set: { if !$0 { model.dismissDailyRewardCard() } })) {
+                Button(tr("OK")) { model.dismissDailyRewardCard() }
+            } message: {
+                Text(model.dailyRewardCard?.itemsText ?? "")
+            }
         }
         .rewardedRescueAlerts(
             hintRescue,
@@ -261,6 +269,12 @@ public struct CatPuzzleView: View {
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )
+        // 前日のランキング 1〜3 位の特典（#3256）。順位の読み込みを待たせないよう、盤の準備とは別の task にする。
+        .task {
+            await model.claimDailyReward {
+                await CatPuzzleDailyReward.lookup(reporter: services.gameCenter, now: model.eventNow())
+            }
+        }
         .task {
             // 未ログインで貯めたイベントの pt を、ログイン後に開いたときに送る（#3204）。
             model.submitEventTotalIfNeeded()

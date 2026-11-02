@@ -315,7 +315,7 @@ public struct AnalyticsEngagement: Equatable, Sendable {
 }
 
 /// 送信する解析イベント。**`game_start` / `game_end` / `reward_ad` / `reward_request` / `game_open` /
-/// `reward_offer` / `share_tap` の7種に、後続で足した `clear_exit` / `notification_permission` / `review_prompt`（#3061）を加えた計 10 種のみ**（#158 の決裁範囲 + #500 の会長決裁 2026-09-08 + #659 の会長決裁 2026-09-12 +
+/// `reward_offer` / `share_tap` の7種に、後続で足した `clear_exit` / `notification_permission` / `review_prompt`（#3061）/ `reward_grant`（#3256）を加えた計 11 種のみ**（#158 の決裁範囲 + #500 の会長決裁 2026-09-08 + #659 の会長決裁 2026-09-12 +
 /// #780 の会長決裁 2026-09-16 + #1043 の会長決裁 2026-09-16）。`game_start` の `play_count` / `days_since_last_play` は
 /// #1195 の会長決裁（2026-09-21・案A）でイベントは増やさずパラメータだけ足した。
 ///
@@ -370,6 +370,9 @@ public enum AnalyticsEvent: Equatable, Sendable {
     /// 評価のお願い（#3061）。カードを出した・どれを押した・OS の評価ダイアログを依頼した、の 1 回につき 1 回。
     /// パラメータは `kind` / `step` と、遊んだ日数の節目（#3078）のときだけ `trigger`。ゲーム ID は載せない。
     case reviewPrompt(kind: ReviewPromptKind, step: ReviewPromptStep, trigger: ReviewPromptTrigger? = nil)
+    /// ゲーム内の特典を渡した（ねこさがしのデイリーランキング上位・#3256）。渡した 1 回につき 1 回。
+    /// パラメータは `game_id` / `rank`（前日の順位）/ `items`（`hint` / `teach` / `hint_teach`）のみ。
+    case rewardGrant(gameID: String, rank: Int, items: RewardGrantItems)
 
     /// Firebase のイベント名。
     public var name: String {
@@ -384,6 +387,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
         case .shareTap:      return "share_tap"
         case .notificationPermission: return "notification_permission"
         case .reviewPrompt:  return "review_prompt"
+        case .rewardGrant:   return "reward_grant"
         }
     }
 
@@ -470,8 +474,21 @@ public enum AnalyticsEvent: Equatable, Sendable {
             // 勝利の見せ場のきっかけは従来どおり鍵を送らない。遊んだ日数の節目だけ載せる（#3078）。
             if let trigger { parameters["trigger"] = .string(trigger.rawValue) }
             return parameters
+        case let .rewardGrant(gameID, rank, items):
+            return [
+                "game_id": .string(gameID),
+                "rank": .int(rank),
+                "items": .string(items.rawValue),
+            ]
         }
     }
+}
+
+/// `reward_grant` の `items`（#3256）。渡したもの。
+public enum RewardGrantItems: String, Sendable, CaseIterable {
+    case hint
+    case teach
+    case hintTeach = "hint_teach"
 }
 
 /// `review_prompt` の `kind`（#3061）。どちらの評価のお願いか。
@@ -794,6 +811,12 @@ public final class GameAnalytics {
             if resting.remove(gameID) != nil { resumeClock(gameID: gameID) }
         }
         service.log(.gameOpen(gameID: gameID, source: source, position: position, resume: resume))
+    }
+
+    /// ゲーム内の特典を渡したときに呼ぶ（#3256）。プレイの数え方には影響しない。
+    public func recordRewardGrant(gameID: String, rank: Int, items: RewardGrantItems) {
+        guard allowedGameIDs.contains(gameID) else { return }
+        service.log(.rewardGrant(gameID: gameID, rank: rank, items: items))
     }
 
     /// リザルトの共有ボタンを押したときに呼ぶ（#1043）。プレイの数え方には影響しない。

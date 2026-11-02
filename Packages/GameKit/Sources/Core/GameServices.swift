@@ -286,6 +286,12 @@ public struct GameServices {
         analytics?.recordShareTap(gameID: gameID)
     }
 
+    /// ゲーム内の特典（ねこさがしのデイリーランキング上位・#3256）を渡したときに呼ぶ。`reward_grant` を送るだけ。
+    @MainActor
+    public func gameDidGrantReward(gameID: String, rank: Int, items: RewardGrantItems) {
+        analytics?.recordRewardGrant(gameID: gameID, rank: rank, items: items)
+    }
+
     /// リワード広告を出し、**要求した時点で** `reward_request`、**視聴完了したときだけ**
     /// `reward_ad` を送る（#500 / #659）。
     ///

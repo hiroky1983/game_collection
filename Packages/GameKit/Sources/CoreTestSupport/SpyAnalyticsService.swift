@@ -89,6 +89,14 @@ public final class SpyAnalyticsService: AnalyticsService {
         }
     }
 
+    /// ゲーム内の特典を渡した記録（#3256）。
+    public var grants: [(gameID: String, rank: Int, items: RewardGrantItems)] {
+        events.compactMap {
+            if case let .rewardGrant(gameID, rank, items) = $0 { return (gameID, rank, items) }
+            return nil
+        }
+    }
+
     public func starts(of gameID: String) -> Int { starts.filter { $0 == gameID }.count }
     public func ends(of gameID: String) -> Int { ends.filter { $0.gameID == gameID }.count }
     public func quits(of gameID: String) -> Int { quits.filter { $0.gameID == gameID }.count }
