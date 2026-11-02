@@ -961,6 +961,149 @@
           }
         }
       }
+    },
+    "見破れませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't see through it"
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに番が進んだため、札を見破れませんでした。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The turn moved on while the ad was playing, so the card couldn't be revealed."
+          }
+        }
+      }
+    },
+    "引き直せませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't redraw"
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに状況が変わったため、引き直せませんでした。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The situation changed while the ad was playing, so you couldn't redraw."
+          }
+        }
+      }
+    },
+    "ジョーカーです！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It's the Joker!"
+          }
+        }
+      }
+    },
+    "ジョーカーではありません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not the Joker"
+          }
+        }
+      }
+    },
+    "ジョーカーの場所が見えています" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Joker's position is visible"
+          }
+        }
+      }
+    },
+    "見破る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reveal"
+          }
+        }
+      }
+    },
+    "広告を見ると、選んでいる札がジョーカーかどうか分かります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to find out whether the selected card is the Joker"
+          }
+        }
+      }
+    },
+    "広告を見て引き直す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to redraw"
+          }
+        }
+      }
+    },
+    "このまま進む" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep going"
+          }
+        }
+      }
+    },
+    "ジョーカー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Joker"
+          }
+        }
+      }
+    },
+    "ジョーカーではない" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not the Joker"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

@@ -41,6 +41,8 @@ private func playToFinish(_ model: OldMaidModel, maxTurns: Int = 3_000) async ->
     var turns = 0
     while model.phase == .playing, turns < maxTurns {
         turns += 1
+        // ジョーカーを引いた直後の引き直しの返事待ちは断って進める（#3251）。
+        if model.canRedraw { model.declineRedraw() }
         await model.runCPUTurnsIfNeeded()
         guard model.phase == .playing, model.isPlayerTurn, let target = model.humanTarget else { continue }
         model.toggleSelection(model.hands[target][0].id)
@@ -232,6 +234,7 @@ struct OldMaidModelFaceTests {
         #expect(model.lastDrawnCardID == OldMaidCard.jokerID)
         #expect(model.isJokerWatched)
         let before = Set(model.playerHand)
+        model.declineRedraw()   // 引き直しの返事待ちのあいだは混ぜられない（#3251）
         model.shuffleHand()
         #expect(!model.isJokerWatched)
         #expect(Set(model.playerHand) == before)

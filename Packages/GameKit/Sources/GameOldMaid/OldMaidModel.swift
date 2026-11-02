@@ -19,6 +19,10 @@ public enum OldMaidPhase: String, Equatable, Sendable, Codable {
 struct OldMaidSnapshot: Codable {
     let game: OldMaidGame
     let gameNumber: Int
+    /// 引き直しでジョーカーが見えている状態（#3251）。中断しても保つ。古い中断データには無いので optional。
+    var revealsJoker: Bool? = nil
+    /// 「見破る」で正体を確かめた伏せ札の ID（#3251）。同上。
+    var peekedIDs: [Int]? = nil
 }
 
 // MARK: - Model
@@ -51,6 +55,21 @@ public final class OldMaidModel: AITurnGuarded {
     public private(set) var recordResult: RecordResult?
     /// 配ったばかりで 1 枚も動いていない局か（#240）。配ったばかりの局は保存しない。
     private var isUntouchedDeal = false
+    /// 引き直しの材料: あなたがジョーカーを引く**直前**の局面（#3251）。あるあいだは CPU の手番を止めて、
+    /// 「広告を見て引き直す」か「このまま進む」かを選ばせる。
+    private var redrawBase: RedrawBase?
+    /// 引き直したターンだけ、相手の伏せ札のどれがジョーカーかを見せる（#3251）。次に引くと消える。
+    public private(set) var revealsJoker = false
+    /// 「見破る」で正体を確かめた伏せ札の ID（#3251）。このターンだけ有効で、引くと消える。
+    public private(set) var peekedIDs: Set<Int> = []
+
+    /// 引き直しで戻す先。`serial` は引いた直後の `turnSerial`（広告のあいだに局面が進んでいないかの照合）。
+    private struct RedrawBase {
+        let game: OldMaidGame
+        let wasUntouchedDeal: Bool
+        let gameNumber: Int
+        let serial: Int
+    }
 
     private let services: GameServices?
     let gameID = OldMaidModel.gameID
@@ -72,6 +91,8 @@ public final class OldMaidModel: AITurnGuarded {
         if let snap = services?.snapshots.load(OldMaidSnapshot.self, for: gameID),
            snap.game.isConsistent, !snap.game.isOver {
             game = snap.game
+            revealsJoker = snap.revealsJoker ?? false
+            peekedIDs = Set(snap.peekedIDs ?? [])
             gameNumber = max(snap.gameNumber, 1)
             aiLevel = CPUStrength.strength(for: snap.game.aiLevel).rawValue
             phase = .playing
@@ -114,7 +135,26 @@ public final class OldMaidModel: AITurnGuarded {
     }
 
     /// 手札を混ぜられるか（対局中で 2 枚以上あるとき。CPU の番でもよい）。
-    public var canShuffle: Bool { phase == .playing && playerHand.count > 1 }
+    /// 引き直すかどうかの返事を待っているあいだは混ぜられない（混ぜると引く前の並びに戻せなくなる・#3251）。
+    public var canShuffle: Bool { phase == .playing && playerHand.count > 1 && redrawBase == nil }
+
+    /// ジョーカーを引いた直後で、広告を見て引き直す（または断って進む）のを待っているか（#3251）。
+    public var canRedraw: Bool { phase == .playing && redrawBase != nil }
+
+    /// 「見破る」を使えるか。あなたの番で、まだ正体の分かっていない札に指をかけているとき（#3251）。
+    public var canPeek: Bool {
+        guard canDraw, let selectedID else { return false }
+        return !isRevealed(selectedID)
+    }
+
+    /// 伏せ札 `cardID` の正体が見えているか（見破った・引き直したターン）。見えていれば `isJoker` で分かる（#3251）。
+    public func isRevealed(_ cardID: Int) -> Bool { revealedIsJoker(cardID) != nil }
+
+    /// 正体が見えている伏せ札がジョーカーか。見えていなければ nil。引き直したターンは、ジョーカーだけが見える。
+    public func revealedIsJoker(_ cardID: Int) -> Bool? {
+        if peekedIDs.contains(cardID) { return cardID == OldMaidCard.jokerID }
+        return revealsJoker && cardID == OldMaidCard.jokerID ? true : nil
+    }
 
     /// `player` の顔。あなたが札に指をかけている相手だけが顔に出ることがある。
     public func face(of player: Int) -> OldMaidFace {
@@ -160,6 +200,7 @@ public final class OldMaidModel: AITurnGuarded {
         game = OldMaidGame(deck: deck, firstPlayer: first, aiLevel: aiLevel, tellSeed: generator.next())
         selectedID = nil
         recordResult = nil
+        resetAdAssists()
         isUntouchedDeal = true
         phase = .playing
 
@@ -186,7 +227,15 @@ public final class OldMaidModel: AITurnGuarded {
             services?.feedback.notify(.warning)
             return
         }
+        let before = next
         guard next.draw(cardID: selectedID) else { return }
+        // ジョーカーを引いた直後は、引く前に戻す選択肢を出す（#3251）。引き直したターンの引きには出さない（1 回の引きにつき 1 回）。
+        let offersRedraw = next.lastTransfer?.card.isJoker == true && !next.isOver && !revealsJoker
+        redrawBase = offersRedraw
+            ? RedrawBase(game: before, wasUntouchedDeal: isUntouchedDeal, gameNumber: gameNumber, serial: next.turnSerial)
+            : nil
+        revealsJoker = false
+        peekedIDs = []
         game = next
         self.selectedID = nil
         isUntouchedDeal = false
@@ -212,6 +261,50 @@ public final class OldMaidModel: AITurnGuarded {
         persist()
     }
 
+    // MARK: - リワード広告（#3251）
+
+    /// 「見破る」: 指をかけている伏せ札がジョーカーかどうかを確かめる。広告の視聴が終わったあとに呼ぶ。
+    ///
+    /// - Parameters:
+    ///   - cardID: 広告を出す前にタップした札。ロード中に別の札へ指を替えても、払った札の正体を見せる。
+    ///   - turn: 広告を出す前の `turnSerial`。`expectedGame` は同じく `gameNumber`。広告のあいだに番が進んだ・局が替わったら false。
+    /// - Returns: 適用できたか（false なら「見ているあいだに状況が変わった」アラートになる）。
+    func grantPeek(forTurn turn: Int, cardID: Int, gameNumber expectedGame: Int) -> Bool {
+        guard isPlayerTurn, gameNumber == expectedGame, game?.turnSerial == turn,
+              let target = humanTarget, hands[target].contains(where: { $0.id == cardID }) else { return false }
+        peekedIDs.insert(cardID)
+        persist()
+        return true
+    }
+
+    /// 「広告を見て引き直す」: 引いたジョーカーを取り消して引く前に戻し、このターンだけジョーカーの場所を見せる。
+    /// 広告の視聴が終わったあとに呼ぶ。
+    ///
+    /// - Parameters:
+    ///   - turn: 広告を出す前の `redrawTurn`。広告のあいだに CPU が動いた・局が替わったら false。
+    func grantRedraw(forTurn turn: Int, gameNumber expectedGame: Int) -> Bool {
+        guard phase == .playing, let base = redrawBase, base.serial == turn, base.gameNumber == expectedGame,
+              gameNumber == expectedGame, game?.turnSerial == turn else { return false }
+        game = base.game
+        redrawBase = nil
+        isUntouchedDeal = base.wasUntouchedDeal
+        selectedID = nil
+        peekedIDs = []
+        revealsJoker = true
+        services?.feedback.impact(.card(.deal))
+        persist()
+        return true
+    }
+
+    /// 「このまま進む」: 引き直さずに CPU の手番へ進む。
+    func declineRedraw() {
+        guard redrawBase != nil else { return }
+        redrawBase = nil
+    }
+
+    /// 引き直しの返事を待っている局面の通し番号（`grantRedraw` へ渡す）。待っていなければ nil。
+    var redrawTurn: Int? { redrawBase?.serial }
+
     /// 決着していれば締め、あなたが抜けていれば残りの CPU だけで決着まで進めて締める。
     ///
     /// あなたが抜けたあとの CPU 同士の引き合いを 1 枚ずつ見せても待たされるだけなので、その場で済ませて
@@ -231,19 +324,23 @@ public final class OldMaidModel: AITurnGuarded {
 
     /// CPU の手番を起こす `.task(id:)` の識別子（#3146）。あなたの操作・CPU の着手・新しいゲームのたびに必ず変わる
     /// （`turnSerial` は引くたびに増える手数。配り直しは `gameNumber` で区別する）。
-    public var cpuTurnKey: AITurnKey { AITurnKey(gameSerial: gameNumber, ply: game?.turnSerial ?? 0) }
+    ///
+    /// 引き直しの返事待ち（`epoch` 1）のあいだは CPU が動かず、返事で 0 に戻って再び起こされる（#3251）。
+    public var cpuTurnKey: AITurnKey {
+        AITurnKey(gameSerial: gameNumber, ply: game?.turnSerial ?? 0, epoch: redrawBase == nil ? 0 : 1)
+    }
 
     /// CPU の手番が続く限り進める。あなたの番になるか決着したら止まる。
     /// View から複数の契機で呼ばれても内部で 1 本に制限する（`withAITurnRunner`・#531）。
     public func runCPUTurnsIfNeeded() async {
         await withAITurnRunner(running: \.isRunningCPUTurns) {
-            while phase == .playing, let game, !game.isOver, game.currentPlayer != Self.humanIndex {
+            while phase == .playing, redrawBase == nil, let game, !game.isOver, game.currentPlayer != Self.humanIndex {
                 // 間合いが 0 の手番には suspend が無く、下の sleep 後の判定を通らない。ループ先頭でも見る（#287）。
                 guard !Task.isCancelled else { return }
                 if cpuDelay > .zero {
                     // sleep の直後にキャンセルを見る。見ないと画面を離れた瞬間に残りの手番が間合いゼロで走り抜ける（#287）。
                     guard await pauseCPUTurn(for: cpuDelay) else { return }
-                    guard phase == .playing, self.game?.isOver == false,
+                    guard phase == .playing, redrawBase == nil, self.game?.isOver == false,
                           self.game?.currentPlayer != Self.humanIndex else { return }
                 }
                 performCPUTurn()
@@ -276,8 +373,16 @@ public final class OldMaidModel: AITurnGuarded {
         )
     }
 
+    /// 広告で得た助け（引き直しの待ち・見えているジョーカー・見破った札）を捨てる。局が替わるとき・終わるときに呼ぶ。
+    private func resetAdAssists() {
+        redrawBase = nil
+        revealsJoker = false
+        peekedIDs = []
+    }
+
     private func concludeGame() {
         guard phase == .playing else { return }
+        resetAdAssists()
         selectedID = nil
         phase = .result
         switch reviewOutcome {
@@ -303,6 +408,7 @@ public final class OldMaidModel: AITurnGuarded {
         self.gameNumber = gameNumber
         selectedID = nil
         recordResult = nil
+        resetAdAssists()
         isUntouchedDeal = false
         phase = configured.isOver ? .result : .playing
         persist()
@@ -378,6 +484,9 @@ public final class OldMaidModel: AITurnGuarded {
             services?.snapshots.clear(for: gameID)
             return
         }
-        try? services?.snapshots.save(OldMaidSnapshot(game: game, gameNumber: gameNumber), for: gameID)
+        try? services?.snapshots.save(OldMaidSnapshot(
+            game: game, gameNumber: gameNumber,
+            revealsJoker: revealsJoker ? true : nil, peekedIDs: peekedIDs.isEmpty ? nil : peekedIDs.sorted()
+        ), for: gameID)
     }
 }
