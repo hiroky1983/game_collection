@@ -220,7 +220,7 @@ public struct MahjongSolitaireView: View {
                 message: tr("広告を見ているあいだに新しい盤面が配られたか、光らせられる組が無くなりました。組が無いときは「並べ替え」で残りを配置し直してください。")
             )
         )
-        .overlay {
+        .overlayAboveBanner {
             if model.isDeadlocked { deadlockOverlay }
         }
         // 画面を離れたら・背面に回ったら・広告の視聴中は計時を止め、戻ったら再開する

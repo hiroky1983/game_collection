@@ -97,7 +97,7 @@ public struct ShogiView: View {
             if isMate { AccessibilityNotification.Announcement(tr("詰みがあります")).post() }
         }
         .overlay { checkOverlay }
-        .overlay { promotionOverlay }
+        .overlayAboveBanner { promotionOverlay }
         .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen || showNewGame)) {
             guard !isHowToPlayOpen, !showNewGame else { return }
             guard await PausableTurn.waitWhileThinking({ model.isThinking }) else { return }

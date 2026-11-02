@@ -54,7 +54,7 @@ struct CatPuzzleModuleTests {
         #expect(code.contains(".howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items)"))
         #expect(code.contains("RecordLabel("))
         // クリアのカードは共通の `GameClearCard` を画面全体に重ねる（盤に重ねると SE でスクロールになる・#3048）。
-        #expect(code.contains("GameClearCard(") && code.contains(".boardGameResultCard(isPresented: model.showsClearCard"))
+        #expect(code.contains("GameClearCard(") && code.contains(".boardGameResultCardAboveBanner(isPresented: model.showsClearCard"))
         // ヒントの広告は他のゲームと同じ部品（`RewardedRescue`）で、局ガード・失敗アラート・視聴中の計時停止まで揃える。
         #expect(code.contains("var hintRescue = RewardedRescue()"))
         #expect(code.contains("hintRescue.request(") && code.contains("purpose: .hint") && code.contains("guardedBy: .checkedByGrant"))
@@ -63,7 +63,7 @@ struct CatPuzzleModuleTests {
         #expect(code.contains("teachRescue.request(") && code.contains("purpose: .teach"), "猫を教えるの広告も同じ部品・局ガードつき（#3203）")
         // 3 回目のミスで出すのは負けの結果カード 1 枚だけで、その中でコンティニューかあきらめるかを選ぶ（#2904）。
         // 広告は押したときだけ（局ガードつき）出し、提案の計測も揃える（#2780）。
-        #expect(code.contains(".boardGameResultCard(isPresented: Self.showsFailCard(model, closed: failCardClosed))"))
+        #expect(code.contains(".boardGameResultCardAboveBanner(isPresented: Self.showsFailCard(model, closed: failCardClosed))"))
         #expect(!code.contains("RewardedContinueOverlay("), "ミス 3 回のダイアログを 2 枚にしない")
         #expect(code.contains("continueRescue.request(") && code.contains("purpose: .continue"))
         #expect(code.contains(".rewardOffer(continueRescue, for: .continue, isPresented: model.isOfferingContinue"))

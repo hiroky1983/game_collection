@@ -239,7 +239,9 @@ struct HomerunAtBatView: View {
     /// 一時停止の画面: 再開・遊び方・操作の説明・途中でやめる（確認つき）。覆いは他ゲームの一時停止と同じ黒 60%。
     private var pausedPanel: some View {
         ZStack {
-            Rectangle().fill(.black.opacity(0.6)).ignoresSafeArea()
+            // 上端のバナー（`BannerSlot`）は覆わない（#3247）。
+            Rectangle().fill(.black.opacity(0.6)).ignoresSafeArea(edges: [.horizontal, .bottom])
+                .padding(.top, BannerSlot.height)
             VStack(spacing: 12) {
                 Text(tr("一時停止")).font(.title3.bold()).foregroundStyle(.white)
                 GameDeadEndActionButton(tr("再開"), systemImage: "play.fill", tint: Theme.Fill.coral) {
