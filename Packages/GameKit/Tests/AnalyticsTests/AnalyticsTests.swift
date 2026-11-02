@@ -1496,7 +1496,7 @@ struct RunnerQuitTests {
         #expect(spy.ends.isEmpty, "ミスでは終局しない")
         services.gameDidLeave(gameID: RunnerModel.gameID)
         let end = spy.events.last
-        guard case let .gameEnd(_, result, _, _, cause, _, _, _, _, _)? = end else { Issue.record("game_end が無い"); return }
+        guard case let .gameEnd(_, result, _, _, cause, _, _, _, _, _, _)? = end else { Issue.record("game_end が無い"); return }
         #expect(result == .quit)
         #expect(cause == .pit)
     }
@@ -1506,14 +1506,14 @@ struct RunnerQuitTests {
         let (services, spy) = makeServices()
         let model = RunnerModel(services: services, startingAt: 1)
         autoPlayCurrentStage(model)
-        guard case let .gameEnd(_, result, _, _, cause, _, _, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
+        guard case let .gameEnd(_, result, _, _, cause, _, _, _, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
         #expect(result == .win)
         #expect(cause == nil)
         // 次のプレイへ持ち越さない: 2 面でミスして離れると、2 面の死因だけが載る。
         model.advanceToNextStage()
         failCurrentStage(model)
         services.gameDidLeave(gameID: RunnerModel.gameID)
-        guard case let .gameEnd(_, result2, _, _, cause2, _, _, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
+        guard case let .gameEnd(_, result2, _, _, cause2, _, _, _, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
         #expect(result2 == .quit)
         #expect(cause2 == .pit)
     }
@@ -1525,7 +1525,7 @@ struct RunnerQuitTests {
         let model = RunnerModel(services: services)
         failCurrentStage(model)
         services.gameDidLeave(gameID: RunnerModel.gameID)
-        guard case let .gameEnd(_, result, _, _, _, _, _, _, misses, _)? = spy.events.last
+        guard case let .gameEnd(_, result, _, _, _, _, _, _, misses, _, _)? = spy.events.last
         else { Issue.record("game_end が無い"); return }
         #expect(result == .quit)
         #expect(misses?.count == 1)
@@ -1546,7 +1546,7 @@ struct RunnerQuitTests {
         failCurrentStage(model)
         model.retryStage()
         autoPlayCurrentStage(model)
-        guard case let .gameEnd(_, result, _, _, _, _, _, _, misses, _)? = spy.events.last
+        guard case let .gameEnd(_, result, _, _, _, _, _, _, misses, _, _)? = spy.events.last
         else { Issue.record("game_end が無い"); return }
         #expect(result == .win)
         #expect(misses?.count == 2)
