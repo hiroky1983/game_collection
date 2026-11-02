@@ -35,7 +35,10 @@ extension CatPuzzleModel {
             startStage(number)
             await stagePreparation?.value
         case "stage-key-open":
-            startStage(number ?? 10)
+            let keyStage = number ?? 10
+            // 鍵の面でない番号は盤を作らない（シナリオ名と違う盤を撮らないため）。
+            guard CatPuzzleStage(keyStage).isKey else { return }
+            startStage(keyStage)
             await stagePreparation?.value
             if let keyCat { findCat(cell: keyCat) }
         case "stage-solved":

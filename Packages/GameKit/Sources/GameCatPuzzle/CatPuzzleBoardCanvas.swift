@@ -379,7 +379,8 @@ struct CatPuzzleBoardCanvas: View {
         let available = (placement.spansRight ? cellSide * 2 : cellSide) - margin * 2
         var fontSize = baseFont
         if measured.width + padding.width * 2 > available {
-            fontSize = max(6, baseFont * (available - padding.width * 2) / measured.width)
+            // 鍵の札は鍵のアイコンぶん広いので、1 マスに収まるよう下限を低くする。
+            fontSize = max(hasKey ? 4 : 6, baseFont * (available - padding.width * 2) / measured.width)
             measured = labelWidth(name, fontSize: fontSize, hasKey: hasKey)
         }
         let origin = rect(of: placement.cell, side: puzzle.side, cellSide: cellSide).origin

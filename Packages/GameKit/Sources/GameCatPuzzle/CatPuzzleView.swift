@@ -204,6 +204,11 @@ public struct CatPuzzleView: View {
             guard !Task.isCancelled else { return }
             withGameAnimation { showsHintUsedUp = false }
         }
+        // 新しい局では前の局の鍵の案内を消す。
+        .onChange(of: model.gameSerial) {
+            showsKeyLockedHint = false
+            showsKeyOpened = false
+        }
         // 鍵の部屋の外を触ったら、先に鍵の猫を見つけるよう数秒だけ案内する（盤の揺れは盤の側）。
         .task(id: model.lockedTouches) {
             guard model.lockedTouches > 0 else { return }
