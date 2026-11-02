@@ -40,7 +40,7 @@ enum CatPuzzleShare {
         var body: some View {
             VStack(spacing: 14) {
                 Text(tr("あそびば ねこさがし"))
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .font(.system(size: 20, weight: .bold, design: .rounded)) // fixed-size: 画像に焼く共有カード（端末の文字サイズ設定に従わない固定寸法）
                     .foregroundStyle(Theme.tealText)
                 // 答えの分からない間取りだけ。印（猫・×）は渡さないので盤に何も載らない。
                 CatPuzzleBoardCanvas(
@@ -49,15 +49,15 @@ enum CatPuzzleShare {
                 )
                 .blur(radius: 5)
                 .frame(width: 150, height: 150)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall))
                 .overlay(alignment: .bottomTrailing) {
                     CatPuzzleArt.image(.sitFront).frame(width: 72, height: 72).offset(x: 28, y: 22)
                 }
                 Text(tr("今日 %lldpt", points))
-                    .font(.system(size: 40, weight: .heavy, design: .rounded))
+                    .font(.system(size: 40, weight: .heavy, design: .rounded)) // fixed-size: 画像に焼く共有カード（端末の文字サイズ設定に従わない固定寸法）
                     .foregroundStyle(Theme.ink)
                 Text(tr("%lld 面クリア", clears))
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .font(.system(size: 20, weight: .semibold, design: .rounded)) // fixed-size: 画像に焼く共有カード（端末の文字サイズ設定に従わない固定寸法）
                     .foregroundStyle(Theme.ink)
             }
             .frame(width: CatPuzzleShare.cardSize.width, height: CatPuzzleShare.cardSize.height)
