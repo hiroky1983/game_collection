@@ -108,12 +108,14 @@ public final class CatPuzzleModel {
     @ObservationIgnored private let stageDefaults: UserDefaults
     /// 1 か月のランキングイベント（#3204）の現在時刻の取り出し口（テストが期間内外を作るために差し替える）。
     @ObservationIgnored var eventNow: () -> Date = { Date() }
-    /// イベントで貯めた合計 pt（端末に保存・`CatPuzzleEvent`）。
+    /// イベントで今日（JST）貯めた合計 pt（端末に保存・`CatPuzzleEvent`）。日付をまたいだら `refreshEventTotal()` で 0 に戻す。
     public private(set) var eventTotal = 0
     /// 直前のステージのクリアで得た pt。期間外・クリアしていないときは nil。
     public private(set) var lastEventPoints: Int?
     /// Game Center へ合計を送っている最中の Task（二重に送らない・テストが完了を待つ）。
     @ObservationIgnored var eventSubmitTask: Task<Void, Never>?
+    /// 保存済みの合計から今日の合計を読み直す（日付が変わっていれば 0）。
+    public func refreshEventTotal() { eventTotal = CatPuzzleEvent.total(stageDefaults, now: eventNow()) }
     /// イベント開催中か（期間は `CatPuzzleEvent` の 1 か所）。
     public var isEventActive: Bool { CatPuzzleEvent.isActive(now: eventNow()) }
     /// ランキングイベントの開催中か（ハブのタイルの「イベント開催中」の印が使う・#3204）。期間は `CatPuzzleEvent` の 1 か所。
@@ -724,6 +726,7 @@ public final class CatPuzzleModel {
         pendingInitialStart = false
         showsClearCard = false
         lastEventPoints = nil
+        refreshEventTotal()
         solvedAt = nil
         recordResult = nil
         services?.snapshots.clear(for: Self.gameID)
@@ -806,22 +809,25 @@ public final class CatPuzzleModel {
         guard stage != nil, isEventActive else { return }
         let earned = CatPuzzleEvent.points(mistakes: mistakes)
         lastEventPoints = earned
-        eventTotal = CatPuzzleEvent.add(earned, to: stageDefaults)
+        eventTotal = CatPuzzleEvent.add(earned, to: stageDefaults, now: eventNow())
         services?.gameDidEarnEventPoints(gameID: Self.gameID, points: earned)
         submitEventTotalIfNeeded()
     }
 
-    /// 貯めた合計のうち Game Center へ未送信のぶんがあれば送る。未ログイン・オフラインでも pt は貯まり、
-    /// 送れなかったら送り済みの控えを進めない（次の決着か画面を開いたときに送り直す）。
+    /// 今日の合計のうち Game Center へ未送信のぶんがあれば送る。未ログイン・オフラインでも pt は貯まり、
+    /// 送れなかったら送り済みの控えを進めない（次の決着か画面を開いたときに、**その日のうちなら**送り直す。前日分は送らない）。
     public func submitEventTotalIfNeeded() {
-        let total = CatPuzzleEvent.total(stageDefaults)
-        guard total > CatPuzzleEvent.sent(stageDefaults), eventSubmitTask == nil,
+        let now = eventNow()
+        refreshEventTotal()
+        let total = CatPuzzleEvent.total(stageDefaults, now: now)
+        let day = CatPuzzleEvent.day(of: now)
+        guard total > CatPuzzleEvent.sent(stageDefaults, now: now), eventSubmitTask == nil,
               let reporter = services?.gameCenter, reporter.isSignedIn else { return }
         eventSubmitTask = Task { [weak self] in
             let sent = await reporter.submitWeeklyAndWait(
                 gameID: Self.gameID, leaderboardID: GameCenterLeaderboard.catPuzzleEvent, value: total)
             guard let self else { return }
-            if sent { CatPuzzleEvent.markSent(total, in: self.stageDefaults) }
+            if sent { CatPuzzleEvent.markSent(total, day: day, in: self.stageDefaults) }
             self.eventSubmitTask = nil
             // 送っているあいだにさらに貯まっていたら続けて送る（失敗したときは繰り返さない）。
             if sent { self.submitEventTotalIfNeeded() }
