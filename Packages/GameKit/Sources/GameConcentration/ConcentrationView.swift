@@ -65,7 +65,7 @@ public struct ConcentrationView: View {
                 showNewGame = false
             } onCancel: { showNewGame = false }
         }
-        .overlay {
+        .overlayAboveBanner {
             // 終局はフェードで出す（#208）。オセロ（#205）と同じく `.gameAnimation` は
             // オーバーレイの ZStack にだけ置く。ここより外に置くと「待った」欄や
             // レコメンド枠の入れ替えまで animate され、決着の瞬間に盤が伸び縮みする。

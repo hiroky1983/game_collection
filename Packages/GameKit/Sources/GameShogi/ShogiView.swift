@@ -95,7 +95,7 @@ public struct ShogiView: View {
             if isMate { AccessibilityNotification.Announcement(tr("詰みがあります")).post() }
         }
         .overlay { checkOverlay }
-        .overlay { promotionOverlay }
+        .overlayAboveBanner { promotionOverlay }
         .task(id: model.aiTurnKey) {
             await model.performAIMoveIfNeeded()
         }

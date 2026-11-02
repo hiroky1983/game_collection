@@ -124,7 +124,7 @@ public struct FreeCellView: View {
                 message: tr("広告を見ているあいだに盤が変わったか、画面を離れたため、ヒントを出せませんでした。")
             )
         )
-        .overlay {
+        .overlayAboveBanner {
             if model.showsDeadEndPrompt { deadEndOverlay }
         }
         // 示した手を VoiceOver にも一言で伝える（印は目で見る手がかりなので）。
