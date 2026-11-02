@@ -38,6 +38,8 @@ struct PausableTurnScanTests {
             // 遊び方（「？」）と開始シートの両方で止める。
             #expect(source.contains("guard !isHowToPlayOpen, !showNewGame"), "\(path) の guard が遊び方・開始シートを見ていない")
             #expect(source.contains("isHowToPlayOpen = true"), "\(path) が遊び方シートの表示を拾っていない")
+            // 読みの最中の開閉で取り消された手番をやり直せる（先行の読みを待ってから呼ぶ）。
+            #expect(source.contains("PausableTurn.waitWhileThinking("), "\(path) が先行の読みの終了を待っていない")
         }
         // 空振り防止。走査が 0 件になって素通りしないよう、既知のゲーム数を下限にする。
         #expect(checked.count >= 8, "走査できた View が少ない: \(checked)")

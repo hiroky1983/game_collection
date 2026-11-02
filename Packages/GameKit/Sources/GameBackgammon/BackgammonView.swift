@@ -67,6 +67,7 @@ public struct BackgammonView: View {
         }
         .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen || showNewGame)) {
             guard !isHowToPlayOpen, !showNewGame else { return }
+            guard await PausableTurn.waitWhileThinking({ model.isThinking }) else { return }
             await model.performAIMoveIfNeeded()
         }
         // CPU の手番の締めに 1 回だけ読み上げる（#2280）。

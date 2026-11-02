@@ -94,6 +94,7 @@ public struct ChessView: View {
         // 閉じたら鍵（paused）が変わって再起動し、止めていた思考をやり直す。
         .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen || showNewGame)) {
             guard !isHowToPlayOpen, !showNewGame else { return }
+            guard await PausableTurn.waitWhileThinking({ model.isThinking }) else { return }
             await model.performAIMoveIfNeeded()
         }
         // CPU の着手（とチェック）を読み上げる（#2280）。

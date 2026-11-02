@@ -70,6 +70,7 @@ public struct GoView: View {
         }
         .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen || showNewGame)) {
             guard !isHowToPlayOpen, !showNewGame else { return }
+            guard await PausableTurn.waitWhileThinking({ model.isThinking }) else { return }
             await model.performAIMoveIfNeeded()
         }
         // CPU の着手・パスを読み上げる（#2280）。パスは `lastMove` が nil になる。

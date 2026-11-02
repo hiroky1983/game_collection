@@ -100,6 +100,7 @@ public struct ShogiView: View {
         .overlay { promotionOverlay }
         .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen || showNewGame)) {
             guard !isHowToPlayOpen, !showNewGame else { return }
+            guard await PausableTurn.waitWhileThinking({ model.isThinking }) else { return }
             await model.performAIMoveIfNeeded()
         }
         // CPU の着手（と王手）を読み上げる（#2280）。王手バナーは 1 秒で消えるのでここで補う。

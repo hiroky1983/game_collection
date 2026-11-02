@@ -67,6 +67,7 @@ public struct MancalaView: View {
         }
         .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen || showNewGame)) {
             guard !isHowToPlayOpen, !showNewGame else { return }
+            guard await PausableTurn.waitWhileThinking({ model.isThinking }) else { return }
             await model.performAIMoveIfNeeded()
         }
         // CPU の着手（どの穴か・ストア入り・連続手番）を読み上げる（#3062）。

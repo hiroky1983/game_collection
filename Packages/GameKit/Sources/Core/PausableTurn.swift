@@ -14,3 +14,20 @@ public struct PausableTurn: Equatable {
         self.paused = paused
     }
 }
+
+extension PausableTurn {
+    /// 先行タスクの読み（`isThinking`）が終わるまで待つ。キャンセルされたら `false`（そのまま抜ける）。
+    ///
+    /// 読みの最中にシートを開閉すると `.task(id:)` が作り直され、旧タスクは取り消されて着手を確定しない。
+    /// なのに旧タスクの `isThinking` は読みが終わるまで残るので、新タスクが `performAIMoveIfNeeded` を
+    /// すぐ呼ぶと即 return し、キーはもう変わらないため CPU の手番が止まったままになる（#3218 のレビュー指摘）。
+    /// 先行の読みが終わるのを待ってから呼べば、取り消された手番をやり直せる。
+    @MainActor
+    public static func waitWhileThinking(_ isThinking: () -> Bool) async -> Bool {
+        while isThinking() {
+            guard !Task.isCancelled else { return false }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return !Task.isCancelled
+    }
+}
