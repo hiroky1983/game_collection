@@ -11,51 +11,36 @@ public struct DiceComboSnapshot: Codable, Equatable, Sendable {
     public var rollsUsed: Int
     /// 埋めた役の点。鍵は `DiceComboCategory.rawValue`（英字）。
     public var scores: [String: Int]
-    /// 「役選びを戻す」の残り回数（#2940）。旧データには無い（nil は無料枠として読む）。
-    public var undosRemaining: Int?
-    /// 直前の役選び（戻す用）。旧データ・戻せない局面には無い。
-    public var lastChoice: Choice?
-
-    /// 戻すために控える、役を選ぶ前の局面。
-    public struct Choice: Codable, Equatable, Sendable {
-        /// 選んだ役（`DiceComboCategory.rawValue`）。
-        public var category: String
-        public var dice: [Int]
-        public var held: [Bool]
-        public var rollsUsed: Int
-
-        public init(category: String, dice: [Int], held: [Bool], rollsUsed: Int) {
-            self.category = category
-            self.dice = dice
-            self.held = held
-            self.rollsUsed = rollsUsed
-        }
-    }
+    /// このターンに広告で振った回数（#3257）。旧データには無い（nil は 0 として読む）。
+    public var adRollsUsed: Int?
+    /// この局でコンティニュー（広告での 1 役やり直し）を使ったか（#3257）。旧データには無い（nil は未使用）。
+    public var continueUsed: Bool?
 
     private enum CodingKeys: String, CodingKey {
-        case dice, held, rollsUsed, scores, undosRemaining, lastChoice
+        case dice, held, rollsUsed, scores, adRollsUsed, continueUsed
     }
 
-    /// 従来の鍵は厳格に読み、後から足した「戻す」の鍵だけは型が合わなくても捨てて読む
-    /// （戻す用の値が壊れていても、局そのものは再開できるようにする）。
+    /// 従来の鍵は厳格に読み、後から足した鍵だけは型が合わなくても捨てて読む
+    /// （広告まわりの値が壊れていても、局そのものは再開できるようにする）。
+    /// 以前あった「役選びを戻す」の鍵（`undosRemaining`・`lastChoice`）は読み捨てる。
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         dice = try container.decode([Int].self, forKey: .dice)
         held = try container.decode([Bool].self, forKey: .held)
         rollsUsed = try container.decode(Int.self, forKey: .rollsUsed)
         scores = try container.decode([String: Int].self, forKey: .scores)
-        undosRemaining = try? container.decodeIfPresent(Int.self, forKey: .undosRemaining)
-        lastChoice = try? container.decodeIfPresent(Choice.self, forKey: .lastChoice)
+        adRollsUsed = try? container.decodeIfPresent(Int.self, forKey: .adRollsUsed)
+        continueUsed = try? container.decodeIfPresent(Bool.self, forKey: .continueUsed)
     }
 
     public init(dice: [Int], held: [Bool], rollsUsed: Int, scores: [String: Int],
-                undosRemaining: Int? = nil, lastChoice: Choice? = nil) {
+                adRollsUsed: Int? = nil, continueUsed: Bool? = nil) {
         self.dice = dice
         self.held = held
         self.rollsUsed = rollsUsed
         self.scores = scores
-        self.undosRemaining = undosRemaining
-        self.lastChoice = lastChoice
+        self.adRollsUsed = adRollsUsed
+        self.continueUsed = continueUsed
     }
 
     /// 1 回も振っていない手つかずの局か（ハブの「続きから」に出さない・#1847 / #2161）。

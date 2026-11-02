@@ -258,6 +258,28 @@
         }
       }
     },
+    "3回振り切ったあと、広告を見るとその番にもう1回振れます（1ターンに最大3回）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After your 3 rolls, watch an ad to roll once more this turn (up to 3 times per turn)."
+          }
+        }
+      }
+    },
+    "12 の役を埋めたとき 0 点の役があれば、広告を見て 1 局に 1 回だけ、その役をやり直せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If any combo scored 0 when all 12 are filled, watch an ad to redo one of them, once per game."
+          }
+        }
+      }
+    },
     "12 の役をぜんぶ埋めたら終わり。合計点で自己ベストを目指そう。" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -67,6 +67,17 @@
         }
       }
     },
+    "0点の役を1つ、広告を見てやり直せます。\n得点表の色のついた0点の役をタップしてください。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to redo one combo that scored 0.\nTap a highlighted 0-point combo on the score sheet."
+          }
+        }
+      }
+    },
     "1 ターンに 3 回まで振れます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -320,17 +331,6 @@
         }
       }
     },
-    "「戻す」を補充できませんでした" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Couldn't Add Undos"
-          }
-        }
-      }
-    },
     "「振る」でサイコロ 5 個を振ります。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -338,6 +338,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tap Roll to roll all five dice."
+          }
+        }
+      }
+    },
+    "このまま終える" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finish as is"
           }
         }
       }
@@ -382,6 +393,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Play Again"
+          }
+        }
+      }
+    },
+    "やり直せませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Redo"
           }
         }
       }
@@ -437,6 +459,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Game Over"
+          }
+        }
+      }
+    },
+    "ゲーム終了　合計%lld点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Game over – %lld points"
           }
         }
       }
@@ -740,7 +773,7 @@
         }
       }
     },
-    "広告を最後まで視聴すると「戻す」を%lld回ぶん補充します。\n得点表はそのままです。" : {
+    "広告で あと%lld回" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -749,13 +782,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Watch the whole ad to add %lld more undo.\nYour score sheet stays as it is."
+                  "value" : "Ad: %lld left"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Watch the whole ad to add %lld more undos.\nYour score sheet stays as it is."
+                  "value" : "Ad: %lld left"
                 }
               }
             }
@@ -763,36 +796,113 @@
         }
       }
     },
-    "広告を見て%lld回補充する" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Watch an ad for %lld more undo"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Watch an ad for %lld more undos"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "広告を見ているあいだに新しいゲームが始まったため、補充できませんでした。\n新しい局の「戻す」は無料の回数まで戻っています。" : {
+    "広告で振る" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "A new game started while the ad was playing, so no undos were added.\nThe new game starts with its free undos."
+            "value" : "Roll via Ad"
+          }
+        }
+      }
+    },
+    "広告を最後まで見ると、もう1回振れます。キープも使えます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch the whole ad to roll once more. Holding dice still works."
+          }
+        }
+      }
+    },
+    "広告を最後まで視聴すると、この役を3回振れる番でやり直せます。\nやり直しは1局に1回までです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch the whole ad to redo this combo with a fresh turn of 3 rolls.\nYou can redo once per game."
+          }
+        }
+      }
+    },
+    "広告を見て、この役をやり直します" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to redo this combo."
+          }
+        }
+      }
+    },
+    "広告を見て「%@」をやり直しますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to redo \"%@\"?"
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに新しいゲームが始まったため、やり直せませんでした。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new game started while the ad was playing, so the combo was not redone."
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに番が進んだため、振り直せませんでした。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The turn moved on while the ad was playing, so no extra roll was added."
+          }
+        }
+      }
+    },
+    "広告を見てもう1回振る、広告で振れるのはあと%lld回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Watch an ad to roll once more, %lld ad roll left"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Watch an ad to roll once more, %lld ad rolls left"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "広告を見てやり直す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad and redo"
           }
         }
       }
@@ -819,40 +929,6 @@
         }
       }
     },
-    "役選びを戻す（広告を見て補充）" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Undo last pick (watch an ad for more)"
-          }
-        }
-      }
-    },
-    "役選びを戻す（残り%lld回）" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "variations" : {
-            "plural" : {
-              "one" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Undo last pick (%lld left)"
-                }
-              },
-              "other" : {
-                "stringUnit" : {
-                  "state" : "translated",
-                  "value" : "Undo last pick (%lld left)"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "得点表の 12 の役に点を入れて、合計点を伸ばします。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -871,28 +947,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tap one combo on the score sheet to score it. That ends your turn."
-          }
-        }
-      }
-    },
-    "戻す" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Undo"
-          }
-        }
-      }
-    },
-    "戻せる役選びがありません" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No pick to undo"
           }
         }
       }
@@ -916,6 +970,17 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "振り直せませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Roll Again"
           }
         }
       }
@@ -975,28 +1040,6 @@
         }
       }
     },
-    "無料の「戻す」を使い切りました" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You've used your free undos"
-          }
-        }
-      }
-    },
-    "直前に選んだ役を取り消して、選ぶ前の出目に戻します" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Takes back the category you just picked and restores the dice."
-          }
-        }
-      }
-    },
     "終了して新規ゲーム" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1026,6 +1069,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "If you quit now, your current score sheet will be lost."
+          }
+        }
+      }
+    },
+    "通常の3回を振り切ると使えます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Available after your 3 regular rolls."
           }
         }
       }
