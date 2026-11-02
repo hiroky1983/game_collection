@@ -2,12 +2,6 @@ import Foundation
 import SwiftUI
 import Core
 
-/// `.task(id:)` の鍵。手番の鍵に「止めているか」を足し、止めた・再開したの両方でタスクを起こし直す（#2827）。
-private struct PausableTurn: Equatable {
-    let key: AITurnKey
-    let paused: Bool
-}
-
 public struct HanafudaView: View {
     @State private var model: HanafudaModel
     private let services: GameServices

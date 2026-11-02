@@ -5,6 +5,8 @@ public struct MancalaView: View {
     @State private var model: MancalaModel
     private let services: GameServices
     @State private var showNewGame = false
+    /// 「？」（遊び方）を開いているあいだ CPU の手番を止める（#3218）。
+    @State private var isHowToPlayOpen = false
     @State private var showConfirmNewGame = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
@@ -48,7 +50,7 @@ public struct MancalaView: View {
                             showNewGame = true
                         }
                     })
-        .howToPlay(HowToPlayGuide.mancala.illustrated(MancalaHowToFigures.items)) { MancalaRuleSheet() }
+        .howToPlay(HowToPlayGuide.mancala.illustrated(MancalaHowToFigures.items), onPresent: { isHowToPlayOpen = true }, onDismiss: { isHowToPlayOpen = false }) { MancalaRuleSheet() }
         .sheet(isPresented: $showNewGame) {
             MancalaNewGameSheet(humanFirst: model.humanFirst, aiLevel: model.aiLevel) { first, level in
                 model.newGame(humanFirst: first, aiLevel: level)
@@ -63,7 +65,8 @@ public struct MancalaView: View {
                 Text(tr("途中で終了すると対局データが失われます。"))
             }
         }
-        .task(id: model.aiTurnKey) {
+        .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen || showNewGame)) {
+            guard !isHowToPlayOpen, !showNewGame else { return }
             await model.performAIMoveIfNeeded()
         }
         // CPU の着手（どの穴か・ストア入り・連続手番）を読み上げる（#3062）。

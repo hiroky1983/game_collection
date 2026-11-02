@@ -5,6 +5,8 @@ public struct BackgammonView: View {
     @State private var model: BackgammonModel
     private let services: GameServices
     @State private var showNewGame = false
+    /// 「？」（遊び方）を開いているあいだ CPU の手番を止める（#3218）。
+    @State private var isHowToPlayOpen = false
     @State private var showPassAlert = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
@@ -40,7 +42,7 @@ public struct BackgammonView: View {
                     newGame: GameChromeNewGame(.match) {
                         showNewGame = true
                     })
-        .howToPlay(HowToPlayGuide.backgammon.illustrated(BackgammonHowToFigures.items))
+        .howToPlay(HowToPlayGuide.backgammon.illustrated(BackgammonHowToFigures.items), onPresent: { isHowToPlayOpen = true }, onDismiss: { isHowToPlayOpen = false })
         .sheet(isPresented: $showNewGame) {
             BackgammonNewGameSheet(aiLevel: model.aiLevel) { level in
                 model.newGame(aiLevel: level)
@@ -63,7 +65,8 @@ public struct BackgammonView: View {
         .onChange(of: model.aiTurnKey, initial: true) { _, _ in
             if model.mustPass && !model.isAITurn { showPassAlert = true }
         }
-        .task(id: model.aiTurnKey) {
+        .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen || showNewGame)) {
+            guard !isHowToPlayOpen, !showNewGame else { return }
             await model.performAIMoveIfNeeded()
         }
         // CPU の手番の締めに 1 回だけ読み上げる（#2280）。

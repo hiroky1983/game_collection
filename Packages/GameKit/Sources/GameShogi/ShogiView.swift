@@ -6,6 +6,8 @@ public struct ShogiView: View {
     @State private var model: ShogiGameModel
     private let services: GameServices
     @State private var showNewGame: Bool
+    /// 「？」（遊び方）を開いているあいだ CPU の手番を止める（#3218）。
+    @State private var isHowToPlayOpen = false
     @State private var showConfirmNewGame = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
@@ -66,7 +68,7 @@ public struct ShogiView: View {
                     condition: GameChromeCondition(conditionParts),
                     newGame: GameChromeNewGame(.match) { requestNewGame() })
         // 駒の動きの対応表（漢字の駒 ↔ 名前・動き。#2166）を「くわしいルール」の先に置く。
-        .howToPlay(HowToPlayGuide.shogi.illustrated(ShogiHowToFigures.items).onboarding(ShogiOnboarding.guide)) { ShogiPieceGuideSheet() }
+        .howToPlay(HowToPlayGuide.shogi.illustrated(ShogiHowToFigures.items).onboarding(ShogiOnboarding.guide), onPresent: { isHowToPlayOpen = true }, onDismiss: { isHowToPlayOpen = false }) { ShogiPieceGuideSheet() }
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             NewGameSheet(
                 initialSide: model.humanSide, initialLevel: model.aiLevel, initialSetting: model.startSheetSetting
@@ -96,7 +98,8 @@ public struct ShogiView: View {
         }
         .overlay { checkOverlay }
         .overlay { promotionOverlay }
-        .task(id: model.aiTurnKey) {
+        .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen || showNewGame)) {
+            guard !isHowToPlayOpen, !showNewGame else { return }
             await model.performAIMoveIfNeeded()
         }
         // CPU の着手（と王手）を読み上げる（#2280）。王手バナーは 1 秒で消えるのでここで補う。
