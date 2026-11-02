@@ -66,6 +66,49 @@ public struct CatPuzzleStage: Equatable, Sendable {
         return isFirstHalf ? 1 : 2
     }
 
+    /// 今の位置の見せ方（#3240）。開始シートとクリアのカードに出す。
+    public struct Progress: Equatable, Sendable {
+        /// 盤の大きさ。
+        public let size: CatPuzzleSize
+        /// その盤の中での 1 始まりの位置（12×12 は 141 面目が 1）。
+        public let position: Int
+        /// その盤の面数。12×12 は以降ずっとなので nil（ゲージも出さない）。
+        public let count: Int?
+        /// 次の盤。12×12 では nil。
+        public let nextSize: CatPuzzleSize?
+        /// 次の盤に入るまでに、この面のあとに残る今の盤の面数（盤の最後の面で 0）。12×12 では nil。
+        public let toNextBoard: Int?
+        /// 鍵の面そのものか。
+        public let isKey: Bool
+        /// 鍵の面に着くまでに、この面のあとに挟まる面数（鍵の面の 1 つ前で 0。鍵の面そのものでは 0）。
+        public let toKey: Int
+
+        /// ゲージの進み具合（0〜1。盤の面数が決まっていない 12×12 は nil）。
+        public var fraction: Double? { count.map { Double(position) / Double($0) } }
+    }
+
+    /// この面の位置（#3240）。
+    public var progress: Progress {
+        let place = placement
+        let isLast = place.size == .size12
+        var count: Int?
+        var next: CatPuzzleSize?
+        if !isLast, let at = Self.boards.firstIndex(where: { $0.size == place.size }) {
+            count = place.count
+            next = at + 1 < Self.boards.count ? Self.boards[at + 1].size : .size12
+        }
+        let position = isLast ? number - Self.boards.reduce(0) { $0 + $1.stages } : place.index + 1
+        return Progress(
+            size: place.size, position: position, count: count, nextSize: next,
+            toNextBoard: count.map { $0 - position },
+            isKey: isKey,
+            toKey: isKey ? 0 : Self.keyPeriod - number % Self.keyPeriod - 1
+        )
+    }
+
+    /// 盤が切り替わる面か（2 面目以降で、その盤の最初の面）。「8×8 に進んだ！」の演出を出す面。
+    public var entersNewBoard: Bool { number > 1 && progress.position == 1 }
+
     /// 問題の種。ステージ番号を `SplitMix64` で 1 回かき混ぜる（隣の面で似た問題にならないように）。
     public var seed: UInt64 {
         var mixer = SplitMix64(seed: UInt64(number) &+ 3048)
