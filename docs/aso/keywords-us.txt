@@ -1,0 +1,46 @@
+# ASO の日次取得（Scripts/aso-daily.py・#3249）がアメリカのストア（country=us）で検索順位を測る語。1 行 1 語。
+# # で始まる行と空行は無視。日本の一覧は docs/aso/keywords-current.txt（こちらとは別）。
+# 足した語は翌日から順位が貯まる。外した語の過去の順位は「順位（日次・US）」タブの右端に残る。
+# 初期値は 10/31 の実測（KPI シート「海外の検索語（US）」）のうち、#2995 で入れる語とその組み合わせ（2026-11-03）。
+#
+# ソリティア系
+solitaire
+klondike solitaire
+patience
+spider solitaire
+freecell
+freecell solitaire
+classic solitaire
+solitaire offline
+# トランプ・カジノ系
+blackjack
+blackjack offline
+poker offline
+video poker
+hearts
+hearts card game
+old maid
+old maid card game
+memory match
+concentration card game
+# パズル・ボード系
+minesweeper
+minesweeper classic
+chess offline
+gomoku
+2048
+2048 classic
+# まとめ系
+card games
+classic card games
+card games offline
+offline card games
+game collection offline
+board games collection
+offline games
+# スペイン語（メキシコの欄がアメリカでも効くか）
+solitario
+juegos de cartas
+# 名前・和物
+asobiba
+hanafuda

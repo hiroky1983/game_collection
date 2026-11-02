@@ -335,8 +335,8 @@ check("行が増えると範囲が広がる（5→12 行）", req3["updateTable"
 req4 = m.table_requests(m.TAB_ADS, 999, header, 3, [{"tableId": m.TABLE_IDS[m.TAB_ADS]}])
 check("行が減ると範囲も縮む（12→3 行）", req4["updateTable"]["table"]["range"]["endRowIndex"] == 3)
 
-check("並べ替え・絞り込みの対象は日次 5 タブ（週次・メモは対象外）",
-      set(m.TABLE_IDS) == {m.TAB_ASO, m.TAB_GA4, m.TAB_GAMES, m.TAB_ADS, m.TAB_RANK})
+check("並べ替え・絞り込みの対象は日次 6 タブ（週次・メモは対象外）",
+      set(m.TABLE_IDS) == {m.TAB_ASO, m.TAB_GA4, m.TAB_GAMES, m.TAB_ADS, m.TAB_RANK, m.TAB_RANK_US})
 check("tableId はタブごとに別々（取り違えて二重に作らない）", len(set(m.TABLE_IDS.values())) == len(m.TABLE_IDS))
 
 print("小計: %d 件成功 / %d 件失敗" % (ok, ng))
@@ -575,6 +575,65 @@ types = [c["columnType"] for c in r["columnProperties"]]
 sys.exit(0 if types == ["DATE", "TEXT", "TEXT"] and r["tableId"] == "tbl_rank_daily" else 1)
 PY
 if [ "$?" -eq 0 ]; then ok "順位（日次）を表にする（日付 DATE・語 TEXT）"; else ng "順位（日次）の表の定義が違う"; fi
+
+echo "== 14. キーワード順位・US（#3249。日本と別のファイル・タブ。--rank-us-api だけなら日本の順位は取らない） =="
+RU="$TMP/rank-us" RUAPI="$TMP/rankapi-us" RUD="$TMP/rankdump-us"
+mkdir -p "$RUAPI"
+printf '%s\n' '# US の語' 'solitaire' 'hearts' 'gomoku' >"$TMP/keywords-us.txt"
+echo '{"resultCount":2,"results":[{"trackId":1},{"trackId":6781719499}]}' >"$RUAPI/solitaire.json"
+echo '{"resultCount":1,"results":[{"trackId":1}]}' >"$RUAPI/hearts.json"
+"$PY" "$TARGET" --out-dir "$RU" --no-fetch --no-ga4 --admob-history "$NOADMOB" --keywords-us-file "$TMP/keywords-us.txt" \
+  --rank-us-api "file://$RUAPI/{term}.json" --rank-interval 0 --today 2026-11-03 --sheets-dump "$RUD" >"$TMP/rulog" 2>&1
+expect_eq "US: 1 語だけ失敗しても終了コード 0" "$?" "0"
+expect_eq "US: rank/daily_us.csv の見出しは日本と同じ" "$(head -1 "$RU/rank/daily_us.csv" | tr -d '\r')" "date,term,rank,count"
+expect_eq "US: 順位" "$(grep ',solitaire,' "$RU/rank/daily_us.csv" | tr -d '\r')" "2026-11-03,solitaire,2,2"
+expect_eq "US: 圏外" "$(grep ',hearts,' "$RU/rank/daily_us.csv" | tr -d '\r')" "2026-11-03,hearts,圏外,1"
+expect_eq "US: 失敗は空欄" "$(grep ',gomoku,' "$RU/rank/daily_us.csv" | tr -d '\r')" "2026-11-03,gomoku,,"
+expect_eq "US だけのときは日本の rank/daily.csv を作らない" "$([ -e "$RU/rank/daily.csv" ] && echo あり || echo なし)" "なし"
+expect_eq "順位（日次・US）の見出し" "$(head -1 "$RUD/順位（日次・US）.tsv")" "日付${T}solitaire${T}hearts${T}gomoku"
+expect_eq "順位（日次・US）の行" "$(sed -n 2p "$RUD/順位（日次・US）.tsv")" "2026-11-03${T}2${T}圏外${T}"
+expect_eq "日本の順位（日次）は US の語を含まない" "$(head -1 "$RUD/順位（日次）.tsv")" "日付"
+grep -q '警告: キーワード順位（US）「gomoku」' "$TMP/rulog" && ok "US の失敗した語をログに書く" || { ng "US の失敗した語がログに無い"; cat "$TMP/rulog"; }
+
+# 日本の取得（rkrun と同じ --rank-api だけ）では US の順位を取らない
+rkrun "$TMP/rank-jp-only"
+expect_eq "日本だけのときは rank/daily_us.csv を作らない" "$([ -e "$TMP/rank-jp-only/rank/daily_us.csv" ] && echo あり || echo なし)" "なし"
+
+# US の URL は country=us、429 は待って取り直す（日本は取り直さない）
+"$PY" - "$TARGET" <<'PY'
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("aso_daily", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+bad = []
+for want in ("term={term}", "country=us", "entity=software", "limit=200"):
+    if want not in m.RANK_API_US: bad.append("US の URL に %s が無い" % want)
+if "country=jp" not in m.RANK_API: bad.append("日本の URL が変わった")
+calls = {"n": 0}
+def flaky(term, api=None):
+    calls["n"] += 1
+    if calls["n"] <= 2:
+        raise m.RankError("HTTP 429", 429)
+    return (5, 10)
+m.fetch_keyword_rank = flaky
+sleeps = []
+r = m.fetch_keyword_ranks(["a"], "2026-11-03", sleep=sleeps.append, retry_429=3, retry_wait=60)
+if r[0]["rank"] != 5 or sleeps != [60, 60]: bad.append("US の 429 の取り直しが違う: %r %r" % (r, sleeps))
+calls["n"] = 0
+sleeps = []
+r = m.fetch_keyword_ranks(["a"], "2026-11-03", sleep=sleeps.append)
+if r[0]["rank"] != "" or sleeps: bad.append("日本（既定）で 429 を取り直した: %r %r" % (r, sleeps))
+m.fetch_keyword_rank = lambda term, api=None: (_ for _ in ()).throw(m.RankError("HTTP 429", 429))
+sleeps = []
+r = m.fetch_keyword_ranks(["a", "b"], "2026-11-03", sleep=sleeps.append, retry_429=2, retry_wait=60)
+if [x["rank"] for x in r] != ["", ""] or sleeps != [60, 60, 3, 60, 60]: bad.append("429 が続いたときの扱いが違う: %r" % sleeps)
+t = m.table_requests(m.TAB_RANK_US, 8, ["日付", "solitaire"], 2, [])["addTable"]["table"]
+if t["tableId"] != "tbl_rank_daily_us" or [c["columnType"] for c in t["columnProperties"]] != ["DATE", "TEXT"]:
+    bad.append("順位（日次・US）の表の定義が違う")
+print("; ".join(bad))
+sys.exit(1 if bad else 0)
+PY
+if [ "$?" -eq 0 ]; then ok "US: country=us・429 は待って取り直す（日本は取り直さない）・表の定義"; else ng "US の URL・429・表の定義が仕様と違う"; fi
 
 echo
 echo "結果: ${PASS} 件成功 / ${FAIL} 件失敗"
