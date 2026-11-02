@@ -93,6 +93,7 @@ enum CatPuzzleHowToFigures {
                     frame(cats: [CatPuzzleHowToFigures.tapCell], caption: tr("ダブルタップ"))
                 }
                 RuleFigureLabel(tr("タップで × を付け外し。ダブルタップでそのマスの猫を見つけます。"), color: Theme.coralText)
+                    .frame(width: 300)  // 長い文は 2 行に折る（SE のカード幅 315pt に収める）
             }
         }
 
