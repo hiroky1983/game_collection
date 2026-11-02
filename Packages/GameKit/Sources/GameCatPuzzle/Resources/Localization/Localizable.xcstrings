@@ -1488,13 +1488,13 @@
         }
       }
     },
-    "イベント +%1$lldpt・合計 %2$lldpt" : {
+    "イベント +%1$lldpt・今日の合計 %2$lldpt" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Event +%1$lld pt · Total %2$lld pt"
+            "value" : "Event +%1$lld pt · Today %2$lld pt"
           }
         }
       }
@@ -1510,35 +1510,35 @@
         }
       }
     },
-    "ステージをクリアして pt を貯めよう。ミス 0 回で 3pt・1 回で 2pt・2 回で 1pt" : {
+    "ステージをクリアして今日の pt を貯めよう（毎日 日本時間の 0 時にリセット）。ミス 0 回で 3pt・1 回で 2pt・2 回で 1pt" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Clear stages to earn points: 3 pts for no misses, 2 for one miss, 1 for two"
+            "value" : "Clear stages to earn today's points (resets daily at midnight JST): 3 pts for no misses, 2 for one miss, 1 for two"
           }
         }
       }
     },
-    "合計 %lldpt" : {
+    "今日の合計 %lldpt" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Total %lld pt"
+            "value" : "Today's total: %lld pt"
           }
         }
       }
     },
-    "ランキングを見る" : {
+    "今日のランキングを見る" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "View ranking"
+            "value" : "View today's ranking"
           }
         }
       }

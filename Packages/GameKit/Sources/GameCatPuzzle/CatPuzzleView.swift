@@ -104,7 +104,7 @@ public struct CatPuzzleView: View {
         .sheet(isPresented: $showNewGame) {
             CatPuzzleNewGameSheet(initialMode: CatPuzzlePlayMode(rawValue: preferredMode) ?? .stage,
                                   initial: model.size, nextStage: model.savedStage,
-                                  eventTotal: model.isEventActive ? model.eventTotal : nil,
+                                  eventTotal: model.isEventActive ? model.todayEventTotal : nil,
                                   onOpenRanking: services.openGameCenter) { mode, size in
                 showNewGame = false
                 start(mode: mode, size: size)
@@ -673,7 +673,7 @@ public struct CatPuzzleView: View {
         ]
         if let earned = model.lastEventPoints {
             // イベント開催中のステージ。SE で行が増えすぎないよう、パーフェクトの行は +3pt に譲る（#3204）。
-            lines.append(tr("イベント +%1$lldpt・合計 %2$lldpt", earned, model.eventTotal))
+            lines.append(tr("イベント +%1$lldpt・今日の合計 %2$lldpt", earned, model.eventTotal))
         } else if model.mistakes == 0 {
             lines.append(tr("ミスなしのパーフェクト！"))
         }
@@ -858,7 +858,7 @@ struct CatPuzzleNextStageBar: View {
 /// 他のゲームと同じ共通の枠（`GameSetupSheet`）。
 struct CatPuzzleNewGameSheet: View {
     let nextStage: Int
-    /// イベント開催中なら貯めた合計 pt（期間外は nil で、イベントの欄を出さない・#3204）。
+    /// イベント開催中なら今日貯めた合計 pt（期間外は nil で、イベントの欄を出さない・#3204）。
     let eventTotal: Int?
     /// Game Center のランキングを開く入口（無ければボタンを出さない）。
     let onOpenRanking: (@MainActor () -> Void)?
@@ -918,16 +918,16 @@ struct CatPuzzleNewGameSheet: View {
     static func eventSection(total: Int, onOpenRanking: (@MainActor () -> Void)?) -> some View {
         GameSetupSection(tr("イベント開催中")) {
             VStack(alignment: .leading, spacing: 8) {
-                Text(tr("ステージをクリアして pt を貯めよう。ミス 0 回で 3pt・1 回で 2pt・2 回で 1pt"))
+                Text(tr("ステージをクリアして今日の pt を貯めよう（毎日 日本時間の 0 時にリセット）。ミス 0 回で 3pt・1 回で 2pt・2 回で 1pt"))
                     .themeBody(13).foregroundStyle(Theme.inkSubText)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack {
-                    Text(tr("合計 %lldpt", total))
+                    Text(tr("今日の合計 %lldpt", total))
                         .themeBody(15).monospacedDigit()
                     Spacer(minLength: 8)
                     if let onOpenRanking {
                         Button { onOpenRanking() } label: {
-                            Text(tr("ランキングを見る"))
+                            Text(tr("今日のランキングを見る"))
                                 .themeBody(14)
                                 .padding(.horizontal, 12)
                                 .frame(minHeight: 44)
