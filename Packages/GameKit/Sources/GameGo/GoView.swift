@@ -6,6 +6,8 @@ public struct GoView: View {
     @State private var model: GoModel
     private let services: GameServices
     @State private var showNewGame: Bool
+    /// 「？」（遊び方）を開いているあいだ CPU の手番を止める（#3218）。
+    @State private var isHowToPlayOpen = false
     @State private var showConfirmNewGame = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
@@ -46,7 +48,7 @@ public struct GoView: View {
         .gameChrome(title: tr("囲碁"), review: services.review,
                     condition: GameChromeCondition(conditionParts),
                     newGame: GameChromeNewGame(.match) { requestNewGame() })
-        .howToPlay(HowToPlayGuide.go.illustrated(GoHowToFigures.items).onboarding(GoOnboarding.guide)) { GoRuleDetails() }
+        .howToPlay(HowToPlayGuide.go.illustrated(GoHowToFigures.items).onboarding(GoOnboarding.guide), onPresent: { isHowToPlayOpen = true }, onDismiss: { isHowToPlayOpen = false }) { GoRuleDetails() }
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             GoNewGameSheet(
                 humanSide: model.humanSide,
@@ -66,7 +68,9 @@ public struct GoView: View {
                 Text(tr("途中で終了すると対局データが失われます。"))
             }
         }
-        .task(id: model.aiTurnKey) {
+        .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen || showNewGame)) {
+            guard !isHowToPlayOpen, !showNewGame else { return }
+            guard await PausableTurn.waitWhileThinking({ model.isThinking }) else { return }
             await model.performAIMoveIfNeeded()
         }
         // CPU の着手・パスを読み上げる（#2280）。パスは `lastMove` が nil になる。

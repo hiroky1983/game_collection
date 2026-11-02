@@ -1,12 +1,6 @@
 import SwiftUI
 import Core
 
-/// `.task(id:)` の鍵。手番の鍵に「止めているか」を足し、止めた・再開したの両方でタスクを起こし直す（#2827）。
-private struct PausableTurn: Equatable {
-    let key: AITurnKey
-    let paused: Bool
-}
-
 /// チェスの対局画面（CPU 対戦）。人間の手番側を常に手前に表示する。
 public struct ChessView: View {
     @State private var model: ChessGameModel
@@ -100,6 +94,7 @@ public struct ChessView: View {
         // 閉じたら鍵（paused）が変わって再起動し、止めていた思考をやり直す。
         .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen || showNewGame)) {
             guard !isHowToPlayOpen, !showNewGame else { return }
+            guard await PausableTurn.waitWhileThinking({ model.isThinking }) else { return }
             await model.performAIMoveIfNeeded()
         }
         // CPU の着手（とチェック）を読み上げる（#2280）。

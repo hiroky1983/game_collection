@@ -5,6 +5,8 @@ public struct OthelloView: View {
     @State private var model: OthelloModel
     private let services: GameServices
     @State private var showNewGame = false
+    /// 「？」（遊び方）を開いているあいだ CPU の手番を止める（#3218）。
+    @State private var isHowToPlayOpen = false
     @State private var showConfirmNewGame = false
     /// 打てる場所の印を盤に出すか（既定オン）。新規対局シートで切り替える。
     @AppStorage(OthelloLegalMoveHint.key) private var showsLegalMoves = true
@@ -68,7 +70,7 @@ public struct OthelloView: View {
                     condition: GameChromeCondition([CPUStrength.strength(for: model.aiLevel).label,
                                                     model.humanSide == .black ? tr("先手") : tr("後手")]),
                     newGame: GameChromeNewGame(.match) { requestNewGame() })
-        .howToPlay(HowToPlayGuide.othello.illustrated(OthelloHowToFigures.items).onboarding(OthelloOnboarding.guide))
+        .howToPlay(HowToPlayGuide.othello.illustrated(OthelloHowToFigures.items).onboarding(OthelloOnboarding.guide), onPresent: { isHowToPlayOpen = true }, onDismiss: { isHowToPlayOpen = false })
         .sheet(isPresented: $showNewGame) {
             OthelloNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel,
                                 showsLegalMoves: showsLegalMoves) { side, level, shows in
@@ -113,7 +115,9 @@ public struct OthelloView: View {
         .onChange(of: model.passBannerDismissID) { _, _ in
             passBannerID = nil
         }
-        .task(id: model.aiTurnKey) {
+        .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen || showNewGame)) {
+            guard !isHowToPlayOpen, !showNewGame else { return }
+            guard await PausableTurn.waitWhileThinking({ model.isThinking }) else { return }
             await model.performAIMoveIfNeeded()
         }
         // CPU の着手・パスを読み上げる（#2280）。

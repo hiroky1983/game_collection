@@ -6,6 +6,8 @@ public struct GomokuView: View {
     @State private var model: GomokuModel
     private let services: GameServices
     @State private var showNewGame: Bool
+    /// 「？」（遊び方）を開いているあいだ CPU の手番を止める（#3218）。
+    @State private var isHowToPlayOpen = false
     @State private var showConfirmNewGame = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
@@ -52,7 +54,7 @@ public struct GomokuView: View {
                     condition: GameChromeCondition(conditionParts),
                     newGame: GameChromeNewGame(.match) { requestNewGame() })
         .howToPlay(GomokuHowToFigures.guide(forbiddenMoves: model.forbiddenMovesEnabled)
-            .onboarding(GomokuOnboarding.guide(forbiddenMoves: model.forbiddenMovesEnabled)))
+            .onboarding(GomokuOnboarding.guide(forbiddenMoves: model.forbiddenMovesEnabled)), onPresent: { isHowToPlayOpen = true }, onDismiss: { isHowToPlayOpen = false })
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             GomokuNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel,
                                forbiddenMoves: model.forbiddenMovesEnabled) { side, level, renju in
@@ -68,7 +70,9 @@ public struct GomokuView: View {
                 Text(tr("途中で終了すると対局データが失われます。"))
             }
         }
-        .task(id: model.aiTurnKey) {
+        .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen || showNewGame)) {
+            guard !isHowToPlayOpen, !showNewGame else { return }
+            guard await PausableTurn.waitWhileThinking({ model.isThinking }) else { return }
             await model.performAIMoveIfNeeded()
         }
         // CPU の着手を読み上げる（#2280）。
