@@ -29,7 +29,7 @@ enum CatPuzzleDailyReward {
         /// カードに出す「猫を教える ＋1」などの 1 行。
         var itemsText: String {
             [hints > 0 ? tr("ヒント ＋%lld", hints) : nil, teaches > 0 ? tr("猫を教える ＋%lld", teaches) : nil]
-                .compactMap { $0 }.joined(separator: "　")
+                .compactMap { $0 }.joined(separator: " ")
         }
     }
 
