@@ -30,6 +30,8 @@ final class SoundFeedbackService: FeedbackService {
     private var cardPlayers: [CardSound: AVAudioPlayer] = [:]
     /// 盤ゲームの着手の音（同梱ファイル・#2767）。`cardPlayers` と同じ作り。
     private var boardPlayers: [BoardSound: AVAudioPlayer] = [:]
+    /// ねこさがしの場面の音（合成・#3239）。`cardPlayers` と同じ作り。
+    private var catPlayers: [CatSound: AVAudioPlayer] = [:]
     /// 柵越えおじさんの場面の音（`HomerunSoundService`）。`players` とは別に持ち、**互いを止めない**
     /// （カキーンの余韻が月への上昇音で切れない）。`SoundEffect` を鳴らしたときの「他の音を止める」も、こちらには掛けない。
     private var homerunPlayers: [HomerunSound: AVAudioPlayer] = [:]
@@ -43,6 +45,10 @@ final class SoundFeedbackService: FeedbackService {
             return
         }
         if case .board(let sound) = style {
+            play(sound)
+            return
+        }
+        if case .cat(let sound) = style {
             play(sound)
             return
         }
@@ -69,6 +75,7 @@ final class SoundFeedbackService: FeedbackService {
         }
         for other in cardPlayers.values where other.isPlaying { other.pause() }
         for other in boardPlayers.values where other.isPlaying { other.pause() }
+        for other in catPlayers.values where other.isPlaying { other.pause() }
 
         // 鳴っている途中なら頭へ巻き戻して鳴らし直す（重ねない）。
         // `stop()` は `prepareToPlay()` のバッファまで捨ててしまい 2 回目以降の発音が遅れるので使わない。
@@ -92,6 +99,7 @@ final class SoundFeedbackService: FeedbackService {
         for other in players.values where other.isPlaying { other.pause() }
         for (kind, other) in cardPlayers where kind != sound && other.isPlaying { other.pause() }
         for other in boardPlayers.values where other.isPlaying { other.pause() }
+        for other in catPlayers.values where other.isPlaying { other.pause() }
 
         player.volume = volume
         player.currentTime = 0
@@ -111,6 +119,7 @@ final class SoundFeedbackService: FeedbackService {
         for other in players.values where other.isPlaying { other.pause() }
         for other in cardPlayers.values where other.isPlaying { other.pause() }
         for (kind, other) in boardPlayers where kind != sound && other.isPlaying { other.pause() }
+        for other in catPlayers.values where other.isPlaying { other.pause() }
 
         player.volume = volume
         player.currentTime = 0
@@ -118,6 +127,35 @@ final class SoundFeedbackService: FeedbackService {
             try? AVAudioSession.sharedInstance().setActive(true)
             player.play()
         }
+    }
+
+    /// ねこさがしの音を鳴らす。作法は `play(_ sound: CardSound)` と同じ。
+    private func play(_ sound: CatSound) {
+        guard throttle.shouldPlay(sound, now: CACurrentMediaTime()) else { return }
+
+        configureSessionIfNeeded()
+        guard let player = catPlayer(for: sound) else { return }
+
+        for other in players.values where other.isPlaying { other.pause() }
+        for other in cardPlayers.values where other.isPlaying { other.pause() }
+        for other in boardPlayers.values where other.isPlaying { other.pause() }
+        for (kind, other) in catPlayers where kind != sound && other.isPlaying { other.pause() }
+
+        player.volume = volume
+        player.currentTime = 0
+        if !player.play() {
+            try? AVAudioSession.sharedInstance().setActive(true)
+            player.play()
+        }
+    }
+
+    private func catPlayer(for sound: CatSound) -> AVAudioPlayer? {
+        if let cached = catPlayers[sound] { return cached }
+        guard let player = try? AVAudioPlayer(data: sound.wavData) else { return nil }
+        player.volume = volume
+        player.prepareToPlay()
+        catPlayers[sound] = player
+        return player
     }
 
     private func boardPlayer(for sound: BoardSound) -> AVAudioPlayer? {

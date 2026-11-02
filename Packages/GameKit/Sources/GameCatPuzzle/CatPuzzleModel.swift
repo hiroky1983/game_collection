@@ -131,6 +131,12 @@ public final class CatPuzzleModel {
     public private(set) var lastEventPoints: Int?
     /// Game Center へ合計を送っている最中の Task（二重に送らない・テストが完了を待つ）。
     @ObservationIgnored var eventSubmitTask: Task<Void, Never>?
+    /// ステージをミス 0 回でクリアした面の連続数と、その最高（端末に保存・#3244）。自由に遊ぶは対象外。
+    /// ヒント・猫を教えるは途切れの条件にしない（ランキングの pt と同じ考え方）。
+    public private(set) var noMissStreak = 0
+    public private(set) var noMissBest = 0
+    /// 直前のクリアで連続の最高を更新した。クリアのカードに「自己ベスト」と添える。
+    public private(set) var beatNoMissBest = false
     /// 開始シートに出す今日の合計。画面を開いたまま 0:00 JST を過ぎても前日の値を出さないよう、保存から都度読む。
     public var todayEventTotal: Int { CatPuzzleEvent.total(stageDefaults, now: eventNow()) }
     /// 今日クリアした面の数（共有の「n 面クリア」・#3237）。
@@ -185,6 +191,8 @@ public final class CatPuzzleModel {
         stageHintsLeft = Self.storedSupply(stageDefaults, Self.stageHintsLeftKey)
         stageTeachLeft = Self.storedSupply(stageDefaults, Self.stageTeachLeftKey)
         eventTotal = CatPuzzleEvent.total(stageDefaults)
+        noMissStreak = CatPuzzleNoMiss.streak(stageDefaults)
+        noMissBest = CatPuzzleNoMiss.best(stageDefaults)
         var seeded = seed.map { SplitMix64(seed: $0) }
         if let snap = services?.snapshots.load(CatPuzzleSnapshot.self, for: Self.gameID),
            CatPuzzleSnapshot.isResumable(snap), let restoredSize = CatPuzzleSize(rawValue: snap.size) {
@@ -314,6 +322,21 @@ public final class CatPuzzleModel {
     private func noteKeyOpened(wasLocked: Bool) {
         guard wasLocked, !isKeyLocked, keyCat != nil else { return }
         keyOpenings += 1
+    }
+
+    /// 猫を見つけた数に応じて順に変える鳴き声の番号（保存しない。続けて見つけてもうるさくならないため・#3239）。
+    private var meowCount = 0
+
+    /// 猫が置かれた音。盤が完成する手はクリアの音（`finish()`）が受け持つので鳴らさない。
+    /// 鍵が開いた手は鳴き声の代わりに鍵の音。
+    private func playFoundSound(wasLocked: Bool) {
+        guard !CatPuzzleLogic.isSolved(puzzle: puzzle, cats: catCells) else { return }
+        if wasLocked, !isKeyLocked, keyCat != nil {
+            services?.feedback.impact(.cat(.keyOpen))
+        } else {
+            services?.feedback.impact(.cat(.meow(at: meowCount)))
+            meowCount += 1
+        }
     }
 
     /// 終局したか（クリア・ミス上限の負けのどちらでも）。
@@ -534,7 +557,7 @@ public final class CatPuzzleModel {
                     offerContinue()
                 }
             } else {
-                services?.feedback.notify(.warning)
+                services?.feedback.impact(.cat(.miss))
                 persist()
             }
             return
@@ -542,7 +565,7 @@ public final class CatPuzzleModel {
         history.append(marks)
         marks[cell] = .cat
         noteKeyOpened(wasLocked: wasLocked)
-        services?.feedback.impact(.medium)
+        playFoundSound(wasLocked: wasLocked)
         if CatPuzzleLogic.isSolved(puzzle: puzzle, cats: catCells) {
             finish()
         } else {
@@ -637,7 +660,7 @@ public final class CatPuzzleModel {
         if !stopwatch.isRunning { startTimer() }
         services?.gameDidUseTeach(gameID: Self.gameID)
         services?.gameDidProgress(gameID: Self.gameID)
-        services?.feedback.impact(.medium)
+        playFoundSound(wasLocked: wasLocked)
         if CatPuzzleLogic.isSolved(puzzle: puzzle, cats: catCells) {
             finish()
         } else {
@@ -673,7 +696,7 @@ public final class CatPuzzleModel {
         if !stopwatch.isRunning { startTimer() }
         services?.gameDidUseHint(gameID: Self.gameID)
         services?.gameDidProgress(gameID: Self.gameID)
-        services?.feedback.impact(.medium)
+        playFoundSound(wasLocked: wasLocked)
         if CatPuzzleLogic.isSolved(puzzle: puzzle, cats: catCells) {
             finish()
         } else {
@@ -803,6 +826,7 @@ public final class CatPuzzleModel {
         pendingInitialStart = false
         showsClearCard = false
         lastEventPoints = nil
+        beatNoMissBest = false
         refreshEventTotal()
         solvedAt = nil
         recordResult = nil
@@ -869,7 +893,8 @@ public final class CatPuzzleModel {
         // ステージは決着の時点で次の面へ進める（クリアのカードを閉じずにアプリを落としても進み具合は残る）。
         if let stage, stage + 1 > savedStage { stageDefaults.set(stage + 1, forKey: Self.stageProgressKey) }
         showsClearCard = false
-        services?.feedback.notify(.success)
+        services?.feedback.impact(.cat(.clear))
+        recordNoMissClear()
         awardEventPoints()
         // 決着 1 回につき `gameDidFinish` は 1 回だけ呼ぶ。記録は大きさごとに分ける。
         recordResult = services?.gameDidFinish(
@@ -878,6 +903,24 @@ public final class CatPuzzleModel {
             score: recordScore
         )
         services?.snapshots.clear(for: Self.gameID)
+    }
+
+    /// ステージのクリアで、ノーミスの連続を更新する（#3244）。ミスがあれば 0 に戻す。ミスは画面に出ている数
+    /// （コンティニューで戻したぶんは含まない。3 回目のミスの時点で連続は 0 に戻っている）。
+    private func recordNoMissClear() {
+        guard stage != nil else { return }
+        guard mistakes == 0 else { resetNoMissStreak(); return }
+        let update = CatPuzzleNoMiss.recordClear(stageDefaults)
+        noMissStreak = update.streak
+        noMissBest = update.best
+        beatNoMissBest = update.beatBest
+    }
+
+    /// ゲームオーバー（3 回目のミス）で連続を 0 に戻す。コンティニューで続けても戻さない。
+    private func resetNoMissStreak() {
+        guard stage != nil else { return }
+        CatPuzzleNoMiss.reset(stageDefaults)
+        noMissStreak = 0
     }
 
     /// ステージのクリアで、開催中ならイベントの pt を貯めて Game Center へ送る（#3204）。`gameDidFinish` より前に呼び、
@@ -918,6 +961,7 @@ public final class CatPuzzleModel {
         syncElapsed()
         stopwatch.stop()
         isOfferingContinue = true
+        resetNoMissStreak()
         services?.feedback.notify(.error)
         recordResult = recordLoss()
         persist()
@@ -962,6 +1006,7 @@ public final class CatPuzzleModel {
         syncElapsed()
         stopwatch.stop()
         isFailed = true
+        resetNoMissStreak()
         services?.feedback.notify(.error)
         if recordsLoss { recordResult = recordLoss() }
         services?.snapshots.clear(for: Self.gameID)
