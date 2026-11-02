@@ -164,15 +164,15 @@ struct CatPuzzleStageModeTests {
         #expect(CatPuzzleView.showsFinishedControls(model))
     }
 
-    @Test("クリアのカードの行は 3 行以内（SE の画面に収める）")
+    @Test("クリアのカードの行は 4 行以内（SE の画面に収める）。ステージは次の面の位置を出す（#3240）")
     func clearDetailsAreCompact() async {
         let services = makeServices()
         let model = CatPuzzleModel(services: services, stageDefaults: makeDefaults("details"))
         await start(model, 1)
         solve(model)
         let view = CatPuzzleView(services: services, model: model)
-        #expect(view.clearDetails.count <= 3)
-        #expect(view.clearDetails.contains { $0.contains("ステージ 1") })
+        #expect(view.clearDetails.count <= 4)
+        #expect(view.clearDetails.contains { $0.contains("次は 6×6：2 / 10 面") && $0.contains("鍵の面まであと 7 面") })
     }
 
     @Test("ステージは時計を出さず、クリアのカードにタイムが無い。自由に遊ぶは今のまま（#3210）")
@@ -184,7 +184,7 @@ struct CatPuzzleStageModeTests {
         solve(model)
         let view = CatPuzzleView(services: services, model: model)
         #expect(!view.clearDetails.contains { $0.contains("タイム") })
-        #expect(view.clearDetails.first == "ミス 0・ヒント 0回")
+        #expect(view.clearDetails.first?.hasPrefix("ミス 0・ヒント 0回") == true)
         #expect(model.recordScore.seconds == nil, "記録に秒数を渡さない")
 
         model.newGame(size: .easy)

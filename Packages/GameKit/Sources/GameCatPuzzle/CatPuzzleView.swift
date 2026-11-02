@@ -91,6 +91,19 @@ public struct CatPuzzleView: View {
             board
                 // ステージの問題を裏で作っている間は盤の上に「用意しています」を重ねる（9×9 は数秒かかることがある）。
                 .overlay { if model.isPreparingStage { preparingOverlay } }
+                // 盤が切り替わる面に入ったら 1 回だけ短く出す（Reduce Motion では動かさずに出して消す）。
+                .overlay {
+                    if let size = model.boardAdvance {
+                        CatPuzzleBoardAdvanceBanner(size: size)
+                            .transition(reduceMotion ? .identity : .scale.combined(with: .opacity))
+                            .task(id: model.gameSerial) {
+                                // VoiceOver には表示と同時に読み上げる（静的テキストは出ただけでは読まれない）。
+                                AccessibilityNotification.Announcement(CatPuzzleStageProgressText.advanced(to: size)).post()
+                                try? await Task.sleep(for: .seconds(1.6))
+                                withGameAnimation { model.clearBoardAdvance() }
+                            }
+                    }
+                }
                 .rewardOffer(continueRescue, for: .continue, isPresented: model.isOfferingContinue,
                              services: services, gameID: CatPuzzleModel.gameID)
                 // 広告のロード〜視聴中は盤に触れない（ナンプレと同じ。視聴後のヒントは盤の今の形から読み直す）。
@@ -797,6 +810,17 @@ public struct CatPuzzleView: View {
                 : tr("ミス %1$lld・ヒント %2$lld回", model.mistakes, model.hintsUsed),
             tr("%1$@・手数 %2$lld", boardLabel, model.moves),
         ]
+        if let stage = model.stage {
+            // ステージは盤の名前の行を、次の面の位置（#3240）に替える。手数はミス・ヒントの行へ寄せて 4 行に収める。
+            let next = CatPuzzleStage(stage + 1).progress
+            lines = [
+                tr("ミス %1$lld・ヒント %2$lld回・手数 %3$lld", model.mistakes, model.hintsUsed, model.moves),
+                tr("次は %1$@・%2$@", CatPuzzleStageProgressText.position(next), CatPuzzleStageProgressText.key(next)),
+            ]
+            // ノーミス連続の行（下）が出るときは、次の盤の行を譲って 4 行に収める（開始シートには出る）。
+            let showsStreak = model.noMissStreak >= CatPuzzleNoMiss.showsFrom
+            if !showsStreak, let board = CatPuzzleStageProgressText.nextBoard(next) { lines.append(board) }
+        }
         if let earned = model.lastEventPoints {
             // イベント開催中のステージ。SE で行が増えすぎないよう、パーフェクトの行は +3pt に譲る（#3204）。
             lines.append(tr("イベント +%1$lldpt・今日の合計 %2$lldpt", earned, model.eventTotal))
@@ -1027,6 +1051,9 @@ struct CatPuzzleNewGameSheet: View {
             onStart: { onStart(mode, size) }, onCancel: onCancel
         ) {
             Self.modeSection(selection: $mode, nextStage: nextStage)
+            if mode == .stage {
+                CatPuzzleStageProgressView(progress: CatPuzzleStage(nextStage).progress)
+            }
             if mode == .stage, noMissBest >= CatPuzzleNoMiss.showsFrom {
                 Text(tr("ノーミス連続の最高 %lld 面", noMissBest))
                     .themeCaption(12).foregroundStyle(Theme.inkSubText)

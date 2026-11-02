@@ -94,6 +94,9 @@ public final class CatPuzzleModel {
     public private(set) var continueUsed = false
     /// クリアのダイアログを出すか。最後の猫を置いてから `clearCardDelay` おいて真になる（`revealClearCardIfDue`）。
     public private(set) var showsClearCard = false
+    /// 盤が切り替わる面に進んだ直後だけ、新しい盤の大きさが入る（「8×8 に進んだ！」の演出用・#3240）。
+    /// 前の面をクリアして「次のステージへ」で入ったときだけで、開始シートや再開では立てない。`clearBoardAdvance` で下ろす。
+    public private(set) var boardAdvance: CatPuzzleSize?
     /// クリアした時刻（ダイアログまでの間を測る）。
     private var solvedAt: ContinuousClock.Instant?
     /// 直近の決着で確定した自己ベスト。クリアのカードに 1 行出す。
@@ -752,10 +755,15 @@ public final class CatPuzzleModel {
             self.isPreparingStage = false
             self.preparingStage = nil
             self.stageGeneration = nil
+            let advanced = self.isSolved && self.stage == n - 1 && CatPuzzleStage(n).entersNewBoard
             self.begin(puzzle: made, size: CatPuzzleStage(n).size, stage: n)
+            self.boardAdvance = advanced ? CatPuzzleStage(n).size : nil
             self.prefetchStage(n + 1)
         }
     }
+
+    /// 「8×8 に進んだ！」を下ろす。
+    public func clearBoardAdvance() { boardAdvance = nil }
 
     /// 次の面を裏で作っておく（作り終えた問題は `startStage` が使う）。
     private func prefetchStage(_ number: Int) {

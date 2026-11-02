@@ -1653,6 +1653,116 @@
         }
       }
     },
+    "%1$@：%2$lld / %3$lld 面" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: Stage %2$lld of %3$lld"
+          }
+        }
+      }
+    },
+    "%1$@：%2$lld 面目" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: Stage %2$lld"
+          }
+        }
+      }
+    },
+    "次の面から %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From the next stage: %@"
+          }
+        }
+      }
+    },
+    "次の盤（%1$@）まであと %2$lld 面" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%2$lld more stages until %1$@"
+          }
+        }
+      }
+    },
+    "鍵の面" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Key stage"
+          }
+        }
+      }
+    },
+    "次は鍵の面" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Key stage next"
+          }
+        }
+      }
+    },
+    "鍵の面まであと %lld 面" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld more stages until a key stage"
+          }
+        }
+      }
+    },
+    "%@ に進んだ！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On to %@!"
+          }
+        }
+      }
+    },
+    "次は %1$@・%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next: %1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "ミス %1$lld・ヒント %2$lld回・手数 %3$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mistakes %1$lld · Hints %2$lld · Moves %3$lld"
+          }
+        }
+      }
+    },
     "ステージ %lld クリア！" : {
       "extractionState" : "manual",
       "localizations" : {
