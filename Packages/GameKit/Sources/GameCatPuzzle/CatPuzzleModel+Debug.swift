@@ -10,6 +10,7 @@ extension CatPuzzleModel {
     /// - `stage` / `stage:N`: 次に遊ぶ面（N を渡すとその面）を始める。
     /// - `stage-solved` / `stage-solved:N`: 面を始めてすぐクリアにする（「ステージ n クリア！」のカード）。
     /// - `stage-next` / `stage-next:N`: 面をクリアし、2 秒後に「次のステージへ」を押したのと同じ操作をする。
+    /// - `stage-key-open` / `stage-key-open:N`: 面（既定は 10 面目）を始めて鍵の猫を見つけ、鍵が開いた直後の盤にする（#3235）。
     /// それ以外（`play` など）は何もしない（開始シートを閉じて遊んでいる盤のまま）。
     public func applyDebugScenario(_ scenario: String) async {
         let parts = scenario.split(separator: ":", maxSplits: 1).map(String.init)
@@ -33,6 +34,10 @@ extension CatPuzzleModel {
         case "stage":
             startStage(number)
             await stagePreparation?.value
+        case "stage-key-open":
+            startStage(number ?? 10)
+            await stagePreparation?.value
+            if let keyCat { findCat(cell: keyCat) }
         case "stage-solved":
             startStage(number)
             await stagePreparation?.value

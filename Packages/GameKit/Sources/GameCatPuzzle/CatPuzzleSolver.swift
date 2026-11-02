@@ -53,6 +53,30 @@ public enum CatPuzzleSolver {
         return state.cats.sorted()
     }
 
+    /// 鍵の面（#3235）の「鍵の猫」。盤に何も印を付けなくても、部屋・行・列の絞り込み（段 3・4 の推理）だけで
+    /// 先に 1 つに決まる猫のマス。決まる猫が複数あるときは、マス番号がいちばん小さいもの。無ければ nil。
+    /// 猫を 1 匹も置かずに進めるので、周りの × 消し（段 2）や当て推量（段 5）には頼らない。
+    public static func keyCat(_ puzzle: CatPuzzle) -> Int? {
+        var state = State(puzzle: puzzle)
+        let n = puzzle.side
+        var progressed = true
+        while progressed {
+            progressed = false
+            var sizes = [1]
+            if n > 2 { sizes += Array(2..<n) }
+            for size in sizes where state.confine(size: size) {
+                progressed = true
+                break
+            }
+        }
+        var found: [Int] = []
+        for group in state.groups {
+            let open = state.candidates(group)
+            if open.count == 1 { found.append(open[0]) }
+        }
+        return found.min()
+    }
+
     enum Outcome { case solved, stuck, contradiction }
 
     struct State {

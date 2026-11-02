@@ -102,6 +102,20 @@ public final class CatPuzzleModel {
     public private(set) var moves = 0
     /// ステージモードの面の番号（#3048）。自由に遊ぶ盤なら nil。
     public private(set) var stage: Int?
+    /// 鍵の面（#3235）の「鍵の猫」のマス。鍵の面でない・鍵の猫が決まらない問題（鍵が実装される前の中断データ）は nil で、
+    /// その局は鍵の制限なしで遊ぶ。問題から決まるので保存しない（印は保存してあり、鍵が開いたかはそこから読む）。
+    public private(set) var keyCat: Int?
+    /// 鍵の部屋の番号。
+    public var keyRoom: Int? { keyCat.flatMap { puzzle.rooms.indices.contains($0) ? puzzle.rooms[$0] : nil } }
+    /// 鍵が閉じているか（鍵の猫をまだ見つけていない）。閉じている間、鍵の部屋の外には × も猫も置けない。
+    public var isKeyLocked: Bool {
+        guard let keyCat, marks.indices.contains(keyCat), !isOver else { return false }
+        return marks[keyCat] != .cat
+    }
+    /// 鍵が閉じている間に、鍵の部屋の外を触った回数（画面が揺れと案内を出すきっかけ）。保存しない。
+    public private(set) var lockedTouches = 0
+    /// 鍵の猫を見つけて鍵が開いた回数（画面が演出を出すきっかけ）。保存しない。
+    public private(set) var keyOpenings = 0
     /// ステージの問題を裏で作っている間（`startStage`）。盤は操作できず、計時もしない。
     public private(set) var isPreparingStage = false
     /// ステージの進み具合（次に遊ぶ面の番号）の保存先。テストは専用の `UserDefaults` を渡す。
@@ -176,6 +190,7 @@ public final class CatPuzzleModel {
             mistakes = snap.mistakes
             continueUsed = snap.continueUsed ?? false
             stage = snap.stage
+            keyCat = Self.keyCat(of: snap.puzzle, stage: snap.stage)
             // ミスが上限のまま保存されている = コンティニューの提案の最中に離れた局。提案から続ける。
             isOfferingContinue = snap.mistakes >= Self.maxMistakes
             hints = BoardHintBudget(used: snap.hintsUsed, freeLimit: Self.freeHints, adLimit: Self.adHints)
@@ -230,6 +245,7 @@ public final class CatPuzzleModel {
         self.stage = stage
         self.size = size
         self.puzzle = puzzle
+        keyCat = Self.keyCat(of: puzzle, stage: stage)
         marks = Array(repeating: .empty, count: puzzle.cellCount)
         services?.snapshots.clear(for: Self.gameID)
         services?.gameDidStart(gameID: Self.gameID, level: analyticsLevel)
@@ -262,13 +278,38 @@ public final class CatPuzzleModel {
     /// 猫を 1 匹教えられるか（ステージの遊んでいる間で、まだ置いていない猫があるとき）。
     public var canTeach: Bool { stage != nil && !isFrozen && nextUnplacedCat != nil }
 
-    /// 教える猫（まだ置いていない答えのマスのうち番号が最小のもの）。
+    /// 教える猫。鍵が閉じている間は鍵の猫、開いていれば、まだ置いていない答えのマスのうち番号が最小のもの。
     private var nextUnplacedCat: Int? {
-        puzzle.solutionCells.filter { marks.indices.contains($0) && marks[$0] != .cat }.min()
+        if isKeyLocked { return keyCat }
+        return puzzle.solutionCells.filter { marks.indices.contains($0) && marks[$0] != .cat }.min()
     }
 
     /// 次のヒントの中身（推理の 1 歩。選び方は `CatPuzzleLogic.hint`）。解けていれば nil。
-    public var nextHint: CatPuzzleHint? { CatPuzzleLogic.hint(puzzle: puzzle, marks: marks) }
+    /// 鍵が閉じている間は、鍵の猫が決まる 1 歩（鍵の部屋の外には何も置かない）。
+    public var nextHint: CatPuzzleHint? {
+        if isKeyLocked, let keyCat, let room = keyRoom {
+            return CatPuzzleHint(reason: .onlyCell(group: .room(room), cell: keyCat), placed: keyCat, highlights: [.room(room)])
+        }
+        return CatPuzzleLogic.hint(puzzle: puzzle, marks: marks)
+    }
+
+    /// 鍵が閉じていて、`cell` が鍵の部屋の外か（触れないマス）。
+    public func isLockedOut(cell: Int) -> Bool {
+        guard isKeyLocked, let keyRoom, puzzle.rooms.indices.contains(cell) else { return false }
+        return puzzle.rooms[cell] != keyRoom
+    }
+
+    /// 鍵の部屋の外を触ったときの案内のきっかけ。操作は受け付けない。
+    private func rejectLockedTouch() {
+        lockedTouches += 1
+        services?.feedback.notify(.warning)
+    }
+
+    /// 鍵の猫が置かれて鍵が開いたら、演出のきっかけを数える。
+    private func noteKeyOpened(wasLocked: Bool) {
+        guard wasLocked, !isKeyLocked, keyCat != nil else { return }
+        keyOpenings += 1
+    }
 
     /// 終局したか（クリア・ミス上限の負けのどちらでも）。
     public var isOver: Bool { isSolved || isFailed }
@@ -339,6 +380,10 @@ public final class CatPuzzleModel {
         // 直接の呼び出し（VoiceOver のアクションなど）は、手前の 1 回目のタップの控えを捨てる（`tap` は呼んだ後で控え直す）。
         pendingTap = nil
         guard !isFrozen, marks.indices.contains(cell), !isFixed(cell: cell), marks[cell] != .cat else { return false }
+        if isLockedOut(cell: cell) {
+            rejectLockedTouch()
+            return false
+        }
         startPlayIfPending()
         lastHint = nil
         lastWrongCell = nil
@@ -404,6 +449,11 @@ public final class CatPuzzleModel {
     public func beginCrossDrag(cell: Int) {
         pendingTap = nil
         guard !isFrozen, marks.indices.contains(cell) else { return }
+        // 鍵の部屋の外から始めたスライドは受け付けない（案内は 1 回だけ）。
+        if isLockedOut(cell: cell) {
+            rejectLockedTouch()
+            return
+        }
         crossDrag = CrossDrag(adds: marks[cell] != .cross)
         dragCross(to: cell)
     }
@@ -420,7 +470,7 @@ public final class CatPuzzleModel {
         let path = drag.last.map { Self.cellsOnLine(from: $0, to: cell, side: puzzle.side) } ?? [cell]
         drag.last = cell
         for passed in path where !drag.changed.contains(passed) {
-            guard !isFixed(cell: passed), marks[passed] != .cat,
+            guard !isFixed(cell: passed), marks[passed] != .cat, !isLockedOut(cell: passed),
                   marks[passed] == (drag.adds ? .empty : .cross) else { continue }
             if !drag.hasChangedAny {
                 // 最初に変わるときに 1 回だけ履歴を積む（スライド全体が「戻す」1 回ぶん・手数も 1）。
@@ -451,6 +501,11 @@ public final class CatPuzzleModel {
     public func findCat(cell: Int) {
         pendingTap = nil
         guard !isFrozen, marks.indices.contains(cell), !isFixed(cell: cell), marks[cell] != .cat else { return }
+        if isLockedOut(cell: cell) {
+            rejectLockedTouch()
+            return
+        }
+        let wasLocked = isKeyLocked
         startPlayIfPending()
         lastHint = nil
         lastWrongCell = nil
@@ -477,6 +532,7 @@ public final class CatPuzzleModel {
         }
         history.append(marks)
         marks[cell] = .cat
+        noteKeyOpened(wasLocked: wasLocked)
         services?.feedback.impact(.medium)
         if CatPuzzleLogic.isSolved(puzzle: puzzle, cats: catCells) {
             finish()
@@ -561,8 +617,10 @@ public final class CatPuzzleModel {
         pendingTap = nil
         crossDrag = nil  // 進行中のスライドは捨てる（盤が変わるため）
         startPlayIfPending()
+        let wasLocked = isKeyLocked
         marks[cell] = .cat
         hintCells.insert(cell)
+        noteKeyOpened(wasLocked: wasLocked)
         stageAssistsUsed += 1
         lastHint = nil
         lastWrongCell = nil
@@ -589,6 +647,7 @@ public final class CatPuzzleModel {
         pendingTap = nil
         crossDrag = nil  // 進行中のスライドは捨てる（盤が変わるため）
         startPlayIfPending()
+        let wasLocked = isKeyLocked
         for cell in hint.removed + hint.crossed {
             marks[cell] = .cross
             hintCrosses.insert(cell)
@@ -597,6 +656,7 @@ public final class CatPuzzleModel {
             marks[placed] = .cat
             hintCells.insert(placed)
         }
+        noteKeyOpened(wasLocked: wasLocked)
         lastHint = hint
         lastWrongCell = nil
         if stage != nil { stageAssistsUsed += 1 }
@@ -707,6 +767,7 @@ public final class CatPuzzleModel {
         crossDrag = nil  // 進行中のスライドは捨てる（盤が変わるため）
         stopwatch.stop()
         puzzle = newPuzzle
+        keyCat = Self.keyCat(of: newPuzzle, stage: newStage)
         marks = Array(repeating: .empty, count: puzzle.cellCount)
         history.removeAll()
         mistakes = 0
@@ -928,6 +989,12 @@ public final class CatPuzzleModel {
             continueUsed: continueUsed, stage: stage
         )
         try? services?.snapshots.save(snapshot, for: Self.gameID)
+    }
+
+    /// 鍵の面（10 面ごと）の鍵の猫。鍵の面でなければ・鍵の猫が決まらなければ nil。
+    private static func keyCat(of puzzle: CatPuzzle, stage: Int?) -> Int? {
+        guard let stage, CatPuzzleStage(stage).isKey else { return nil }
+        return CatPuzzleSolver.keyCat(puzzle)
     }
 
     private static func cats(in marks: [Mark]) -> [Int] {
