@@ -1446,7 +1446,11 @@ v1.1.4 までの公開版は3種）。
   共有の文言は記録を前面に出し（`RecordFormat.shareMessage`。「あそびばの「2048」で記録更新！」＋リザルトの 1 行）、
   URL にキャンペーンのパラメータは付けない。載せるのは `game_id` だけなので GA4 の新しい登録は要らない。
   `ShareLink` は完了を知らせないため「送った数」ではなく「押した数」として読む。チャリンコおじさんは `RecordLabel` を
-  使わないので対象外
+  使わないので対象外。ねこさがし（#3237・`release/v1.1.15`）は、デイリーランキング開催中のステージのクリアのカードにも
+  同じ `RecordShareContext` の共有ボタン（`GameClearCard` の `share:`）を出し、押すと同じ `share_tap`（`game_id=catpuzzle`）を送る。
+  共有するのは「ねこさがし 今日 npt（m 面クリア）」の文・App Store の URL・画像（答えが分からないよう盤は部屋の間取りだけをぼかし、
+  猫・× は描かない）。m は今日のクリア面数で、`UserDefaults` のキー `catPuzzleEventDayClears`（JST 0 時で数え直す）に持つ。
+  期間外・自由に遊ぶでは出さない
 - `reward_offer`（`RewardOfferResult`・#780・`release/v1.1.7` から）の**提示**は、広告を見るかどうかを選ばせる画面
   （確認アラート・コンティニューの幕・リザルトの復活ボタン）が出たこと。無料で済む確認（無料の待った）は含めない。
   各画面は `rewardOffer(_:for:isPresented:services:gameID:)` 修飾子で「出ているか」だけを渡し、押したかどうかは
