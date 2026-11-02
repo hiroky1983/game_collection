@@ -27,7 +27,7 @@ enum CatPuzzleStageProgressText {
 
     /// 「次の盤」と「鍵」を 1 行に並べたもの（クリアのカード用）。
     static func upcoming(_ progress: CatPuzzleStage.Progress) -> String {
-        [nextBoard(progress), key(progress)].compactMap { $0 }.joined(separator: "・")
+        [nextBoard(progress), key(progress)].compactMap { $0 }.joined(separator: tr("・"))
     }
 
     /// 盤が切り替わったときの一言（「8×8 に進んだ！」）。
