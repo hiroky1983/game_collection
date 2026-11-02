@@ -188,6 +188,13 @@ public struct GameServices {
         analytics?.recordHintUsed(gameID: gameID)
     }
 
+    /// 「猫を教える」を**1回使った**（無料・広告のどちらでも）ときに各 Model から呼ぶ（#3232）。`game_end` の `teach_used` に載る。
+    /// ヒント（`gameDidUseHint`）とは別に数える。
+    @MainActor
+    public func gameDidUseTeach(gameID: String) {
+        analytics?.recordTeachUsed(gameID: gameID)
+    }
+
     /// ステージのクリアで稼いだイベントのポイントを伝える（#3204）。そのクリアの `gameDidFinish` の**前**に呼ぶと、
     /// `game_end` に `event_points` として載る。
     @MainActor
@@ -313,7 +320,7 @@ public struct GameServices {
     /// 決着ではない（`gameDidFinish` は呼ばない）。解析が原因を覚えておき、そのプレイの
     /// `game_end` に「最後のミスの原因」（`cause`）として載せる。イベントの種類は増やさない。
     @MainActor
-    public func gameDidMiss(gameID: String, cause: AnalyticsEndCause, progressPercent: Int? = nil) {
+    public func gameDidMiss(gameID: String, cause: AnalyticsEndCause?, progressPercent: Int? = nil) {
         analytics?.recordMissCause(gameID: gameID, cause: cause, progressPercent: progressPercent)
     }
 
