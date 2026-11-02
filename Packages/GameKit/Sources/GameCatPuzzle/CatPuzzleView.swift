@@ -592,9 +592,10 @@ public struct CatPuzzleView: View {
                     .foregroundStyle(Theme.yellowText)
                     .multilineTextAlignment(.center)
             } else {
-                Text(tr("タップで ×、ダブルタップで猫"))
+                Text(tr("タップで × を付け外し。ダブルタップでそのマスの猫を見つけます。"))
                     .scaledFont(14, weight: .semibold, design: .rounded)
                     .foregroundStyle(Theme.inkSubText)
+                    .multilineTextAlignment(.center)
             }
         }
         .frame(minHeight: 36)

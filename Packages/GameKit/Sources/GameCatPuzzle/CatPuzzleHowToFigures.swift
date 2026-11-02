@@ -92,7 +92,7 @@ enum CatPuzzleHowToFigures {
                     arrow("arrow.right")
                     frame(cats: [CatPuzzleHowToFigures.tapCell], caption: tr("ダブルタップ"))
                 }
-                RuleFigureLabel(tr("タップで × を付け外し、ダブルタップで猫"), color: Theme.coralText)
+                RuleFigureLabel(tr("タップで × を付け外し。ダブルタップでそのマスの猫を見つけます。"), color: Theme.coralText)
             }
         }
 
