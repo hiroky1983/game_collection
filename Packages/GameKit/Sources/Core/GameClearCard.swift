@@ -50,6 +50,8 @@ struct ClearShareButton: View {
             }
         }
         .buttonStyle(.pop)
+        // 画像を描き終えるまでは押せない（描く前に押すと画像の無い共有になる）。描けなかったときは文だけで共有する。
+        .disabled(!didRender)
         .simultaneousGesture(TapGesture().onEnded { context.didTap() })
         .accessibilityLabel(tr("今日の pt をシェア"))
         .task(id: share.message) {
