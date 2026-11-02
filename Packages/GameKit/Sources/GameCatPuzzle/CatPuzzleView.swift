@@ -377,14 +377,14 @@ public struct CatPuzzleView: View {
             withGameAnimation { zoom.reset() }
         } label: {
             Image(systemName: "arrow.down.right.and.arrow.up.left")
-                .font(.system(size: 14, weight: .bold))
+                .font(.system(size: 14, weight: .bold)) // fixed-size: 32pt の丸に収める記号（図形のジオメトリに従う）
                 .foregroundStyle(.white)
                 .frame(width: 32, height: 32)
                 .background(Circle().fill(Color.black.opacity(0.6)))
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pop)
         .accessibilityLabel(tr("等倍に戻す"))
     }
 
