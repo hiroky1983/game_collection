@@ -96,4 +96,20 @@ struct AppGameCenterService: GameCenterService {
             start: leaderboard.startDate, end: end, lastWeekRank: lastWeekRank
         )
     }
+
+    /// 友だちの順位表（#3236）。友だちの情報を使う許可が無い・読めなかったときは空（呼び出し側は友だちの欄を出さない）。
+    func loadFriendRows(leaderboardID: String, topCount: Int) async -> [GameCenterBoardRow] {
+        guard let leaderboard = try? await GKLeaderboard.loadLeaderboards(IDs: [leaderboardID]).first,
+              let page = try? await leaderboard.loadEntries(
+                for: .friendsOnly, timeScope: .allTime, range: NSRange(location: 1, length: max(1, topCount))
+              )
+        else { return [] }
+        let me = GKLocalPlayer.local.gamePlayerID
+        return page.1.map { entry in
+            GameCenterBoardRow(
+                id: entry.player.gamePlayerID, name: entry.player.displayName,
+                score: entry.score, rank: entry.rank, isMe: entry.player.gamePlayerID == me
+            )
+        }
+    }
 }

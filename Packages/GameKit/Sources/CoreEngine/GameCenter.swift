@@ -100,6 +100,10 @@ public protocol GameCenterService {
     /// - Parameter topCount: 上位から何行読むか。
     /// - Parameter includesLastWeek: 先週の自分の順位も読むか（余分に 1 往復かかる）。
     @MainActor func loadBoard(leaderboardID: String, topCount: Int, includesLastWeek: Bool) async -> GameCenterBoard?
+
+    /// 定期リーダーボードのいまの回の、友だちの順位表（#3236。自分も含む。並びは順位順）。友だちの情報を使う許可が無い・
+    /// 友だちがいない・読めなかったときは空。
+    @MainActor func loadFriendRows(leaderboardID: String, topCount: Int) async -> [GameCenterBoardRow]
 }
 
 extension GameCenterService {
@@ -107,6 +111,7 @@ extension GameCenterService {
     @MainActor public func unlockedAchievementIDs() async -> Set<String>? { nil }
     @MainActor public func submitAndWait(_ score: GameCenterScore) async -> Bool { false }
     @MainActor public func loadBoard(leaderboardID: String, topCount: Int, includesLastWeek: Bool) async -> GameCenterBoard? { nil }
+    @MainActor public func loadFriendRows(leaderboardID: String, topCount: Int) async -> [GameCenterBoardRow] { [] }
 }
 
 /// 何もしない実装。テスト・プレビュー・撮影モード用。
@@ -486,6 +491,12 @@ public final class GameCenterReporter {
                                 includesLastWeek: Bool = false) async -> GameCenterBoard? {
         guard allowedGameIDs.contains(gameID), isAvailable() else { return nil }
         return await service.loadBoard(leaderboardID: leaderboardID, topCount: topCount, includesLastWeek: includesLastWeek)
+    }
+
+    /// 定期リーダーボードのいまの回の友だちの順位（#3236）。未サインイン・対象外のゲーム・読めなかったときは空。
+    public func loadFriendRows(gameID: String, leaderboardID: String, topCount: Int = 20) async -> [GameCenterBoardRow] {
+        guard allowedGameIDs.contains(gameID), isAvailable() else { return [] }
+        return await service.loadFriendRows(leaderboardID: leaderboardID, topCount: topCount)
     }
 
     /// この決着で実績を新たに解除する見込みか（#3097）。`gameDidFinish` が送るものと同じ条件
