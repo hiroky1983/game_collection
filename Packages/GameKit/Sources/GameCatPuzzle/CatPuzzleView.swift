@@ -410,6 +410,7 @@ public struct CatPuzzleView: View {
             self.start = start
             startCell = cell
             isSliding = false
+            isCancelled = false
         }
 
         func reset() {
@@ -428,7 +429,6 @@ public struct CatPuzzleView: View {
         let slide = CatPuzzleModel.slideDistance(cellSide: cellSide * zoom.scale)
         return DragGesture(minimumDistance: 0)
             .onChanged { value in
-                guard !boardTouch.isCancelled else { return }
                 if boardTouch.start != value.startLocation {
                     // 前の指が離れ損ねていたら（システムの割り込み）確定してから新しい指として扱う。
                     if boardTouch.isSliding { model.endCrossDrag() }
@@ -436,7 +436,7 @@ public struct CatPuzzleView: View {
                         at: value.startLocation,
                         cell: CatPuzzleModel.cell(at: zoom.unzoomed(value.startLocation), side: side, cellSide: cellSide, inset: inset))
                 }
-                guard let startCell = boardTouch.startCell else { return }
+                guard !boardTouch.isCancelled, let startCell = boardTouch.startCell else { return }
                 let moved = hypot(value.location.x - value.startLocation.x, value.location.y - value.startLocation.y)
                 if !boardTouch.isSliding, moved >= slide {
                     boardTouch.isSliding = true
