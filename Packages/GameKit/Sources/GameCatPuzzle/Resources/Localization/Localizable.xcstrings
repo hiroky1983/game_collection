@@ -1730,6 +1730,138 @@
         }
       }
     },
+    "鍵を持った猫の面" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Key Cat Stage"
+          }
+        }
+      }
+    },
+    "鍵が閉じている" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Locked"
+          }
+        }
+      }
+    },
+    "鍵が開いた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlocked"
+          }
+        }
+      }
+    },
+    "鍵の札がついた部屋に、鍵を持った猫がいます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The room with the key tag has the cat holding the key."
+          }
+        }
+      }
+    },
+    "その猫を見つけるまで、ほかの部屋には × も猫も置けません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Until you find that cat, you can't place × marks or cats in other rooms."
+          }
+        }
+      }
+    },
+    "鍵の部屋は、ほかのマスを調べなくても、考えれば猫の場所が決まります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can work out the key room's cat by reasoning alone, without marking other squares."
+          }
+        }
+      }
+    },
+    "わかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Got it"
+          }
+        }
+      }
+    },
+    "先に鍵の猫を見つけよう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find the key cat first"
+          }
+        }
+      }
+    },
+    "鍵が開いた！ ほかの部屋にも印を付けられる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlocked! You can mark the other rooms now"
+          }
+        }
+      }
+    },
+    "鍵の猫を探そう（金色の枠の部屋だけ触れる）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find the key cat (only the gold-framed room is open)"
+          }
+        }
+      }
+    },
+    "%@（鍵の部屋）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ (key room)"
+          }
+        }
+      }
+    },
+    "鍵の猫を見つけるまで、この部屋には印を付けられません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can't mark this room until you find the key cat"
+          }
+        }
+      }
+    },
     "順位を読み込んでいます" : {
       "extractionState" : "manual",
       "localizations" : {

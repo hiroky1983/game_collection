@@ -8,6 +8,7 @@ import CoreEngine
 /// 盤ごとの面数は `boards` の表のとおり（広い盤ほど長く遊べる・#3223）。
 /// 6〜8・10・11 の盤は各盤の前半を「段 3 までで解ける」、後半を「段 4 が要る」問題にする。
 /// 段の意味は `CatPuzzleSolver`。段 5（当て推量）が要る問題は出さない。
+/// 10 面ごと（10・20・30…面目）は「鍵の面」（#3235）。鍵を持った猫の部屋が先に論理だけで決まる問題を採る（`CatPuzzleSolver.keyCat`）。
 public struct CatPuzzleStage: Equatable, Sendable {
     /// 1 始まりのステージ番号。
     public let number: Int
@@ -15,6 +16,12 @@ public struct CatPuzzleStage: Equatable, Sendable {
     public init(_ number: Int) {
         self.number = max(1, number)
     }
+
+    /// 鍵の面（#3235）の周期。10 面ごとに「鍵を持った猫」の面を入れる。
+    static let keyPeriod = 10
+
+    /// 鍵の面か（10・20・30…面目）。
+    public var isKey: Bool { number % Self.keyPeriod == 0 }
 
     /// 盤ごとの面数。上から順に遊ぶ（最後の 12×12 は以降ずっと）。
     static let boards: [(size: CatPuzzleSize, stages: Int)] = [
@@ -73,6 +80,7 @@ public struct CatPuzzleStage: Equatable, Sendable {
 
     /// この面の問題をその場で作る。種から決まるので、何度作っても同じ問題になる。
     /// 生成した問題（解は必ず 1 つ）を解き手で測り、段が `tiers` に入る最初の 1 問を採る。
+    /// 鍵の面は、さらに鍵の猫が先に決まる（`CatPuzzleSolver.keyCat` が nil でない）ものだけを採る。
     /// 呼び出し元の `Task` が取り消されたら、その時点の問題（段が範囲外のこともある）を返して抜ける。
     /// 取り消した側はその問題を使わない（`CatPuzzleModel.startStage`）。
     public func generatePuzzle() -> CatPuzzle {
@@ -81,7 +89,9 @@ public struct CatPuzzleStage: Equatable, Sendable {
             let puzzle = CatPuzzleLogic.generate(size: size, winding: winding, using: &generator)
             if Task.isCancelled { return puzzle }
             let difficulty = CatPuzzleSolver.rate(puzzle, maxTier: 4)
-            if difficulty.solved && tiers.contains(difficulty.tier) { return puzzle }
+            if difficulty.solved && tiers.contains(difficulty.tier) && (!isKey || CatPuzzleSolver.keyCat(puzzle) != nil) {
+                return puzzle
+            }
         }
     }
 }

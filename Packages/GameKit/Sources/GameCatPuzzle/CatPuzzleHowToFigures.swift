@@ -43,6 +43,9 @@ enum CatPuzzleHowToFigures {
         var solved = false
         var cellSide: CGFloat = CatPuzzleHowToFigures.cellSide
         var showsRoomLabels = true
+        /// 鍵の面の図（#3235）。鍵を持った猫の部屋と、鍵が閉じているか。
+        var keyRoom: Int? = nil
+        var keyLocked = false
         var body: some View {
             let sample = CatPuzzleHowToFigures.sample
             var marks = Array(repeating: CatPuzzleModel.Mark.empty, count: sample.cellCount)
@@ -50,7 +53,8 @@ enum CatPuzzleHowToFigures {
             for cell in cats { marks[cell] = .cat }
             let violations = CatPuzzleLogic.violations(puzzle: sample, cats: cats)
             return CatPuzzleBoardCanvas(puzzle: sample, marks: marks, conflicts: violations.cells,
-                                        wrongCrosses: wrongCrosses, isSolved: solved, showsRoomLabels: showsRoomLabels, cellSide: cellSide)
+                                        wrongCrosses: wrongCrosses, isSolved: solved, showsRoomLabels: showsRoomLabels,
+                                        keyRoom: keyRoom, keyLocked: keyLocked, cellSide: cellSide)
                 .padding(3)
                 .background(RoundedRectangle(cornerRadius: Theme.cornerSmall / 2, style: .continuous).fill(Theme.surface))
         }
