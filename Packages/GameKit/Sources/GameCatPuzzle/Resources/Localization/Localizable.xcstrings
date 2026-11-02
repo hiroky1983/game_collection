@@ -1807,6 +1807,17 @@
         }
       }
     },
+    "等倍に戻す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset zoom"
+          }
+        }
+      }
+    },
     "先に鍵の猫を見つけよう" : {
       "extractionState" : "manual",
       "localizations" : {

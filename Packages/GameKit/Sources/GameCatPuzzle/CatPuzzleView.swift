@@ -14,6 +14,8 @@ public struct CatPuzzleView: View {
     @State private var clearCardClosed = false
     /// 盤を押している指の状態（タップかスライドかの判定。#3116）。
     @State private var boardTouch = BoardTouch()
+    /// 盤の拡大と移動（2 本指・#3238）。新しい局・盤の大きさが変わったら等倍に戻す。
+    @State private var zoom = CatPuzzleBoardZoom()
     /// 開始シート（難易度を選ぶ）。続きの盤が無ければ最初に出す（他のゲームと同じ・会長 QA 2026-10-21・build 43）。
     @State private var showNewGame: Bool
     /// 「＋」で途中の局をやめるかの確認。
@@ -209,6 +211,7 @@ public struct CatPuzzleView: View {
         .onChange(of: model.gameSerial) {
             showsKeyLockedHint = false
             showsKeyOpened = false
+            zoom.reset()
         }
         // 鍵の部屋の外を触ったら、先に鍵の猫を見つけるよう数秒だけ案内する（盤の揺れは盤の側）。
         .task(id: model.lockedTouches) {
@@ -316,34 +319,81 @@ public struct CatPuzzleView: View {
             let inset = Self.boardInset
             let boardSide = min(geo.size.width, geo.size.height)
             let cellSide = Self.cellSide(boardSide: boardSide, side: n)
+            // 拡大中は盤の絵とマスを大きく描き直して（ベクターのまま）、枠の中で動かす。タップの判定は等倍の座標へ戻して行う。
+            let drawnCell = cellSide * zoom.scale
+            let drawnInset = inset * zoom.scale
             ZStack(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
                     .fill(Theme.surface)
                     .shadow(color: .black.opacity(0.12), radius: 8, y: 5)
-                CatPuzzleBoardCanvas(
-                    puzzle: model.puzzle, marks: model.marks,
-                    wrongCrosses: model.wrongCrosses, lastWrongCell: model.lastWrongCell,
-                    hintCells: model.hintCells, hintCrosses: model.hintCrosses, lastHint: model.lastHint,
-                    shakeToken: model.mistakes, isSolved: model.isSolved,
-                    ghostCats: Array(model.unfoundCats.prefix(revealedGhosts)),
-                    keyRoom: model.keyRoom, keyLocked: model.isKeyLocked, cellSide: cellSide
-                )
-                // 鍵の部屋の外を触ったら盤が短く揺れる（Reduce Motion では揺らさない）。
-                .phaseAnimator(CatPuzzleMotion.shakePhases, trigger: model.lockedTouches) { content, phase in
-                    content.offset(x: reduceMotion ? 0 : phase * cellSide * 0.12)
-                } animation: { _ in
-                    reduceMotion ? nil : CatPuzzleMotion.shakeStep
+                ZStack(alignment: .topLeading) {
+                    CatPuzzleBoardCanvas(
+                        puzzle: model.puzzle, marks: model.marks,
+                        wrongCrosses: model.wrongCrosses, lastWrongCell: model.lastWrongCell,
+                        hintCells: model.hintCells, hintCrosses: model.hintCrosses, lastHint: model.lastHint,
+                        shakeToken: model.mistakes, isSolved: model.isSolved,
+                        ghostCats: Array(model.unfoundCats.prefix(revealedGhosts)),
+                        keyRoom: model.keyRoom, keyLocked: model.isKeyLocked, cellSide: drawnCell
+                    )
+                    // 鍵の部屋の外を触ったら盤が短く揺れる（Reduce Motion では揺らさない）。
+                    .phaseAnimator(CatPuzzleMotion.shakePhases, trigger: model.lockedTouches) { content, phase in
+                        content.offset(x: reduceMotion ? 0 : phase * drawnCell * 0.12)
+                    } animation: { _ in
+                        reduceMotion ? nil : CatPuzzleMotion.shakeStep
+                    }
+                    .offset(x: drawnInset, y: drawnInset)
+                    cells(cellSide: drawnCell, inset: drawnInset)
                 }
-                .offset(x: inset, y: inset)
-                cells(cellSide: cellSide, inset: inset)
+                .offset(x: zoom.offset.x, y: zoom.offset.y)
+                .frame(width: boardSide, height: boardSide, alignment: .topLeading)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
             }
             .frame(width: boardSide, height: boardSide)
             .contentShape(Rectangle())
             .gesture(boardGesture(cellSide: cellSide, inset: inset))
+            .overlay {
+                CatPuzzleZoomGestureHost(
+                    onBegan: { cancelBoardTouch() },
+                    onPinch: { factor, center in zoom.zoom(by: factor, anchor: center, boardSide: boardSide) },
+                    onPan: { delta in zoom.pan(by: delta, boardSide: boardSide) }
+                )
+                .allowsHitTesting(false)
+            }
+            .overlay(alignment: .topTrailing) {
+                if zoom.isZoomed {
+                    zoomResetButton
+                }
+            }
+            .onChange(of: boardSide) { zoom.reset() }
             .frame(maxWidth: .infinity, alignment: .center)
             .gameAnimation(.easeOut(duration: 0.15), value: model.marks)
         }
         .aspectRatio(1, contentMode: .fit)
+    }
+
+    /// 拡大中だけ盤の隅に出す「等倍に戻す」。押せる範囲 44pt は枠の中に収める。
+    private var zoomResetButton: some View {
+        Button {
+            withGameAnimation { zoom.reset() }
+        } label: {
+            Image(systemName: "arrow.down.right.and.arrow.up.left")
+                .font(.system(size: 14, weight: .bold)) // fixed-size: 32pt の丸に収める記号（図形のジオメトリに従う）
+                .foregroundStyle(.white)
+                .frame(width: 32, height: 32)
+                .background(Circle().fill(Color.black.opacity(0.6)))
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.pop)
+        .accessibilityLabel(tr("等倍に戻す"))
+    }
+
+    /// 2 本指の操作が始まったら、進行中の 1 本指の操作（スライド・タップ）を取りやめる。
+    private func cancelBoardTouch() {
+        guard boardTouch.start != nil else { return }
+        if boardTouch.isSliding { model.endCrossDrag() }
+        boardTouch.isSliding = false
+        boardTouch.isCancelled = true
     }
 
     /// 盤を押している指の状態。指を置いた位置のマスと、スライドと決まったかを持つ。
@@ -353,17 +403,21 @@ public struct CatPuzzleView: View {
         var start: CGPoint?
         var startCell: Int?
         var isSliding = false
+        /// 2 本指の操作に切り替わったので、この指が離れるまで 1 本指の操作として扱わない。
+        var isCancelled = false
 
         func begin(at start: CGPoint, cell: Int?) {
             self.start = start
             startCell = cell
             isSliding = false
+            isCancelled = false
         }
 
         func reset() {
             start = nil
             startCell = nil
             isSliding = false
+            isCancelled = false
         }
     }
 
@@ -371,6 +425,8 @@ public struct CatPuzzleView: View {
     /// `tap(cell:)` へ、届いたらスライドとして通ったマスに続けて × を付ける・外す（向きは最初のマスで決まる）。
     private func boardGesture(cellSide: CGFloat, inset: CGFloat) -> some Gesture {
         let side = model.puzzle.side
+        let zoom = zoom
+        let slide = CatPuzzleModel.slideDistance(cellSide: cellSide * zoom.scale)
         return DragGesture(minimumDistance: 0)
             .onChanged { value in
                 if boardTouch.start != value.startLocation {
@@ -378,25 +434,26 @@ public struct CatPuzzleView: View {
                     if boardTouch.isSliding { model.endCrossDrag() }
                     boardTouch.begin(
                         at: value.startLocation,
-                        cell: CatPuzzleModel.cell(at: value.startLocation, side: side, cellSide: cellSide, inset: inset))
+                        cell: CatPuzzleModel.cell(at: zoom.unzoomed(value.startLocation), side: side, cellSide: cellSide, inset: inset))
                 }
-                guard let startCell = boardTouch.startCell else { return }
+                guard !boardTouch.isCancelled, let startCell = boardTouch.startCell else { return }
                 let moved = hypot(value.location.x - value.startLocation.x, value.location.y - value.startLocation.y)
-                if !boardTouch.isSliding, moved >= CatPuzzleModel.slideDistance(cellSide: cellSide) {
+                if !boardTouch.isSliding, moved >= slide {
                     boardTouch.isSliding = true
                     withGameAnimation { model.beginCrossDrag(cell: startCell) }
                 }
                 if boardTouch.isSliding {
-                    let cell = CatPuzzleModel.cell(at: value.location, side: side, cellSide: cellSide, inset: inset)
+                    let cell = CatPuzzleModel.cell(at: zoom.unzoomed(value.location), side: side, cellSide: cellSide, inset: inset)
                     withGameAnimation { model.dragCross(to: cell) }
                 }
             }
             .onEnded { value in
                 defer { boardTouch.reset() }
+                if boardTouch.isCancelled { return }
                 if boardTouch.isSliding {
                     model.endCrossDrag()
                 } else if let cell = boardTouch.startCell,
-                          cell == CatPuzzleModel.cell(at: value.location, side: side, cellSide: cellSide, inset: inset) {
+                          cell == CatPuzzleModel.cell(at: zoom.unzoomed(value.location), side: side, cellSide: cellSide, inset: inset) {
                     // 開始マスの上で離したときだけタップ（マスの端から余白へ出て離したら何もしない。旧 onTapGesture と同じ）。
                     withGameAnimation { model.tap(cell: cell) }
                 }
