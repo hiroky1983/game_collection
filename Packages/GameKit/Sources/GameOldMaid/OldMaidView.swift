@@ -7,6 +7,9 @@ public struct OldMaidView: View {
     @State private var showNewGame = false
     /// 遊び方（図で見る遊び方を含む）を開いているか。開いているあいだ CPU の手番を止める（#2824）。
     @State private var isHowToPlayOpen = false
+    /// 「見破る」「広告を見て引き直す」の広告（#3251）。無料の回数は持たず、どちらも広告 1 本で 1 回。
+    @State private var peekRescue = RewardedRescue()
+    @State private var redrawRescue = RewardedRescue()
     /// 画面の広さ（#458）。札と同じ倍率で枠を拡大するために読む。
     @Environment(\.adaptiveLayout) private var layout
 
@@ -72,6 +75,25 @@ public struct OldMaidView: View {
                 model.startGame(aiLevel: level)
             } onCancel: { showNewGame = false }
         }
+        .rewardedRescueAlerts(
+            peekRescue,
+            notEarned: tr("見破れませんでした"),
+            unavailable: RewardUnavailableAlert(
+                title: tr("見破れませんでした"),
+                message: tr("広告を見ているあいだに番が進んだため、札を見破れませんでした。")
+            )
+        )
+        .rewardedRescueAlerts(
+            redrawRescue,
+            notEarned: tr("引き直せませんでした"),
+            unavailable: RewardUnavailableAlert(
+                title: tr("引き直せませんでした"),
+                message: tr("広告を見ているあいだに状況が変わったため、引き直せませんでした。")
+            )
+        )
+        // 引き直しの選択肢が出ているあいだが提示（`reward_offer`・#3251）。「見破る」は常設のボタンなので提示を数えない。
+        .rewardOffer(redrawRescue, for: .redraw, isPresented: model.canRedraw,
+                     services: services, gameID: OldMaidModel.gameID)
         // CPU の手番はここ 1 か所で動かす（麻雀と同じ作り・#3146）。手番キーが変わる（あなたの操作・CPU の着手・新しいゲーム）か、
         // 止める画面（遊び方・新規対局）の開閉が変わると作り直され、画面を離れれば止まる。
         // 操作のたびに手で起こす形だと、新しい操作を足したとき 1 か所呼び忘れて CPU 番のまま止まる。
@@ -284,6 +306,7 @@ public struct OldMaidView: View {
                         faceCaptionView(face, ink: ink)
                     }
                     Spacer(minLength: 0)
+                    peekButton
                 }
             }
             .gameAnimation(.easeInOut(duration: 0.15), value: face)
@@ -298,7 +321,9 @@ public struct OldMaidView: View {
                 ) {
                     ForEach(Array(cards.enumerated()), id: \.element.id) { position, card in
                         let isSelected = model.selectedID == card.id
+                        let revealed = model.revealedIsJoker(card.id)
                         OldMaidCardBackView(selected: isSelected, metrics: metrics.card)
+                            .overlay { revealMark(revealed, metrics.card) }
                             .offset(y: isSelected ? -Self.selectedLift : 0)
                             .gameAnimation(.spring(response: 0.2), value: isSelected)
                             // 札は列幅 − 4pt。タップ判定は列いっぱい（44pt 以上・#195）。
@@ -307,7 +332,7 @@ public struct OldMaidView: View {
                             .onTapGesture { model.toggleSelection(card.id) }
                             .accessibilityElement(children: .ignore)
                             .accessibilityLabel(OldMaidAccessibility.targetCardLabel(
-                                position: position, count: cards.count, isSelected: isSelected))
+                                position: position, count: cards.count, isSelected: isSelected, revealedIsJoker: revealed))
                             .accessibilityHint(tr("ダブルタップで選択を切り替えます"))
                             .accessibilityAddTraits(.isButton)
                             .accessibilityAction { model.toggleSelection(card.id) }
@@ -320,6 +345,62 @@ public struct OldMaidView: View {
             .frame(maxWidth: .infinity,
                    minHeight: targetGridHeight(rows: 1, metrics),
                    maxHeight: targetGridHeight(rows: OldMaidHandLayout.rows(cards.count), metrics))
+        }
+    }
+
+    /// 見えている伏せ札の目印（ジョーカーは紫の札にマスク、セーフは緑のチェック・#3251）。
+    @ViewBuilder
+    private func revealMark(_ isJoker: Bool?, _ card: PlayingCardMetrics) -> some View {
+        if let isJoker {
+            Image(systemName: isJoker ? "theatermasks.fill" : "checkmark.circle.fill")
+                .scaledFont(isJoker ? 18 : 15, weight: .bold)
+                .foregroundStyle(Theme.onAccent)
+                .padding(isJoker ? 6 : 3)
+                .background(Circle().fill(isJoker ? Theme.Fill.purple : Theme.Fill.teal))
+                .accessibilityHidden(true)
+        }
+    }
+
+    /// 「見破る」。指をかけている札がジョーカーかを、広告 1 本で確かめる（#3251）。
+    /// 広告が出ている間は押せない。札に指をかけていない・正体が見えているときも押せない。
+    private var peekButton: some View {
+        Button {
+            requestPeek()
+        } label: {
+            Label(tr("見破る"), systemImage: "play.rectangle.fill")
+                .scaledFont(12, weight: .bold, design: .rounded)
+                .lineLimit(1).minimumScaleFactor(0.7)
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(Capsule().fill(Theme.surface))
+                .frame(minHeight: OldMaidHandLayout.minimumTapTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.pop)
+        .foregroundStyle(Theme.coralText)
+        .disabled(!model.canPeek || peekRescue.isWatching)
+        .accessibilityHint(tr("広告を見ると、選んでいる札がジョーカーかどうか分かります"))
+    }
+
+    private func requestPeek() {
+        guard !peekRescue.isWatching, model.canPeek, let id = model.selectedID,
+              let turn = model.game?.turnSerial else { return }
+        let game = model.gameNumber
+        peekRescue.request(
+            services, gameID: OldMaidModel.gameID, purpose: .peek,
+            guardedBy: .checkedByGrant
+        ) {
+            model.grantPeek(cardID: id, turn: turn, gameNumber: game)
+        }
+    }
+
+    private func requestRedraw() {
+        guard !redrawRescue.isWatching, let turn = model.redrawTurn else { return }
+        let game = model.gameNumber
+        redrawRescue.request(
+            services, gameID: OldMaidModel.gameID, purpose: .redraw,
+            guardedBy: .checkedByGrant
+        ) {
+            withGameAnimation { model.grantRedraw(turn: turn, gameNumber: game) }
         }
     }
 
@@ -349,6 +430,10 @@ public struct OldMaidView: View {
     }
 
     private func faceCaption(_ face: OldMaidFace) -> String {
+        if let id = model.selectedID, let isJoker = model.revealedIsJoker(id) {
+            return isJoker ? tr("ジョーカーです！") : tr("ジョーカーではありません")
+        }
+        if model.revealsJoker { return tr("ジョーカーの場所が見えています") }
         switch face {
         case .neutral:
             return model.selectedID == nil ? tr("札をタップして、顔色をうかがおう") : tr("……（顔色は読めない）")
@@ -489,6 +574,18 @@ public struct OldMaidView: View {
         switch model.phase {
         case .idle:
             EmptyView()
+        case .playing where model.canRedraw:
+            // ジョーカーを引いた直後: 広告を見て引く前に戻すか、断って進むか（#3251）。高さは普段の「引く」ボタンと同じ。
+            HStack(spacing: 8) {
+                actionButton(tr("広告を見て引き直す"), role: .ad, disabled: redrawRescue.isWatching) {
+                    requestRedraw()
+                }
+                actionButton(tr("このまま進む"), role: .skip, disabled: redrawRescue.isWatching) {
+                    model.declineRedraw()
+                }
+            }
+            .padding(.horizontal, 16).padding(.vertical, 8)
+            .popCard(corner: Theme.cornerSmall)
         case .playing:
             actionButton(drawButtonTitle, role: .primary, disabled: !model.canDraw) {
                 model.drawSelected()
