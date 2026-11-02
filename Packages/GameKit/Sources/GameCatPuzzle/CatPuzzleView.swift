@@ -97,6 +97,8 @@ public struct CatPuzzleView: View {
                         CatPuzzleBoardAdvanceBanner(size: size)
                             .transition(reduceMotion ? .identity : .scale.combined(with: .opacity))
                             .task(id: model.gameSerial) {
+                                // VoiceOver には表示と同時に読み上げる（静的テキストは出ただけでは読まれない）。
+                                AccessibilityNotification.Announcement(CatPuzzleStageProgressText.advanced(to: size)).post()
                                 try? await Task.sleep(for: .seconds(1.6))
                                 withGameAnimation { model.clearBoardAdvance() }
                             }
