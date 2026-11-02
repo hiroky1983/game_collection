@@ -161,6 +161,10 @@ struct CatPuzzleRankingView: View {
                         }
                         .buttonStyle(.bordered).controlSize(.large)
                     }
+                    Text(tr("前日の上位 3 位には、翌日にヒントか猫を教えるをプレゼント"))
+                        .themeCaption(12).foregroundStyle(Theme.inkSubText)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
                     Text(tr("毎日 日本時間の 0 時に切り替わります。ランキングは予告なく終了する場合があります"))
                         .themeCaption(11).foregroundStyle(Theme.inkSubText)
                         .multilineTextAlignment(.center)

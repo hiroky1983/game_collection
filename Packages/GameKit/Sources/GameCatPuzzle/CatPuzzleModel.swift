@@ -34,6 +34,8 @@ public final class CatPuzzleModel {
     /// ステージモードの「ヒント」「猫を 1 匹教える」それぞれの全ステージ共通の持ち回数（会長指示 2026-11-01・#3203）。
     /// 面ごとには戻らず、0 になったら広告 1 回で 1 回使える（何度でも）。自由に遊ぶ盤は従来どおり `freeHints` + `adHints`。
     public static let stageSupplyCount = 5
+    /// 残りの保存値の上限（壊れた値を丸めるだけの安全弁）。ランキングの特典（#3256）で `stageSupplyCount` を超えることがある。
+    static let stageSupplyCap = 99
     /// 残りの保存キー（中断データとは別。新規・やり直し・ステージ移動でも減ったぶんは戻らない）。鍵が無い既存の利用者は 5 回から始める。
     public static let stageHintsLeftKey = "catPuzzleStageHintsLeft"
     public static let stageTeachLeftKey = "catPuzzleStageTeachLeft"
@@ -119,10 +121,14 @@ public final class CatPuzzleModel {
     public private(set) var lockedTouches = 0
     /// 鍵の猫を見つけて鍵が開いた回数（画面が演出を出すきっかけ）。保存しない。
     public private(set) var keyOpenings = 0
+    /// 前日のランキングの特典を渡した直後のカードの中身（#3256）。閉じたら nil。保存しない。
+    var dailyRewardCard: CatPuzzleDailyReward.Grant?
+    /// 特典の順位を読んでいる最中（二重に読まない）。
+    @ObservationIgnored var isClaimingDailyReward = false
     /// ステージの問題を裏で作っている間（`startStage`）。盤は操作できず、計時もしない。
     public private(set) var isPreparingStage = false
     /// ステージの進み具合（次に遊ぶ面の番号）の保存先。テストは専用の `UserDefaults` を渡す。
-    @ObservationIgnored private let stageDefaults: UserDefaults
+    @ObservationIgnored let stageDefaults: UserDefaults
     /// 1 か月のランキングイベント（#3204）の現在時刻の取り出し口（テストが期間内外を作るために差し替える）。
     @ObservationIgnored var eventNow: () -> Date = { Date() }
     /// イベントで今日（JST）貯めた合計 pt（端末に保存・`CatPuzzleEvent`）。日付をまたいだら `refreshEventTotal()` で 0 に戻す。
@@ -157,7 +163,7 @@ public final class CatPuzzleModel {
     @ObservationIgnored private var preparingStage: Int?
     @ObservationIgnored private var stageGeneration: Task<CatPuzzle, Never>?
 
-    private let services: GameServices?
+    let services: GameServices?
     private var generator: SplitMix64?
     /// 「戻す」用の履歴（印。保存しない。ヒントは履歴に積まず、戻してもヒントの猫は残す）。
     private var history: [[Mark]] = []
@@ -668,10 +674,18 @@ public final class CatPuzzleModel {
         }
     }
 
+    /// ステージ共通のヒント・猫を教えるの残りに足して保存する（前日のランキングの特典・#3256）。
+    func addStageSupply(hints: Int, teaches: Int) {
+        stageHintsLeft = min(stageHintsLeft + max(0, hints), Self.stageSupplyCap)
+        stageTeachLeft = min(stageTeachLeft + max(0, teaches), Self.stageSupplyCap)
+        stageDefaults.set(stageHintsLeft, forKey: Self.stageHintsLeftKey)
+        stageDefaults.set(stageTeachLeft, forKey: Self.stageTeachLeftKey)
+    }
+
     /// 保存してある残り。鍵が無ければ（初回・既存の利用者）全回数、壊れた値は範囲に丸める。
     private static func storedSupply(_ defaults: UserDefaults, _ key: String) -> Int {
         guard defaults.object(forKey: key) != nil else { return stageSupplyCount }
-        return min(max(defaults.integer(forKey: key), 0), stageSupplyCount)
+        return min(max(defaults.integer(forKey: key), 0), stageSupplyCap)
     }
 
     /// ヒントの中身を盤に反映する（回数の消費は呼び出し側が済ませている）。

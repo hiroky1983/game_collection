@@ -2268,6 +2268,61 @@
           }
         }
       }
+    },
+    "昨日のランキング %lld位！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday's ranking: #%lld!"
+          }
+        }
+      }
+    },
+    "ヒント ＋%lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint +%lld"
+          }
+        }
+      }
+    },
+    "猫を教える ＋%lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show a cat +%lld"
+          }
+        }
+      }
+    },
+    "前日の上位 3 位には、翌日にヒントか猫を教えるをプレゼント" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday's top 3 get a free hint or a free \"show a cat\" the next day"
+          }
+        }
+      }
+    },
+    "OK" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
