@@ -518,6 +518,10 @@ public final class CatPuzzleModel {
             wrongCrosses.insert(cell)
             lastWrongCell = cell
             mistakes += 1
+            // 置いた猫の数 ÷ 盤の辺（%）を「どこまで進めてミスしたか」として載せる（#3232）。
+            services?.gameDidMiss(
+                gameID: Self.gameID, cause: nil, progressPercent: catCells.count * 100 / puzzle.side
+            )
             if mistakes >= Self.maxMistakes {
                 if continueUsed {
                     fail()
@@ -626,7 +630,7 @@ public final class CatPuzzleModel {
         lastWrongCell = nil
         moves += 1
         if !stopwatch.isRunning { startTimer() }
-        services?.gameDidUseHint(gameID: Self.gameID)
+        services?.gameDidUseTeach(gameID: Self.gameID)
         services?.gameDidProgress(gameID: Self.gameID)
         services?.feedback.impact(.medium)
         if CatPuzzleLogic.isSolved(puzzle: puzzle, cats: catCells) {

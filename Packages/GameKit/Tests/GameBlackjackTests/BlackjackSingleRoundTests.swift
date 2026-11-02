@@ -33,7 +33,7 @@ struct BlackjackSingleRoundTests {
         let modes = spy.events.compactMap { event -> AnalyticsMode?? in
             switch event {
             case let .gameStart(_, _, mode, _, _): return .some(mode)
-            case let .gameEnd(_, _, _, mode, _, _, _, _, _, _): return .some(mode)
+            case let .gameEnd(_, _, _, mode, _, _, _, _, _, _, _): return .some(mode)
             default: return nil
             }
         }
