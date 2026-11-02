@@ -25,6 +25,10 @@ on:
         description: '1 ジョブが受け持つ面数'
         required: true
         default: '25'
+      numbers:
+        description: '作り直す面だけを指定するとき、空白区切りの面番号（例: "90 100 110"）。指定すると 最初の面・最後の面 は使わない'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -41,17 +45,32 @@ jobs:
           FIRST: ${{ inputs.first }}
           LAST: ${{ inputs.last }}
           CHUNK: ${{ inputs.chunk }}
+          NUMBERS: ${{ inputs.numbers }}
         run: |
           set -euo pipefail
-          for v in "$FIRST" "$LAST" "$CHUNK"; do
-            [[ "$v" =~ ^[0-9]+$ ]] || { echo "数字で指定してください: $v" >&2; exit 1; }
-          done
-          [ "$CHUNK" -ge 1 ] && [ "$FIRST" -le "$LAST" ] || { echo "範囲が正しくありません" >&2; exit 1; }
+          [[ "$CHUNK" =~ ^[0-9]+$ ]] && [ "$CHUNK" -ge 1 ] || { echo "1 ジョブの面数は 1 以上の数字にしてください" >&2; exit 1; }
           items=()
-          for ((s = FIRST; s <= LAST; s += CHUNK)); do
-            e=$((s + CHUNK - 1)); [ "$e" -gt "$LAST" ] && e=$LAST
-            items+=("{\"first\":$s,\"last\":$e}")
-          done
+          if [ -n "${NUMBERS// /}" ]; then
+            # 面番号の指定: 小さい順に CHUNK 個ずつジョブへ分ける（matrix.numbers にその面を空白区切りで渡す）。
+            read -ra given <<< "$NUMBERS"
+            for v in "${given[@]}"; do
+              [[ "$v" =~ ^[0-9]+$ ]] || { echo "面番号は数字で指定してください: $v" >&2; exit 1; }
+            done
+            nums=($(printf '%s\n' "${given[@]}" | sort -n -u))
+            for ((i = 0; i < ${#nums[@]}; i += CHUNK)); do
+              group=("${nums[@]:i:CHUNK}")
+              items+=("{\"first\":${group[0]},\"last\":${group[${#group[@]}-1]},\"numbers\":\"${group[*]}\"}")
+            done
+          else
+            for v in "$FIRST" "$LAST"; do
+              [[ "$v" =~ ^[0-9]+$ ]] || { echo "数字で指定してください: $v" >&2; exit 1; }
+            done
+            [ "$FIRST" -le "$LAST" ] || { echo "範囲が正しくありません" >&2; exit 1; }
+            for ((s = FIRST; s <= LAST; s += CHUNK)); do
+              e=$((s + CHUNK - 1)); [ "$e" -gt "$LAST" ] && e=$LAST
+              items+=("{\"first\":$s,\"last\":$e}")
+            done
+          fi
           matrix="{\"include\":[$(IFS=,; echo "${items[*]}")]}"
           echo "$matrix"
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
@@ -76,19 +95,28 @@ jobs:
         env:
           FIRST: ${{ matrix.first }}
           LAST: ${{ matrix.last }}
+          NUMBERS: ${{ matrix.numbers }}
         run: |
           set -euo pipefail
           n=$(sysctl -n hw.ncpu)
           start=$(date +%s)
-          pids=()
-          for ((i = 0; i < n; i++)); do
-            "$RUNNER_TEMP/gen" "$FIRST" "$LAST" "$n" "$i" > "$RUNNER_TEMP/part-$i.tsv" &
-            pids+=($!)
-          done
-          for pid in "${pids[@]}"; do wait "$pid"; done
-          sort -n "$RUNNER_TEMP"/part-*.tsv > "$RUNNER_TEMP/bank-$FIRST-$LAST.tsv"
+          if [ -n "$NUMBERS" ]; then
+            # 面番号の指定: 1 面ずつ n 本まで並べて走らせる。
+            expected=$(wc -w <<< "$NUMBERS" | tr -d ' ')
+            printf '%s\n' $NUMBERS | xargs -P "$n" -I{} bash -c '"$1" {} {} > "$2/one-{}.tsv"' _ "$RUNNER_TEMP/gen" "$RUNNER_TEMP"
+            cat "$RUNNER_TEMP"/one-*.tsv | sort -n > "$RUNNER_TEMP/bank-$FIRST-$LAST.tsv"
+          else
+            expected=$((LAST - FIRST + 1))
+            pids=()
+            for ((i = 0; i < n; i++)); do
+              "$RUNNER_TEMP/gen" "$FIRST" "$LAST" "$n" "$i" > "$RUNNER_TEMP/part-$i.tsv" &
+              pids+=($!)
+            done
+            for pid in "${pids[@]}"; do wait "$pid"; done
+            sort -n "$RUNNER_TEMP"/part-*.tsv > "$RUNNER_TEMP/bank-$FIRST-$LAST.tsv"
+          fi
           count=$(wc -l < "$RUNNER_TEMP/bank-$FIRST-$LAST.tsv")
-          [ "$count" -eq $((LAST - FIRST + 1)) ] || { echo "行数が合いません: $count" >&2; exit 1; }
+          [ "$count" -eq "$expected" ] || { echo "行数が合いません: $count（期待 $expected）" >&2; exit 1; }
           echo "プロセス $n 本・$(( $(date +%s) - start )) 秒・$count 面"
 
       - uses: actions/upload-artifact@v4
