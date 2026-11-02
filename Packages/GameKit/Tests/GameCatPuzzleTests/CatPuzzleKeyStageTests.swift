@@ -1,0 +1,229 @@
+import Testing
+import Foundation
+import Core
+import CoreEngine
+import CoreTestSupport
+@testable import GameCatPuzzle
+
+/// 10 面ごとの「鍵を持った猫」の面（#3235）。
+@Suite("おじさんちのねこさがしの鍵の面")
+@MainActor
+struct CatPuzzleKeyStageTests {
+
+    private func makeDefaults(_ name: String) -> UserDefaults {
+        let suite = "asobiba.catpuzzle.key.tests.\(name)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        return defaults
+    }
+
+    private func makeServices(store: MemorySnapshotStore = MemorySnapshotStore()) -> GameServices {
+        GameServices(snapshots: store, ads: NoopAdService())
+    }
+
+    /// 鍵の面（10 面目）の盤を直接与えて始める。
+    private func keyModel(store: MemorySnapshotStore = MemorySnapshotStore(), stage: Int = 10) -> CatPuzzleModel {
+        let puzzle = CatPuzzleStage(stage).makePuzzle()
+        return CatPuzzleModel(services: makeServices(store: store), puzzle: puzzle, size: CatPuzzleStage(stage).size,
+                              stage: stage, stageDefaults: makeDefaults("m\(stage)"))
+    }
+
+    /// 鍵の部屋の外で、答えでない・答えのマスを 1 つずつ返す。
+    private func outsideCell(_ model: CatPuzzleModel) -> Int {
+        let room = model.keyRoom!
+        return model.puzzle.rooms.indices.first { model.puzzle.rooms[$0] != room }!
+    }
+
+    // MARK: - 出る面と問題
+
+    @Test("鍵の面は 10 面ごと（10・20・30…）。それ以外は鍵の面ではない")
+    func keyStageNumbers() {
+        for number in [10, 20, 30, 50, 100, 500, 510] { #expect(CatPuzzleStage(number).isKey, "\(number)") }
+        for number in [1, 9, 11, 45, 46, 99, 501] { #expect(!CatPuzzleStage(number).isKey, "\(number)") }
+    }
+
+    @Test("鍵の面の問題は、鍵の猫が盤に何も置かなくても論理だけで決まり、それは答えのマス（10・20・30・40 面）")
+    func keyStagePuzzlesHaveKeyCat() {
+        for number in [10, 20, 30, 40] {
+            let puzzle = CatPuzzleStage(number).makePuzzle()
+            let key = CatPuzzleSolver.keyCat(puzzle)
+            #expect(key != nil, "\(number) 面")
+            if let key { #expect(puzzle.solutionCells.contains(key), "\(number) 面の鍵の猫は答えのマス") }
+            #expect(CatPuzzleSolver.rate(puzzle, maxTier: 4).solved)
+        }
+    }
+
+    @Test("同じ番号なら同じ鍵の面の問題になる（種はステージ番号から決まる）")
+    func keyStageIsDeterministic() {
+        #expect(CatPuzzleStage(20).generatePuzzle() == CatPuzzleStage(20).generatePuzzle())
+    }
+
+    @Test("同梱の問題（50〜500 面）の鍵の面は、すべて鍵の猫が決まる。範囲は作り直さなくても条件を満たす")
+    func bankedKeyStagesHaveKeyCat() {
+        for number in stride(from: 50, through: 500, by: 10) {
+            let puzzle = CatPuzzleStageBank.puzzle(for: number)
+            #expect(puzzle != nil, "\(number) 面")
+            guard let puzzle else { continue }
+            let key = CatPuzzleSolver.keyCat(puzzle)
+            #expect(key != nil, "\(number) 面")
+            if let key { #expect(puzzle.solutionCells.contains(key), "\(number) 面") }
+        }
+    }
+
+    @Test("解き手の鍵の猫は、どんな問題でも答えのマス（当て推量をしない）")
+    func keyCatIsAlwaysAnswerCell() {
+        var generator = SplitMix64(seed: 3235)
+        for _ in 0..<60 {
+            let puzzle = CatPuzzleLogic.generate(size: .normal, using: &generator)
+            if let key = CatPuzzleSolver.keyCat(puzzle) { #expect(puzzle.solutionCells.contains(key)) }
+        }
+    }
+
+    @Test("鍵の猫が決まらない問題もある（条件が素通しではない）")
+    func someGeneratedPuzzlesHaveNoKeyCat() {
+        var generator = SplitMix64(seed: 3235)
+        let keys = (0..<60).map { _ in CatPuzzleSolver.keyCat(CatPuzzleLogic.generate(size: .easy, using: &generator)) }
+        #expect(keys.contains { $0 == nil })
+        #expect(keys.contains { $0 != nil })
+    }
+
+    // MARK: - 鍵が閉じている間の操作
+
+    @Test("鍵の面は鍵が閉じて始まり、鍵の部屋の外には × も猫も置けない（触ると案内のきっかけが増える）")
+    func lockedBlocksOutside() {
+        let model = keyModel()
+        #expect(model.isKeyLocked)
+        #expect(model.keyCat != nil && model.keyRoom != nil)
+        let outside = outsideCell(model)
+        #expect(model.isLockedOut(cell: outside))
+        #expect(!model.toggleCross(cell: outside))
+        #expect(model.marks[outside] == .empty)
+        model.findCat(cell: outside)
+        #expect(model.marks[outside] == .empty)
+        #expect(model.mistakes == 0, "触れないマスはミスにならない")
+        #expect(model.lockedTouches == 2)
+        model.beginCrossDrag(cell: outside)
+        model.dragCross(to: outside)
+        model.endCrossDrag()
+        #expect(model.marks[outside] == .empty)
+        #expect(model.lockedTouches == 3, "スライドの案内は 1 回")
+    }
+
+    @Test("鍵の部屋の中は × を付け外しでき、猫を探せる（間違えればミス）")
+    func insideKeyRoomIsOpen() {
+        let model = keyModel()
+        let room = model.keyRoom!
+        let key = model.keyCat!
+        let wrong = model.puzzle.cells(inRoom: room).first { $0 != key }
+        if let wrong {
+            #expect(model.toggleCross(cell: wrong))
+            #expect(model.marks[wrong] == .cross)
+            #expect(model.toggleCross(cell: wrong))
+            #expect(model.marks[wrong] == .empty)
+            model.findCat(cell: wrong)
+            #expect(model.mistakes == 1)
+            #expect(model.isKeyLocked)
+        }
+        #expect(model.lockedTouches == 0)
+    }
+
+    @Test("鍵の猫を見つけたら制限が外れ、鍵が開いた回数が増える。外の部屋にも印を付けられる")
+    func findingKeyCatUnlocks() {
+        let model = keyModel()
+        model.findCat(cell: model.keyCat!)
+        #expect(model.marks[model.keyCat!] == .cat)
+        #expect(!model.isKeyLocked)
+        #expect(model.keyOpenings == 1)
+        let outside = outsideCell(model)
+        #expect(!model.isLockedOut(cell: outside))
+        #expect(model.toggleCross(cell: outside))
+        #expect(model.marks[outside] == .cross)
+        #expect(model.lockedTouches == 0)
+    }
+
+    @Test("戻す・やり直しで鍵の猫が消えれば、また鍵が閉じる")
+    func undoRelocks() {
+        let model = keyModel()
+        model.findCat(cell: model.keyCat!)
+        #expect(!model.isKeyLocked)
+        model.undo()
+        #expect(model.isKeyLocked)
+        model.findCat(cell: model.keyCat!)
+        model.reset()
+        #expect(model.isKeyLocked)
+    }
+
+    @Test("ステージでない盤・鍵の面でないステージは制限なし")
+    func nonKeyStagesAreFree() {
+        let free = CatPuzzleModel(services: makeServices(), puzzle: CatPuzzleStage(11).makePuzzle(), size: .easy)
+        #expect(free.keyCat == nil && !free.isKeyLocked)
+        let stage11 = keyModel(stage: 11)
+        #expect(stage11.keyCat == nil && !stage11.isKeyLocked)
+        #expect(stage11.toggleCross(cell: 0))
+        #expect(stage11.lockedTouches == 0)
+    }
+
+    // MARK: - 中断→再開
+
+    @Test("中断して再開しても、鍵が閉じている状態・開いた状態がそのまま戻る")
+    func resumeRestoresKeyState() {
+        let store = MemorySnapshotStore()
+        let model = keyModel(store: store)
+        let room = model.keyRoom!
+        let inside = model.puzzle.cells(inRoom: room).first { $0 != model.keyCat }!
+        #expect(model.toggleCross(cell: inside))
+        model.pauseTimer()
+        let resumed = CatPuzzleModel(services: makeServices(store: store), stageDefaults: makeDefaults("resume1"))
+        #expect(resumed.stage == 10)
+        #expect(resumed.isKeyLocked)
+        #expect(resumed.keyCat == model.keyCat)
+        #expect(resumed.isLockedOut(cell: outsideCell(resumed)))
+
+        resumed.findCat(cell: resumed.keyCat!)
+        resumed.pauseTimer()
+        let again = CatPuzzleModel(services: makeServices(store: store), stageDefaults: makeDefaults("resume2"))
+        #expect(again.stage == 10)
+        #expect(!again.isKeyLocked, "鍵を開けたあとの中断は開いたまま")
+        #expect(again.toggleCross(cell: outsideCell(again)))
+    }
+
+    // MARK: - ヒント・猫を教える
+
+    @Test("鍵が閉じている間のヒントは鍵の猫を置く（鍵の部屋の外には何も置かない）。使うと鍵が開く")
+    func hintPlacesKeyCatWhileLocked() {
+        let model = keyModel()
+        let hint = model.nextHint
+        #expect(hint?.placed == model.keyCat)
+        #expect(hint?.crossed.isEmpty == true && hint?.removed.isEmpty == true)
+        #expect(model.canHint)
+        model.useHint()
+        #expect(model.marks[model.keyCat!] == .cat)
+        #expect(model.hintCells.contains(model.keyCat!))
+        #expect(!model.isKeyLocked)
+        #expect(model.keyOpenings == 1)
+    }
+
+    @Test("猫を教えるは、鍵が閉じている間は鍵の猫を教え、開いてからは今までどおり")
+    func teachPlacesKeyCatFirst() {
+        let model = keyModel()
+        model.teachCat()
+        #expect(model.marks[model.keyCat!] == .cat)
+        #expect(!model.isKeyLocked)
+        model.teachCat()
+        let cats = model.catCells
+        #expect(cats.count == 2)
+        #expect(cats.allSatisfy { model.puzzle.solutionCells.contains($0) })
+    }
+
+    @Test("鍵の面でも最後までクリアできる")
+    func keyStageCanBeCleared() {
+        let model = keyModel()
+        for cell in model.puzzle.solutionCells where model.marks[cell] != .cat {
+            // 鍵の猫が先。あとは番号順で置いても、鍵が開いているので通る。
+            if model.isKeyLocked { model.findCat(cell: model.keyCat!) }
+            model.findCat(cell: cell)
+        }
+        #expect(model.isSolved)
+        #expect(!model.isKeyLocked)
+    }
+}

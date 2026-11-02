@@ -32,6 +32,13 @@ public struct CatPuzzleView: View {
     @State private var revealedGhosts = 0
     /// ヒントを上限まで使い切ったあとに押したときの一言を出している間（数秒で消える・#3048）。
     @State private var showsHintUsedUp = false
+    /// 鍵の部屋の外を触ったときの案内を出している間（数秒で消える・#3235）。
+    @State private var showsKeyLockedHint = false
+    /// 鍵の猫を見つけた直後の「鍵が開いた」を出している間。
+    @State private var showsKeyOpened = false
+    /// 鍵の面の説明を出しているか。初めて鍵の面に来たとき 1 回だけ（`CatPuzzleKeyIntro`）。
+    @State private var showsKeyIntro = false
+    @AppStorage(CatPuzzleKeyIntro.seenKey) private var keyIntroSeen = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(services: GameServices) {
@@ -65,8 +72,13 @@ public struct CatPuzzleView: View {
     }
 
     /// 計時を止めておくか（開始シート・確認を出している間。遊び方・広告・背面は `gameTimerLifecycle` が止める）。
-    static func holdsClock(showNewGame: Bool, showConfirmNewGame: Bool, showConfirmClear: Bool) -> Bool {
-        showNewGame || showConfirmNewGame || showConfirmClear
+    static func holdsClock(showNewGame: Bool, showConfirmNewGame: Bool, showConfirmClear: Bool, showsKeyIntro: Bool = false) -> Bool {
+        showNewGame || showConfirmNewGame || showConfirmClear || showsKeyIntro
+    }
+
+    /// 鍵の面の説明を出すか（鍵の面で、まだ見ていなくて、開始シート・問題の用意中でないとき）。
+    static func wantsKeyIntro(_ model: CatPuzzleModel, seen: Bool, showNewGame: Bool) -> Bool {
+        model.keyCat != nil && !seen && !showNewGame && !model.isPreparingStage
     }
 
     public var body: some View {
@@ -101,6 +113,12 @@ public struct CatPuzzleView: View {
         .gameChrome(title: tr("おじさんちのねこさがし"), review: services.review,
                     newGame: GameChromeNewGame(.solo, isDisabled: hintRescue.isWatching || teachRescue.isWatching || continueRescue.isWatching) { requestNewGame() })
         .howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items).onboarding(CatPuzzleOnboarding.guide))
+        .onChange(of: Self.wantsKeyIntro(model, seen: keyIntroSeen, showNewGame: showNewGame), initial: true) { _, wants in
+            if wants { showsKeyIntro = true }
+        }
+        .sheet(isPresented: $showsKeyIntro, onDismiss: { keyIntroSeen = true }) {
+            CatPuzzleKeyIntro { showsKeyIntro = false }
+        }
         .sheet(isPresented: $showNewGame) {
             CatPuzzleNewGameSheet(initialMode: CatPuzzlePlayMode(rawValue: preferredMode) ?? .stage,
                                   initial: model.size, nextStage: model.savedStage,
@@ -186,6 +204,29 @@ public struct CatPuzzleView: View {
             guard !Task.isCancelled else { return }
             withGameAnimation { showsHintUsedUp = false }
         }
+        // 新しい局では前の局の鍵の案内を消す。
+        .onChange(of: model.gameSerial) {
+            showsKeyLockedHint = false
+            showsKeyOpened = false
+        }
+        // 鍵の部屋の外を触ったら、先に鍵の猫を見つけるよう数秒だけ案内する（盤の揺れは盤の側）。
+        .task(id: model.lockedTouches) {
+            guard model.lockedTouches > 0 else { return }
+            withGameAnimation { showsKeyLockedHint = true }
+            AccessibilityNotification.Announcement(tr("先に鍵の猫を見つけよう")).post()
+            try? await Task.sleep(for: .seconds(2.5))
+            guard !Task.isCancelled else { return }
+            withGameAnimation { showsKeyLockedHint = false }
+        }
+        // 鍵の猫を見つけたら、鍵が開いたことを数秒だけ知らせる。
+        .task(id: model.keyOpenings) {
+            guard model.keyOpenings > 0 else { return }
+            withGameAnimation { showsKeyLockedHint = false; showsKeyOpened = true }
+            AccessibilityNotification.Announcement(tr("鍵が開いた！ ほかの部屋にも印を付けられる")).post()
+            try? await Task.sleep(for: .seconds(2.5))
+            guard !Task.isCancelled else { return }
+            withGameAnimation { showsKeyOpened = false }
+        }
         // 最後の猫を置いたら 1 拍おいてクリアのダイアログを出す。
         .task(id: model.isSolved) {
             guard let wait = model.clearCardWait else { return }
@@ -198,7 +239,7 @@ public struct CatPuzzleView: View {
         .gameTimerLifecycle(
             rescues: [hintRescue, teachRescue, continueRescue],
             isHeld: Self.holdsClock(showNewGame: showNewGame, showConfirmNewGame: showConfirmNewGame,
-                                    showConfirmClear: showConfirmClear),
+                                    showConfirmClear: showConfirmClear, showsKeyIntro: showsKeyIntro),
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )
@@ -283,8 +324,15 @@ public struct CatPuzzleView: View {
                     wrongCrosses: model.wrongCrosses, lastWrongCell: model.lastWrongCell,
                     hintCells: model.hintCells, hintCrosses: model.hintCrosses, lastHint: model.lastHint,
                     shakeToken: model.mistakes, isSolved: model.isSolved,
-                    ghostCats: Array(model.unfoundCats.prefix(revealedGhosts)), cellSide: cellSide
+                    ghostCats: Array(model.unfoundCats.prefix(revealedGhosts)),
+                    keyRoom: model.keyRoom, keyLocked: model.isKeyLocked, cellSide: cellSide
                 )
+                // 鍵の部屋の外を触ったら盤が短く揺れる（Reduce Motion では揺らさない）。
+                .phaseAnimator(CatPuzzleMotion.shakePhases, trigger: model.lockedTouches) { content, phase in
+                    content.offset(x: reduceMotion ? 0 : phase * cellSide * 0.12)
+                } animation: { _ in
+                    reduceMotion ? nil : CatPuzzleMotion.shakeStep
+                }
                 .offset(x: inset, y: inset)
                 cells(cellSide: cellSide, inset: inset)
             }
@@ -377,13 +425,14 @@ public struct CatPuzzleView: View {
             .accessibilityElement()
             .accessibilityLabel(CatPuzzleAccessibility.cellLabel(
                 row: index / n, col: index % n,
-                roomName: CatPuzzleHouse.room(room).name,
+                roomName: room == model.keyRoom ? tr("%@（鍵の部屋）", CatPuzzleHouse.room(room).name) : CatPuzzleHouse.room(room).name,
                 mark: mark,
                 isConflict: model.wrongCrosses.contains(index),
                 isHint: model.hintCells.contains(index) || model.hintCrosses.contains(index),
                 isUnfoundCat: model.isUnfoundCat(cell: index)
             ))
-            .accessibilityHint(model.isOver ? "" : model.hintCells.contains(index)
+            .accessibilityHint(model.isOver ? "" : model.isLockedOut(cell: index)
+                               ? tr("鍵の猫を見つけるまで、この部屋には印を付けられません") : model.hintCells.contains(index)
                                ? tr("ヒントで置いた猫は消せません") : model.hintCrosses.contains(index)
                                ? tr("ヒントで置いた × は消せません") : model.wrongCrosses.contains(index)
                                ? tr("ここに猫はいません。赤い × は消せません") : mark == .cat
@@ -455,6 +504,18 @@ public struct CatPuzzleView: View {
                     .multilineTextAlignment(.center)
                     // 読み上げは `onChange` の通知で伝える。
                     .accessibilityHidden(true)
+            } else if showsKeyOpened {
+                Label(tr("鍵が開いた！ ほかの部屋にも印を付けられる"), systemImage: "lock.open.fill")
+                    .scaledFont(14, weight: .heavy, design: .rounded)
+                    .foregroundStyle(Theme.tealText)
+                    .multilineTextAlignment(.center)
+                    .accessibilityHidden(true)
+            } else if showsKeyLockedHint {
+                Label(tr("先に鍵の猫を見つけよう"), systemImage: "lock.fill")
+                    .scaledFont(14, weight: .heavy, design: .rounded)
+                    .foregroundStyle(Theme.coralText)
+                    .multilineTextAlignment(.center)
+                    .accessibilityHidden(true)
             } else if showsHintUsedUp {
                 Label(tr("この局のヒントは使い切りました"), systemImage: "lightbulb.slash")
                     .scaledFont(14, weight: .bold, design: .rounded)
@@ -463,6 +524,11 @@ public struct CatPuzzleView: View {
             } else if let hint = model.lastHint {
                 Label(CatPuzzleAccessibility.message(for: hint, puzzle: model.puzzle, roomName: { CatPuzzleHouse.room($0).name }),
                       systemImage: "lightbulb.fill")
+                    .scaledFont(14, weight: .bold, design: .rounded)
+                    .foregroundStyle(Theme.yellowText)
+                    .multilineTextAlignment(.center)
+            } else if model.isKeyLocked {
+                Label(tr("鍵の猫を探そう（金色の枠の部屋だけ触れる）"), systemImage: "key.fill")
                     .scaledFont(14, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.yellowText)
                     .multilineTextAlignment(.center)

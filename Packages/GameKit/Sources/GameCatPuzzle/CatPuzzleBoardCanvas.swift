@@ -36,6 +36,10 @@ struct CatPuzzleBoardCanvas: View {
     var ghostCats: [Int] = []
     /// 部屋の名前の札を描くか（遊び方の小さな 3 コマの図だけ外す。札がマスからはみ出すため）。
     var showsRoomLabels = true
+    /// 鍵の面（#3235）で鍵を持った猫がいる部屋。その部屋の札に鍵のアイコンを付ける。鍵の面でなければ nil。
+    var keyRoom: Int? = nil
+    /// 鍵が閉じている間（鍵の猫をまだ見つけていない）。鍵の部屋の外を薄く覆い、鍵の部屋を金色の枠で囲む。
+    var keyLocked = false
     let cellSide: CGFloat
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -51,9 +55,11 @@ struct CatPuzzleBoardCanvas: View {
             Canvas { context, _ in
                 drawFloors(&context, rooms: rooms)
                 drawGrid(&context)
+                drawKeyVeil(&context)
                 drawHintGlow(&context)
                 drawConflictFills(&context)
                 drawWalls(&context)
+                drawKeyFrame(&context)
                 drawCrosses(&context)
             }
             // 答えでないマスの赤い ×（付いた瞬間に揺れて点滅する）。
@@ -163,6 +169,21 @@ struct CatPuzzleBoardCanvas: View {
             path.addLine(to: CGPoint(x: cellSide * CGFloat(n), y: p))
         }
         context.stroke(path, with: .color(CatPuzzleHouse.gridColor), lineWidth: CatPuzzleHouse.gridWidth)
+    }
+
+    /// 鍵が閉じている間、鍵の部屋の外のマスを薄く覆う（触れないマスだと分かるように）。
+    private func drawKeyVeil(_ context: inout GraphicsContext) {
+        guard keyLocked, let keyRoom, !isSolved else { return }
+        var veil = Path()
+        for cell in 0..<puzzle.cellCount where puzzle.rooms[cell] != keyRoom { veil.addRect(rect(of: cell)) }
+        context.fill(veil, with: .color(Theme.surface.opacity(0.6)))
+    }
+
+    /// 鍵が閉じている間、鍵の部屋を金色の枠で囲む。
+    private func drawKeyFrame(_ context: inout GraphicsContext) {
+        guard keyLocked, let keyRoom, !isSolved else { return }
+        let outline = Self.outline(of: Set(puzzle.cells(inRoom: keyRoom)), side: puzzle.side, cellSide: cellSide)
+        context.stroke(outline, with: .color(Theme.yellow), style: StrokeStyle(lineWidth: max(3, cellSide * 0.1), lineCap: .square))
     }
 
     /// 部屋の境目の壁と外周。
@@ -305,17 +326,25 @@ struct CatPuzzleBoardCanvas: View {
     @ViewBuilder
     private func roomLabel(room: Int, rooms: [CatPuzzleHouse.Room]) -> some View {
         let name = rooms[room % rooms.count].name
-        if let layout = Self.roomLabelLayout(room: room, name: name, puzzle: puzzle, cellSide: cellSide) {
+        let hasKey = room == keyRoom
+        if let layout = Self.roomLabelLayout(room: room, name: name, hasKey: hasKey, puzzle: puzzle, cellSide: cellSide) {
             ZStack(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: layout.chipSize.height / 2, style: .continuous)
                     .fill(Color.white.opacity(0.9))
-                Text(name)
-                    .font(.system(size: layout.fontSize, weight: .bold, design: .rounded)) // fixed-size: 盤のマスの寸法に比例させる札の文字（図形のジオメトリに従う）
-                    .foregroundColor(Theme.Fixed.ink)
-                    .lineLimit(1)
-                    .fixedSize()
-                    .padding(.leading, layout.padding.width)
-                    .padding(.top, layout.padding.height)
+                HStack(spacing: Self.keyIconGap) {
+                    if hasKey {
+                        Image(systemName: "key.fill")
+                            .font(.system(size: layout.fontSize * 0.9, weight: .bold)) // fixed-size: 盤のマスの寸法に比例させる札の鍵（文字と同じ扱い）
+                            .foregroundColor(Theme.yellowText)
+                    }
+                    Text(name)
+                        .font(.system(size: layout.fontSize, weight: .bold, design: .rounded)) // fixed-size: 盤のマスの寸法に比例させる札の文字（図形のジオメトリに従う）
+                        .foregroundColor(Theme.Fixed.ink)
+                        .lineLimit(1)
+                        .fixedSize()
+                }
+                .padding(.leading, layout.padding.width)
+                .padding(.top, layout.padding.height)
             }
             .frame(width: layout.chipSize.width, height: layout.chipSize.height, alignment: .topLeading)
             .position(x: layout.origin.x + layout.chipSize.width / 2, y: layout.origin.y + layout.chipSize.height / 2)
@@ -330,18 +359,29 @@ struct CatPuzzleBoardCanvas: View {
         let fontSize: CGFloat
     }
 
-    private static func roomLabelLayout(room: Int, name: String, puzzle: CatPuzzle, cellSide: CGFloat) -> RoomLabelLayout? {
+    /// 鍵のアイコンと名前の間（pt）。
+    private static let keyIconGap: CGFloat = 2
+
+    /// 札の文字の幅（鍵の部屋は鍵のアイコンぶんを足す）。
+    private static func labelWidth(_ name: String, fontSize: CGFloat, hasKey: Bool) -> CGSize {
+        var size = measureLabel(name, fontSize: fontSize)
+        if hasKey { size.width += ceil(fontSize * 0.9) + keyIconGap }
+        return size
+    }
+
+    private static func roomLabelLayout(room: Int, name: String, hasKey: Bool, puzzle: CatPuzzle, cellSide: CGFloat) -> RoomLabelLayout? {
         let baseFont = max(8, cellSide * 0.22)
         let margin = max(cellSide * 0.06, CatPuzzleHouse.wallWidth / 2 + 1)
         let padding = CGSize(width: cellSide * 0.1, height: cellSide * 0.04)
-        var measured = measureLabel(name, fontSize: baseFont)
+        var measured = labelWidth(name, fontSize: baseFont, hasKey: hasKey)
         let wide = measured.width + padding.width * 2 > cellSide - margin * 2
         guard let placement = labelPlacement(room: room, in: puzzle, wide: wide) else { return nil }
         let available = (placement.spansRight ? cellSide * 2 : cellSide) - margin * 2
         var fontSize = baseFont
         if measured.width + padding.width * 2 > available {
-            fontSize = max(6, baseFont * (available - padding.width * 2) / measured.width)
-            measured = measureLabel(name, fontSize: fontSize)
+            // 鍵の札は鍵のアイコンぶん広いので、1 マスに収まるよう下限を低くする。
+            fontSize = max(hasKey ? 4 : 6, baseFont * (available - padding.width * 2) / measured.width)
+            measured = labelWidth(name, fontSize: fontSize, hasKey: hasKey)
         }
         let origin = rect(of: placement.cell, side: puzzle.side, cellSide: cellSide).origin
             .applying(.init(translationX: margin, y: margin))
