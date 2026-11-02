@@ -1444,6 +1444,39 @@
         }
       }
     },
+    "ノーミス %lld 面連続" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld stages in a row, no misses"
+          }
+        }
+      }
+    },
+    "ノーミス %lld 面連続・自己ベスト" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld stages in a row, no misses · Personal best"
+          }
+        }
+      }
+    },
+    "ノーミス連続の最高 %lld 面" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best no-miss streak: %lld stages"
+          }
+        }
+      }
+    },
     "遊び方" : {
       "extractionState" : "manual",
       "localizations" : {
