@@ -2081,6 +2081,50 @@
           }
         }
       }
+    },
+    "ねこさがし 今日 %1$lldpt（%2$lld 面クリア）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cat Hunt: %1$lld pt today (%2$lld stages cleared)"
+          }
+        }
+      }
+    },
+    "あそびば ねこさがし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Asobiba Cat Hunt"
+          }
+        }
+      }
+    },
+    "今日 %lldpt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today %lld pt"
+          }
+        }
+      }
+    },
+    "%lld 面クリア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld stages cleared"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

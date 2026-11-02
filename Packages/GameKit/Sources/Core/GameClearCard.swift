@@ -1,4 +1,75 @@
 import SwiftUI
+import ImageIO
+import UniformTypeIdentifiers
+
+/// クリアのカードから共有する中身（ねこさがしのデイリー pt の共有・#3237）。
+/// 共有シートに出すのは文と画像。URL（App Store）は文の末尾に添える。
+public struct ClearShare {
+    /// 共有する短い文（URL は含めない）。
+    public let message: String
+    /// 共有する画像を描く（共有ボタンが出たときに 1 回だけ呼ぶ）。描けなければ nil で、文だけを共有する。
+    public let makeImage: @MainActor () -> CGImage?
+
+    public init(message: String, makeImage: @escaping @MainActor () -> CGImage?) {
+        self.message = message
+        self.makeImage = makeImage
+    }
+}
+
+/// 共有シートへ渡す PNG 画像。
+public struct ClearShareImage: Transferable {
+    let data: Data
+    public static var transferRepresentation: some TransferRepresentation {
+        DataRepresentation(exportedContentType: .png) { $0.data }
+    }
+
+    public static func png(_ image: CGImage) -> Data? {
+        let out = NSMutableData()
+        guard let dest = CGImageDestinationCreateWithData(out, UTType.png.identifier as CFString, 1, nil) else { return nil }
+        CGImageDestinationAddImage(dest, image, nil)
+        return CGImageDestinationFinalize(dest) ? out as Data : nil
+    }
+}
+
+/// クリアのカードの共有ボタン。`RecordShareContext`（ハブが配る）があるときだけ出る。押すと `share_tap`（自己ベストの共有と同じ）。
+struct ClearShareButton: View {
+    let share: ClearShare
+    let context: RecordShareContext
+    @State private var rendered: (data: Data, image: CGImage)?
+    @State private var didRender = false
+
+    private var text: String { "\(share.message)\n\(context.url.absoluteString)" }
+
+    var body: some View {
+        Group {
+            if let rendered {
+                ShareLink(item: ClearShareImage(data: rendered.data), message: Text(verbatim: text),
+                          preview: SharePreview(share.message, image: Image(decorative: rendered.image, scale: 1))) { label }
+            } else {
+                ShareLink(item: context.url, subject: Text(tr("あそびば")), message: Text(verbatim: share.message)) { label }
+            }
+        }
+        .buttonStyle(.pop)
+        // 画像を描き終えるまでは押せない（描く前に押すと画像の無い共有になる）。描けなかったときは文だけで共有する。
+        .disabled(!didRender)
+        .simultaneousGesture(TapGesture().onEnded { context.didTap() })
+        .accessibilityLabel(tr("今日の pt をシェア"))
+        .task(id: share.message) {
+            guard !didRender else { return }
+            didRender = true
+            if let image = share.makeImage(), let data = ClearShareImage.png(image) { rendered = (data, image) }
+        }
+    }
+
+    private var label: some View {
+        Image(systemName: "square.and.arrow.up")
+            .scaledFont(16, weight: .bold, maxScale: 1.5)
+            .foregroundStyle(Theme.coralText)
+            .frame(minWidth: 44, minHeight: 44)
+            .background(Capsule().stroke(Theme.coralText, lineWidth: 2))
+            .contentShape(Rectangle())
+    }
+}
 
 /// ソリティア系・ナンプレ・麻雀ソリティアのクリアを盤に重ねて大きく示すカード（#1755）。
 ///
@@ -12,6 +83,8 @@ public struct GameClearCard: View {
     private let record: RecordResult?
     private let onClose: (() -> Void)?
     private let primaryAction: PrimaryAction?
+    private let share: ClearShare?
+    @Environment(\.recordShare) private var recordShare
 
     /// 「盤を見る」の上に置く、次へ進む動線（ねこさがしのステージの「次のステージへ」・#3048）。無ければ出さない。
     public struct PrimaryAction {
@@ -28,11 +101,12 @@ public struct GameClearCard: View {
 
     /// - Parameter record: 自己ベストの行に使う記録（15パズル・つなぎ。無ければ行を出さない・#3059）。
     public init(title: String? = nil, details: [String] = [], record: RecordResult? = nil,
-                primaryAction: PrimaryAction? = nil, onClose: (() -> Void)? = nil) {
+                primaryAction: PrimaryAction? = nil, share: ClearShare? = nil, onClose: (() -> Void)? = nil) {
         self.title = title ?? tr("クリア！")
         self.details = details
         self.record = record
         self.primaryAction = primaryAction
+        self.share = share
         self.onClose = onClose
     }
 
@@ -71,6 +145,10 @@ public struct GameClearCard: View {
                         .background(Capsule().fill(Theme.Fill.coral))
                 }
                 .accessibilityHint(primaryAction.hint)
+            }
+            if let share, let recordShare {
+                // 読み上げの塊の外（共有ボタンはカードの中の独立した操作）。
+                ClearShareButton(share: share, context: recordShare)
             }
             if let onClose {
                 Button(action: onClose) {

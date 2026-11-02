@@ -34,6 +34,8 @@ enum CatPuzzleEvent {
     /// 保存するのは「日付（JST）・その日の合計・その日に Game Center へ送り済みの値」の 3 つだけ。日付が変わったら 0 から数え直す。
     static let dayKey = "catPuzzleEventDay"
     static let totalKey = "catPuzzleEventDayTotal"
+    /// 今日クリアした面の数（共有の「n 面クリア」・#3237）。日付と同じく 0:00 JST で数え直す。
+    static let clearsKey = "catPuzzleEventDayClears"
     static let sentKey = "catPuzzleEventDaySent"
 
     /// 日本時間の日付（`yyyy-MM-dd`）。0:00 JST で変わる。
@@ -49,6 +51,11 @@ enum CatPuzzleEvent {
         defaults.string(forKey: dayKey) == day(of: now) ? max(0, defaults.integer(forKey: totalKey)) : 0
     }
 
+    /// 今日クリアした面の数。今日でなければ 0。
+    static func clears(_ defaults: UserDefaults, now: Date = Date()) -> Int {
+        defaults.string(forKey: dayKey) == day(of: now) ? max(0, defaults.integer(forKey: clearsKey)) : 0
+    }
+
     /// 今日の合計のうち Game Center へ送り済みの値。今日でなければ 0。
     static func sent(_ defaults: UserDefaults, now: Date = Date()) -> Int {
         defaults.string(forKey: dayKey) == day(of: now) ? max(0, defaults.integer(forKey: sentKey)) : 0
@@ -62,7 +69,9 @@ enum CatPuzzleEvent {
             defaults.set(today, forKey: dayKey)
             defaults.set(0, forKey: totalKey)
             defaults.set(0, forKey: sentKey)
+            defaults.set(0, forKey: clearsKey)
         }
+        defaults.set(clears(defaults, now: now) + 1, forKey: clearsKey)
         let next = total(defaults, now: now) + max(0, points)
         defaults.set(next, forKey: totalKey)
         return next

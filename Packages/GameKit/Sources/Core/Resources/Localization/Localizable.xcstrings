@@ -5520,6 +5520,17 @@
           }
         }
       }
+    },
+    "今日の pt をシェア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share today's points"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
