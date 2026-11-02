@@ -124,6 +124,7 @@ public struct CatPuzzleView: View {
         .sheet(isPresented: $showNewGame) {
             CatPuzzleNewGameSheet(initialMode: CatPuzzlePlayMode(rawValue: preferredMode) ?? .stage,
                                   initial: model.size, nextStage: model.savedStage,
+                                  noMissBest: model.noMissBest,
                                   eventTotal: model.isEventActive ? model.todayEventTotal : nil,
                                   onOpenRanking: services.openGameCenter,
                                   makeRanking: { CatPuzzleRankingModel(reporter: services.gameCenter) }) { mode, size in
@@ -801,6 +802,11 @@ public struct CatPuzzleView: View {
         } else if model.mistakes == 0 {
             lines.append(tr("ミスなしのパーフェクト！"))
         }
+        if model.stage != nil, model.noMissStreak >= CatPuzzleNoMiss.showsFrom {
+            lines.append(model.beatNoMissBest
+                ? tr("ノーミス %lld 面連続・自己ベスト", model.noMissStreak)
+                : tr("ノーミス %lld 面連続", model.noMissStreak))
+        }
         return lines
     }
 
@@ -983,6 +989,8 @@ struct CatPuzzleNextStageBar: View {
 /// 他のゲームと同じ共通の枠（`GameSetupSheet`）。
 struct CatPuzzleNewGameSheet: View {
     let nextStage: Int
+    /// ノーミス連続の最高（#3244）。0 なら出さない。
+    let noMissBest: Int
     /// イベント開催中なら今日貯めた合計 pt（期間外は nil で、イベントの欄を出さない・#3204）。
     let eventTotal: Int?
     /// Game Center 本体の画面を開く入口。アプリ内のランキング画面（`makeRanking`）の中のボタンから使う（無ければボタンを出さない）。
@@ -995,12 +1003,13 @@ struct CatPuzzleNewGameSheet: View {
     @State private var size: CatPuzzleSize
     @State private var showRanking = false
 
-    init(initialMode: CatPuzzlePlayMode, initial: CatPuzzleSize, nextStage: Int,
+    init(initialMode: CatPuzzlePlayMode, initial: CatPuzzleSize, nextStage: Int, noMissBest: Int = 0,
          eventTotal: Int? = nil, onOpenRanking: (@MainActor () -> Void)? = nil,
          makeRanking: (@MainActor () -> CatPuzzleRankingModel)? = nil,
          onStart: @escaping (CatPuzzlePlayMode, CatPuzzleSize) -> Void,
          onCancel: @escaping () -> Void) {
         self.nextStage = nextStage
+        self.noMissBest = noMissBest
         self.eventTotal = eventTotal
         self.onOpenRanking = onOpenRanking
         self.makeRanking = makeRanking
@@ -1017,6 +1026,10 @@ struct CatPuzzleNewGameSheet: View {
             onStart: { onStart(mode, size) }, onCancel: onCancel
         ) {
             Self.modeSection(selection: $mode, nextStage: nextStage)
+            if mode == .stage, noMissBest >= CatPuzzleNoMiss.showsFrom {
+                Text(tr("ノーミス連続の最高 %lld 面", noMissBest))
+                    .themeCaption(12).foregroundStyle(Theme.inkSubText)
+            }
             if let eventTotal, mode == .stage {
                 Self.eventSection(total: eventTotal, onOpenRanking: makeRanking == nil ? nil : { showRanking = true })
             }
