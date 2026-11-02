@@ -207,6 +207,8 @@ struct CatPuzzleEventTests {
         solve(model)
         #expect(model.eventTotal == 3)
         #expect(CatPuzzleEvent.day(of: clock) == "2026-11-11")
+        clock = jst(2026, 11, 12)
+        #expect(model.eventTotal == 3 && model.todayEventTotal == 0, "開いたまま日が変わっても、開始シートには前日の合計を出さない")
     }
 
     @Test("前日分は送らない。日付が変わったら今日の分だけを送る")

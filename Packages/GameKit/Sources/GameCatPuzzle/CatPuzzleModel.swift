@@ -114,6 +114,8 @@ public final class CatPuzzleModel {
     public private(set) var lastEventPoints: Int?
     /// Game Center へ合計を送っている最中の Task（二重に送らない・テストが完了を待つ）。
     @ObservationIgnored var eventSubmitTask: Task<Void, Never>?
+    /// 開始シートに出す今日の合計。画面を開いたまま 0:00 JST を過ぎても前日の値を出さないよう、保存から都度読む。
+    public var todayEventTotal: Int { CatPuzzleEvent.total(stageDefaults, now: eventNow()) }
     /// 保存済みの合計から今日の合計を読み直す（日付が変わっていれば 0）。
     public func refreshEventTotal() { eventTotal = CatPuzzleEvent.total(stageDefaults, now: eventNow()) }
     /// イベント開催中か（期間は `CatPuzzleEvent` の 1 か所）。

@@ -104,7 +104,7 @@ public struct CatPuzzleView: View {
         .sheet(isPresented: $showNewGame) {
             CatPuzzleNewGameSheet(initialMode: CatPuzzlePlayMode(rawValue: preferredMode) ?? .stage,
                                   initial: model.size, nextStage: model.savedStage,
-                                  eventTotal: model.isEventActive ? model.eventTotal : nil,
+                                  eventTotal: model.isEventActive ? model.todayEventTotal : nil,
                                   onOpenRanking: services.openGameCenter) { mode, size in
                 showNewGame = false
                 start(mode: mode, size: size)
