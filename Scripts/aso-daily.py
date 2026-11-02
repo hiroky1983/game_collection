@@ -26,6 +26,8 @@
   7. キーワード順位（#2533）: docs/aso/keywords-current.txt の語ごとに公開の iTunes Search API を叩き、「あそびば」が
      何位に出るか（無ければ圏外）を ~/asobiba-kpi/aso/rank/daily.csv に保存し、「順位（日次）」タブと週次まとめの先頭の
      1 行（10 位以内・30 位以内の語の数）に出す。1 語の失敗はその語だけ空欄にして続ける
+  8. キーワード順位・US（#3249）: 日本の後に、docs/aso/keywords-us.txt の語を country=us で同じように測り、
+     ~/asobiba-kpi/aso/rank/daily_us.csv と「順位（日次・US）」タブに出す（429 は待って取り直す）
 
 ASC の API は GET だけを使う（GA4 の runReport は読み取りの POST）。リクエストが無い・止まっている場合は作り直さずにエラー終了する
 （作成は会長の判断を経て手で行う）。鍵・トークン・署名付き URL はログにも CSV にも出さない。
@@ -818,10 +820,17 @@ RANK_OUT = "圏外"
 RANK_FIELDNAMES = ["date", "term", "rank", "count"]
 KEYWORDS_REPO = os.path.expanduser("~/.asobiba-duty/game_collection")
 KEYWORDS_REL_PATH = "docs/aso/keywords-current.txt"
+# アメリカのストア（#3249）。日本の取得の後に同じ仕組みで測る。語の一覧は docs/aso/keywords-us.txt、保存は rank/daily_us.csv
+RANK_API_US = "https://itunes.apple.com/search?term={term}&country=us&entity=software&limit=200"
+KEYWORDS_US_REL_PATH = "docs/aso/keywords-us.txt"
+RANK_RETRY_429 = 3  # US は 429（回数の上限）を返されたら待って取り直す回数
+RANK_RETRY_WAIT_SEC = 60
 
 
 class RankError(Exception):
-    pass
+    def __init__(self, msg, status=None):
+        super().__init__(msg)
+        self.status = status
 
 
 def parse_keywords(text):
@@ -834,23 +843,23 @@ def parse_keywords(text):
     return out
 
 
-def load_keywords(path=None):
-    """path があればそのファイル、無ければ当番クローンの origin/main の docs/aso/keywords-current.txt を読む。"""
+def load_keywords(path=None, rel_path=KEYWORDS_REL_PATH):
+    """path があればそのファイル、無ければ当番クローンの origin/main の rel_path（既定 docs/aso/keywords-current.txt）を読む。"""
     try:
         if path:
             with open(path, encoding="utf-8") as f:
                 text = f.read()
         else:
-            p = subprocess.run(["git", "-C", KEYWORDS_REPO, "show", "origin/main:" + KEYWORDS_REL_PATH],
+            p = subprocess.run(["git", "-C", KEYWORDS_REPO, "show", "origin/main:" + rel_path],
                                capture_output=True, timeout=30)
             if p.returncode != 0:
-                raise RankError("origin/main から %s を取り出せません" % KEYWORDS_REL_PATH)
+                raise RankError("origin/main から %s を取り出せません" % rel_path)
             text = p.stdout.decode("utf-8")
     except (OSError, UnicodeDecodeError, subprocess.SubprocessError):
-        raise RankError("キーワードの一覧を読めません（%s）" % (path or KEYWORDS_REL_PATH))
+        raise RankError("キーワードの一覧を読めません（%s）" % (path or rel_path))
     terms = parse_keywords(text)
     if not terms:
-        raise RankError("キーワードの一覧が空です（%s）" % (path or KEYWORDS_REL_PATH))
+        raise RankError("キーワードの一覧が空です（%s）" % (path or rel_path))
     return terms
 
 
@@ -865,7 +874,7 @@ def fetch_keyword_rank(term, api=RANK_API):
         if not isinstance(results, list):
             raise ValueError
     except urllib.error.HTTPError as e:
-        raise RankError("HTTP %d" % e.code)
+        raise RankError("HTTP %d" % e.code, e.code)
     except urllib.error.URLError:
         raise RankError("接続できない")
     except (OSError, ValueError, KeyError, TypeError, http.client.HTTPException):  # 途中で切れた応答（IncompleteRead）も失敗の 1 語
@@ -878,19 +887,30 @@ def fetch_keyword_rank(term, api=RANK_API):
     return None, count
 
 
-def fetch_keyword_ranks(terms, date, api=RANK_API, interval=RANK_INTERVAL_SEC, sleep=time.sleep):
+def fetch_keyword_ranks(terms, date, api=RANK_API, interval=RANK_INTERVAL_SEC, sleep=time.sleep,
+                        retry_429=0, retry_wait=RANK_RETRY_WAIT_SEC, label="キーワード順位"):
     """語ごとに順位を測る。戻り値: [{date, term, rank, count}]（rank = 数字・「圏外」・失敗は空欄）。
-    1 語の失敗はその語だけ空欄にしてログに書き、他の語は続ける。語の間は interval 秒あける。"""
+    1 語の失敗はその語だけ空欄にしてログに書き、他の語は続ける。語の間は interval 秒あける。
+    retry_429 > 0 なら HTTP 429 のとき retry_wait 秒待って最大 retry_429 回取り直す（US 用。日本は 0 = 取り直さない）。"""
     out = []
     for i, term in enumerate(terms):
         if i:
             sleep(interval)
-        try:
-            rank, count = fetch_keyword_rank(term, api)
-            out.append({"date": date, "term": term, "rank": rank if rank is not None else RANK_OUT, "count": count})
-        except RankError as e:
-            log("警告: キーワード順位「%s」を取得できませんでした（%s）。その語は空欄" % (term, e))
-            out.append({"date": date, "term": term, "rank": "", "count": ""})
+        tries = 0
+        while True:
+            try:
+                rank, count = fetch_keyword_rank(term, api)
+                out.append({"date": date, "term": term, "rank": rank if rank is not None else RANK_OUT, "count": count})
+            except RankError as e:
+                if e.status == 429 and tries < retry_429:
+                    tries += 1
+                    log("警告: %s「%s」で HTTP 429。%d 秒待って取り直します（%d/%d 回目）" % (
+                        label, term, retry_wait, tries, retry_429))
+                    sleep(retry_wait)
+                    continue
+                log("警告: %s「%s」を取得できませんでした（%s）。その語は空欄" % (label, term, e))
+                out.append({"date": date, "term": term, "rank": "", "count": ""})
+            break
     return out
 
 
@@ -966,7 +986,8 @@ SHEET_ID = "1FSwmBy81utUvmt8z2b0eo6kGQ8jgXFhZgDoj_rhuVU4"  # 「あそびば KPI
 SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets/" + SHEET_ID
 TAB_WEEKLY, TAB_ASO, TAB_GA4, TAB_GAMES, TAB_ADS = "週次まとめ", "ASO（日次）", "GA4（日次）", "ゲーム別（日次）", "広告（日次）"
 TAB_RANK = "順位（日次）"
-TABS = [TAB_WEEKLY, TAB_ASO, TAB_GA4, TAB_GAMES, TAB_ADS, TAB_RANK]
+TAB_RANK_US = "順位（日次・US）"  # #3249。日本の「順位（日次）」と同じ形（行 = 日付、列 = 語）
+TABS = [TAB_WEEKLY, TAB_ASO, TAB_GA4, TAB_GAMES, TAB_ADS, TAB_RANK, TAB_RANK_US]
 DEFAULT_SHEET_TITLES = ("シート1", "Sheet1")
 WEEKLY_TABLE_ROW = 47  # 週次の表の見出し行（1 始まり）。上は状態の行とグラフ 4 本の置き場
 CHART_ROWS = 5000  # グラフが参照する行数（日次の行が増えても描かれるよう広めに取る）
@@ -1353,7 +1374,7 @@ def status_lines(now, errors, warning=""):
 
 
 def build_tabs(aso_rows, ga4_rows, admob_rows, today, now, errors, rates=None, warning="", rank_rows=None,
-               keywords=None):
+               keywords=None, rank_us_rows=None, keywords_us=None):
     rank_rows = rank_rows or []
     return {
         TAB_WEEKLY: tab_weekly(aso_rows, ga4_rows, admob_rows, today, status_lines(now, errors, warning), rates,
@@ -1363,6 +1384,7 @@ def build_tabs(aso_rows, ga4_rows, admob_rows, today, now, errors, rates=None, w
         TAB_GAMES: tab_games(ga4_rows),
         TAB_ADS: tab_ads(ga4_rows, admob_rows, rates),
         TAB_RANK: tab_rank(rank_rows, keywords),
+        TAB_RANK_US: tab_rank(rank_us_rows or [], keywords_us),
     }
 
 
@@ -1403,13 +1425,14 @@ def chart_requests(ids):
 # updateTable で行の増減に追従させる（= 二重に作らない・毎日壊れない）。列の型（日付・数値）は新規作成時だけ付ける
 # （既存の表に付け直しても実害は無いが、ヘッダ文字列は書き込んだ値から毎回そのまま拾われるので触らない）。
 TABLE_IDS = {TAB_ASO: "tbl_aso_daily", TAB_GA4: "tbl_ga4_daily", TAB_GAMES: "tbl_games_daily", TAB_ADS: "tbl_ads_daily",
-             TAB_RANK: "tbl_rank_daily"}
+             TAB_RANK: "tbl_rank_daily", TAB_RANK_US: "tbl_rank_daily_us"}
 TABLE_COL_SPECS = {
     TAB_ASO: {"date_idx": 0, "text_idxs": {FIELDNAMES.index(c) for c in META_COLS}},
     TAB_GA4: {"date_idx": 0, "text_idxs": set()},
     TAB_GAMES: {"date_idx": 0, "text_idxs": {1, 2}},  # game_id・ゲーム名
     TAB_ADS: {"date_idx": 0, "text_idxs": {1, 2}},  # 取得元・広告フォーマット/ユニット
     TAB_RANK: {"date_idx": 0, "text_idxs": set(), "all_text": True},  # 語の列は順位と「圏外」が混ざるので TEXT
+    TAB_RANK_US: {"date_idx": 0, "text_idxs": set(), "all_text": True},
 }
 
 
@@ -1550,6 +1573,11 @@ def main(argv=None):
                          "指定すると --no-fetch でも取る" % RANK_API)
     ap.add_argument("--rank-interval", type=float, default=RANK_INTERVAL_SEC,
                     help="順位を測る語の間にあける秒数（既定 %d。API の上限 約 20 回/分のため 3 秒未満にしない。テスト用）" % RANK_INTERVAL_SEC)
+    ap.add_argument("--keywords-us-file", metavar="FILE",
+                    help="US の順位を測る語の一覧（既定: 当番クローンの origin/main の %s）。テスト用に差し替え可" % KEYWORDS_US_REL_PATH)
+    ap.add_argument("--rank-us-api", metavar="URL",
+                    help="US のキーワード順位の取得先（{term} を語に置き換える。既定: %s）。指定すると --no-fetch でも US の順位だけ取る"
+                         "（--no-fetch と合わせると、日本の順位・ASC・GA4 は取らずに US だけ測ってシートを書き直す）" % RANK_API_US)
     ap.add_argument("--fx-api", metavar="URL",
                     help="USD/JPY レートの取得先（{date} を日付に置き換える。既定: %s）。テスト用に file:// へ差し替える。"
                          "指定すると --no-fetch でも取る" % FX_API)
@@ -1644,6 +1672,33 @@ def main(argv=None):
             errors.append(("キーワード順位", "取得・保存に失敗しました（%s）" % type(e).__name__))
             log("エラー: キーワード順位の取得・保存に失敗しました（%s）" % type(e).__name__)
 
+    # キーワード順位・US（#3249）。日本の取得の後に回す。失敗の扱いは日本と同じで、429 は待って取り直す
+    rank_us_path = os.path.join(a.out_dir, "rank", "daily_us.csv")
+    rank_us_rows = read_rank_daily(rank_us_path)
+    keywords_us = []
+    do_rank_us = bool(a.rank_us_api) or not a.no_fetch
+    if do_rank_us or a.keywords_us_file:
+        try:
+            keywords_us = load_keywords(a.keywords_us_file, KEYWORDS_US_REL_PATH)
+        except RankError as e:
+            if do_rank_us:
+                errors.append(("キーワード順位（US）", str(e)))
+                log("エラー: キーワード順位（US）: %s" % e)
+    if keywords_us and do_rank_us:
+        try:
+            new = fetch_keyword_ranks(keywords_us, today.isoformat(), a.rank_us_api or RANK_API_US, a.rank_interval,
+                                      retry_429=RANK_RETRY_429, label="キーワード順位（US）")
+            ok_n = sum(1 for r in new if r["rank"] != "")
+            if not ok_n:
+                errors.append(("キーワード順位（US）", "全 %d 語の取得に失敗しました" % len(new)))
+                log("エラー: キーワード順位（US）: 全 %d 語の取得に失敗しました" % len(new))
+            rank_us_rows = merge_rank(rank_us_rows, new)
+            write_rank_daily(rank_us_path, rank_us_rows)
+            log("キーワード順位（US）: %d 語中 %d 語を取得（rank/daily_us.csv %d 行）" % (len(new), ok_n, len(rank_us_rows)))
+        except Exception as e:  # 想定外でも他の取得・シートの書き込みは続ける
+            errors.append(("キーワード順位（US）", "取得・保存に失敗しました（%s）" % type(e).__name__))
+            log("エラー: キーワード順位（US）の取得・保存に失敗しました（%s）" % type(e).__name__)
+
     admob_rows = read_admob_history(a.admob_history)
     if admob_rows:
         log("AdMob 画面取得（過去分）: %d 日分（%s〜%s）" % (
@@ -1664,7 +1719,7 @@ def main(argv=None):
 
     if a.sheets_dump or not a.no_sheets:
         tabs = build_tabs(rows, ga4_rows, admob_rows, today, datetime.datetime.now(JST), errors, rates, warning,
-                          rank_rows, keywords)
+                          rank_rows, keywords, rank_us_rows, keywords_us)
         try:
             if a.sheets_dump:
                 dump_tabs(tabs, a.sheets_dump)
