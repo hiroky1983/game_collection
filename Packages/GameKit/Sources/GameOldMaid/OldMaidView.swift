@@ -389,7 +389,7 @@ public struct OldMaidView: View {
             services, gameID: OldMaidModel.gameID, purpose: .peek,
             guardedBy: .checkedByGrant
         ) {
-            model.grantPeek(cardID: id, turn: turn, gameNumber: game)
+            model.grantPeek(forTurn: turn, cardID: id, gameNumber: game)
         }
     }
 
@@ -400,7 +400,7 @@ public struct OldMaidView: View {
             services, gameID: OldMaidModel.gameID, purpose: .redraw,
             guardedBy: .checkedByGrant
         ) {
-            withGameAnimation { model.grantRedraw(turn: turn, gameNumber: game) }
+            withGameAnimation { model.grantRedraw(forTurn: turn, gameNumber: game) }
         }
     }
 

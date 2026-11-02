@@ -269,7 +269,7 @@ public final class OldMaidModel: AITurnGuarded {
     ///   - cardID: 広告を出す前にタップした札。ロード中に別の札へ指を替えても、払った札の正体を見せる。
     ///   - turn: 広告を出す前の `turnSerial`。`expectedGame` は同じく `gameNumber`。広告のあいだに番が進んだ・局が替わったら false。
     /// - Returns: 適用できたか（false なら「見ているあいだに状況が変わった」アラートになる）。
-    func grantPeek(cardID: Int, turn: Int, gameNumber expectedGame: Int) -> Bool {
+    func grantPeek(forTurn turn: Int, cardID: Int, gameNumber expectedGame: Int) -> Bool {
         guard isPlayerTurn, gameNumber == expectedGame, game?.turnSerial == turn,
               let target = humanTarget, hands[target].contains(where: { $0.id == cardID }) else { return false }
         peekedIDs.insert(cardID)
@@ -282,7 +282,7 @@ public final class OldMaidModel: AITurnGuarded {
     ///
     /// - Parameters:
     ///   - turn: 広告を出す前の `redrawTurn`。広告のあいだに CPU が動いた・局が替わったら false。
-    func grantRedraw(turn: Int, gameNumber expectedGame: Int) -> Bool {
+    func grantRedraw(forTurn turn: Int, gameNumber expectedGame: Int) -> Bool {
         guard phase == .playing, let base = redrawBase, base.serial == turn, base.gameNumber == expectedGame,
               gameNumber == expectedGame, game?.turnSerial == turn else { return false }
         game = base.game

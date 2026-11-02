@@ -84,7 +84,7 @@ struct OldMaidAdAssistTests {
         drawJoker(model)
         let turn = try! #require(model.redrawTurn)
 
-        #expect(model.grantRedraw(turn: turn, gameNumber: model.gameNumber))
+        #expect(model.grantRedraw(forTurn: turn, gameNumber: model.gameNumber))
         #expect(model.game == start, "引く前の局面に戻る")
         #expect(model.isPlayerTurn && model.selectedID == nil)
         #expect(!model.canRedraw)
@@ -103,7 +103,7 @@ struct OldMaidAdAssistTests {
         let model = makeModel()
         model.configureForTesting(jokerScenario())
         drawJoker(model)
-        #expect(model.grantRedraw(turn: model.redrawTurn!, gameNumber: model.gameNumber))
+        #expect(model.grantRedraw(forTurn: model.redrawTurn!, gameNumber: model.gameNumber))
         model.toggleSelection(card(.spades, 9).id)
         model.drawSelected()
         #expect(!model.revealsJoker)
@@ -116,10 +116,10 @@ struct OldMaidAdAssistTests {
         model.configureForTesting(jokerScenario())
         drawJoker(model)
         let turn = model.redrawTurn!
-        #expect(!model.grantRedraw(turn: turn + 1, gameNumber: model.gameNumber))
-        #expect(!model.grantRedraw(turn: turn, gameNumber: model.gameNumber + 1))
+        #expect(!model.grantRedraw(forTurn: turn + 1, gameNumber: model.gameNumber))
+        #expect(!model.grantRedraw(forTurn: turn, gameNumber: model.gameNumber + 1))
         model.declineRedraw()
-        #expect(!model.grantRedraw(turn: turn, gameNumber: model.gameNumber), "断ったあとは戻せない")
+        #expect(!model.grantRedraw(forTurn: turn, gameNumber: model.gameNumber), "断ったあとは戻せない")
     }
 
     @Test("見破る: 札がジョーカーかどうかを確実に教え、引くと消える")
@@ -130,14 +130,14 @@ struct OldMaidAdAssistTests {
         #expect(!model.canPeek, "札に指をかけていないと使えない")
         model.toggleSelection(OldMaidCard.jokerID)
         #expect(model.canPeek)
-        #expect(model.grantPeek(cardID: OldMaidCard.jokerID, turn: turn, gameNumber: model.gameNumber))
+        #expect(model.grantPeek(forTurn: turn, cardID: OldMaidCard.jokerID, gameNumber: model.gameNumber))
         #expect(model.revealedIsJoker(OldMaidCard.jokerID) == true)
         #expect(!model.canPeek, "正体が見えている札には使えない")
 
         let safe = card(.hearts, 2).id
         model.toggleSelection(safe)
         #expect(model.canPeek)
-        #expect(model.grantPeek(cardID: safe, turn: turn, gameNumber: model.gameNumber))
+        #expect(model.grantPeek(forTurn: turn, cardID: safe, gameNumber: model.gameNumber))
         #expect(model.revealedIsJoker(safe) == false)
 
         model.drawSelected()
@@ -149,8 +149,8 @@ struct OldMaidAdAssistTests {
         let model = makeModel()
         model.configureForTesting(jokerScenario())
         let turn = model.game!.turnSerial
-        #expect(!model.grantPeek(cardID: OldMaidCard.jokerID, turn: turn + 1, gameNumber: model.gameNumber))
-        #expect(!model.grantPeek(cardID: 999, turn: turn, gameNumber: model.gameNumber), "相手の手札にない札")
+        #expect(!model.grantPeek(forTurn: turn + 1, cardID: OldMaidCard.jokerID, gameNumber: model.gameNumber))
+        #expect(!model.grantPeek(forTurn: turn, cardID: 999, gameNumber: model.gameNumber), "相手の手札にない札")
     }
 
     @Test("中断して戻しても、見えているジョーカーと見破った札は保たれる")
@@ -159,7 +159,7 @@ struct OldMaidAdAssistTests {
         let model = makeModel(store: store)
         model.configureForTesting(jokerScenario())
         drawJoker(model)
-        #expect(model.grantRedraw(turn: model.redrawTurn!, gameNumber: model.gameNumber))
+        #expect(model.grantRedraw(forTurn: model.redrawTurn!, gameNumber: model.gameNumber))
         let resumed = makeModel(store: store)
         #expect(resumed.revealsJoker)
         #expect(resumed.revealedIsJoker(OldMaidCard.jokerID) == true)
@@ -168,7 +168,7 @@ struct OldMaidAdAssistTests {
         let peeker = makeModel(store: other)
         peeker.configureForTesting(jokerScenario())
         peeker.toggleSelection(OldMaidCard.jokerID)
-        #expect(peeker.grantPeek(cardID: OldMaidCard.jokerID, turn: 0, gameNumber: peeker.gameNumber))
+        #expect(peeker.grantPeek(forTurn: 0, cardID: OldMaidCard.jokerID, gameNumber: peeker.gameNumber))
         #expect(makeModel(store: other).peekedIDs == [OldMaidCard.jokerID])
     }
 
@@ -177,17 +177,14 @@ struct OldMaidAdAssistTests {
         let model = makeModel()
         model.configureForTesting(jokerScenario())
         drawJoker(model)
-        #expect(model.grantRedraw(turn: model.redrawTurn!, gameNumber: model.gameNumber))
+        #expect(model.grantRedraw(forTurn: model.redrawTurn!, gameNumber: model.gameNumber))
         #expect(model.phase == .playing)
         #expect(model.recordScore.metric == .winLoss)
     }
 
     @Test("画面は見破る・引き直しを、局ガード・提示の計測つきの共通部品で結線している")
     func viewWiring() throws {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Sources/GameOldMaid/OldMaidView.swift")
-        let code = try String(contentsOf: url, encoding: .utf8)
+        let code = SourceScan.strippingComments(try SourceScan.moduleSources("GameOldMaid"))
         #expect(code.contains("peekRescue.request(") && code.contains("purpose: .peek"))
         #expect(code.contains("redrawRescue.request(") && code.contains("purpose: .redraw"))
         #expect(code.contains(".rewardOffer(redrawRescue, for: .redraw, isPresented: model.canRedraw"))
