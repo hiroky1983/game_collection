@@ -989,6 +989,29 @@ struct RestAcrossRelaunchTests {
         #expect(afterSpy.ends.first?.durationSec == 65, "休憩前の 40 秒 + 戻ってからの 25 秒。終了中の時間は入れない")
     }
 
+    @Test("アプリが終了しても、休憩前のミス数・猫を教えるの回数は「続きから」の game_end に引き継がれる（#3232）")
+    func missAndTeachSurviveRelaunch() {
+        let store = makeStore()
+        let clock = TestClock()
+        let (before, _) = relaunch(store, clock: clock)
+        before.startPlay(gameID: "2048")
+        before.recordProgress(gameID: "2048")
+        before.recordMissCause(gameID: "2048", cause: nil, progressPercent: 40)
+        before.recordTeachUsed(gameID: "2048")
+        before.leaveGame(gameID: "2048", isResumable: true)
+
+        let (after, afterSpy) = relaunch(store, clock: clock)
+        after.recordGameOpen(gameID: "2048", source: .hub, position: 1, resume: true)
+        after.recordMissCause(gameID: "2048", cause: nil, progressPercent: 60)
+        after.recordTeachUsed(gameID: "2048")
+        after.finishPlay(gameID: "2048", outcome: .win)
+
+        let end = afterSpy.events.last { $0.name == "game_end" }?.parameters
+        #expect(end?["miss_count"] == .int(2))
+        #expect(end?["miss_at"] == .int(60))
+        #expect(end?["teach_used"] == .int(2))
+    }
+
     @Test("ハブへ戻らず背面でアプリが終了しても、「続きから」で決着すれば game_end が出る（#2300）")
     func finishAfterBackgroundTerminationSendsEnd() {
         let store = makeStore()

@@ -872,6 +872,10 @@ public final class GameAnalytics {
         var mode: String?
         /// `level` の `parameterValue`。この項目が無い旧版の控えも読めるよう optional（#1888）。
         var level: String?
+        /// 「猫を教える」の回数・ミスの回数と最後の地点（#3232）。旧版の控えには無いので optional。
+        var teachUsed: Int?
+        var missCount: Int?
+        var missPercent: Int?
     }
 
     private func loadRests() -> [String: RestEntry] {
@@ -896,7 +900,8 @@ public final class GameAnalytics {
         rests[gameID] = RestEntry(
             activeSeconds: activeSeconds[gameID] ?? 0, didProgress: didProgress,
             hintsUsed: hintsUsed, mode: modes[gameID]?.rawValue,
-            level: levels[gameID]?.parameterValue
+            level: levels[gameID]?.parameterValue,
+            teachUsed: teachCounts[gameID], missCount: missCounts[gameID], missPercent: missPercents[gameID]
         )
         saveRests(rests)
     }
@@ -916,6 +921,9 @@ public final class GameAnalytics {
         )
         modes[gameID] = entry.mode.flatMap(AnalyticsMode.init(rawValue:))
         levels[gameID] = entry.level.flatMap(AnalyticsLevel.init(parameterValue:))
+        teachCounts[gameID] = entry.teachUsed
+        missCounts[gameID] = entry.missCount
+        missPercents[gameID] = entry.missPercent
         activeSeconds[gameID] = entry.activeSeconds
         resumeClock(gameID: gameID)
     }
