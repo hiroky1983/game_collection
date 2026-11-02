@@ -42,6 +42,9 @@ struct CatPuzzleBoardCanvas: View {
     var keyLocked = false
     let cellSide: CGFloat
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// 直近のミスのマスを赤い枠で囲んでいる間（付いた瞬間から `CatPuzzleMotion.wrongFrameHold` だけ。Reduce Motion では出さない）。
+    @State private var showsWrongFrame = false
+    @State private var wrongFrameStamp = 0
 
     /// 外周の壁の太さ。
     private var borderWidth: CGFloat { CatPuzzleHouse.wallWidth * 1.5 }
@@ -63,7 +66,7 @@ struct CatPuzzleBoardCanvas: View {
                 drawCrosses(&context)
             }
             // 答えでないマスの赤い ×（付いた瞬間に揺れて点滅する）。
-            // Reduce Motion のときは揺らさず点滅もしない（直近のマスの赤い枠と面は静止で残る）。
+            // Reduce Motion のときは揺らさず、枠も出さない（赤い × だけ）。
             if !isSolved && !wrongCrosses.isEmpty {
                 PhaseAnimator(CatPuzzleMotion.shakePhases, trigger: shakeToken) { phase in
                     Canvas { context, _ in
@@ -95,6 +98,16 @@ struct CatPuzzleBoardCanvas: View {
         }
         .frame(width: boardSide, height: boardSide)
         .accessibilityHidden(true)
+        .onChange(of: shakeToken) {
+            guard !reduceMotion else { return }
+            showsWrongFrame = true
+            wrongFrameStamp += 1
+        }
+        .task(id: wrongFrameStamp) {
+            guard showsWrongFrame else { return }
+            try? await Task.sleep(for: CatPuzzleMotion.wrongFrameHold)
+            if !Task.isCancelled { showsWrongFrame = false }
+        }
     }
 
     // MARK: - 行・列・部屋の形
@@ -247,23 +260,21 @@ struct CatPuzzleBoardCanvas: View {
         return shape
     }
 
-    /// 答えでないマスの固定の赤い ×（会長 QA 2026-10-21・build 42）。マスを薄い赤で塗り、赤い太い × に白い縁取り。
-    /// 直近に付いたマス（`lastWrongCell`）は赤い枠で囲み、`phase`（揺れの位置。0 で止まる）だけ × を左右にずらし、
-    /// 揺れているあいだはマスの赤を濃くして点滅させる。
+    /// 答えでないマスの固定の赤い ×（赤い太い × に白い縁取り）。マスの背景は塗らない（部屋の色のまま。灰色の部屋と
+    /// 見分けがつかなくなるため・会長 QA 2026-11-03 #3246）。
+    /// 直近に付いたマス（`lastWrongCell`）は付いた瞬間だけ赤い枠で囲み（`showsWrongFrame`）、`phase`（揺れの位置。0 で止まる）だけ × を左右にずらす。
     private func drawWrongCrosses(_ context: inout GraphicsContext, phase: CGFloat) {
         let width = Self.crossWidth(cellSide: cellSide) * 1.15
         let inset = CatPuzzleHouse.wallWidth / 2
         for cell in wrongCrosses.sorted() {
             let r = rect(of: cell)
             let isLast = cell == lastWrongCell
-            let flash = isLast ? abs(phase) * 0.3 : 0
-            context.fill(Path(r), with: .color(Theme.coral.opacity(0.2 + flash)))
             let shift = isLast ? phase * cellSide * 0.09 : 0
             let shape = Self.crossPath(in: r.offsetBy(dx: shift, dy: 0), cellSide: cellSide)
             context.stroke(shape, with: .color(CatPuzzleHouse.crossHalo.opacity(0.95)),
                            style: StrokeStyle(lineWidth: Self.crossHaloWidth(cellSide: cellSide) * 1.1, lineCap: .round))
             context.stroke(shape, with: .color(Theme.coralText), style: StrokeStyle(lineWidth: width, lineCap: .round))
-            if isLast {
+            if isLast, showsWrongFrame {
                 context.stroke(Path(roundedRect: r.insetBy(dx: inset, dy: inset), cornerRadius: cellSide * 0.12),
                                with: .color(Theme.coralText), style: StrokeStyle(lineWidth: 3, lineCap: .round))
             }
@@ -580,6 +591,8 @@ enum CatPuzzleMotion {
     static let shakePhases: [CGFloat] = [0, -1, 1, -0.6, 0.6, 0]
     /// 揺れの 1 コマ。
     static let shakeStep: Animation = .linear(duration: 0.05)
+    /// 赤い × が付いてから、そのマスの赤い枠を残しておく間。
+    static let wrongFrameHold: Duration = .milliseconds(900)
 
     /// 猫の出入り。Reduce Motion のときは透明度だけ（アニメーションは周囲のトランザクションに従う＝即時）。
     static func catTransition(reduceMotion: Bool) -> AnyTransition {

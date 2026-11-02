@@ -197,6 +197,27 @@ struct CatPuzzleRenderTests {
         #expect(image?.width == 40 * model.puzzle.side)
     }
 
+    @Test("間違えたマスの背景は部屋の色のまま（赤い × を付けても、マスの隅の色が変わらない・#3246）")
+    func wrongCellKeepsRoomBackground() throws {
+        let model = Self.wrongCrossModel()
+        let wrong = try #require(model.lastWrongCell)
+        let side: CGFloat = 40
+        func corner(wrongCrosses: Set<Int>) throws -> [UInt8] {
+            let renderer = ImageRenderer(content: CatPuzzleBoardCanvas(
+                puzzle: model.puzzle, marks: Array(repeating: CatPuzzleModel.Mark.empty, count: model.puzzle.side * model.puzzle.side),
+                wrongCrosses: wrongCrosses, lastWrongCell: wrong, cellSide: side
+            ))
+            renderer.scale = 1
+            let image = try #require(renderer.cgImage)
+            let n = model.puzzle.side
+            let x = Int(side) * (wrong % n) + 7, y = Int(side) * (wrong / n) + 7
+            let data = try #require(image.dataProvider?.data as Data?)
+            let o = y * image.bytesPerRow + x * (image.bitsPerPixel / 8)
+            return Array(data[o..<o + 3])
+        }
+        #expect(try corner(wrongCrosses: model.wrongCrosses) == corner(wrongCrosses: []))
+    }
+
     @Test("猫の矩形: 途中はマスの内側、クリア後はマスより大きく盤の中に収まる")
     func catRectFits() {
         let n = 7

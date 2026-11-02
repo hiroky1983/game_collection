@@ -959,17 +959,6 @@
         }
       }
     },
-    "タップで ×、ダブルタップで猫" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tap for ×, double-tap to find a cat"
-          }
-        }
-      }
-    },
     "押すと × を付け外しします。猫を見つけるときはアクションの「猫を見つける」を選びます" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1014,6 +1003,17 @@
         }
       }
     },
+    "タップで × を付け外し。ダブルタップでそのマスの猫を見つけます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to add or remove a ×. Double-tap to find the cat in that square."
+          }
+        }
+      }
+    },
     "ダブルタップ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1021,17 +1021,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Double-tap"
-          }
-        }
-      }
-    },
-    "タップで × を付け外し、ダブルタップで猫" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tap: toggle ×. Double-tap: cat"
           }
         }
       }
