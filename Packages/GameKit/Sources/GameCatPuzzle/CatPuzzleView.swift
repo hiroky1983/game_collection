@@ -837,7 +837,9 @@ public struct CatPuzzleView: View {
         }
         if let earned = model.lastEventPoints {
             // イベント開催中のステージ。SE で行が増えすぎないよう、パーフェクトの行は +3pt に譲る（#3204）。
-            lines.append(tr("イベント +%1$lldpt・今日の合計 %2$lldpt", earned, model.eventTotal))
+            lines.append(model.lastEventWasKey
+                ? tr("イベント +%1$lldpt（鍵の面 ×2）・今日の合計 %2$lldpt", earned, model.eventTotal)
+                : tr("イベント +%1$lldpt・今日の合計 %2$lldpt", earned, model.eventTotal))
         } else if model.mistakes == 0 {
             lines.append(tr("ミスなしのパーフェクト！"))
         }

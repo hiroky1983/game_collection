@@ -4,7 +4,7 @@ import Foundation
 /// **日本時間の 1 日ごと**（0:00 区切り）に貯めたその日の合計を、Game Center の繰り返しのリーダーボード
 /// （`GameCenterLeaderboard.catPuzzleEvent`・期間 1 日）へ送る（#3221。1 か月通しの合計から変更）。
 ///
-/// - ポイント: ミス 0 回 = 3pt・1 回 = 2pt・2 回 = 1pt。ミス 3 回はゲームオーバーなのでクリアできず 0pt。
+/// - ポイント: ミス 0 回 = 3pt・1 回 = 2pt・2 回 = 1pt（鍵の面は 2 倍の 6・4・2pt・#3259）。ミス 3 回はゲームオーバーなのでクリアできず 0pt。
 ///   **ヒント・「猫を 1 匹教える」を使っても減らさない**。ミスは画面に出ている数で数える（コンティニューで戻した
 ///   ぶんは含まない。広告で続けて 2 回ミスのままクリアしたら 1pt）。
 /// - 期間外のクリアは加算しない。合計は端末に保存し、Game Center に未ログインでも貯まる（ログインしたら、その日のうちなら送る。前日分は送らない）。
@@ -21,15 +21,19 @@ enum CatPuzzleEvent {
 
     static func isActive(now: Date = Date()) -> Bool { now >= start && now < end }
 
-    /// その面のクリアで得られるポイント。`mistakes` は画面に出ているミスの数。
-    static func points(mistakes: Int) -> Int {
-        switch mistakes {
+    /// その面のクリアで得られるポイント。`mistakes` は画面に出ているミスの数。鍵の面（#3259）は 2 倍（6・4・2pt）。
+    static func points(mistakes: Int, isKey: Bool = false) -> Int {
+        let base = switch mistakes {
         case ..<0, 0: 3
         case 1: 2
         case 2: 1
         default: 0
         }
+        return isKey ? base * keyMultiplier : base
     }
+
+    /// 鍵の面のクリアにかかる倍率。
+    static let keyMultiplier = 2
 
     /// 保存するのは「日付（JST）・その日の合計・その日に Game Center へ送り済みの値」の 3 つだけ。日付が変わったら 0 から数え直す。
     static let dayKey = "catPuzzleEventDay"
