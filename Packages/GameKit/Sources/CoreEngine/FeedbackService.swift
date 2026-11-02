@@ -15,6 +15,8 @@ public enum FeedbackImpact: Equatable, Sendable {
     case card(CardSound)
     /// 将棋・囲碁・五目並べ・オセロ・チェスの自分の着手。触覚は `BoardSound.haptic`、効果音は同梱の駒・石の音（#2767）。
     case board(BoardSound)
+    /// ねこさがしの場面（見つけた・ミス・クリア・鍵）。触覚は `CatSound.haptic` / `notice`、効果音は合成した専用の音（#3239）。
+    case cat(CatSound)
 
     /// 効果音を相乗りさせるか。選ぶだけの操作は触覚だけ（効果音を増やさない・#2303）。
     public var hasSound: Bool { self != .selection }

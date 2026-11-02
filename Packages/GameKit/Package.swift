@@ -349,7 +349,7 @@ let package = Package(
         .testTarget(name: "GameTsunagiTests",        dependencies: ["GameTsunagi", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameHanoiTests",          dependencies: ["GameHanoi", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameYonmokuTests",        dependencies: ["GameYonmoku", "GameKitTestSupport", "CoreTestSupport"]),
-        .testTarget(name: "GameCatPuzzleTests",      dependencies: ["GameCatPuzzle", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameCatPuzzleTests",      dependencies: ["GameCatPuzzle", "GameKitTestSupport", "CoreTestSupport", "CoreEngine"]),
         .testTarget(name: "GameMahjongSolitaireTests", dependencies: ["GameMahjongSolitaire", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameMahjongTests",           dependencies: ["GameMahjong", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "MahjongTilesTests",          dependencies: ["MahjongTiles"]),

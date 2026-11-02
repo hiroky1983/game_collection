@@ -313,6 +313,21 @@ public final class CatPuzzleModel {
         keyOpenings += 1
     }
 
+    /// 猫を見つけた数に応じて順に変える鳴き声の番号（保存しない。続けて見つけてもうるさくならないため・#3239）。
+    private var meowCount = 0
+
+    /// 猫が置かれた音。盤が完成する手はクリアの音（`finish()`）が受け持つので鳴らさない。
+    /// 鍵が開いた手は鳴き声の代わりに鍵の音。
+    private func playFoundSound(wasLocked: Bool) {
+        guard !CatPuzzleLogic.isSolved(puzzle: puzzle, cats: catCells) else { return }
+        if wasLocked, !isKeyLocked, keyCat != nil {
+            services?.feedback.impact(.cat(.keyOpen))
+        } else {
+            services?.feedback.impact(.cat(.meow(at: meowCount)))
+            meowCount += 1
+        }
+    }
+
     /// 終局したか（クリア・ミス上限の負けのどちらでも）。
     public var isOver: Bool { isSolved || isFailed }
 
@@ -531,7 +546,7 @@ public final class CatPuzzleModel {
                     offerContinue()
                 }
             } else {
-                services?.feedback.notify(.warning)
+                services?.feedback.impact(.cat(.miss))
                 persist()
             }
             return
@@ -539,7 +554,7 @@ public final class CatPuzzleModel {
         history.append(marks)
         marks[cell] = .cat
         noteKeyOpened(wasLocked: wasLocked)
-        services?.feedback.impact(.medium)
+        playFoundSound(wasLocked: wasLocked)
         if CatPuzzleLogic.isSolved(puzzle: puzzle, cats: catCells) {
             finish()
         } else {
@@ -634,7 +649,7 @@ public final class CatPuzzleModel {
         if !stopwatch.isRunning { startTimer() }
         services?.gameDidUseTeach(gameID: Self.gameID)
         services?.gameDidProgress(gameID: Self.gameID)
-        services?.feedback.impact(.medium)
+        playFoundSound(wasLocked: wasLocked)
         if CatPuzzleLogic.isSolved(puzzle: puzzle, cats: catCells) {
             finish()
         } else {
@@ -670,7 +685,7 @@ public final class CatPuzzleModel {
         if !stopwatch.isRunning { startTimer() }
         services?.gameDidUseHint(gameID: Self.gameID)
         services?.gameDidProgress(gameID: Self.gameID)
-        services?.feedback.impact(.medium)
+        playFoundSound(wasLocked: wasLocked)
         if CatPuzzleLogic.isSolved(puzzle: puzzle, cats: catCells) {
             finish()
         } else {
@@ -861,7 +876,7 @@ public final class CatPuzzleModel {
         // ステージは決着の時点で次の面へ進める（クリアのカードを閉じずにアプリを落としても進み具合は残る）。
         if let stage, stage + 1 > savedStage { stageDefaults.set(stage + 1, forKey: Self.stageProgressKey) }
         showsClearCard = false
-        services?.feedback.notify(.success)
+        services?.feedback.impact(.cat(.clear))
         awardEventPoints()
         // 決着 1 回につき `gameDidFinish` は 1 回だけ呼ぶ。記録は大きさごとに分ける。
         recordResult = services?.gameDidFinish(
