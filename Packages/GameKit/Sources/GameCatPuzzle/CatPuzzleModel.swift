@@ -130,6 +130,8 @@ public final class CatPuzzleModel {
     @ObservationIgnored var eventSubmitTask: Task<Void, Never>?
     /// 開始シートに出す今日の合計。画面を開いたまま 0:00 JST を過ぎても前日の値を出さないよう、保存から都度読む。
     public var todayEventTotal: Int { CatPuzzleEvent.total(stageDefaults, now: eventNow()) }
+    /// 今日クリアした面の数（共有の「n 面クリア」・#3237）。
+    public var todayEventClears: Int { CatPuzzleEvent.clears(stageDefaults, now: eventNow()) }
     /// 保存済みの合計から今日の合計を読み直す（日付が変わっていれば 0）。
     public func refreshEventTotal() { eventTotal = CatPuzzleEvent.total(stageDefaults, now: eventNow()) }
     /// イベント開催中か（期間は `CatPuzzleEvent` の 1 か所）。

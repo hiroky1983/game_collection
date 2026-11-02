@@ -762,7 +762,8 @@ public struct CatPuzzleView: View {
                         title: tr("次のステージへ"),
                         hint: tr("ステージ %lld を始めます", stage + 1)
                     ) { startStage(stage + 1) }
-                }
+                },
+                share: CatPuzzleShare.content(for: model)
             ) {
                 clearCardClosed = true
             }
