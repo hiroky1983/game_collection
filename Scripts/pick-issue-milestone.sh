@@ -33,6 +33,10 @@ set -uo pipefail
 
 REPO="${PICK_MILESTONE_REPO:-hiroky1983/game_collection}"
 
+# 凍結の確認（404 = 保護設定なし = 未凍結、それ以外の失敗は判定できない）。ai-duty.sh の夜間チェックが
+# このスクリプトだけを一時ディレクトリへ取り出すため、lib は同じ相対位置（lib/）に置いて読む
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/branch-lock.sh" || { echo "pick-issue-milestone: lib/branch-lock.sh を読めません" >&2; exit 1; }
+
 fail() { echo "pick-issue-milestone: $*" >&2; exit 1; }
 
 if ! MILESTONES=$(gh api "repos/${REPO}/milestones?state=open&per_page=100" --jq '.[].title' 2>/dev/null); then
@@ -57,8 +61,8 @@ for V in $VERSIONS; do
   if has_tag "refs/tags/v${V}-submitted" || has_tag "refs/tags/v${V}"; then
     FROZEN_NOTE="${FROZEN_NOTE}v${V}（提出・公開済み）"; continue
   fi
-  # 保護設定が無い・ブランチが無いと gh はエラーになる。ai-duty.sh 仕事13 と同じく "true" だけを凍結とみなす
-  LOCK=$(gh api "repos/${REPO}/branches/release%2Fv${V}/protection" --jq '.lock_branch.enabled' 2>/dev/null || true)
+  # 保護設定が無い（404）は未凍結。それ以外の失敗は凍結を判定できないので推測せず止める（#3227）
+  LOCK=$(branch_lock_state "$REPO" "$V") || fail "v${V} の凍結を判定できません"
   if [ "$LOCK" = "true" ]; then
     FROZEN_NOTE="${FROZEN_NOTE}v${V}（凍結済み）"; continue
   fi

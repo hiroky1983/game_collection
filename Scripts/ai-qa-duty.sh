@@ -137,8 +137,15 @@ if [ -n "${QA_PROMPT_FILE:-}" ]; then cp "$QA_PROMPT_FILE" "$QA_HOME_DIR/prompt.
 else git -C "$QA_DIR" show origin/main:Scripts/ai-qa-prompt.md >"$QA_HOME_DIR/prompt.md" 2>/dev/null; fi
 [ -s "$QA_HOME_DIR/prompt.md" ] || { log "ai-qa-prompt.md が見つからないため見送り"; exit 0; }
 # 起票の積み先を決めるスクリプトもプロンプトと同じく main から取る（撮影するのは release ブランチのため）
-if [ -n "${QA_PICK_MILESTONE:-}" ]; then cp "$QA_PICK_MILESTONE" "$QA_HOME_DIR/pick-issue-milestone.sh"
-else git -C "$QA_DIR" show origin/main:Scripts/pick-issue-milestone.sh >"$QA_HOME_DIR/pick-issue-milestone.sh" 2>/dev/null; fi
+# 凍結の確認関数（lib/branch-lock.sh・#3227）は pick-issue-milestone.sh が隣の lib/ から読むので、同じ相対位置へ置く
+mkdir -p "$QA_HOME_DIR/lib"
+if [ -n "${QA_PICK_MILESTONE:-}" ]; then
+  cp "$QA_PICK_MILESTONE" "$QA_HOME_DIR/pick-issue-milestone.sh"
+  cp "$(dirname "$QA_PICK_MILESTONE")/lib/branch-lock.sh" "$QA_HOME_DIR/lib/branch-lock.sh" 2>/dev/null
+else
+  git -C "$QA_DIR" show origin/main:Scripts/pick-issue-milestone.sh >"$QA_HOME_DIR/pick-issue-milestone.sh" 2>/dev/null
+  git -C "$QA_DIR" show origin/main:Scripts/lib/branch-lock.sh >"$QA_HOME_DIR/lib/branch-lock.sh" 2>/dev/null
+fi
 GAME_IDS=$(bash "$SCRIPT_DIR/list-game-ids.sh" "$RUN_DIR" 2>>"$LOG") || { log "ゲーム ID を列挙できないため見送り"; exit 0; }
 
 SCRATCH="$QA_HOME_DIR/scratch-$$"
