@@ -8,9 +8,11 @@ import CoreEngine
 /// 盤ごとの面数は `boards` の表のとおり（広い盤ほど長く遊べる・#3223）。
 /// 6〜8・10・11 の盤は各盤の前半を「段 3 までで解ける」、後半を「段 4 が要る」問題にする。
 /// 段の意味は `CatPuzzleSolver`。段 5（当て推量）が要る問題は出さない。
+/// 141 面目からは 10 面 1 周りで盤を回す（#3260）: 面番号の 1 の位が 3・8 は 11×11、5 は「ボーナスステージ」（6×6 と 7×7 を 1 周りごとに交互・前半の問題）、
+/// それ以外は 12×12。12×12 の前半・後半は従来どおり（141 面目から数えた 10 面ごと）。
 /// 鍵の面（#3235）は、9×9 までは 10 面ごと（10・20…70 面目）、10×10 以上は 20 面ごと（80・100・120…面目・#3259）。
 /// 鍵を持った猫の部屋が先に論理だけで決まる問題を採る（`CatPuzzleSolver.keyCat`）。10×10 以上の鍵の面は難しすぎないよう、
-/// 段 3 まで（12×12 は段 4 まで可）・入り組みも前半と同じにする。
+/// 段 3 まで（12×12 は段 4 まで可）・入り組みも前半と同じにする。141 面目以降は 1 の位が 0 の面（鍵の面は 20 面ごと）が 12×12 のまま。
 public struct CatPuzzleStage: Equatable, Sendable {
     /// 1 始まりのステージ番号。
     public let number: Int
@@ -48,12 +50,34 @@ public struct CatPuzzleStage: Equatable, Sendable {
     /// 12×12 の前半・後半を分ける周期（12×12 は面数が決まっていないので 10 面ごと）。
     static let lastBoardPeriod = 10
 
-    /// 盤の大きさと、その盤の中での 0 始まりの位置・その盤の面数（12×12 は周期）。
+    /// 表の盤（6×6〜11×11）の面数の合計（140）。この次の面（141 面目）から 10 面 1 周りの回しになる。
+    static let tableStages = boards.reduce(0) { $0 + $1.stages }
+
+    /// 141 面目以降の 1 周りの面数。
+    static let cycle = 10
+
+    /// 141 面目以降の 1 周りの中で 11×11 になる 1 の位（前半・後半の順）。
+    private static let size11Digits = [3, 8]
+
+    /// 141 面目以降の 1 周りの中でボーナスステージになる 1 の位。
+    static let bonusDigit = 5
+
+    /// ボーナスステージか（141 面目以降で 1 の位が 5）。
+    public var isBonus: Bool { number > Self.tableStages && number % Self.cycle == Self.bonusDigit }
+
+    /// 盤の大きさと、その盤の中での 0 始まりの位置・その盤の面数（141 面目以降は周期）。
     private var placement: (size: CatPuzzleSize, index: Int, count: Int) {
         var rest = number - 1
         for board in Self.boards {
             if rest < board.stages { return (board.size, rest, board.stages) }
             rest -= board.stages
+        }
+        if isBonus {
+            // 6×6 と 7×7 を 1 周り（10 面）ごとに交互に（145 面目が 6×6・155 面目が 7×7）。
+            return ((number / Self.cycle).isMultiple(of: 2) ? .easy : .normal, 0, 1)
+        }
+        if let at = Self.size11Digits.firstIndex(of: number % Self.cycle) {
+            return (.size11, at, Self.size11Digits.count)
         }
         return (.size12, rest % Self.lastBoardPeriod, Self.lastBoardPeriod)
     }
@@ -61,8 +85,9 @@ public struct CatPuzzleStage: Equatable, Sendable {
     /// 盤の大きさ。
     public var size: CatPuzzleSize { placement.size }
 
-    /// その盤の前半か（面数が奇数なら後半のほうが 1 面多い）。
+    /// その盤の前半か（面数が奇数なら後半のほうが 1 面多い）。ボーナスステージは前半（段 3 まで）の問題。
     private var isFirstHalf: Bool {
+        if isBonus { return true }
         let place = placement
         return place.index < place.count / 2
     }
@@ -89,18 +114,23 @@ public struct CatPuzzleStage: Equatable, Sendable {
     public struct Progress: Equatable, Sendable {
         /// 盤の大きさ。
         public let size: CatPuzzleSize
-        /// その盤の中での 1 始まりの位置（12×12 は 141 面目が 1）。
+        /// その盤の中での 1 始まりの位置（141 面目以降は 141 面目が 1 の通し番号）。
         public let position: Int
-        /// その盤の面数。12×12 は以降ずっとなので nil（ゲージも出さない）。
+        /// その盤の面数。141 面目以降は以降ずっとなので nil（ゲージも出さない）。
         public let count: Int?
-        /// 次の盤。12×12 では nil。
+        /// 次の盤。141 面目以降では nil。
         public let nextSize: CatPuzzleSize?
-        /// 次の盤に入るまでに、この面のあとに残る今の盤の面数（盤の最後の面で 0）。12×12 では nil。
+        /// 次の盤に入るまでに、この面のあとに残る今の盤の面数（盤の最後の面で 0）。141 面目以降では nil。
         public let toNextBoard: Int?
         /// 鍵の面そのものか。
         public let isKey: Bool
         /// 鍵の面に着くまでに、この面のあとに挟まる面数（鍵の面の 1 つ前で 0。鍵の面そのものでは 0）。
         public let toKey: Int
+
+        /// ボーナスステージそのものか（#3260）。
+        public let isBonus: Bool
+        /// 次のボーナスステージに着くまでに、この面のあとに挟まる面数（141 面目以降のみ。ボーナスの 1 つ前で 0。ボーナスそのものでは 0）。それ以前の面は nil。
+        public let toBonus: Int?
 
         /// ゲージの進み具合（0〜1。盤の面数が決まっていない 12×12 は nil）。
         public var fraction: Double? { count.map { Double(position) / Double($0) } }
@@ -109,24 +139,27 @@ public struct CatPuzzleStage: Equatable, Sendable {
     /// この面の位置（#3240）。
     public var progress: Progress {
         let place = placement
-        let isLast = place.size == .size12
+        let isLast = number > Self.tableStages
         var count: Int?
         var next: CatPuzzleSize?
         if !isLast, let at = Self.boards.firstIndex(where: { $0.size == place.size }) {
             count = place.count
             next = at + 1 < Self.boards.count ? Self.boards[at + 1].size : .size12
         }
-        let position = isLast ? number - Self.boards.reduce(0) { $0 + $1.stages } : place.index + 1
+        let position = isLast ? number - Self.tableStages : place.index + 1
         return Progress(
             size: place.size, position: position, count: count, nextSize: next,
             toNextBoard: count.map { $0 - position },
             isKey: isKey,
-            toKey: isKey ? 0 : nextKeyNumber - number - 1
+            toKey: isKey ? 0 : nextKeyNumber - number - 1,
+            isBonus: isBonus,
+            toBonus: isLast ? (isBonus ? 0 : (Self.bonusDigit - number % Self.cycle + Self.cycle) % Self.cycle - 1) : nil
         )
     }
 
     /// 盤が切り替わる面か（2 面目以降で、その盤の最初の面）。「8×8 に進んだ！」の演出を出す面。
-    public var entersNewBoard: Bool { number > 1 && progress.position == 1 }
+    /// 141 面目以降は盤が面ごとに替わるので、演出の対象は 141 面目（12×12 に入る）だけ（ボーナスステージの表示は別・`isBonus`）。
+    public var entersNewBoard: Bool { number > 1 && number <= Self.tableStages + 1 && progress.position == 1 }
 
     /// 問題の種。ステージ番号を `SplitMix64` で 1 回かき混ぜる（隣の面で似た問題にならないように）。
     public var seed: UInt64 {
