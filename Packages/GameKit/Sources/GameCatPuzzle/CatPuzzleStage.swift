@@ -135,7 +135,7 @@ public struct CatPuzzleStage: Equatable, Sendable {
     }
 
     /// この面の問題。9×9 以上（46 面目から）は作るのに数秒〜数分かかり、iPhone SE では数倍になるので、
-    /// 前もって作った問題（`CatPuzzleStageBank`）があればそれを使う（同梱の範囲を越えたら `generatePuzzle` で作る）。
+    /// 前もって作った問題（`CatPuzzleStageBank`）があればそれを使う（45 面目まではその場で `generatePuzzle` で作る。1,001 面目以降は同梱の 12×12 を面番号の順に繰り返す）。
     public func makePuzzle() -> CatPuzzle {
         CatPuzzleStageBank.puzzle(for: number) ?? generatePuzzle()
     }

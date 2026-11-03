@@ -8,16 +8,47 @@ import GameKitTestSupport
 struct CatPuzzleStageBankTests {
     private static let stages = CatPuzzleStageBank.firstStage..<(CatPuzzleStageBank.firstStage + CatPuzzleStageBank.entries.count)
 
-    @Test("同梱は 46 面目（9×9 の最初）から 500 面目まで続き、その外は nil")
+    @Test("同梱は 46 面目（9×9 の最初）から 1,000 面目まで続き、45 面目以前は nil")
     func coversLargeBoards() {
         let bank = CatPuzzleStageBank.self
         #expect(bank.firstStage == 46)
         #expect(CatPuzzleStage(bank.firstStage).size == .expert)
-        #expect(bank.entries.count == 500 - 46 + 1)
+        #expect(bank.entries.count == 1000 - 46 + 1)
+        #expect(bank.lastStage == 1000)
         #expect(bank.puzzle(for: 45) == nil)
-        #expect(bank.puzzle(for: 500) != nil)
-        #expect(bank.puzzle(for: 501) == nil)
-        #expect([46, 70, 71, 100, 101, 140, 141, 500].map { bank.puzzle(for: $0)?.side } == [9, 9, 10, 10, 11, 11, 12, 12])
+        #expect([46, 70, 71, 100, 101, 140, 141, 500, 501, 1000].map { bank.puzzle(for: $0)?.side } == [9, 9, 10, 10, 11, 11, 12, 12, 12, 12])
+    }
+
+    @Test("1,001 面目からは同梱の 12×12 を面番号の順に繰り返す。鍵の面は鍵の面同士")
+    func repeatsLargeBoardsInOrder() {
+        let bank = CatPuzzleStageBank.self
+        // 非鍵: 1001→141, 1002→142 … 1009→149, 1011→151（鍵の 150 は飛ばす）。
+        #expect([1001, 1002, 1009, 1011, 1019, 1021].map { bank.sourceNumber(for: $0) } == [141, 142, 149, 151, 159, 161])
+        // 鍵: 1010→150, 1020→160 … 1000 の次は 150 に戻る（鍵は 150〜1000 の 86 面）。
+        #expect([1010, 1020, 1030, 1860, 1870].map { bank.sourceNumber(for: $0) } == [150, 160, 170, 1000, 150])
+        // 非鍵は 141〜1000 のうち鍵でない 774 面を一巡して戻る（1,001 + 774 + 86 = 1,861）。
+        #expect(bank.sourceNumber(for: 1859) == 999 && bank.sourceNumber(for: 1861) == 141)
+        for number in [1001, 1010, 1234, 1500, 2000, 5555, 12345] {
+            let source = bank.sourceNumber(for: number)
+            #expect((141...1000).contains(source), "\(number) 面目")
+            #expect(CatPuzzleStage(source).isKey == CatPuzzleStage(number).isKey, "\(number) 面目")
+            #expect(bank.puzzle(for: number) == bank.puzzle(for: source), "\(number) 面目")
+            #expect(CatPuzzleStage(number).makePuzzle() == bank.puzzle(for: source), "\(number) 面目")
+        }
+        // 範囲の中の面は写し先が自分自身。
+        #expect([46, 500, 1000].map { bank.sourceNumber(for: $0) } == [46, 500, 1000])
+    }
+
+    @Test("繰り返しの面でも、同梱の面と同じく段の範囲（前半・後半）と鍵の猫が合う")
+    func repeatedStagesKeepShape() {
+        for number in [1001, 1005, 1006, 1010, 1100, 2000] {
+            let stage = CatPuzzleStage(number)
+            let puzzle = stage.makePuzzle()
+            #expect(puzzle.side == 12 && CatPuzzleLogic.isWellFormed(puzzle), "\(number) 面目")
+            #expect(CatPuzzleLogic.countSolutions(side: puzzle.side, rooms: puzzle.rooms, limit: 2) == 1, "\(number) 面目")
+            #expect(stage.tiers.contains(CatPuzzleSolver.rate(puzzle, maxTier: 4).tier), "\(number) 面目")
+            if stage.isKey { #expect(CatPuzzleSolver.keyCat(puzzle) != nil, "\(number) 面目") }
+        }
     }
 
     /// CI では盤の境目と 7 面おき、夜間は全面。
@@ -42,7 +73,7 @@ struct CatPuzzleStageBankTests {
         }
     }
 
-    @Test("同梱の外の面（1〜45 面目と 501 面目〜）は従来どおりその場で作る")
+    @Test("同梱の外の面（1〜45 面目）は従来どおりその場で作る")
     func outsideTheBankIsGenerated() {
         let stage = CatPuzzleStage(1)
         #expect(stage.makePuzzle() == stage.generatePuzzle())

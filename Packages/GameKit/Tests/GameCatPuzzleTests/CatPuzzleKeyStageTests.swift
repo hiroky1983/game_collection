@@ -80,9 +80,9 @@ struct CatPuzzleKeyStageTests {
         #expect(CatPuzzleStage(20).generatePuzzle() == CatPuzzleStage(20).generatePuzzle())
     }
 
-    @Test("同梱の問題（50〜500 面）の鍵の面は、すべて鍵の猫が決まり、段が範囲内")
+    @Test("同梱の問題（50〜1,000 面）の鍵の面は、すべて鍵の猫が決まり、段が範囲内")
     func bankedKeyStagesHaveKeyCat() {
-        for number in stride(from: 50, through: 500, by: 10) where CatPuzzleStage(number).isKey {
+        for number in stride(from: 50, through: 1000, by: 10) where CatPuzzleStage(number).isKey {
             let puzzle = CatPuzzleStageBank.puzzle(for: number)
             #expect(puzzle != nil, "\(number) 面")
             guard let puzzle else { continue }
