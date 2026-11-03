@@ -911,43 +911,49 @@ def snapshot_catpuzzle():
         cols = rng.sample(range(n), n)
         if any(abs(cols[r] - cols[r - 1]) <= 1 for r in range(1, n)):
             continue
-        # 答えの猫のマスを種に、部屋を上下左右へランダムに広げる（どの部屋もつながった 1 かたまりになる）
+        # 答えの猫のマスを種に、部屋を上下左右へ広げる（どの部屋もつながった 1 かたまりになる）。
+        # 広げられる部屋のうちいちばん小さい部屋から広げ、部屋の広さをそろえる。
         rooms = [-1] * (n * n)
-        frontier = []
         for row in range(n):
-            cell = row * n + cols[row]
-            rooms[cell] = row
-            frontier.append(cell)
-        while -1 in rooms:
-            cell = rng.choice(frontier)
+            rooms[row * n + cols[row]] = row
+
+        def neighbors(cell):
             r, c = divmod(cell, n)
-            empty = [nr * n + nc for nr, nc in ((r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1))
-                     if 0 <= nr < n and 0 <= nc < n and rooms[nr * n + nc] == -1]
-            if not empty:
-                frontier.remove(cell)
-                continue
-            nxt = rng.choice(empty)
-            rooms[nxt] = rooms[cell]
-            frontier.append(nxt)
-        if min(rooms.count(k) for k in range(n)) < 4:
-            continue
+            return [nr * n + nc for nr, nc in ((r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1))
+                    if 0 <= nr < n and 0 <= nc < n]
+
+        while -1 in rooms:
+            growable = {}
+            for cell in range(n * n):
+                if rooms[cell] != -1:
+                    for nxt in neighbors(cell):
+                        if rooms[nxt] == -1:
+                            growable.setdefault(rooms[cell], []).append(nxt)
+            smallest = min(rooms.count(k) for k in growable)
+            room = rng.choice(sorted(k for k in growable if rooms.count(k) <= smallest + 1))
+            rooms[rng.choice(growable[room])] = room
         # 答えが 2 通り以上なら、別解の猫のマスを隣の部屋へ付け替えて別解を潰す（部屋のつながりは保つ）。
         solution_cells = {row * n + cols[row] for row in range(n)}
-        for _ in range(400):
+        for _ in range(60):
             others = [s for s in _catpuzzle_solutions(n, rooms) if s != cols]
             if not others:
                 break
             alt = [row * n + col for row, col in enumerate(others[0]) if row * n + col not in solution_cells]
             rng.shuffle(alt)
+            moved = False
             for cell in alt:
-                r, c = divmod(cell, n)
-                targets = {rooms[nr * n + nc] for nr, nc in ((r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1))
-                           if 0 <= nr < n and 0 <= nc < n} - {rooms[cell]}
+                targets = {rooms[nxt] for nxt in neighbors(cell)} - {rooms[cell]}
+                targets = [k for k in sorted(targets) if rooms.count(k) < 12]
                 rest = [i for i in range(n * n) if rooms[i] == rooms[cell] and i != cell]
-                if targets and len(rest) >= 3 and _catpuzzle_connected(n, rest):
-                    rooms[cell] = rng.choice(sorted(targets))
+                if targets and len(rest) >= 4 and _catpuzzle_connected(n, rest):
+                    rooms[cell] = rng.choice(targets)
+                    moved = True
                     break
-        if len(_catpuzzle_solutions(n, rooms)) == 1:
+            if not moved:
+                break
+        # 部屋の広さがそろっている盤だけ採る（極端に大きい・小さい部屋があると色の塊が偏って見える）。
+        sizes = [rooms.count(k) for k in range(n)]
+        if min(sizes) >= 4 and max(sizes) <= 12 and len(_catpuzzle_solutions(n, rooms)) == 1:
             break
 
     solution_cells = [row * n + cols[row] for row in range(n)]
@@ -955,13 +961,13 @@ def snapshot_catpuzzle():
     found = [solution_cells[i] for i in (1, 3, 4, 6)]
     for cell in found:
         marks[cell] = 2
-    # 見つけた猫の行・列・隣に × を付ける（遊ぶ人が実際に付ける印）。全部ではなく 7 割ほど。
+    # 見つけた猫の行・列・隣に × を付ける（遊ぶ人が実際に付ける印）。全部ではなく 6 割ほど。
     for cat in found:
         r, c = divmod(cat, n)
         for cell in range(n * n):
             cr, cc = divmod(cell, n)
             near = cr == r or cc == c or (abs(cr - r) <= 1 and abs(cc - c) <= 1)
-            if near and marks[cell] == 0 and cell not in solution_cells and rng.random() < 0.7:
+            if near and marks[cell] == 0 and cell not in solution_cells and rng.random() < 0.6:
                 marks[cell] = 1
     return {
         "size": "hard",
