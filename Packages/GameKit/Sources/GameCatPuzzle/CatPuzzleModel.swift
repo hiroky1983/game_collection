@@ -138,6 +138,8 @@ public final class CatPuzzleModel {
     public private(set) var eventTotal = 0
     /// 直前のステージのクリアで得た pt。期間外・クリアしていないときは nil。
     public private(set) var lastEventPoints: Int?
+    /// `lastEventPoints` が鍵の面の 2 倍（#3259）か。クリアのカードに「鍵の面 ×2」と添える。
+    public private(set) var lastEventWasKey = false
     /// Game Center へ合計を送っている最中の Task（二重に送らない・テストが完了を待つ）。
     @ObservationIgnored var eventSubmitTask: Task<Void, Never>?
     /// ステージをミス 0 回でクリアした面の連続数と、その最高（端末に保存・#3244）。自由に遊ぶは対象外。
@@ -854,6 +856,7 @@ public final class CatPuzzleModel {
         pendingInitialStart = false
         showsClearCard = false
         lastEventPoints = nil
+        lastEventWasKey = false
         beatNoMissBest = false
         refreshEventTotal()
         solvedAt = nil
@@ -972,8 +975,10 @@ public final class CatPuzzleModel {
     /// `game_end` に `event_points` を載せる。ミスは画面に出ている数（コンティニューで戻したぶんは含まない）。ヒント・猫を教えるは見ない。
     private func awardEventPoints() {
         guard stage != nil, isEventActive else { return }
-        let earned = CatPuzzleEvent.points(mistakes: mistakes)
+        let earnedOnKey = stage.map { CatPuzzleStage($0).isKey } ?? false
+        let earned = CatPuzzleEvent.points(mistakes: mistakes, isKey: earnedOnKey)
         lastEventPoints = earned
+        lastEventWasKey = earnedOnKey
         eventTotal = CatPuzzleEvent.add(earned, to: stageDefaults, now: eventNow())
         services?.gameDidEarnEventPoints(gameID: Self.gameID, points: earned)
         submitEventTotalIfNeeded()
@@ -1096,7 +1101,7 @@ public final class CatPuzzleModel {
         try? services?.snapshots.save(snapshot, for: Self.gameID)
     }
 
-    /// 鍵の面（10 面ごと）の鍵の猫。鍵の面でなければ・鍵の猫が決まらなければ nil。
+    /// 鍵の面（9×9 までは 10 面ごと・10×10 以上は 20 面ごと）の鍵の猫。鍵の面でなければ・鍵の猫が決まらなければ nil。
     private static func keyCat(of puzzle: CatPuzzle, stage: Int?) -> Int? {
         guard let stage, CatPuzzleStage(stage).isKey else { return nil }
         return CatPuzzleSolver.keyCat(puzzle)

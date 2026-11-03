@@ -10,7 +10,9 @@ import CoreEngine
 /// 段の意味は `CatPuzzleSolver`。段 5（当て推量）が要る問題は出さない。
 /// 141 面目からは 10 面 1 周りで盤を回す（#3260）: 面番号の 1 の位が 3・8 は 11×11、5 は「ボーナスステージ」（6×6 と 7×7 を 1 周りごとに交互・前半の問題）、
 /// それ以外は 12×12。12×12 の前半・後半は従来どおり（141 面目から数えた 10 面ごと）。
-/// 10 面ごと（10・20・30…面目）は「鍵の面」（#3235）。鍵を持った猫の部屋が先に論理だけで決まる問題を採る（`CatPuzzleSolver.keyCat`）。
+/// 鍵の面（#3235）は、9×9 までは 10 面ごと（10・20…70 面目）、10×10 以上は 20 面ごと（80・100・120…面目・#3259）。
+/// 鍵を持った猫の部屋が先に論理だけで決まる問題を採る（`CatPuzzleSolver.keyCat`）。10×10 以上の鍵の面は難しすぎないよう、
+/// 段 3 まで（12×12 は段 4 まで可）・入り組みも前半と同じにする。141 面目以降は 1 の位が 0 の面（鍵の面は 20 面ごと）が 12×12 のまま。
 public struct CatPuzzleStage: Equatable, Sendable {
     /// 1 始まりのステージ番号。
     public let number: Int
@@ -19,11 +21,26 @@ public struct CatPuzzleStage: Equatable, Sendable {
         self.number = max(1, number)
     }
 
-    /// 鍵の面（#3235）の周期。10 面ごとに「鍵を持った猫」の面を入れる。
+    /// 鍵の面（#3235）の周期。9×9 までは 10 面ごとに「鍵を持った猫」の面を入れる。
     static let keyPeriod = 10
 
-    /// 鍵の面か（10・20・30…面目）。
-    public var isKey: Bool { number % Self.keyPeriod == 0 }
+    /// 10×10 以上の鍵の面の周期（#3259）。盤が大きいと鍵の制限が重なって難しすぎるので間を空ける。
+    static let wideKeyPeriod = 20
+
+    /// 9×9 までの最後の面（70 面目）。この次の面（71 面目）から 10×10 以上で、鍵の面が 20 面ごとになる。
+    private static let lastSmallBoardStage = boards.filter { $0.size.side <= CatPuzzleSize.expert.side }.reduce(0) { $0 + $1.stages }
+
+    /// 鍵の面か（9×9 までは 10・20…70 面目、10×10 以上は 80・100・120…面目）。
+    public var isKey: Bool { number == nextKeyNumber }
+
+    /// この面以降（この面を含む）で最初の鍵の面の番号。
+    private var nextKeyNumber: Int {
+        let period = number <= Self.lastSmallBoardStage ? Self.keyPeriod : Self.wideKeyPeriod
+        return (number + period - 1) / period * period
+    }
+
+    /// 10×10 以上の鍵の面か（難しさを 1 段下げる面）。
+    private var isWideKey: Bool { isKey && size.side > CatPuzzleSize.expert.side }
 
     /// 盤ごとの面数。上から順に遊ぶ（最後の 12×12 は以降ずっと）。
     static let boards: [(size: CatPuzzleSize, stages: Int)] = [
@@ -78,8 +95,10 @@ public struct CatPuzzleStage: Equatable, Sendable {
     /// 採る問題の段の範囲（`CatPuzzleSolver` が測った、要った最上位の段）。
     /// 9×9 は段 3 で解ける問題が少なく作るのに時間がかかるので、段 4 までのどれでも採る。
     /// 12×12 も前半は同じ理由で段 4 までのどれでも採る（段 3 までに絞ると 1 問に 10 分以上かかった・#3201）。
+    /// 10×10 以上の鍵の面は、盤の前半と同じ段 3 までを狙う（12×12 は前半が段 4 まで可なので同じ）（#3259）。
     public var tiers: ClosedRange<Int> {
         guard size != .expert else { return 1...4 }
+        if isWideKey { return size == .size12 ? 1...4 : 1...3 }
         if size == .size12 && isFirstHalf { return 1...4 }
         return isFirstHalf ? 1...3 : 4...4
     }
@@ -88,7 +107,7 @@ public struct CatPuzzleStage: Equatable, Sendable {
     /// 10×10 以上は、前半（段 3 まで）を 1、後半（段 4 が要る）を 2 にして、難しい面ほど細長い・曲がった部屋を増やす。
     public var winding: Int {
         guard size.side > CatPuzzleSize.expert.side else { return 0 }
-        return isFirstHalf ? 1 : 2
+        return isFirstHalf || isWideKey ? 1 : 2
     }
 
     /// 今の位置の見せ方（#3240）。開始シートとクリアのカードに出す。
@@ -132,7 +151,7 @@ public struct CatPuzzleStage: Equatable, Sendable {
             size: place.size, position: position, count: count, nextSize: next,
             toNextBoard: count.map { $0 - position },
             isKey: isKey,
-            toKey: isKey ? 0 : Self.keyPeriod - number % Self.keyPeriod - 1,
+            toKey: isKey ? 0 : nextKeyNumber - number - 1,
             isBonus: isBonus,
             toBonus: isLast ? (isBonus ? 0 : (Self.bonusDigit - number % Self.cycle + Self.cycle) % Self.cycle - 1) : nil
         )

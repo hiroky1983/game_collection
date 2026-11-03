@@ -5,7 +5,7 @@ import CoreEngine
 import CoreTestSupport
 @testable import GameCatPuzzle
 
-/// 10 面ごとの「鍵を持った猫」の面（#3235）。
+/// 「鍵を持った猫」の面（#3235）。9×9 までは 10 面ごと、10×10 以上は 20 面ごと（#3259）。
 @Suite("おじさんちのねこさがしの鍵の面")
 @MainActor
 struct CatPuzzleKeyStageTests {
@@ -36,10 +36,32 @@ struct CatPuzzleKeyStageTests {
 
     // MARK: - 出る面と問題
 
-    @Test("鍵の面は 10 面ごと（10・20・30…）。それ以外は鍵の面ではない")
+    @Test("鍵の面は 9×9 までは 10 面ごと（10〜70）、10×10 以上（71 面〜）は 20 面ごと（80・100・120…）")
     func keyStageNumbers() {
-        for number in [10, 20, 30, 50, 100, 500, 510] { #expect(CatPuzzleStage(number).isKey, "\(number)") }
-        for number in [1, 9, 11, 45, 46, 99, 501] { #expect(!CatPuzzleStage(number).isKey, "\(number)") }
+        for number in [10, 20, 30, 50, 60, 70, 80, 100, 120, 140, 160, 500, 520] { #expect(CatPuzzleStage(number).isKey, "\(number)") }
+        for number in [1, 9, 11, 45, 46, 69, 71, 79, 81, 90, 99, 110, 130, 150, 170, 510] { #expect(!CatPuzzleStage(number).isKey, "\(number)") }
+    }
+
+    @Test("鍵の面までの数: 70 面までは 10 面ごと、71 面からは 20 面ごとの次の鍵の面に向かって数える")
+    func stagesToKey() {
+        #expect(CatPuzzleStage(69).progress.toKey == 0 && CatPuzzleStage(70).progress.isKey)
+        #expect(CatPuzzleStage(71).progress.toKey == 8 && !CatPuzzleStage(71).progress.isKey)
+        #expect(CatPuzzleStage(79).progress.toKey == 0)
+        #expect(CatPuzzleStage(80).progress.isKey && CatPuzzleStage(80).progress.toKey == 0)
+        #expect(CatPuzzleStage(81).progress.toKey == 18)
+        #expect(CatPuzzleStage(90).progress.toKey == 9)
+        #expect(CatPuzzleStage(99).progress.toKey == 0)
+    }
+
+    @Test("10×10 以上の鍵の面は段 3 まで（12×12 は段 4 まで可）・入り組みは前半と同じ。後半の鍵の面でも下げる")
+    func wideKeyStagesAreEasier() {
+        #expect(CatPuzzleStage(80).tiers == 1...3 && CatPuzzleStage(80).winding == 1)
+        #expect(CatPuzzleStage(100).tiers == 1...3 && CatPuzzleStage(100).winding == 1, "10×10 の後半（本来は段 4・入り組み 2）")
+        #expect(CatPuzzleStage(120).tiers == 1...3 && CatPuzzleStage(120).winding == 1)
+        #expect(CatPuzzleStage(140).tiers == 1...3 && CatPuzzleStage(140).winding == 1, "11×11 の後半")
+        #expect(CatPuzzleStage(160).tiers == 1...4 && CatPuzzleStage(160).winding == 1, "12×12 の後半")
+        #expect(CatPuzzleStage(90).tiers == 4...4 && CatPuzzleStage(90).winding == 2, "鍵の面でない後半の面は今まで通り")
+        #expect(CatPuzzleStage(60).tiers == 1...4, "9×9 までの鍵の面は変えない")
     }
 
     @Test("鍵の面の問題は、鍵の猫が盤に何も置かなくても論理だけで決まり、それは答えのマス（10・20・30・40 面）")
@@ -58,15 +80,17 @@ struct CatPuzzleKeyStageTests {
         #expect(CatPuzzleStage(20).generatePuzzle() == CatPuzzleStage(20).generatePuzzle())
     }
 
-    @Test("同梱の問題（50〜1,000 面）の鍵の面は、すべて鍵の猫が決まる。範囲は作り直さなくても条件を満たす")
+    @Test("同梱の問題（50〜1,000 面）の鍵の面は、すべて鍵の猫が決まり、段が範囲内")
     func bankedKeyStagesHaveKeyCat() {
-        for number in stride(from: 50, through: 1000, by: 10) {
+        for number in stride(from: 50, through: 1000, by: 10) where CatPuzzleStage(number).isKey {
             let puzzle = CatPuzzleStageBank.puzzle(for: number)
             #expect(puzzle != nil, "\(number) 面")
             guard let puzzle else { continue }
             let key = CatPuzzleSolver.keyCat(puzzle)
             #expect(key != nil, "\(number) 面")
             if let key { #expect(puzzle.solutionCells.contains(key), "\(number) 面") }
+            let tier = CatPuzzleSolver.rate(puzzle, maxTier: 4).tier
+            #expect(CatPuzzleStage(number).tiers.contains(tier), "\(number) 面の段 \(tier)")
         }
     }
 

@@ -36,9 +36,10 @@ struct CatPuzzleBonusStageTests {
         #expect(CatPuzzleStage(125).size == .size11)
     }
 
-    @Test("鍵の面（1 の位が 0）は 12×12 のまま、ボーナス・11×11 と重ならない")
+    @Test("鍵の面（141 面目以降は 20 面ごと＝1 の位が 0）は 12×12 のまま、ボーナス・11×11 と重ならない")
     func keyStagesStayLarge() {
-        for number in stride(from: 150, through: 1000, by: 10) {
+        #expect((141...1000).filter { CatPuzzleStage($0).isKey } == Array(stride(from: 160, through: 1000, by: 20)))
+        for number in stride(from: 160, through: 1000, by: 20) {
             #expect(CatPuzzleStage(number).isKey)
             #expect(CatPuzzleStage(number).size == .size12, "\(number) 面目")
             #expect(!CatPuzzleStage(number).isBonus)

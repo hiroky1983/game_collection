@@ -62,7 +62,37 @@ struct CatPuzzleEventTests {
 
     @Test("ミスの数ごとのポイントは 0 回 3pt・1 回 2pt・2 回 1pt・3 回以上は 0pt")
     func pointsPerMistakes() {
-        #expect([0, 1, 2, 3, 4].map(CatPuzzleEvent.points(mistakes:)) == [3, 2, 1, 0, 0])
+        let plain: [Int] = [0, 1, 2, 3, 4].map { CatPuzzleEvent.points(mistakes: $0) }
+        #expect(plain == [3, 2, 1, 0, 0])
+    }
+
+    @Test("鍵の面のポイントは 2 倍（0 回 6pt・1 回 4pt・2 回 2pt・3 回以上は 0pt）")
+    func keyStagePointsDouble() {
+        let doubled: [Int] = [0, 1, 2, 3, 4].map { CatPuzzleEvent.points(mistakes: $0, isKey: true) }
+        #expect(doubled == [6, 4, 2, 0, 0])
+    }
+
+    @Test("鍵の面のクリアは 2 倍のポイントが貯まり、カードに鍵の面と添える。鍵の面でない面は添えない")
+    func keyStageAwardsDouble() async {
+        let defaults = makeDefaults()
+        let spy = SpyAnalyticsService()
+        let model = makeModel(defaults: defaults, now: jst(2026, 11, 10), analytics: spy)
+        await start(model, 10)
+        if let key = model.keyCat { model.findCat(cell: key) }
+        miss(model, times: 1)
+        solve(model)
+        #expect(model.isSolved && model.lastEventPoints == 4 && model.lastEventWasKey)
+        #expect(model.eventTotal == 4 && spy.endEventPoints.last == .some(4))
+        await start(model, 11)
+        #expect(!model.lastEventWasKey)
+        solve(model)
+        #expect(model.lastEventPoints == 3 && !model.lastEventWasKey && model.eventTotal == 7)
+    }
+
+    @Test("10×10 以上は 90 面目が鍵の面でなく 100 面目が鍵の面（2 倍）")
+    func wideBoardKeyPoints() {
+        #expect(CatPuzzleEvent.points(mistakes: 0, isKey: CatPuzzleStage(90).isKey) == 3)
+        #expect(CatPuzzleEvent.points(mistakes: 0, isKey: CatPuzzleStage(100).isKey) == 6)
     }
 
     @Test("期間は 2026-11-09 0:00 から 12-09 の終わりまで（JST）")
