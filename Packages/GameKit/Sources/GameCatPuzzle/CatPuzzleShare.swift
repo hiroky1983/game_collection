@@ -15,7 +15,7 @@ enum CatPuzzleShare {
     @MainActor
     static func content(for model: CatPuzzleModel) -> ClearShare? {
         guard model.stage != nil, model.lastEventPoints != nil else { return nil }
-        let points = model.eventTotal
+        let points = model.todayEventTotal
         let clears = model.todayEventClears
         let puzzle = model.puzzle
         let message = message(points: points, clears: clears)
