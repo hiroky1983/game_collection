@@ -1693,8 +1693,23 @@ struct UntouchedSnapshotReopenTests {
     /// `HubView` が画面を出したあとに呼ぶ経路（`gameScreenDidAppear`）を再現する。
     private func appear(_ module: GameModule, _ services: GameServices, _ snapshots: SnapshotStore) {
         services.gameScreenDidAppear(
-            gameID: module.id, hasUntouchedSnapshot: module.hasUntouchedSnapshot(in: snapshots)
+            gameID: module.id, hasUntouchedSnapshot: module.hasUntouchedSnapshot(in: snapshots),
+            playClass: module.untouchedSnapshotPlayClass(in: snapshots)
         )
+    }
+
+    /// 最後の `game_start` の `mode`（#3225）。
+    private func lastStartMode(_ spy: SpyAnalyticsService) -> AnalyticsMode? {
+        spy.events.reversed().lazy.compactMap { event -> AnalyticsMode?? in
+            if case let .gameStart(_, _, mode, _, _) = event { return .some(mode) } else { return nil }
+        }.first ?? nil
+    }
+
+    /// 最後の `game_end` の `mode`（#3225）。
+    private func lastEndMode(_ spy: SpyAnalyticsService) -> AnalyticsMode? {
+        spy.events.reversed().lazy.compactMap { event -> AnalyticsMode?? in
+            if case let .gameEnd(_, _, _, mode, _, _, _, _, _, _, _) = event { return .some(mode) } else { return nil }
+        }.first ?? nil
     }
 
     @Test("2048: 動かさずに戻って開き直し、遊び切ると 2 回目にも game_start と game_end が 1 回ずつ付く")
@@ -1742,6 +1757,85 @@ struct UntouchedSnapshotReopenTests {
         reopened.resign()
         #expect(spy.starts(of: "shogi") == startsBefore + 1)
         #expect(spy.ends(of: "shogi") == 1)
+    }
+
+    @Test("ナンプレ: 手つかずの盤を開き直した回の game_start / game_end に level が付く（#3225）")
+    func sudokuKeepsLevelOnReopen() async {
+        let snapshots = MemorySnapshotStore()
+        let module = SudokuModule()
+        let (services, spy) = makeHubServices(snapshots: snapshots, modules: [module])
+
+        let first = SudokuModel(services: services, seed: 1)
+        await first.newGame(difficulty: .hard)
+        let hard = spy.startLevels.last ?? nil
+        #expect(hard != nil, "前提: 新規開始は level を送る")
+        services.gameDidLeave(gameID: "sudoku")
+        #expect(module.hasUntouchedSnapshot(in: snapshots))
+
+        let reopened = SudokuModel(services: services, seed: 1)
+        appear(module, services, snapshots)
+        #expect(spy.startLevels.last == .some(hard), "開き直した回の game_start に復元した盤の level が付く")
+        reopened.giveUp()
+        #expect(spy.endLevels.last == .some(hard), "game_end にも同じ level が付く")
+    }
+
+    @Test("将棋: 駒落ちの手つかずの盤を開き直した回の game_start / game_end に level と mode が付く（#3225）")
+    func shogiKeepsModeOnReopen() {
+        let snapshots = MemorySnapshotStore()
+        let module = ShogiModule()
+        let (services, spy) = makeHubServices(snapshots: snapshots, modules: [module])
+
+        let first = ShogiGameModel(services: services)
+        first.newGame(aiLevel: 3, handicap: .rook, dropper: .cpu)
+        let level = spy.startLevels.last ?? nil
+        #expect(level != nil)
+        #expect(lastStartMode(spy) == .rookCPU, "前提: 新規開始は mode を送る")
+        services.gameDidLeave(gameID: "shogi")
+        #expect(module.hasUntouchedSnapshot(in: snapshots), "前提: CPU の初手だけの保存が残っている")
+
+        let reopened = ShogiGameModel(services: services)
+        appear(module, services, snapshots)
+        #expect(spy.startLevels.last == .some(level))
+        #expect(lastStartMode(spy) == .rookCPU)
+        reopened.resign()
+        #expect(spy.endLevels.last == .some(level))
+        #expect(lastEndMode(spy) == .rookCPU)
+    }
+
+    @Test("level / mode を持たない 2048 は従来どおり何も付かない（#3225）")
+    func game2048HasNoPlayClass() {
+        let snapshots = MemorySnapshotStore()
+        let module = Game2048Module()
+        _ = Game2048Model(services: makeHubServices(snapshots: snapshots, modules: [module]).0)
+        #expect(module.untouchedSnapshotPlayClass(in: snapshots) == PlayClass())
+    }
+
+    /// `hasUntouchedSnapshot` を実装する Module は、`untouchedSnapshotPlayClass` も実装する（#3225）。
+    /// 区分（level / mode）を持つゲームが実装し忘れると、開き直した回の計測から区分が落ちる。
+    /// **ソースを走査**して見張る。持たなくてよいのは、`level` も `mode` も送らないゲームだけ。
+    @Test("hasUntouchedSnapshot を実装する Module は untouchedSnapshotPlayClass も実装している")
+    func untouchedImpliesPlayClass() throws {
+        let exempt: [String: String] = [
+            "Game2048Module.swift": "level も mode も送らない",
+            "FifteenModule.swift": "同上",
+            "DiceComboModule.swift": "同上",
+        ]
+        let sources = SourceScan.packageRoot.appendingPathComponent("Sources")
+        let files = try #require(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
+        var checked = 0
+        for case let url as URL in files where url.lastPathComponent.hasSuffix("Module.swift") {
+            let text = try String(contentsOf: url, encoding: .utf8)
+            guard text.contains("public func hasUntouchedSnapshot(") else { continue }
+            checked += 1
+            let name = url.lastPathComponent
+            let hasPlayClass = text.contains("public func untouchedSnapshotPlayClass(")
+            if exempt[name] != nil {
+                #expect(!hasPlayClass, "\(name) は免除表にあるのに実装している。表から外す")
+            } else {
+                #expect(hasPlayClass, "\(name) が untouchedSnapshotPlayClass を実装していない（#3225）")
+            }
+        }
+        #expect(checked >= 15, "走査が空振りしていないこと（見つかった Module: \(checked)）")
     }
 
     @Test("五目並べ: 1 手も打たずに戻って開き直し、そのまま遊ぶと game_start / game_end が付く")

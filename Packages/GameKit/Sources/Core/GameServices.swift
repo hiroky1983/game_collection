@@ -145,9 +145,10 @@ public struct GameServices {
     /// `gameDidStart` は冪等なので、Model が既に数えていれば何も増えない。画面が出たあとに呼ぶのは、
     /// 難易度などを持つ Model の `gameDidStart` を先に通すため。
     @MainActor
-    public func gameScreenDidAppear(gameID: String, hasUntouchedSnapshot: Bool) {
+    public func gameScreenDidAppear(gameID: String, hasUntouchedSnapshot: Bool, playClass: PlayClass = PlayClass()) {
         guard hasUntouchedSnapshot else { return }
-        gameDidStart(gameID: gameID)
+        // 復元した盤の `level` / `mode` を載せる（#3225）。載せないと後の `game_end` からも区分が落ちる。
+        gameDidStart(gameID: gameID, level: playClass.level, mode: playClass.mode)
     }
 
     /// 「新しいゲーム」「次のラウンド」で次のプレイを始めたときに各 Model から呼ぶ（#158）。

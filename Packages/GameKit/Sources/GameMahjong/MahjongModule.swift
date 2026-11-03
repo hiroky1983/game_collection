@@ -33,6 +33,12 @@ public struct MahjongModule: GameModule {
         return Self.isUntouched(snap)
     }
 
+    /// 復元した盤の区分（#3225）。手つかずの開き直しの `game_start` / `game_end` に載せる。
+    public func untouchedSnapshotPlayClass(in snapshots: SnapshotStore) -> PlayClass {
+        guard let snap = snapshots.load(MahjongSnapshot.self, for: id) else { return PlayClass() }
+        return PlayClass(mode: (snap.gameLength ?? .tonpuu).analyticsMode)
+    }
+
     private static func isUntouched(_ snap: MahjongSnapshot) -> Bool {
         snap.roundNumber == 1 && snap.honba == 0 && snap.dealer == 0
             && snap.handResult == nil

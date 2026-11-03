@@ -27,6 +27,12 @@ public struct OldMaidModule: GameModule {
         snapshots.load(OldMaidSnapshot.self, for: id).map { !$0.game.humanHasDrawn } ?? false
     }
 
+    /// 復元した盤の区分（#3225）。手つかずの開き直しの `game_start` / `game_end` に載せる。
+    public func untouchedSnapshotPlayClass(in snapshots: SnapshotStore) -> PlayClass {
+        guard let snap = snapshots.load(OldMaidSnapshot.self, for: id) else { return PlayClass() }
+        return PlayClass(level: CPUStrength.analyticsLevel(forLevel: snap.game.aiLevel))
+    }
+
     @MainActor public func makeView(services: GameServices) -> AnyView {
         AnyView(OldMaidView(services: services))
     }

@@ -35,4 +35,11 @@ public struct TsunagiModule: GameModule {
         guard let snap = snapshots.load(TsunagiSnapshot.self, for: id) else { return false }
         return snap.moves == 0
     }
+
+    /// 復元した盤の区分（#3225）。手つかずの開き直しの `game_start` / `game_end` に載せる。
+    public func untouchedSnapshotPlayClass(in snapshots: SnapshotStore) -> PlayClass {
+        guard let snap = snapshots.load(TsunagiSnapshot.self, for: id),
+              let size = TsunagiSize(rawValue: snap.size) else { return PlayClass() }
+        return PlayClass(level: size.analyticsLevel)
+    }
 }

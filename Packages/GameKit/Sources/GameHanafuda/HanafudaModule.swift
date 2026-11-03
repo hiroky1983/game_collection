@@ -40,6 +40,12 @@ public struct HanafudaModule: GameModule {
         return Self.isUntouched(snap)
     }
 
+    /// 復元した盤の区分（#3225）。手つかずの開き直しの `game_start` / `game_end` に載せる。
+    public func untouchedSnapshotPlayClass(in snapshots: SnapshotStore) -> PlayClass {
+        guard let snap = snapshots.load(HanafudaSnapshot.self, for: id) else { return PlayClass() }
+        return PlayClass(level: (snap.options ?? HanafudaOptions()).difficulty.analyticsLevel)
+    }
+
     private static func isUntouched(_ snap: HanafudaSnapshot) -> Bool {
         snap.round <= 1
             && snap.phase == .playing
