@@ -41,10 +41,10 @@ struct CatPuzzleStageBankTests {
 
     @Test("繰り返しの面でも、同梱の面と同じく段の範囲（前半・後半）と鍵の猫が合う")
     func repeatedStagesKeepShape() {
-        for number in [1001, 1005, 1006, 1010, 1100, 2000] {
+        for number in [1001, 1003, 1005, 1006, 1008, 1010, 1015, 1100, 2000] {
             let stage = CatPuzzleStage(number)
             let puzzle = stage.makePuzzle()
-            #expect(puzzle.side == 12 && CatPuzzleLogic.isWellFormed(puzzle), "\(number) 面目")
+            #expect(puzzle.side == stage.size.side && CatPuzzleLogic.isWellFormed(puzzle), "\(number) 面目")
             #expect(CatPuzzleLogic.countSolutions(side: puzzle.side, rooms: puzzle.rooms, limit: 2) == 1, "\(number) 面目")
             #expect(stage.tiers.contains(CatPuzzleSolver.rate(puzzle, maxTier: 4).tier), "\(number) 面目")
             if stage.isKey { #expect(CatPuzzleSolver.keyCat(puzzle) != nil, "\(number) 面目") }
@@ -53,7 +53,7 @@ struct CatPuzzleStageBankTests {
 
     /// CI では盤の境目と 7 面おき、夜間は全面。
     static let checkedStages: [Int] = NightlyScale.value(
-        ci: Array(Set([46, 70, 71, 100, 101, 140, 141, 142, 150].filter(stages.contains) + stages.filter { $0 % 7 == 0 } + [stages.upperBound - 1])).sorted(),
+        ci: Array(Set([46, 70, 71, 100, 101, 140, 141, 142, 143, 145, 148, 150, 155].filter(stages.contains) + stages.filter { $0 % 7 == 0 } + [stages.upperBound - 1])).sorted(),
         nightly: Array(stages))
 
     @Test("同梱の問題は正しい形で、盤の大きさが面と合い、解が 1 つで、その面の段の範囲に入る", arguments: checkedStages)
