@@ -920,10 +920,14 @@ public struct CatPuzzleView: View {
 
     /// 今日の順位（Game Center）。読めなければ nil（未サインイン・失敗）。
     private func loadTodayRank() async -> Int? {
-        let ranking = CatPuzzleRankingModel(reporter: services.gameCenter)
-        await ranking.load()
-        if case .ready(let content) = ranking.state { return content.myRank }
-        return nil
+        // 送った pt が順位に乗ってから読む。友だちの順位は待たず、盤の順位だけを読む。
+        await model.awaitEventSubmission()
+        guard let reporter = services.gameCenter, reporter.isSignedIn else { return nil }
+        guard let board = await reporter.loadWeeklyBoard(
+            gameID: CatPuzzleModel.gameID, leaderboardID: GameCenterLeaderboard.catPuzzleEvent,
+            topCount: CatPuzzleRankingContent.topCount
+        ) else { return nil }
+        return CatPuzzleRankingModel.today(board, now: Date()).myRank
     }
 
     /// 3 回目のミスで出す、ただ 1 枚のダイアログ（他のゲームの負けと同じ `BoardGameResultCard`・#2904）。

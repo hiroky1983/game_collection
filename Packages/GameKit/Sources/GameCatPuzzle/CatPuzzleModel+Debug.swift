@@ -51,13 +51,14 @@ extension CatPuzzleModel {
             // ミスを 1 つ（ライフ 2）してからクリアにする（クリアの流れの撮影・#3304）。
             startStage(number)
             await stagePreparation?.value
+            if let keyCat { findCat(cell: keyCat) }  // 鍵が閉じている間は部屋の外のミスが数えられない
             if let wrong = (0..<puzzle.cellCount).first(where: { !puzzle.solutionCells.contains($0) }) { findCat(cell: wrong) }
             solveForDebug()
         case "stage-teach":
             // 餌をあげた直後の盤（餌の皿が出ている間・#3304）。
             startStage(number)
             await stagePreparation?.value
-            teachCat()
+            if needsAdForTeach { grantAdTeach(forGame: gameSerial) } else { teachCat() }
         case "stage-next":
             startStage(number)
             await stagePreparation?.value
@@ -71,7 +72,12 @@ extension CatPuzzleModel {
     }
 
     private func solveForDebug() {
-        for cell in puzzle.solutionCells where marks[cell] != .cat { findCat(cell: cell) }
+        // 鍵の面は鍵の猫を見つけるまで部屋の外を受け付けないので、猫が増えなくなるまで繰り返す。
+        var before = -1
+        while catCells.count != before {
+            before = catCells.count
+            for cell in puzzle.solutionCells where marks[cell] != .cat { findCat(cell: cell) }
+        }
     }
 }
 #endif

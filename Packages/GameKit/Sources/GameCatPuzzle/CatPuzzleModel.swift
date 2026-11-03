@@ -1012,6 +1012,9 @@ public final class CatPuzzleModel {
         }
     }
 
+    /// 今日の合計の送信（`submitEventTotalIfNeeded`）が終わるまで待つ。クリアの流れが、送った pt を含む順位を読むため（#3304）。
+    public func awaitEventSubmission() async { await eventSubmitTask?.value }
+
     /// 3 回目のミス。広告を見て続けるかを選ばせる。負けはここで付ける（マインスイーパーと同じ）。コンティニューしたら
     /// `continueAfterAd()` が取り消す。付けておかないと、提案を放置して「新規」で捨てた局が負けにならない。計時は止め、提案の最中に離れても同じ提案から
     /// 続けられるよう、ミスが上限のまま保存する（保存しないと、アプリを閉じて開き直すだけで 3 回目のミスが無かったことになる）。

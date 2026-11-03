@@ -84,12 +84,6 @@ struct CatPuzzleBoardCanvas: View {
             if showsRoomLabels {
                 roomLabels(rooms: rooms)
             }
-            // 猫（弾む・縮む・跳ねる）。クリアで大きくなった猫は壁に少しかぶる。
-            CatPuzzleCatLayer(puzzle: puzzle, marks: marks, isSolved: isSolved, cellSide: cellSide, rooms: rooms)
-            // 負けたあとの正解の猫。自分の ×・赤い × は残したまま、その上に薄く重ねる。
-            if !ghostCats.isEmpty {
-                CatPuzzleGhostLayer(puzzle: puzzle, cells: ghostCats, cellSide: cellSide)
-            }
             // 餌の皿（アイコンは Canvas ではなく overlay の Image で置く）。猫はこの上に出てくる。
             if let lureCell {
                 let frame = CatPuzzleBoardCanvas.rect(of: lureCell, side: n, cellSide: cellSide)
@@ -99,6 +93,12 @@ struct CatPuzzleBoardCanvas: View {
                     .frame(width: frame.width * 0.42, height: frame.height * 0.42)
                     .position(x: frame.midX, y: frame.maxY - frame.height * 0.22)
                     .transition(CatPuzzleMotion.catTransition(reduceMotion: reduceMotion))
+            }
+            // 猫（弾む・縮む・跳ねる）。クリアで大きくなった猫は壁に少しかぶる。
+            CatPuzzleCatLayer(puzzle: puzzle, marks: marks, isSolved: isSolved, cellSide: cellSide, rooms: rooms)
+            // 負けたあとの正解の猫。自分の ×・赤い × は残したまま、その上に薄く重ねる。
+            if !ghostCats.isEmpty {
+                CatPuzzleGhostLayer(puzzle: puzzle, cells: ghostCats, cellSide: cellSide)
             }
             // 上の層: 矛盾の輪・ヒントの枠（図形だけ。猫より前に出す）。
             Canvas { context, _ in

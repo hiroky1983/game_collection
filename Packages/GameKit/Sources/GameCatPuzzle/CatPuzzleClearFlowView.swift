@@ -38,7 +38,7 @@ struct CatPuzzleClearFlowCard: View {
         .multilineTextAlignment(.center)
         .padding(24)
         .frame(maxWidth: 320)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Theme.corner))
         .padding(16)
         .contentShape(Rectangle())
         .onTapGesture { onFinish() }
