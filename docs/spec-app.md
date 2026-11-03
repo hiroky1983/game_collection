@@ -207,6 +207,12 @@ CPU は View の `.task(id:)` から起動し、このタスクは**画面を離
    `await Task { @MainActor in }.value` で本体を sleep まで走らせてからキャンセルし、2 の判定を消す
    変異で赤くなることを確かめる。引き継ぎ（1）のテストは本物のタスクを sleep させず、門番を直接
    立てる（並列実行で待ちが先に切れて空振りする）。どちらも実時間で待たない。
+4. **開始シート・「？」を開いているあいだは CPU に着手させない**（`PausableTurn`・`Core/PausableTurn.swift`・#3218。`release/v1.1.15` で入った。main へは v1.1.15 公開後の取り込みで入る）。
+   シートの裏で CPU が先に打つと、盤が裏で動いて `game_start` を過剰に数え、読み上げも裏で鳴る。CPU 手番の `.task` を持つ View は
+   `.task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen || showNewGame))` とし、本体の先頭で `guard !paused` する
+   （止めた・再開したの両方でタスクが起き直る・#2827）。続けて `PausableTurn.waitWhileThinking { model.isThinking }` で先行タスクの読みが
+   終わるのを待ってから `performAIMoveIfNeeded` を呼ぶ。読みの最中にシートを開閉すると旧タスクは取り消されて着手を確定しないのに
+   `isThinking` だけが残り、新タスクがすぐ呼ぶと即 return して手番が止まったままになるため。「？」の開閉は `.howToPlay(…, onPresent:, onDismiss:)` で受ける。
 
 ### 計時の共通部品（`GameStopwatch`・#1857・v1.1.10）
 
@@ -1329,7 +1335,7 @@ CPU と役の強さで比べる流れは変えない。
 | `checkpoint` | チェックポイントからのやり直し |
 | `shuffle` | 手詰まりの盤面を、取り切れる配置へ並べ替える（麻雀ソリティア） |
 | `challenge` | 1 日の挑戦回数を 1 回ぶん増やす（柵越えおじさん・#1348・#1475）。盤面を救う 7 種とは違い、**回数制の枠そのものを買い足す** |
-| `teach` | 正解の猫を 1 匹置いてもらう（おじさんちのねこさがしのステージ・#3203。推理の 1 歩を示す `hint` とは別の面。ステージ全体で 5 回ぶんを持ち、0 になったら広告 1 回で 1 回） |
+| `teach` | 正解の猫を 1 匹置いてもらう（おじさんちのねこさがしのステージ・#3203。画面の名前は「餌をあげる」（英語 Treat・#3304）で、`purpose` の値は `teach` のまま。推理の 1 歩を示す `hint` とは別の面。ステージ全体で 5 回ぶんを持ち、0 になったら広告 1 回で 1 回） |
 | `peek` | 引こうとしている伏せ札がジョーカーかを確かめる（ババ抜きの「見破る」・#3251。無料の回数は持たず広告 1 本で 1 回。見えた札はそのターンだけ。常設ボタンなので `reward_offer` は数えない） |
 | `redraw` | 引いたジョーカーを取り消して引く前に戻し、そのターンだけジョーカーの場所を見て引き直す（ババ抜き・#3251。ジョーカーを引いた直後に「広告を見て引き直す／このまま進む」を出し、返事までは CPU の手番を止める。1 回の引きにつき 1 回まで。見えている状態は中断しても保つ） |
 | `reroll` | 通常の 3 回を振り切ったあと、もう 1 回振る（サイコロ役づくり・#3257。無料枠は無く広告 1 本で 1 回、1 ターンに最大 3 回で、役を選ぶと 3 に戻る。キープは通常どおり使える。常設ボタンなので `reward_offer` は数えない。終局後の 0 点の役のやり直しは `continue`） |
@@ -1349,7 +1355,7 @@ v1.1.4 までの公開版は3種）。
 | イベント名 | 発火タイミング | パラメータ |
 |---|---|---|
 | `game_start` | 1プレイの開始（冪等。中断からの復元では送らない。ただし**手つかずの中断データ**＝一手も指していない保存を開き直した回は、画面が出たあとにハブが `GameServices.gameScreenDidAppear` で数える。判定は `GameModule.hasUntouchedSnapshot`、復元した盤の `level` / `mode` は `GameModule.untouchedSnapshotPlayClass` が返し（ハブが `gameScreenDidAppear(playClass:)` に渡す。後の `game_end` にも同じ値が載る。`level` も `mode` も持たないゲームは既定の nil・#3225）、対象の一覧は各 `*Module.swift` の実装と走査テスト `UntouchedSnapshotScanTests` を正とする（ここに個別の列挙は持たない）。`hasUntouchedSnapshot` を持つ Module は（2048・15パズル・サイコロコンボを除き）`untouchedSnapshotPlayClass` も持つ決まりで（走査テストが見張る）、`hasResumableSnapshot` を持つ Module は `hasUntouchedSnapshot` も持つ決まりで、免除はブラックジャック・ポーカー・ハノイだけ（ルーレットは #2545 で削除）（走査テストが見張る）・#2161・#2301） | `game_id`、難易度を持つゲームのみ `level`、遊び方を選べるゲームのみ `mode`（#783・#820）、遊び込み具合として `play_count`（そのゲームの通算の終局回数。初めてなら 0）と、一度でも遊んだゲームのみ `days_since_last_play`（前回の決着からの経過日数・24 時間単位の切り捨て。#1195）、回数制のゲーム（柵越えおじさん）のみ消費した枠 `credit`（#1685） |
-| `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`（前面にいた秒数。バックグラウンド・ハブでの休憩は除き、上限 7200・#1373）、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal\|sink・最後のミスの原因。#796・#1089)、ヒントを 1 回でも使ったプレイのみ `hints_used`（使った回数。無料・広告の合計・#1326）、開始に `credit` を付けたプレイのみ同じ `credit`（#1685）、開始に `level` を付けたプレイのみ同じ `level`（#1888）、ミスしたプレイのみ `miss_count`（ミス回数）・`miss_at`（最後のミスの進行率 %・5 刻み）、ミス直後に離脱した quit のみ `exit`(after_miss)（#2848）、ねこさがしのイベント期間中のステージのクリアのみ `event_points`（その面で稼いだ pt。0〜3・#3204）、ねこさがしで「猫を教える」を 1 回でも使ったプレイのみ `teach_used`（無料・広告の合計・#3232） |
+| `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`（前面にいた秒数。バックグラウンド・ハブでの休憩は除き、上限 7200・#1373）、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal\|sink・最後のミスの原因。#796・#1089)、ヒントを 1 回でも使ったプレイのみ `hints_used`（使った回数。無料・広告の合計・#1326）、開始に `credit` を付けたプレイのみ同じ `credit`（#1685）、開始に `level` を付けたプレイのみ同じ `level`（#1888）、ミスしたプレイのみ `miss_count`（ミス回数）・`miss_at`（最後のミスの進行率 %・5 刻み）、ミス直後に離脱した quit のみ `exit`(after_miss)（#2848）、ねこさがしのステージのクリアのみ `event_points`（その面で稼いだ pt。0〜3・#3204。デイリーランキングは期間に関係なく常設・#3299）、ねこさがしで「猫を教える」を 1 回でも使ったプレイのみ `teach_used`（無料・広告の合計・#3232） |
 | `clear_exit` | 面をクリアした直後の画面を、次の面にも「もう一度」にも進まず離れた（チャリンコおじさんのステージ制。`GameAnalytics.leaveGame` の1か所・#2848） | `game_id` / `level`(`stage-N`) |
 | `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の12値） |
 | `notification_permission` | 通知の許可ダイアログを**実際に出した** 1 回につき 1 回（すでに許可 / 拒否が決まっている状態の問い合わせでは送らない。各 `UserNotification*Scheduler.requestExplicitAuthorization` の1か所・#2008） | `result`(granted\|denied) / `trigger`(resume\|challenge\|reengagement。`reengagement` は #2938 以降は発火しない)。ゲーム ID は載せない。GA4 のカスタムディメンション登録が要る（会長操作） |
@@ -1402,19 +1408,25 @@ v1.1.4 までの公開版は3種）。
   挑戦=`game_start` → ミス→再挑戦=win の `miss_count`>0 → ミス→離脱=quit の `exit=after_miss` → クリア→次へ=次の面の `game_start` → クリア→離脱=`clear_exit`。
   **`miss_count` / `miss_at` / `exit` はカスタムディメンション（イベントスコープ）の登録が要る（会長操作）。**
   ねこさがし（#3232・会長決裁 2026-11-02）もステージ・自由に遊ぶの両方で送る。ミスは答えでないマスで猫を探して赤い × が付いたとき 1 回ごとに `gameDidMiss`
-  （`cause` は nil＝`game_end` に `cause` は載せない）、`miss_at` は**置いた猫の数 ÷ 盤の辺**（%・5 刻み）。猫を教えるはヒントと別に `gameDidUseTeach` で数え、
+  （`cause` は nil＝`game_end` に `cause` は載せない）、`miss_at` は**置いた猫の数 ÷ 盤の辺**（%・5 刻み）。猫を教える（画面の名前は「餌をあげる」・#3304）はヒントと別に `gameDidUseTeach` で数え、
   `game_end` の `teach_used`（ステージだけ。`hints_used` にはヒントだけが入る）に載る。`clear_exit` は既存の `leaveGame` の仕組みがそのまま効く。
+  盤の上の「ミス n/3」の表記は**ライフ（♥♥♡）**に替わった（#3304・`release/v1.1.15`。残りライフ＝クリアの pt。解析の `miss_count` は変えない）。
+  ステージのクリアの見せ方は、猫のアニメ → ライフが pt になる（鍵の面は ×2）→ ランキングの結果（今日の合計 pt と Game Center の今日の順位。順位は最大 3 秒待ち、
+  読めない・未サインインなら合計 pt だけで進む）→ クリアのモーダルの順（`CatPuzzleClearFlow`。各段はタップで早送り）。解析イベントは増やさない。
   **`teach_used`（と未登録なら `hints_used`・`event_points`・`miss_at`）はカスタムディメンション／指標の登録が要る（社長操作）。**
-- `event_points`（#3204）は**ねこさがしの 1 か月ランキングイベント（2026-11-09〜12-09 JST）で、ステージのクリアが稼いだ pt**（ミス 0 回 3・1 回 2・2 回 1。鍵の面のクリアは 2 倍の 6・4・2・#3259。ミスは画面に出ている数で、
-  コンティニューで戻したぶんは含まない）。期間外・自由に遊ぶ盤・負けには載せない。合計は端末の `UserDefaults`
-  （`catPuzzleEventTotal202611`）に貯め、Game Center のリーダーボード `asobiba.catpuzzle.event202611`（High to Low・ASC 作成は社長）へ送る
-  （未ログインなら貯めるだけで、ログイン後に画面を開いたとき／次のクリアで送る）。期間は `CatPuzzleEvent.start/end` の 1 か所。
-  ハブの「イベント開催中」の印は `HubEventBadge.eventGameID`（v1.1.15 は `catpuzzle`）。
+- `event_points`（#3204）は**ねこさがしのデイリーランキングで、ステージのクリアが稼いだ pt**（ミス 0 回 3・1 回 2・2 回 1。鍵の面のクリアは 2 倍の 6・4・2・#3259。ミスは画面に出ている数で、
+  コンティニューで戻したぶんは含まない）。**ランキングは期間に関係なく常設**（#3298・#3299・`release/v1.1.15`。以前は 2026-11-09〜12-09 JST の 1 か月イベント。順位の画面・前日の特典・共有・開始シートの「今日のランキング」欄も期間で出し分けない）。
+  自由に遊ぶ盤・負けには載せない。合計は端末の `UserDefaults`
+  （`catPuzzleEventTotal202611`。鍵の名前は据え置き）に貯め、Game Center のリーダーボード `asobiba.catpuzzle.event202611`（High to Low・ASC 作成は社長）へ送る
+  （未ログインなら貯めるだけで、ログイン後に画面を開いたとき／次のクリアで送る）。`CatPuzzleEvent.start/end` が残るのは、ハブの「イベント開催中」の印
+  （`CatPuzzleModel.isEventPeriod`）を出す告知期間だけ。印は `HubEventBadge.eventGameID`（v1.1.15 は `catpuzzle`）。
 - `hints_used`（#1326）は**そのプレイで使ったヒントの回数**（回数の上限はゲームごとの `BoardHintBudget` で決まる・#2024・#1975・#2026・#2025）。送るゲームの一覧は文章で持たず、`gameDidEnd` に `hintsUsed:` を渡している Model を正とする。
   各 Model が `BoardHintBudget.consume()` の成功ごとに `gameDidUseHint` を呼び、`GameAnalytics` が進行中の
   プレイに覚えて `game_end` に載せる。**送信は `sendEnd` の1か所**なので、決着（`finishPlay`）でも
   途中離脱（`leaveGame` / `restartPlay`）でも同じ値が載る。使わなかったプレイ・ヒントを持たないゲームは鍵ごと送らない。
-  1手も指さずに捨てた局は従来どおり `game_end` 自体が出ない。休憩（再開できる離脱）をまたいでも数えは残り、
+  1手も指さずに捨てた局は従来どおり `game_end` 自体が出ない。「新しいゲーム」で盤を手つかずに戻し、次の `gameDidRestart` を最初の操作まで遅らせる Model
+  （ブラックジャック・ポーカー・マインスイーパー・#3226・`release/v1.1.15`）は、戻した時点で `gameDidAbandon` → `GameAnalytics.abandonPlay` を呼び、旧プレイの `quit` をその場で出して
+  記録を空にする（呼ばないと新しい盤を放置した時間が旧プレイの `duration_sec` に混ざる。進行中でないプレイ・決着済みには触らず、戻した盤のままハブへ戻っても `game_end` は二重に出ない）。休憩（再開できる離脱）をまたいでも数えは残り、
   アプリを終了したあとに「続きから」で復元した局も、休憩に入る時点（ハブへ戻るとき）と、アプリが背面に回る時点（#2300。ハブへ戻らず OS に終了された場合）の控えから取り戻す（下記 #1374。`cause` だけは控えに入れない）。
   GA4 のカスタム指標「ヒント使用回数」（範囲=イベント）は 2026-09-24 に登録済み
 - パラメータの値（`result` / `level` / `purpose` / `source` / `mode` / `cause`）は `CaseIterable` な enum で定義し、
@@ -1455,11 +1467,11 @@ v1.1.4 までの公開版は3種）。
   共有の文言は記録を前面に出し（`RecordFormat.shareMessage`。「あそびばの「2048」で記録更新！」＋リザルトの 1 行）、
   URL にキャンペーンのパラメータは付けない。載せるのは `game_id` だけなので GA4 の新しい登録は要らない。
   `ShareLink` は完了を知らせないため「送った数」ではなく「押した数」として読む。チャリンコおじさんは `RecordLabel` を
-  使わないので対象外。ねこさがし（#3237・`release/v1.1.15`）は、デイリーランキング開催中のステージのクリアのカードにも
+  使わないので対象外。ねこさがし（#3237・`release/v1.1.15`）は、ステージのクリアのカードにも
   同じ `RecordShareContext` の共有ボタン（`GameClearCard` の `share:`）を出し、押すと同じ `share_tap`（`game_id=catpuzzle`）を送る。
   共有するのは「ねこさがし 今日 npt（m 面クリア）」の文・App Store の URL・画像（答えが分からないよう盤は部屋の間取りだけをぼかし、
   猫・× は描かない）。m は今日のクリア面数で、`UserDefaults` のキー `catPuzzleEventDayClears`（JST 0 時で数え直す）に持つ。
-  期間外・自由に遊ぶでは出さない
+  自由に遊ぶでは出さない（ランキングの常設化に伴い期間外の除外は無くなった・#3299）
 - `reward_offer`（`RewardOfferResult`・#780・`release/v1.1.7` から）の**提示**は、広告を見るかどうかを選ばせる画面
   （確認アラート・コンティニューの幕・リザルトの復活ボタン）が出たこと。無料で済む確認（無料の待った）は含めない。
   各画面は `rewardOffer(_:for:isPresented:services:gameID:)` 修飾子で「出ているか」だけを渡し、押したかどうかは
