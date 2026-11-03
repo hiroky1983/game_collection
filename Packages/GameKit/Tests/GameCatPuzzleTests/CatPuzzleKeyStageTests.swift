@@ -250,4 +250,82 @@ struct CatPuzzleKeyStageTests {
         #expect(model.isSolved)
         #expect(!model.isKeyLocked)
     }
+
+    // MARK: - 60 面の誤判定の報告（#3300）
+
+    /// 画面のタップと同じ入口（`tap(cell:)` を 0.2 秒あけて 2 回）でダブルタップする。
+    private func doubleTap(_ model: CatPuzzleModel, _ cell: Int, clock: ManualClock) {
+        clock.advance(by: .seconds(1))
+        model.tap(cell: cell)
+        clock.advance(by: .milliseconds(200))
+        model.tap(cell: cell)
+    }
+
+    @Test("60 面: 鍵の部屋は玄関（部屋 6）で、鍵の猫は 4 行 3 列目（マス 29）。玄関の答えはそのマスだけで、解は 1 つ")
+    func stage60KeyRoomFacts() {
+        let puzzle = CatPuzzleStage(60).makePuzzle()
+        let key = CatPuzzleSolver.keyCat(puzzle)
+        #expect(key == 29)
+        #expect(puzzle.rooms[29] == 6 && CatPuzzleHouse.room(6).name == "玄関")
+        #expect(puzzle.cells(inRoom: 6) == [10, 19, 28, 29])
+        #expect(puzzle.solutionCells.filter { puzzle.rooms[$0] == 6 } == [29])
+        #expect(CatPuzzleLogic.countSolutions(side: puzzle.side, rooms: puzzle.rooms, limit: 2) == 1)
+        #expect(CatPuzzleSolver.solve(puzzle) == puzzle.solutionCells.sorted())
+    }
+
+    @Test("60 面: 鍵が閉じている間、鍵の猫（玄関の答え）をダブルタップすると猫が置けて鍵が開く（ミスにならない）")
+    func stage60DoubleTapKeyCat() {
+        let clock = ManualClock()
+        let model = keyModel(stage: 60)
+        model.clockNow = clock.now
+        #expect(model.isKeyLocked && model.keyCat == 29)
+        doubleTap(model, 29, clock: clock)
+        #expect(model.marks[29] == .cat && model.mistakes == 0 && model.wrongCrosses.isEmpty)
+        #expect(!model.isKeyLocked && model.keyOpenings == 1)
+        // 残りも画面と同じ入口で置いて、ミス 0 のままクリアできる。
+        for cell in model.puzzle.solutionCells where model.marks[cell] != .cat { doubleTap(model, cell, clock: clock) }
+        #expect(model.isSolved && model.mistakes == 0)
+    }
+
+    @Test("60 面: 鍵が閉じている間、玄関の外の答えのマスをダブルタップ・× ・スライドしてもミスにならず、盤も変わらず、案内だけ出る")
+    func stage60LockedOutsideAnswersAreNotMistakes() {
+        let clock = ManualClock()
+        let model = keyModel(stage: 60)
+        model.clockNow = clock.now
+        let outside = model.puzzle.solutionCells.filter { model.puzzle.rooms[$0] != 6 }
+        #expect(outside.count == 8)
+        var touches = 0
+        for cell in outside {
+            doubleTap(model, cell, clock: clock)
+            touches += 2
+            #expect(!model.toggleCross(cell: cell))
+            touches += 1
+            model.beginCrossDrag(cell: cell)
+            model.dragCross(to: cell)
+            model.endCrossDrag()
+            touches += 1
+        }
+        #expect(model.mistakes == 0 && model.wrongCrosses.isEmpty)
+        #expect(model.marks.allSatisfy { $0 == .empty }, "盤は変わらない")
+        #expect(model.lockedTouches == touches, "触るたびに案内のきっかけだけ増える")
+        #expect(model.isKeyLocked && model.moves == 0)
+    }
+
+    @Test("同梱と 10〜40 面の鍵の面すべてで、鍵の猫は鍵の部屋の唯一の答えで、画面と同じダブルタップでミス 0 でクリアできる")
+    func everyKeyStageClearsWithoutMistakesViaTap() {
+        let bankKeys = stride(from: 50, through: CatPuzzleStageBank.lastStage, by: 10).filter { CatPuzzleStage($0).isKey }
+        for number in [10, 20, 30, 40] + bankKeys {
+            let clock = ManualClock()
+            let model = keyModel(stage: number)
+            model.clockNow = clock.now
+            guard let key = model.keyCat, let room = model.keyRoom else {
+                Issue.record("\(number) 面に鍵の猫が無い")
+                continue
+            }
+            #expect(model.puzzle.solutionCells.filter { model.puzzle.rooms[$0] == room } == [key], "\(number) 面")
+            doubleTap(model, key, clock: clock)
+            for cell in model.puzzle.solutionCells where model.marks[cell] != .cat { doubleTap(model, cell, clock: clock) }
+            #expect(model.isSolved && model.mistakes == 0, "\(number) 面")
+        }
+    }
 }
