@@ -81,15 +81,15 @@ struct CatPuzzleDailyRewardTests {
         #expect(nextDay.teachRemaining == 7)
     }
 
-    @Test("開催期間の前日・後日は渡さない。最終日 12/9 の分は 12/10 に受け取れ、12/11 は不可")
+    @Test("期間に関係なく渡す。開催前日・最終日の翌々日でも順位を読んで渡す（常設・#3298）")
     func period() async {
-        for (name, now, expected) in [("before", jst(2026, 11, 9), false), ("first", jst(2026, 11, 10), true),
-                                      ("last", jst(2026, 12, 10), true), ("after", jst(2026, 12, 11), false)] {
+        for (name, now) in [("before", jst(2026, 11, 9)), ("first", jst(2026, 11, 10)),
+                            ("last", jst(2026, 12, 10)), ("after", jst(2026, 12, 11))] {
             let (model, _, _) = make(name, now: now)
             var asked = false
             await model.claimDailyReward { asked = true; return .rank(1) }
-            #expect((model.hintsRemaining == 6) == expected, "\(name)")
-            #expect(asked == expected, "期間外は Game Center に問い合わせない: \(name)")
+            #expect(model.hintsRemaining == 6, "\(name)")
+            #expect(asked, "\(name)")
         }
     }
 

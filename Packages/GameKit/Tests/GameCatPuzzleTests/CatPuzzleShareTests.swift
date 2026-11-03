@@ -42,11 +42,11 @@ struct CatPuzzleShareTests {
         #expect(!(share?.message.contains("賭") ?? true))
     }
 
-    @Test("期間外のクリアでは共有を出さない")
-    func hiddenOutsidePeriod() async {
+    @Test("期間の前でもクリアしたら共有を出す（常設・#3298）")
+    func shownOutsidePeriod() async {
         let model = makeModel(now: jst(2026, 11, 8))
         await clearStage(model, 1)
-        #expect(CatPuzzleShare.content(for: model) == nil)
+        #expect(CatPuzzleShare.content(for: model) != nil)
     }
 
     @Test("自由に遊ぶ・クリア前は共有を出さない")

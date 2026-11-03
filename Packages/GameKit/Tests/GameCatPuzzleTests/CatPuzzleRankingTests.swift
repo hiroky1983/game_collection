@@ -84,14 +84,14 @@ struct CatPuzzleRankingTests {
         #expect(m.state == .failed)
     }
 
-    @Test("期間外: 開始前も終了後も問い合わせずに outOfPeriod")
-    func outOfPeriod() async {
-        for now in [jst(2026, 11, 8, 23), jst(2026, 12, 10, 0)] {
+    @Test("常設: イベントの期間の前後でも順位表を問い合わせる（#3298）")
+    func loadsOutsideEventPeriod() async {
+        for now in [jst(2026, 11, 4, 12), jst(2026, 12, 10, 0)] {
             let calls = Calls()
-            let m = model(board: nil, now: now, calls: calls)
+            let m = model(board: board(rows: [row(1, "A", 30)], myRank: 1, myScore: 30), now: now, calls: calls)
             await m.load()
-            #expect(m.state == .outOfPeriod)
-            #expect(calls.board == 0)
+            #expect(calls.board == 1)
+            if case .ready = m.state {} else { Issue.record("ready になっていない: \(m.state)") }
         }
     }
 

@@ -148,20 +148,19 @@ struct CatPuzzleEventTests {
         #expect(model.eventTotal == 1)
     }
 
-    @Test("期間外のクリアは加算せず、game_end にも載せない。負けも 0")
-    func outsidePeriodAddsNothing() async {
+    @Test("期間の前後でもクリアは加算し、game_end に載せる（常設・#3298）")
+    func outsidePeriodStillAdds() async {
         let spy = SpyAnalyticsService()
         let defaults = makeDefaults()
         let before = makeModel(defaults: defaults, now: jst(2026, 11, 8), analytics: spy)
         await start(before, 1)
         solve(before)
-        #expect(before.lastEventPoints == nil && before.eventTotal == 0)
-        #expect(spy.endEventPoints.last == .some(nil))
+        #expect(before.lastEventPoints == 3 && before.eventTotal == 3)
+        #expect(spy.endEventPoints.last == .some(3))
         let after = makeModel(defaults: defaults, now: jst(2026, 12, 10))
         await start(after, 1)
         solve(after)
-        #expect(after.eventTotal == 0)
-        #expect(!after.isEventActive)
+        #expect(after.eventTotal == 3)
     }
 
     @Test("自由に遊ぶ盤のクリアはイベントの対象外")
@@ -280,14 +279,14 @@ struct CatPuzzleEventTests {
         #expect(center.submitted.last?.value == 3 && CatPuzzleEvent.sent(defaults, now: clock) == 3)
     }
 
-    @Test("期間外は日付が違っても加算しない（開始前・終了後）")
+    @Test("期間の前後でも日ごとに数え直して加算する（常設・#3298）")
     func outsidePeriodByDay() async {
         let defaults = makeDefaults()
         for now in [jst(2026, 11, 8, 23, 59), jst(2026, 12, 10)] {
             let model = makeModel(defaults: defaults, now: now)
             await start(model, 1)
             solve(model)
-            #expect(model.eventTotal == 0 && model.lastEventPoints == nil)
+            #expect(model.eventTotal == 3 && model.lastEventPoints == 3)
         }
     }
 
