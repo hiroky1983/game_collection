@@ -477,7 +477,10 @@ gh() {
       printf '%s\n' "$REAL_TAGS" ;;
     "api repos/hiroky1983/game_collection/branches/"*)
       v="${2#*release%2Fv}"; v="${v%/protection}"
-      stub_lookup "$v" "$STUB_LOCK" || { printf '{"message":"Branch not protected","status":"404"}'; return 1; } ;;
+      if [ "$(stub_lookup "$v" "$STUB_LOCK")" = "FAIL" ]; then  # 404 以外の失敗（レート制限）
+        printf '{"message":"API rate limit exceeded","status":"403"}'; echo "gh: API rate limit exceeded (HTTP 403)" >&2; return 1
+      fi
+      stub_lookup "$v" "$STUB_LOCK" || { printf '{"message":"Branch not protected","status":"404"}'; echo "gh: Branch not protected (HTTP 404)" >&2; return 1; } ;;
     "api repos/hiroky1983/game_collection/compare/"*)
       v="${2##*release/v}"
       a=$(stub_lookup "$v" "$STUB_AHEAD") || a=0
@@ -496,6 +499,8 @@ gh() {
   esac
 }
 curl() { printf '{"results":[{"version":"1.1.4"}]}'; }
+# 凍結の確認は origin/main から取り出す実装なので、テストでは手元の lib を指す（#3227）
+export DUTY_BRANCH_LOCK_LIB="$SCRIPT_DIR/../lib/branch-lock.sh"
 # 引数: lock の並び / ahead_by の並び（FAIL で取得失敗）/ base 別の PR 本数の並び / GraphQL 応答
 # 出力: "対象の版 SHIP_READY"
 run_ship_block() {
@@ -524,6 +529,8 @@ check "残作業が残っていれば発火しない" "1.1.5 0" \
   "$(run_ship_block "" "$AHEAD_OK" "$PRS_NONE" "$MS_WORK")"
 check "オープン Issue の取得が打ち切られていれば発火しない" "1.1.5 0" \
   "$(run_ship_block "" "$AHEAD_OK" "$PRS_NONE" "$MS_TRUNC")"
+check "v1.1.5 の凍結を確かめられない（404 以外の失敗）なら「凍結なし」と見なさず対象なし（#3227）" "なし 0" \
+  "$(run_ship_block "1.1.5=FAIL" "$AHEAD_OK" "$PRS_NONE" "$MS_READY")"
 check "v1.1.5 の ahead_by が取得失敗なら v1.1.6 へ進まず対象なし（検証指摘1）" "なし 0" \
   "$(run_ship_block "" "1.1.5=FAIL 1.1.6=447" "$PRS_NONE" "$MS_READY")"
 check "v1.1.5 が空（ahead_by=0）なら次の v1.1.6 を対象にする" "1.1.6 0" \

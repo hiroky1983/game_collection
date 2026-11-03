@@ -38,6 +38,9 @@ APP_ID="${BUMP_APP_ID:-6781719499}"
 
 die() { echo "bump-marketing-version: $*" >&2; exit 1; }
 
+# 凍結（lock_branch）の確認。404（保護設定なし）は未凍結、それ以外の失敗は判定できない（#3227）
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/branch-lock.sh" || die "lib/branch-lock.sh を読めません"
+
 # X.Y.Z（数字 3 要素）の完全一致。check-marketing-version.sh と同じ物差し。
 is_xyz() {
   local v="$1" dots
@@ -201,8 +204,8 @@ for ref in $(git ls-remote --heads origin 'release/v*' | awk '{ print $2 }'); do
   bv="${ref#refs/heads/release/v}"
   is_xyz "$bv" || continue
   [ "$(ver_cmp "$bv" "$V")" = -1 ] && continue
-  lock="$(gh api "repos/$REPO/branches/release%2Fv${bv}/protection" --jq '.lock_branch.enabled' 2>/dev/null)" \
-    || die "release/v${bv} の保護設定を取得できません。凍結済みか確かめられないので止めます"
+  lock="$(branch_lock_state "$REPO" "$bv")" \
+    || die "release/v${bv} の凍結済みか確かめられないので止めます"
   [ "$lock" = "true" ] && FLOOR_VERS="$FLOOR_VERS $bv"
 done
 

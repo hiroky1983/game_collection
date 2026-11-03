@@ -36,7 +36,11 @@ case "$1 $2" in
     case "$2" in
       */milestones\?*) f="$FIX/milestones.json" ;;
       */git/matching-refs/tags/v) f="$FIX/tags.json" ;;
-      */branches/*/protection) v="${2#*release%2Fv}"; v="${v%/protection}"; f="$FIX/protection-v$v.json" ;;
+      */branches/*/protection)
+        v="${2#*release%2Fv}"; v="${v%/protection}"; f="$FIX/protection-v$v.json"
+        # .404 = 保護設定なし（gh は HTTP 404 で失敗する）。fixture が何も無ければ 404 以外の失敗（レート制限）
+        [ -f "$FIX/protection-v$v.404" ] && { echo "gh: Not Found (HTTP 404)" >&2; exit 1; }
+        [ -f "$f" ] || { echo "gh: API rate limit exceeded (HTTP 403)" >&2; exit 1; } ;;
       *) exit 1 ;;
     esac ;;
   "pr list") f="$FIX/prs-${base//\//_}.json" ;;
@@ -123,6 +127,7 @@ echo '[]' >"$FIX/issues-v1.1.14.json"
 check "lock_branch 済みの版は飛ばし、凍結していない最小の版を現行版にする" "v1.1.14" 0
 reset_fix f
 echo '[{"ref":"refs/tags/v1.1.11-submitted"},{"ref":"refs/tags/v1.1.12-submitted"}]' >"$FIX/tags.json"
+touch "$FIX/protection-v1.1.13.404"
 echo '[]' >"$FIX/prs-release_v1.1.13.json"
 echo '[]' >"$FIX/issues-v1.1.13.json"
 check "提出済みタグの版は飛ばす（次の版が現行版になる）" "v1.1.13" 0
@@ -131,7 +136,11 @@ echo '[{"ref":"refs/tags/v1.1.11-submitted"},{"ref":"refs/tags/v1.1.1-submitted"
 check "v1.1.1 のタグで v1.1.12 を凍結扱いにしない（完全一致）" "v1.1.12" 0
 reset_fix h
 rm "$FIX/protection-v1.1.12.json"
-check "保護設定が取れない（エラー）は未凍結とみなす（ai-duty.sh 仕事13 と同じ）" "v1.1.12" 0
+touch "$FIX/protection-v1.1.12.404"
+check "保護設定が無い（HTTP 404）は未凍結とみなす" "v1.1.12" 0
+reset_fix h2
+rm "$FIX/protection-v1.1.12.json"
+check "保護設定が 404 以外で取れない（レート制限）は推測せず 1（#3227）" "" 1
 
 echo "== 5. 取得に失敗したら安全側（次版）・出す版が無ければ 1 =="
 reset_fix i
@@ -161,6 +170,7 @@ echo "== 6. 版の並びは数値順 =="
 reset_fix o
 echo '[{"title":"v1.1.10"},{"title":"v1.1.9"}]' >"$FIX/milestones.json"
 echo '[]' >"$FIX/tags.json"
+touch "$FIX/protection-v1.1.9.404"
 echo '[]' >"$FIX/prs-release_v1.1.9.json"
 echo '[{"number":1,"labels":[{"name":"ai:approved"}]}]' >"$FIX/issues-v1.1.9.json"
 check "v1.1.9 の次は v1.1.10（文字列順で v1.1.10 を先にしない）" "v1.1.10" 0

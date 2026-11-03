@@ -1014,6 +1014,23 @@ run_auto_stamp_weekly_summary() {
   printf '%s\n' "$now" >"$DUTY_AUTO_STAMP_SUMMARY_STATE" 2>/dev/null
 }
 
+# release ブランチの凍結確認（#3227）。実体は Scripts/lib/branch-lock.sh（pick-issue-milestone.sh・bump と共通）。
+# ai-duty.sh は自己更新で一時ファイルとして走り相対パスで lib を引けないため、夜間チェックと同じく
+# origin/main から取り出して読む（DUTY_BRANCH_LOCK_LIB はテスト用の差し替え）。取り出せなければ判定不能（1）を返す
+duty_branch_lock_state() {  # duty_branch_lock_state <X.Y.Z>
+  if ! declare -F branch_lock_state >/dev/null; then
+    local src
+    if [ -n "${DUTY_BRANCH_LOCK_LIB:-}" ]; then
+      src=$(cat "$DUTY_BRANCH_LOCK_LIB" 2>/dev/null) || src=""
+    else
+      src=$(git -C "$DUTY_DIR" show origin/main:Scripts/lib/branch-lock.sh 2>/dev/null) || src=""
+    fi
+    [ -n "$src" ] || { echo "Scripts/lib/branch-lock.sh を読み込めません" >&2; return 1; }
+    eval "$src"
+  fi
+  branch_lock_state hiroky1983/game_collection "$1"
+}
+
 # テスト用の入口: 関数定義だけ読み込んで個別に検証できるようにする
 # （Scripts/tests/test-ai-duty-notify.sh・test-ai-duty-detect.sh。source されたときだけ効く）
 if [ -n "${DUTY_LIB_ONLY:-}" ]; then return 0 2>/dev/null || exit 0; fi
@@ -1165,14 +1182,16 @@ run_nightly_check() {
   [ -d "$DUTY_DIR/.git" ] || return 0
   d=$(mktemp -d "${TMPDIR:-/tmp}/duty-nightly.XXXXXX") || return 0
   if git -C "$DUTY_DIR" show origin/main:Scripts/check-nightly-failures.sh >"$d/check-nightly-failures.sh" 2>/dev/null \
-     && git -C "$DUTY_DIR" show origin/main:Scripts/pick-issue-milestone.sh >"$d/pick-issue-milestone.sh" 2>/dev/null; then
+     && git -C "$DUTY_DIR" show origin/main:Scripts/pick-issue-milestone.sh >"$d/pick-issue-milestone.sh" 2>/dev/null \
+     && mkdir -p "$d/lib" \
+     && git -C "$DUTY_DIR" show origin/main:Scripts/lib/branch-lock.sh >"$d/lib/branch-lock.sh" 2>/dev/null; then
     perl -e 'alarm shift; exec @ARGV' "${DUTY_NIGHTLY_TIMEOUT:-120}" bash "$d/check-nightly-failures.sh" >>"$LOG" 2>&1 \
       || log "夜間チェックが失敗または時間切れ（exit=$?）"
   else
     log "夜間チェック: origin/main に check-nightly-failures.sh が無いため見送り"
   fi
-  rm -f "$d/check-nightly-failures.sh" "$d/pick-issue-milestone.sh"
-  rmdir "$d" 2>/dev/null
+  rm -f "$d/check-nightly-failures.sh" "$d/pick-issue-milestone.sh" "$d/lib/branch-lock.sh"
+  rmdir "$d/lib" "$d" 2>/dev/null
 }
 # 会長の操作待ち（決裁・承認）を先に集める。以降のどこで exit しても EXIT トラップから通知が出る。
 # 集めて通知するのはスロット1だけ（2並列化 2026-09-25）。両スロットが集めると、連投防止の状態ファイルを
@@ -1419,10 +1438,13 @@ fi
 if [ -n "${REL_BRANCH:-}" ]; then
   RELEASED=1
   SUBMITTED_TAG=$(git ls-remote --tags origin "v${REL_VER}-submitted" 2>/dev/null)
-  LOCK_ENABLED=$(gh api "repos/hiroky1983/game_collection/branches/release%2Fv${REL_VER}/protection" \
-    --jq '.lock_branch.enabled' 2>/dev/null || echo "false")
-  if is_submission_unfrozen "${SUBMITTED_TAG:-}" "${LOCK_ENABLED:-false}"; then
-    SUBMISSION_UNFROZEN=1
+  # 取得に失敗したら「凍結なし」と読み替えず、この周回の凍結漏れ検知を見送る（#3227）
+  if LOCK_ENABLED=$(duty_branch_lock_state "$REL_VER" 2>>"$LOG"); then
+    if is_submission_unfrozen "${SUBMITTED_TAG:-}" "${LOCK_ENABLED:-false}"; then
+      SUBMISSION_UNFROZEN=1
+    fi
+  else
+    log "仕事7: release/v${REL_VER} の凍結を判定できないため、凍結漏れの検知をこの周回は見送る"
   fi
 fi
 
@@ -1603,8 +1625,11 @@ if [ -n "$SHIP_REFS" ]; then
   SHIP_TAGS=$(gh api "repos/hiroky1983/game_collection/git/matching-refs/tags/v" \
     --jq '.[].ref | select(endswith("-submitted"))' 2>/dev/null || true)
   for V in $(ship_candidate_versions "$(printf '%s\n' "$SHIP_REFS" | cut -f1)" "$SHIP_TAGS" "${SHIP_STORE_VER:-}"); do
-    SHIP_LOCK=$(gh api "repos/hiroky1983/game_collection/branches/release%2Fv${V}/protection" \
-      --jq '.lock_branch.enabled' 2>/dev/null || echo "false")
+    # 取得に失敗したら「凍結なし」と読み替えず、出荷対象の選定をこの周回は見送る（#3227）
+    if ! SHIP_LOCK=$(duty_branch_lock_state "$V" 2>>"$LOG"); then
+      log "仕事13: release/v${V} の凍結を判定できないため、出荷対象の選定をこの周回は見送る"
+      break
+    fi
     SHIP_AHEAD=""
     if [ "$SHIP_LOCK" != "true" ]; then
       # 失敗を 0 に丸めない（丸めると「空のブランチ」と区別できず次の版へ進んでしまう）
