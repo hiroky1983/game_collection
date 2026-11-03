@@ -116,13 +116,14 @@ struct CatPuzzleStageTests {
         #expect(CatPuzzleStage(156).tiers == 4...4)
     }
 
-    @Test("部屋の入り組み: 9×9 までは従来どおり 0、10×10 以上は前半 1・後半 2")
+    @Test("部屋の入り組み: 9×9 までは従来どおり 0、10×10 以上は前半 1・後半 2（鍵の面は 1）")
     func windingByStage() {
         #expect([1, 6, 11, 18, 26, 36, 46, 60, 70].allSatisfy { CatPuzzleStage($0).winding == 0 })
         #expect(CatPuzzleStage(71).winding == 1)
         #expect(CatPuzzleStage(85).winding == 1)
         #expect(CatPuzzleStage(86).winding == 2)
-        #expect(CatPuzzleStage(100).winding == 2)
+        #expect(CatPuzzleStage(99).winding == 2)
+        #expect(CatPuzzleStage(100).winding == 1, "10×10 の後半でも鍵の面（#3259）は前半と同じ入り組み")
         #expect(CatPuzzleStage(101).winding == 1)
         #expect(CatPuzzleStage(120).winding == 1)
         #expect(CatPuzzleStage(121).winding == 2)

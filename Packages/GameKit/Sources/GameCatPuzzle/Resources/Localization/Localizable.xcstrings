@@ -1521,6 +1521,17 @@
         }
       }
     },
+    "イベント +%1$lldpt（鍵の面 ×2）・今日の合計 %2$lldpt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Event +%1$lld pt (key stage ×2) · Today %2$lld pt"
+          }
+        }
+      }
+    },
     "イベント開催中" : {
       "extractionState" : "manual",
       "localizations" : {
