@@ -12,6 +12,8 @@ public struct CatPuzzleView: View {
     @AppStorage("catPuzzleMode") private var preferredMode = CatPuzzlePlayMode.stage.rawValue
     /// ステージのクリアのカードを「盤を見る」で閉じたか（新しい局で開け直す）。
     @State private var clearCardClosed = false
+    /// ステージのクリアの流れ（ライフが pt に → ランキング → モーダル・#3304）。クリアのたびに頭から。
+    @State private var clearFlow = CatPuzzleClearFlow()
     /// 盤を押している指の状態（タップかスライドかの判定。#3116）。
     @State private var boardTouch = BoardTouch()
     /// 盤の拡大と移動（2 本指・#3238）。新しい局・盤の大きさが変わったら等倍に戻す。
@@ -197,10 +199,10 @@ public struct CatPuzzleView: View {
         )
         .rewardedRescueAlerts(
             teachRescue,
-            notEarned: tr("猫を教えられませんでした"),
+            notEarned: tr("餌をあげられませんでした"),
             unavailable: RewardUnavailableAlert(
-                title: tr("猫を教えられませんでした"),
-                message: tr("広告を見ているあいだに新しいゲームが始まったか、盤面が変わったため、猫を教えられませんでした。\n残り回数は減っていません。")
+                title: tr("餌をあげられませんでした"),
+                message: tr("広告を見ているあいだに新しいゲームが始まったか、盤面が変わったため、猫をおびき出せませんでした。\n残り回数は減っていません。")
             )
         )
         .rewardedRescueAlerts(
@@ -216,12 +218,15 @@ public struct CatPuzzleView: View {
             // 増えたときだけ（コンティニューでミスが戻ったときは読み上げない）。
             if new > old, model.lastWrongCell != nil, !model.isFailed, !model.isOfferingContinue {
                 AccessibilityNotification.Announcement(
-                    tr("そこに猫はいない。赤い×を置いた。ミス %1$lld/%2$lld", model.mistakes, CatPuzzleModel.maxMistakes)
+                    tr("そこに猫はいない。赤い×を置いた。ライフ %1$lld/%2$lld", model.mistakesRemaining, CatPuzzleModel.maxMistakes)
                 ).post()
             }
         }
         .onChange(of: model.showsClearCard) { _, shows in
-            if !shows { clearCardClosed = false }
+            if !shows {
+                clearCardClosed = false
+                clearFlow = CatPuzzleClearFlow()
+            }
         }
         // 新しい局が始まったら、答え合わせで出した猫を片付ける。
         .onChange(of: model.isFailed) { _, failed in
@@ -234,6 +239,13 @@ public struct CatPuzzleView: View {
         .task(id: model.isFailed) {
             guard model.isFailed else { return }
             await revealUnfoundCats()
+        }
+        // 餌の皿は猫が出てから少しだけ見せて片付ける（#3304）。
+        .task(id: model.lureToken) {
+            guard model.lureCell != nil else { return }
+            try? await Task.sleep(for: .milliseconds(1100))
+            guard !Task.isCancelled else { return }
+            withGameAnimation { model.clearLure() }
         }
         // 「この局のヒントは使い切りました」は数秒で消す。
         .task(id: showsHintUsedUp) {
@@ -307,6 +319,11 @@ public struct CatPuzzleView: View {
 
     // MARK: - 上の帯
 
+    /// ライフの表記（残り ♥・減ったぶん ♡。例: 1 回ミスして `♥♥♡`）。
+    static func livesText(_ model: CatPuzzleModel) -> String {
+        String(repeating: "♥", count: model.mistakesRemaining) + String(repeating: "♡", count: CatPuzzleModel.maxMistakes - model.mistakesRemaining)
+    }
+
     /// 左に残りの猫（終局後は結果）、右にミス（「ミス 1/3」）・難易度・タイム。
     private var statusBar: some View {
         GameStatusBar {
@@ -321,11 +338,11 @@ public struct CatPuzzleView: View {
         } trailing: {
             // 右側は折り返さない（「0:00」が 2 行に割れないよう固定幅で勝たせる）。
             HStack(spacing: 6) {
-                // ミスの残量。1 回目から色を変える（ナンプレの「ミス 1/3」と同じ形）。
-                Text(tr("ミス %1$lld/%2$lld", model.mistakes, CatPuzzleModel.maxMistakes))
-                    .scaledFont(13, weight: .bold, design: .rounded, maxScale: 1.3).monospacedDigit()
+                // ライフ（♥♥♡）。ミスのたびに 1 つ減り、0 で終わり（#3304）。1 つ減ったら色を変える。
+                Text(Self.livesText(model))
+                    .scaledFont(13, weight: .bold, design: .rounded, maxScale: 1.3)
                     .foregroundStyle(model.mistakes > 0 ? Theme.coralText : Theme.inkSubText)
-                    .accessibilityLabel(tr("ミス %1$lld回、あと%2$lld回で終わり", model.mistakes, model.mistakesRemaining))
+                    .accessibilityLabel(tr("ライフ %1$lld、あと%2$lld回のミスで終わり", model.mistakesRemaining, model.mistakesRemaining))
                 Text(tr("・")).foregroundStyle(Theme.inkSubText).accessibilityHidden(true)
                 // ステージは面の番号、自由に遊ぶは難易度。
                 Text(model.stage.map { tr("ステージ %lld", $0) } ?? model.size.label)
@@ -374,6 +391,7 @@ public struct CatPuzzleView: View {
                         hintCells: model.hintCells, hintCrosses: model.hintCrosses, lastHint: model.lastHint,
                         shakeToken: model.mistakes, isSolved: model.isSolved,
                         ghostCats: Array(model.unfoundCats.prefix(revealedGhosts)),
+                        lureCell: model.lureCell,
                         keyRoom: model.keyRoom, keyLocked: model.isKeyLocked, cellSide: drawnCell
                     )
                     // 鍵の部屋の外を触ったら盤が短く揺れる（Reduce Motion では揺らさない）。
@@ -597,7 +615,7 @@ public struct CatPuzzleView: View {
                     .multilineTextAlignment(.center)
                     .accessibilityHidden(true)
             } else if model.lastWrongCell != nil {
-                Text(tr("そこに猫はいない！ 赤い×はミス（あと%lld回で終わり）", model.mistakesRemaining))
+                Text(tr("そこに猫はいない！ 赤い×でライフが減った（あと%lld回で終わり）", model.mistakesRemaining))
                     .scaledFont(14, weight: .bold, design: .rounded)
                     .foregroundStyle(Theme.coralText)
                     .multilineTextAlignment(.center)
@@ -718,20 +736,20 @@ public struct CatPuzzleView: View {
                 isDestructive: true, isEnabled: model.hasProgressToLose && !model.isOfferingContinue && !isWatchingAd, action: onClear
             ),
         ]
-        // ステージでは「戻す」をやめて「猫を教える」にする（#3203）。自由に遊ぶは従来どおり「戻す」。
+        // ステージでは「戻す」をやめて「餌をあげる」（解析の purpose は `teach` のまま）にする（#3203）。自由に遊ぶは従来どおり「戻す」。
         let second = model.stage == nil
             ? GameActionItem(
                 id: "undo", title: tr("戻す"), systemImage: "arrow.uturn.backward", role: .undo,
                 isEnabled: model.canUndo && !isWatchingAd, action: onUndo
             )
             : GameActionItem(
-                id: "teach", title: tr("猫を教える"), systemImage: "cat.fill", role: .undo,
+                id: "teach", title: tr("餌をあげる"), systemImage: "fork.knife", role: .undo,
                 badge: teachBadge(for: model),
                 isEnabled: model.canTeach && !isWatchingAd,
                 accessibilityLabel: model.needsAdForTeach
-                    ? tr("猫を1匹教える、無料の回数は使い切りました。広告を見ると1回追加")
-                    : tr("猫を1匹教える、あと%lld回", model.teachRemaining),
-                accessibilityHint: tr("まだ置いていない猫を1匹、正解のマスに置きます。置いた猫は消せません"),
+                    ? tr("餌をあげる、無料の回数は使い切りました。広告を見ると1回追加")
+                    : tr("餌をあげる、あと%lld回", model.teachRemaining),
+                accessibilityHint: tr("餌で猫を1匹おびき出して、正解のマスに置きます。置いた猫は消せません"),
                 action: onTeach
             )
         let actions = [
@@ -795,12 +813,12 @@ public struct CatPuzzleView: View {
         }
     }
 
-    /// 「猫を教える」の 2 行目（ヒントと同じ作法。ステージだけ）。
+    /// 「餌をあげる」の 2 行目（ヒントと同じ作法。ステージだけ）。
     static func teachBadge(for model: CatPuzzleModel) -> GameActionBadge {
         model.needsAdForTeach ? .ad() : .count(model.teachRemaining)
     }
 
-    /// 「猫を教える」を押したとき。無料の残りがあればそのまま置き、0 なら広告を見たあとに置く（ヒントの `requestHint` と同じ局ガード）。
+    /// 「餌をあげる」を押したとき。無料の残りがあればそのまま置き、0 なら広告を見たあとに置く（ヒントの `requestHint` と同じ局ガード）。
     static func requestTeach(model: CatPuzzleModel, teachRescue: RewardedRescue, services: GameServices) {
         guard !teachRescue.isWatching, model.canTeach else { return }
         guard model.needsAdForTeach else {
@@ -832,16 +850,16 @@ public struct CatPuzzleView: View {
     var clearDetails: [String] {
         var lines = [
             Self.showsClock(model)
-                ? tr("タイム %1$@・ミス %2$lld・ヒント %3$lld回",
-                     RecordFormat.time(model.elapsedSeconds), model.mistakes, model.hintsUsed)
-                : tr("ミス %1$lld・ヒント %2$lld回", model.mistakes, model.hintsUsed),
+                ? tr("タイム %1$@・ライフ %2$lld・ヒント %3$lld回",
+                     RecordFormat.time(model.elapsedSeconds), model.mistakesRemaining, model.hintsUsed)
+                : tr("ライフ %1$lld・ヒント %2$lld回", model.mistakesRemaining, model.hintsUsed),
             tr("%1$@・手数 %2$lld", boardLabel, model.moves),
         ]
         if let stage = model.stage {
             // ステージは盤の名前の行を、次の面の位置（#3240）に替える。手数はミス・ヒントの行へ寄せて 4 行に収める。
             let next = CatPuzzleStage(stage + 1).progress
             lines = [
-                tr("ミス %1$lld・ヒント %2$lld回・手数 %3$lld", model.mistakes, model.hintsUsed, model.moves),
+                tr("ライフ %1$lld・ヒント %2$lld回・手数 %3$lld", model.mistakesRemaining, model.hintsUsed, model.moves),
                 tr("次は %1$@・%2$@", CatPuzzleStageProgressText.position(next), CatPuzzleStageProgressText.key(next)),
             ]
             // ノーミス連続の行（下）が出るときは、次の盤の行を譲って 4 行に収める（開始シートには出る）。
@@ -873,6 +891,14 @@ public struct CatPuzzleView: View {
         let title = model.stage.map { tr("ステージ %lld クリア！", $0) } ?? tr("クリア！")
         return ZStack {
             Color.black.opacity(0.45)
+            if model.stage != nil, !clearFlow.showsModal {
+                // 猫のアニメのあと、ライフ → pt → ランキングの順に見せてからモーダル（#3304）。
+                CatPuzzleClearFlowCard(
+                    step: clearFlow.step, lives: model.mistakesRemaining,
+                    isKey: model.lastEventWasKey, total: model.eventTotal,
+                    loadRank: { await loadTodayRank() }
+                ) { withGameAnimation { clearFlow.advance() } }
+            } else {
             GameClearCard(
                 title: title, details: clearDetails,
                 primaryAction: model.stage.map { stage in
@@ -885,10 +911,23 @@ public struct CatPuzzleView: View {
             ) {
                 clearCardClosed = true
             }
+            }
         }
         .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isModal)
+    }
+
+    /// 今日の順位（Game Center）。読めなければ nil（未サインイン・失敗）。
+    private func loadTodayRank() async -> Int? {
+        // 送った pt が順位に乗ってから読む。友だちの順位は待たず、盤の順位だけを読む。
+        await model.awaitEventSubmission()
+        guard let reporter = services.gameCenter, reporter.isSignedIn else { return nil }
+        guard let board = await reporter.loadWeeklyBoard(
+            gameID: CatPuzzleModel.gameID, leaderboardID: GameCenterLeaderboard.catPuzzleEvent,
+            topCount: CatPuzzleRankingContent.topCount
+        ) else { return nil }
+        return CatPuzzleRankingModel.today(board, now: Date()).myRank
     }
 
     /// 3 回目のミスで出す、ただ 1 枚のダイアログ（他のゲームの負けと同じ `BoardGameResultCard`・#2904）。
@@ -907,7 +946,7 @@ public struct CatPuzzleView: View {
             secondaryAction: offering
                 ? BoardGameResultCard.SecondaryAction(
                     title: tr("広告を見てコンティニュー"),
-                    hint: tr("広告を見ると、ミスが1回ぶん戻ります")
+                    hint: tr("広告を見ると、ライフが1つ戻ります")
                 ) { requestContinue() }
                 : nil,
             closeTitle: offering ? tr("あきらめて正解を見る") : nil,
@@ -1123,7 +1162,7 @@ struct CatPuzzleNewGameSheet: View {
     static func eventSection(total: Int, onOpenRanking: (@MainActor () -> Void)?) -> some View {
         GameSetupSection(tr("今日のランキング")) {
             VStack(alignment: .leading, spacing: 8) {
-                Text(tr("ステージをクリアして今日の pt を貯めよう（毎日 日本時間の 0 時にリセット）。ミス 0 回で 3pt・1 回で 2pt・2 回で 1pt"))
+                Text(tr("ステージをクリアして今日の pt を貯めよう（毎日 日本時間の 0 時にリセット）。残りライフ 3 で 3pt・2 で 2pt・1 で 1pt（鍵の面は 2 倍）"))
                     .themeBody(13).foregroundStyle(Theme.inkSubText)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack {

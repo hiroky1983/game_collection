@@ -34,6 +34,8 @@ struct CatPuzzleBoardCanvas: View {
     var isSolved = false
     /// 負けたあとに見せる、まだ見つけていない猫のマス（薄く・点線の枠つきで、自分で見つけた猫と区別する・#2780）。
     var ghostCats: [Int] = []
+    /// 「餌をあげる」で猫がおびき出されたマス。餌の皿を猫の足元に出している間だけ入る（#3304）。
+    var lureCell: Int? = nil
     /// 部屋の名前の札を描くか（遊び方の小さな 3 コマの図だけ外す。札がマスからはみ出すため）。
     var showsRoomLabels = true
     /// 鍵の面（#3235）で鍵を持った猫がいる部屋。その部屋の札に鍵のアイコンを付ける。鍵の面でなければ nil。
@@ -81,6 +83,16 @@ struct CatPuzzleBoardCanvas: View {
             // 文字は `Canvas` の `resolve(Text)` ではなく overlay の `Text` で置く（#2905 の花札と同じ形・#2945）。
             if showsRoomLabels {
                 roomLabels(rooms: rooms)
+            }
+            // 餌の皿（アイコンは Canvas ではなく overlay の Image で置く）。猫はこの上に出てくる。
+            if let lureCell {
+                let frame = CatPuzzleBoardCanvas.rect(of: lureCell, side: n, cellSide: cellSide)
+                Image(systemName: "fork.knife.circle.fill")
+                    .resizable().scaledToFit()
+                    .foregroundStyle(Theme.coralText)
+                    .frame(width: frame.width * 0.42, height: frame.height * 0.42)
+                    .position(x: frame.midX, y: frame.maxY - frame.height * 0.22)
+                    .transition(CatPuzzleMotion.catTransition(reduceMotion: reduceMotion))
             }
             // 猫（弾む・縮む・跳ねる）。クリアで大きくなった猫は壁に少しかぶる。
             CatPuzzleCatLayer(puzzle: puzzle, marks: marks, isSolved: isSolved, cellSide: cellSide, rooms: rooms)

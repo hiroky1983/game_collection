@@ -184,7 +184,7 @@ struct CatPuzzleStageModeTests {
         solve(model)
         let view = CatPuzzleView(services: services, model: model)
         #expect(!view.clearDetails.contains { $0.contains("タイム") })
-        #expect(view.clearDetails.first?.hasPrefix("ミス 0・ヒント 0回") == true)
+        #expect(view.clearDetails.first?.hasPrefix("ライフ 3・ヒント 0回") == true)
         #expect(model.recordScore.seconds == nil, "記録に秒数を渡さない")
 
         model.newGame(size: .easy)

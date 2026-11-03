@@ -156,7 +156,7 @@ struct CatPuzzleRankingView: View {
                         }
                         .buttonStyle(.bordered).controlSize(.large)
                     }
-                    Text(tr("前日の上位 3 位には、翌日に特典をプレゼント（1 位はヒントと猫を教える、2 位は猫を教える、3 位はヒント）"))
+                    Text(tr("前日の上位 3 位には、翌日に特典をプレゼント（1 位はヒントと「餌をあげる」、2 位は「餌をあげる」、3 位はヒント）"))
                         .themeCaption(12).foregroundStyle(Theme.inkSubText)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)

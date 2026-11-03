@@ -641,7 +641,14 @@ public final class CatPuzzleModel {
         return true
     }
 
-    /// 猫を 1 匹教える（ステージだけ）。無料ぶんを使う。使い切っていたら何もしない（広告の 1 回は `grantAdTeach(forGame:)`）。
+    /// 「餌をあげる」で猫がおびき出されたマス（#3304）。盤がここに餌の皿を一瞬出す。`clearLure()` で消す。
+    public private(set) var lureCell: Int?
+    /// 餌をあげるたびに増える。同じマスに続けてあげても、画面の「消すまでの待ち」を最初から数え直すため。
+    public private(set) var lureToken = 0
+
+    public func clearLure() { lureCell = nil }
+
+    /// 猫を 1 匹教える（ステージだけ。画面の名前は「餌をあげる」）。無料ぶんを使う。使い切っていたら何もしない（広告の 1 回は `grantAdTeach(forGame:)`）。
     public func teachCat() {
         guard canTeach, !needsAdForTeach, let cell = nextUnplacedCat else { return }
         stageTeachLeft -= 1
@@ -663,6 +670,8 @@ public final class CatPuzzleModel {
         crossDrag = nil  // 進行中のスライドは捨てる（盤が変わるため）
         startPlayIfPending()
         let wasLocked = isKeyLocked
+        lureCell = cell
+        lureToken += 1
         marks[cell] = .cat
         hintCells.insert(cell)
         noteKeyOpened(wasLocked: wasLocked)
@@ -853,6 +862,7 @@ public final class CatPuzzleModel {
         // 開始シートで始めた局は `gameDidRestart` だけで数える（遅らせていた開始は捨てる）。
         pendingInitialStart = false
         showsClearCard = false
+        lureCell = nil
         lastEventPoints = nil
         lastEventWasKey = false
         beatNoMissBest = false
@@ -1001,6 +1011,9 @@ public final class CatPuzzleModel {
             if sent || CatPuzzleEvent.day(of: self.eventNow()) != day { self.submitEventTotalIfNeeded() }
         }
     }
+
+    /// 今日の合計の送信（`submitEventTotalIfNeeded`）が終わるまで待つ。クリアの流れが、送った pt を含む順位を読むため（#3304）。
+    public func awaitEventSubmission() async { await eventSubmitTask?.value }
 
     /// 3 回目のミス。広告を見て続けるかを選ばせる。負けはここで付ける（マインスイーパーと同じ）。コンティニューしたら
     /// `continueAfterAd()` が取り消す。付けておかないと、提案を放置して「新規」で捨てた局が負けにならない。計時は止め、提案の最中に離れても同じ提案から

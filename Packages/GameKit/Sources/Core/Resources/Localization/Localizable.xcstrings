@@ -5200,17 +5200,6 @@
         }
       }
     },
-    "× の付け外しはミスになりません。答えでないマスをダブルタップすると、赤い × が付いてミスになります（赤い × は消せません）。ミスが 3 回になると終わりです。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Adding or removing × never counts as a miss. Double-tapping a square that isn't part of the answer puts a red × there and counts as a miss (the red × can't be removed). Three misses end the game."
-          }
-        }
-      }
-    },
     "+%lld点" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5550,6 +5539,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Share today's points"
+          }
+        }
+      }
+    },
+    "× の付け外しでライフは減りません。答えでないマスをダブルタップすると、赤い × が付いてライフが 1 つ減ります（赤い × は消せません）。ライフは 3 つで、0 になると終わりです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adding or removing an × never costs a life. Double-tapping a square with no cat puts a red × there and costs one life (a red × can't be removed). You have 3 lives, and the game ends at 0."
           }
         }
       }
