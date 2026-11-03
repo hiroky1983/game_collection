@@ -303,7 +303,8 @@ struct HubView: View {
                             // 手つかずの中断データを開き直した回の `game_start` を数える（#2161）。
                             services.gameScreenDidAppear(
                                 gameID: gameID,
-                                hasUntouchedSnapshot: module.hasUntouchedSnapshot(in: services.snapshots)
+                                hasUntouchedSnapshot: module.hasUntouchedSnapshot(in: services.snapshots),
+                                playClass: module.untouchedSnapshotPlayClass(in: services.snapshots)
                             )
                         }
                 }

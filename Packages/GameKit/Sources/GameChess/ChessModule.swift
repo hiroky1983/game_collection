@@ -29,6 +29,12 @@ public struct ChessModule: GameModule {
         return snap.phase == .playing && !humanHasMoved(snap)
     }
 
+    /// 復元した盤の区分（#3225）。手つかずの開き直しの `game_start` / `game_end` に載せる。
+    public func untouchedSnapshotPlayClass(in snapshots: SnapshotStore) -> PlayClass {
+        guard let snap = snapshots.load(ChessSnapshot.self, for: id) else { return PlayClass() }
+        return PlayClass(level: CPUStrength.analyticsLevel(forLevel: snap.aiLevel ?? 1))
+    }
+
     private func humanHasMoved(_ snap: ChessSnapshot) -> Bool {
         let blackFirst = CPUOpening.startsWithSecondPlayer(fen: snap.initialFen, secondPlayerToken: "b")
         let cpuFirst = (blackFirst ? snap.black : snap.white) == .ai

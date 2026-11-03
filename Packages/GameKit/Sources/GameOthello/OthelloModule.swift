@@ -25,4 +25,10 @@ public struct OthelloModule: GameModule {
     public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
         snapshots.exists(for: id) && !hasResumableSnapshot(in: snapshots)
     }
+
+    /// 復元した盤の区分（#3225）。手つかずの開き直しの `game_start` / `game_end` に載せる。
+    public func untouchedSnapshotPlayClass(in snapshots: SnapshotStore) -> PlayClass {
+        guard let snap = snapshots.load(OthelloSnapshot.self, for: id) else { return PlayClass() }
+        return PlayClass(level: CPUStrength.analyticsLevel(forLevel: snap.aiLevel))
+    }
 }

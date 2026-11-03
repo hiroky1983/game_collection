@@ -28,6 +28,12 @@ public struct SudokuModule: GameModule {
         return Self.isUntouched(snap)
     }
 
+    /// 復元した盤の区分（#3225）。手つかずの開き直しの `game_start` / `game_end` に載せる。
+    public func untouchedSnapshotPlayClass(in snapshots: SnapshotStore) -> PlayClass {
+        guard let snap = snapshots.load(SudokuSnapshot.self, for: id) else { return PlayClass() }
+        return PlayClass(level: snap.difficulty.analyticsLevel)
+    }
+
     private static func isUntouched(_ snap: SudokuSnapshot) -> Bool {
         let entered = snap.board.indices.contains { index in
             index < snap.given.count && !snap.given[index] && snap.board[index] != 0
