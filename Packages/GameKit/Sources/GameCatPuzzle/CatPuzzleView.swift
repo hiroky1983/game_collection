@@ -112,6 +112,7 @@ public struct CatPuzzleView: View {
                             .task(id: model.gameSerial) {
                                 AccessibilityNotification.Announcement(tr("ボーナスステージ（%@）", size.sizeLabel)).post()
                                 try? await Task.sleep(for: .seconds(1.6))
+                                guard !Task.isCancelled else { return }
                                 withGameAnimation { model.clearBonusIntro() }
                             }
                     }

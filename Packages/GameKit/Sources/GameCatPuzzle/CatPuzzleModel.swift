@@ -756,6 +756,7 @@ public final class CatPuzzleModel {
         cancelStagePreparation()
         let request = stageRequest
         pendingTap = nil
+        bonusIntro = nil
         crossDrag = nil  // 進行中のスライドは捨てる（盤が変わるため）
         stopwatch.stop()
         isPreparingStage = true
