@@ -82,7 +82,7 @@ struct CatPuzzleStageTests {
     func sizeByStage() {
         let boundaries: [(first: Int, last: Int, size: CatPuzzleSize)] = [
             (1, 10, .easy), (11, 25, .normal), (26, 45, .hard), (46, 70, .expert),
-            (71, 100, .size10), (101, 140, .size11), (141, 500, .size12),
+            (71, 100, .size10), (101, 140, .size11), (141, 1000, .size12),
         ]
         for boundary in boundaries {
             #expect(CatPuzzleStage(boundary.first).size == boundary.size, "\(boundary.first) 面目")
