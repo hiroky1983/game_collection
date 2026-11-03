@@ -9,6 +9,8 @@ extension CatPuzzleModel {
     /// - `hint-used-up`: ヒントを上限まで使い切った盤。
     /// - `stage` / `stage:N`: 次に遊ぶ面（N を渡すとその面）を始める。
     /// - `stage-solved` / `stage-solved:N`: 面を始めてすぐクリアにする（「ステージ n クリア！」のカード）。
+    /// - `stage-solved-miss` / `stage-solved-miss:N`: ミス 1 回（ライフ 2）でクリアにする。
+    /// - `stage-teach` / `stage-teach:N`: 面を始めて「餌をあげる」を 1 回使う。
     /// - `stage-next` / `stage-next:N`: 面をクリアし、2 秒後に「次のステージへ」を押したのと同じ操作をする。
     /// - `stage-key-open` / `stage-key-open:N`: 面（既定は 10 面目）を始めて鍵の猫を見つけ、鍵が開いた直後の盤にする（#3235）。
     /// それ以外（`play` など）は何もしない（開始シートを閉じて遊んでいる盤のまま）。
@@ -45,6 +47,17 @@ extension CatPuzzleModel {
             startStage(number)
             await stagePreparation?.value
             solveForDebug()
+        case "stage-solved-miss":
+            // ミスを 1 つ（ライフ 2）してからクリアにする（クリアの流れの撮影・#3304）。
+            startStage(number)
+            await stagePreparation?.value
+            if let wrong = (0..<puzzle.cellCount).first(where: { !puzzle.solutionCells.contains($0) }) { findCat(cell: wrong) }
+            solveForDebug()
+        case "stage-teach":
+            // 餌をあげた直後の盤（餌の皿が出ている間・#3304）。
+            startStage(number)
+            await stagePreparation?.value
+            teachCat()
         case "stage-next":
             startStage(number)
             await stagePreparation?.value

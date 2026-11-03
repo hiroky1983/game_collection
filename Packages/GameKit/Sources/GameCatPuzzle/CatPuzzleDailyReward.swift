@@ -4,7 +4,7 @@ import CoreEngine
 
 /// デイリーランキング（#3204・#3221）の前日の 1〜3 位に渡す特典（#3256・会長決裁 2026-11-03）。
 ///
-/// - 1 位 = ヒント 1 回 ＋ 猫を教える 1 回 / 2 位 = 猫を教える 1 回 / 3 位 = ヒント 1 回。
+/// - 1 位 = ヒント 1 回 ＋ 餌をあげる 1 回 / 2 位 = 餌をあげる 1 回 / 3 位 = ヒント 1 回。
 ///   ステージ共通の残り（#3203）に足す（`CatPuzzleModel.stageSupplyCount` の 5 を超えてよい）。
 /// - お金に換えられるもの・現実の景品は渡さない（App Store の懸賞の決まり）。
 /// - 見るのは Game Center の**前回の回**の自分の順位だけ。同じ日（JST）の特典は 1 回だけで、受け取った日付を端末に保存する。
@@ -26,9 +26,9 @@ enum CatPuzzleDailyReward {
             }
         }
 
-        /// カードに出す「猫を教える ＋1」などの 1 行。
+        /// カードに出す「餌をあげる ＋1」などの 1 行。
         var itemsText: String {
-            [hints > 0 ? tr("ヒント ＋%lld", hints) : nil, teaches > 0 ? tr("猫を教える ＋%lld", teaches) : nil]
+            [hints > 0 ? tr("ヒント ＋%lld", hints) : nil, teaches > 0 ? tr("餌をあげる ＋%lld", teaches) : nil]
                 .compactMap { $0 }.joined(separator: " ")
         }
     }
