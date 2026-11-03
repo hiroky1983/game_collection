@@ -14,7 +14,7 @@ enum CatPuzzleShare {
     /// 共有の中身。期間外・自由に遊ぶ（ステージでない）・クリアしていないときは nil（共有ボタンを出さない）。
     @MainActor
     static func content(for model: CatPuzzleModel) -> ClearShare? {
-        guard model.stage != nil, model.isEventActive, model.lastEventPoints != nil else { return nil }
+        guard model.stage != nil, model.lastEventPoints != nil else { return nil }
         let points = model.eventTotal
         let clears = model.todayEventClears
         let puzzle = model.puzzle

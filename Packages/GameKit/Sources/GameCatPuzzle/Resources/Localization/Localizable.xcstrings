@@ -1532,17 +1532,6 @@
         }
       }
     },
-    "イベント開催中" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Event"
-          }
-        }
-      }
-    },
     "ステージをクリアして今日の pt を貯めよう（毎日 日本時間の 0 時にリセット）。ミス 0 回で 3pt・1 回で 2pt・2 回で 1pt" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2023,17 +2012,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Loading the ranking…"
-          }
-        }
-      }
-    },
-    "ランキングイベントの期間外です" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The ranking event is not running right now."
           }
         }
       }

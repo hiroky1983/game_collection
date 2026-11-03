@@ -40,8 +40,6 @@ struct CatPuzzleRankingContent: Equatable {
 enum CatPuzzleRankingState: Equatable {
     /// 読んでいる最中。
     case loading
-    /// イベントの期間外（開始前・終了後）。画面には順位を出さない。
-    case outOfPeriod
     /// Game Center にサインインしていない。
     case signedOut
     /// 読めなかった（オフライン・Game Center の不調・リーダーボードが未登録）。
@@ -88,9 +86,8 @@ final class CatPuzzleRankingModel {
         )
     }
 
-    /// 順位を読み直す。期間外・未サインインのときは問い合わせない。
+    /// 順位を読み直す。未サインインのときは問い合わせない。
     func load() async {
-        guard CatPuzzleEvent.isActive(now: now()) else { state = .outOfPeriod; return }
         guard isSignedIn() else { state = .signedOut; return }
         state = .loading
         async let board = loadBoard()
@@ -139,8 +136,6 @@ struct CatPuzzleRankingView: View {
                     switch model.state {
                     case .loading:
                         statusCard(icon: nil, text: tr("順位を読み込んでいます"))
-                    case .outOfPeriod:
-                        statusCard(icon: "calendar", text: tr("ランキングイベントの期間外です"))
                     case .signedOut:
                         statusCard(icon: "person.crop.circle.badge.exclamationmark",
                                    text: tr("Game Center にサインインすると、今日のランキングを見られます。サインインしなくても、あそびはすべてそのまま遊べます。"),

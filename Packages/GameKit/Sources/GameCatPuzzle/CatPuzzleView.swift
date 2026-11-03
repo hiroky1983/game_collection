@@ -151,7 +151,7 @@ public struct CatPuzzleView: View {
             CatPuzzleNewGameSheet(initialMode: CatPuzzlePlayMode(rawValue: preferredMode) ?? .stage,
                                   initial: model.size, nextStage: model.savedStage,
                                   noMissBest: model.noMissBest,
-                                  eventTotal: model.isEventActive ? model.todayEventTotal : nil,
+                                  eventTotal: model.todayEventTotal,
                                   onOpenRanking: services.openGameCenter,
                                   makeRanking: { CatPuzzleRankingModel(reporter: services.gameCenter) }) { mode, size in
                 showNewGame = false
@@ -1045,8 +1045,8 @@ struct CatPuzzleNewGameSheet: View {
     let nextStage: Int
     /// ノーミス連続の最高（#3244）。0 なら出さない。
     let noMissBest: Int
-    /// イベント開催中なら今日貯めた合計 pt（期間外は nil で、イベントの欄を出さない・#3204）。
-    let eventTotal: Int?
+    /// 今日貯めた合計 pt（今日のランキングの欄に出す。常設・#3298）。
+    let eventTotal: Int
     /// Game Center 本体の画面を開く入口。アプリ内のランキング画面（`makeRanking`）の中のボタンから使う（無ければボタンを出さない）。
     let onOpenRanking: (@MainActor () -> Void)?
     /// アプリ内のランキング画面（#3236）のモデルを作る。無ければ「ランキングを見る」ボタンを出さない。
@@ -1058,7 +1058,7 @@ struct CatPuzzleNewGameSheet: View {
     @State private var showRanking = false
 
     init(initialMode: CatPuzzlePlayMode, initial: CatPuzzleSize, nextStage: Int, noMissBest: Int = 0,
-         eventTotal: Int? = nil, onOpenRanking: (@MainActor () -> Void)? = nil,
+         eventTotal: Int = 0, onOpenRanking: (@MainActor () -> Void)? = nil,
          makeRanking: (@MainActor () -> CatPuzzleRankingModel)? = nil,
          onStart: @escaping (CatPuzzlePlayMode, CatPuzzleSize) -> Void,
          onCancel: @escaping () -> Void) {
@@ -1087,7 +1087,7 @@ struct CatPuzzleNewGameSheet: View {
                 Text(tr("ノーミス連続の最高 %lld 面", noMissBest))
                     .themeCaption(12).foregroundStyle(Theme.inkSubText)
             }
-            if let eventTotal, mode == .stage {
+            if mode == .stage {
                 Self.eventSection(total: eventTotal, onOpenRanking: makeRanking == nil ? nil : { showRanking = true })
             }
             if mode == .free {
@@ -1119,9 +1119,9 @@ struct CatPuzzleNewGameSheet: View {
         }
     }
 
-    /// ランキングイベントの節（開催中のステージだけ・#3204）。ポイントのつき方、貯めた合計、アプリ内のランキング画面を開く導線（#3236）。
+    /// 今日のランキングの節（ステージだけ・常設・#3204・#3298）。ポイントのつき方、貯めた合計、アプリ内のランキング画面を開く導線（#3236）。
     static func eventSection(total: Int, onOpenRanking: (@MainActor () -> Void)?) -> some View {
-        GameSetupSection(tr("イベント開催中")) {
+        GameSetupSection(tr("今日のランキング")) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(tr("ステージをクリアして今日の pt を貯めよう（毎日 日本時間の 0 時にリセット）。ミス 0 回で 3pt・1 回で 2pt・2 回で 1pt"))
                     .themeBody(13).foregroundStyle(Theme.inkSubText)

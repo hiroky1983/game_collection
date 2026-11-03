@@ -158,9 +158,7 @@ public final class CatPuzzleModel {
     public var todayEventClears: Int { CatPuzzleEvent.clears(stageDefaults, now: eventNow()) }
     /// 保存済みの合計から今日の合計を読み直す（日付が変わっていれば 0）。
     public func refreshEventTotal() { eventTotal = CatPuzzleEvent.total(stageDefaults, now: eventNow()) }
-    /// イベント開催中か（期間は `CatPuzzleEvent` の 1 か所）。
-    public var isEventActive: Bool { CatPuzzleEvent.isActive(now: eventNow()) }
-    /// ランキングイベントの開催中か（ハブのタイルの「イベント開催中」の印が使う・#3204）。期間は `CatPuzzleEvent` の 1 か所。
+    /// アプリ内イベントの告知期間か（ハブのタイルの「イベント開催中」の印が使う・#3204）。期間は `CatPuzzleEvent` の 1 か所。
     nonisolated public static func isEventPeriod(now: Date = Date()) -> Bool { CatPuzzleEvent.isActive(now: now) }
     /// ステージの問題の作成を頼んだ回数。作っている間に別の局へ切り替わったら、出来上がった問題は捨てる。
     @ObservationIgnored private var stageRequest = 0
@@ -971,10 +969,10 @@ public final class CatPuzzleModel {
         noMissStreak = 0
     }
 
-    /// ステージのクリアで、開催中ならイベントの pt を貯めて Game Center へ送る（#3204）。`gameDidFinish` より前に呼び、
+    /// ステージのクリアで、期間に関係なく（常設・#3298）デイリーの pt を貯めて Game Center へ送る（#3204）。`gameDidFinish` より前に呼び、
     /// `game_end` に `event_points` を載せる。ミスは画面に出ている数（コンティニューで戻したぶんは含まない）。ヒント・猫を教えるは見ない。
     private func awardEventPoints() {
-        guard stage != nil, isEventActive else { return }
+        guard stage != nil else { return }
         let earnedOnKey = stage.map { CatPuzzleStage($0).isKey } ?? false
         let earned = CatPuzzleEvent.points(mistakes: mistakes, isKey: earnedOnKey)
         lastEventPoints = earned
