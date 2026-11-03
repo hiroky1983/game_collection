@@ -103,7 +103,7 @@ jobs:
           if [ -n "$NUMBERS" ]; then
             # 面番号の指定: 1 面ずつ n 本まで並べて走らせる。
             expected=$(wc -w <<< "$NUMBERS" | tr -d ' ')
-            printf '%s\n' $NUMBERS | xargs -P "$n" -I{} bash -c '"$1" {} {} > "$2/one-{}.tsv"' _ "$RUNNER_TEMP/gen" "$RUNNER_TEMP"
+            tr -s ' ' '\n' <<< "$NUMBERS" | xargs -P "$n" -I{} bash -c '"$1" {} {} > "$2/one-{}.tsv"' _ "$RUNNER_TEMP/gen" "$RUNNER_TEMP"
             cat "$RUNNER_TEMP"/one-*.tsv | sort -n > "$RUNNER_TEMP/bank-$FIRST-$LAST.tsv"
           else
             expected=$((LAST - FIRST + 1))
