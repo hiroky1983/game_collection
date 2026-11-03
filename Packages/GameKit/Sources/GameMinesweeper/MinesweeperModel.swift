@@ -276,6 +276,8 @@ public final class MinesweeperModel {
     public func newGame(rows: Int, cols: Int, mines: Int) {
         gameSerial += 1
         stopwatch.stop()
+        // 次の `gameDidRestart` は最初のタップまで来ない。旧プレイの `quit` を放置時間込みにしない（#3226）。
+        services?.gameDidAbandon(gameID: gameID)
         self.rows       = rows
         self.cols       = cols
         self.totalMines = mines

@@ -682,6 +682,20 @@ public final class GameAnalytics {
         beginPlay(gameID: gameID, level: level, mode: mode, credit: credit)
     }
 
+    /// 「新しいゲーム」で盤を手つかずの状態へ戻し、次のプレイの開始を最初の操作まで遅らせるゲームが、
+    /// 戻した**その場で**呼ぶ（#3226）。進行中のプレイを `restartPlay` と同じ判定で閉じる
+    /// （1手でも指していれば `game_end`（`quit`）、指していなければ何も送らない）。
+    ///
+    /// 呼ばないと `quit` が次の最初の操作まで遅れ、新しい盤を放置した時間が旧プレイの `duration_sec` に混ざる。
+    /// 閉じたあとはプレイの記録が無い状態になるので、戻した盤のままハブへ戻っても `game_end` は二重に出ない。
+    /// 決着済み（`.finished`）や進行中でないプレイには触らない。
+    public func abandonPlay(gameID: String) {
+        guard allowedGameIDs.contains(gameID), case .inFlight = plays[gameID] else { return }
+        endPlayAsQuitIfProgressed(gameID: gameID)
+        plays[gameID] = nil
+        clearClock(gameID: gameID)
+    }
+
     /// そのプレイで1手指した（盤面が動いた）ときに呼ぶ。**冪等**で、何度呼んでも状態は変わらない。
     ///
     /// この値だけが「捨てたら離脱として数える盤面か」を決める。呼ばないゲームでは
