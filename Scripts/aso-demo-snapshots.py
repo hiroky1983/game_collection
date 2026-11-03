@@ -856,6 +856,128 @@ def snapshot_blocks():
     }
 
 
+def _catpuzzle_solutions(n, rooms, limit=2):
+    """各行・各列・各部屋に 1 匹・縦横ななめに隣り合わない置き方（行ごとの列。limit 個で打ち切り）。"""
+    found = []
+
+    def place(row, prev_col, cols, used_rooms):
+        if len(found) >= limit:
+            return
+        if row == n:
+            found.append(list(cols))
+            return
+        for col in range(n):
+            room = rooms[row * n + col]
+            if col in cols or room in used_rooms:
+                continue
+            if prev_col is not None and abs(col - prev_col) <= 1:
+                continue
+            place(row + 1, col, cols + [col], used_rooms | {room})
+
+    place(0, None, [], frozenset())
+    return found
+
+
+def _catpuzzle_connected(n, cells):
+    cells = set(cells)
+    if not cells:
+        return False
+    stack, seen = [next(iter(cells))], set()
+    while stack:
+        cell = stack.pop()
+        if cell in seen:
+            continue
+        seen.add(cell)
+        r, c = divmod(cell, n)
+        for nr, nc in ((r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1)):
+            if 0 <= nr < n and 0 <= nc < n and nr * n + nc in cells:
+                stack.append(nr * n + nc)
+    return seen == cells
+
+
+def snapshot_catpuzzle():
+    """おじさんちのねこさがし: ステージ 33 面目（8×8）を半分ほど解いた盤（v1.1.15 の入稿 #9）。
+
+    CatPuzzleSnapshot の形。問題は種から作り直さず中身をそのまま持つ設計なので、ここで
+    「答えの猫が各行・各列・各部屋に 1 匹・隣り合わない」「部屋は上下左右につながった
+    1 かたまり」「答えが 1 通り」を満たす 8×8 を作って渡す（CatPuzzleSnapshot.isResumable /
+    CatPuzzleLogic.isWellFormed を外すと中断データが捨てられ、開始シートが出る）。
+    `stage` は 8×8 の面（26〜45 面目）で、鍵の面（30・40）以外にする（鍵の説明シートが出るため）。
+    印は 0 空・1 ×・2 猫。猫 4 匹を見つけ、その行・列・隣に × を付けた途中の局面にする。
+    """
+    n = 8
+    rng = random.Random(20261104)
+    while True:
+        cols = rng.sample(range(n), n)
+        if any(abs(cols[r] - cols[r - 1]) <= 1 for r in range(1, n)):
+            continue
+        # 答えの猫のマスを種に、部屋を上下左右へランダムに広げる（どの部屋もつながった 1 かたまりになる）
+        rooms = [-1] * (n * n)
+        frontier = []
+        for row in range(n):
+            cell = row * n + cols[row]
+            rooms[cell] = row
+            frontier.append(cell)
+        while -1 in rooms:
+            cell = rng.choice(frontier)
+            r, c = divmod(cell, n)
+            empty = [nr * n + nc for nr, nc in ((r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1))
+                     if 0 <= nr < n and 0 <= nc < n and rooms[nr * n + nc] == -1]
+            if not empty:
+                frontier.remove(cell)
+                continue
+            nxt = rng.choice(empty)
+            rooms[nxt] = rooms[cell]
+            frontier.append(nxt)
+        if min(rooms.count(k) for k in range(n)) < 4:
+            continue
+        # 答えが 2 通り以上なら、別解の猫のマスを隣の部屋へ付け替えて別解を潰す（部屋のつながりは保つ）。
+        solution_cells = {row * n + cols[row] for row in range(n)}
+        for _ in range(400):
+            others = [s for s in _catpuzzle_solutions(n, rooms) if s != cols]
+            if not others:
+                break
+            alt = [row * n + col for row, col in enumerate(others[0]) if row * n + col not in solution_cells]
+            rng.shuffle(alt)
+            for cell in alt:
+                r, c = divmod(cell, n)
+                targets = {rooms[nr * n + nc] for nr, nc in ((r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1))
+                           if 0 <= nr < n and 0 <= nc < n} - {rooms[cell]}
+                rest = [i for i in range(n * n) if rooms[i] == rooms[cell] and i != cell]
+                if targets and len(rest) >= 3 and _catpuzzle_connected(n, rest):
+                    rooms[cell] = rng.choice(sorted(targets))
+                    break
+        if len(_catpuzzle_solutions(n, rooms)) == 1:
+            break
+
+    solution_cells = [row * n + cols[row] for row in range(n)]
+    marks = [0] * (n * n)
+    found = [solution_cells[i] for i in (1, 3, 4, 6)]
+    for cell in found:
+        marks[cell] = 2
+    # 見つけた猫の行・列・隣に × を付ける（遊ぶ人が実際に付ける印）。全部ではなく 7 割ほど。
+    for cat in found:
+        r, c = divmod(cat, n)
+        for cell in range(n * n):
+            cr, cc = divmod(cell, n)
+            near = cr == r or cc == c or (abs(cr - r) <= 1 and abs(cc - c) <= 1)
+            if near and marks[cell] == 0 and cell not in solution_cells and rng.random() < 0.7:
+                marks[cell] = 1
+    return {
+        "size": "hard",
+        "puzzle": {"side": n, "rooms": rooms, "solution": cols},
+        "marks": marks,
+        "elapsedSeconds": 142,
+        "mistakes": 0,
+        "hintsUsed": 0,
+        "hintCells": [],
+        "hintCrosses": [],
+        "wrongCrosses": [],
+        "continueUsed": False,
+        "stage": 33,
+    }
+
+
 SNAPSHOTS = {
     "2048": snapshot_2048,
     "shogi": snapshot_shogi,
@@ -875,6 +997,8 @@ SNAPSHOTS = {
     "chess": snapshot_chess,
     "solitaire": snapshot_solitaire,
     "blocks": snapshot_blocks,
+    # v1.1.15 の入稿 #9（ステージモードの途中の盤）。
+    "catpuzzle": snapshot_catpuzzle,
 }
 
 
