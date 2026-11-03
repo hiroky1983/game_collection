@@ -2554,6 +2554,50 @@
           }
         }
       }
+    },
+    "ボーナスステージ（%@）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bonus stage (%@)"
+          }
+        }
+      }
+    },
+    "ボーナスステージ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bonus stage"
+          }
+        }
+      }
+    },
+    "次はボーナスステージ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bonus stage next"
+          }
+        }
+      }
+    },
+    "次のボーナスまであと %lld 面" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld more stages until the bonus stage"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

@@ -4,8 +4,8 @@ import Foundation
 ///
 /// 9×9 は 1 問作るのに Mac で最大 5 秒、10×10 以上は数十秒〜数分（iPhone SE では数倍）かかるので、46 面目から 1,000 面目までは
 /// `CatPuzzleStage.generatePuzzle` が作る問題をそのまま写して持つ（実行時は読むだけで 0 秒）。
-/// 46〜70 面が 9×9・71〜100 面が 10×10・101〜140 面が 11×11・141 面目からが 12×12。
-/// 1,001 面目からは同梱の 12×12（141〜1,000 面）を面番号の順に繰り返す（`sourceNumber(for:)`・#3258。その場の生成はしない）。
+/// 46〜70 面が 9×9・71〜100 面が 10×10・101〜140 面が 11×11・141 面目からは 10 面 1 周り（12×12・11×11・ボーナスの 6×6 / 7×7・#3260）。
+/// 1,001 面目からは同梱の 141〜1,000 面を面番号の順に繰り返す（`sourceNumber(for:)`・#3258。その場の生成はしない）。
 /// 8×8 以下（45 面目まで）は速いので従来どおりその場で作る。生成の手順や段の範囲（`CatPuzzleStage.tiers`）、
 /// 盤ごとの面数（`CatPuzzleStage.boards`）を変えたら作り直す:
 /// `bash Scripts/catpuzzle-stage-bank/build.sh <バイナリ>` で最適化ビルドの生成器を作り、`<バイナリ> 46 1000 3 0`（3 個おきの 0 番目）の
@@ -979,27 +979,17 @@ enum CatPuzzleStageBank {
     /// 同梱の最後の面の番号。これより先の面は、12×12 の同梱を順に繰り返す（`sourceNumber(for:)`）。
     static var lastStage: Int { firstStage + entries.count - 1 }
 
-    /// 12×12 の最初の面の番号（繰り返しの元になる範囲の頭）。
-    private static let firstLargeStage = 141
+    /// 繰り返しの元になる範囲の頭（141 面目。ここからは 10 面 1 周りで盤を回す・#3260）。
+    private static let firstLargeStage = CatPuzzleStage.tableStages + 1
 
-    /// 繰り返しの元になる 12×12 の面。鍵の面（`CatPuzzleStage.isKey`）とそれ以外に分けて持つ（鍵の面は鍵の面同士で繰り返す）。
-    private static let repeatSources: (keys: [Int], plain: [Int]) = {
-        let stages = Array(firstLargeStage...max(firstLargeStage, firstStage + entries.count - 1))
-        return (stages.filter { $0 % CatPuzzleStage.keyPeriod == 0 }, stages.filter { $0 % CatPuzzleStage.keyPeriod != 0 })
-    }()
-
-    /// 面番号から、その面が写す同梱の面の番号。範囲の中ならそのまま、最後の面より先は 12×12 の同梱を面番号の順に繰り返す
-    /// （1,001 面目は 141 面目・1,002 面目は 142 面目…。鍵の面は 150・160…面目の順）。面番号だけで決まるので誰でも同じ問題になる。
+    /// 面番号から、その面が写す同梱の面の番号。範囲の中ならそのまま、最後の面より先は 141 面目からの同梱を面番号の順に繰り返す
+    /// （1,001 面目は 141 面目・1,002 面目は 142 面目…）。繰り返しの長さ（860 面）は盤の回し（10 面）と鍵の面（20 面）の周期の倍数なので、
+    /// 写し先の盤の大きさ（12×12・11×11・ボーナスの 6×6 / 7×7）と鍵の面かどうかは元の面と必ず同じになる。面番号だけで決まるので誰でも同じ問題になる。
     static func sourceNumber(for number: Int) -> Int {
         let last = lastStage
         guard number > last else { return number }
-        let keyPeriod = CatPuzzleStage.keyPeriod
-        let keysBefore = number / keyPeriod - last / keyPeriod
-        if number % keyPeriod == 0 {
-            return repeatSources.keys[(keysBefore - 1) % repeatSources.keys.count]
-        }
-        let plainBefore = (number - last) - keysBefore
-        return repeatSources.plain[(plainBefore - 1) % repeatSources.plain.count]
+        let span = last - firstLargeStage + 1
+        return firstLargeStage + (number - firstLargeStage) % span
     }
 
     static func puzzle(for number: Int) -> CatPuzzle? {

@@ -104,6 +104,18 @@ public struct CatPuzzleView: View {
                             }
                     }
                 }
+                // ボーナスステージ（141 面目以降の 1 の位が 5）は始まったときに色を替えて 1 回出す。
+                .overlay {
+                    if let size = model.bonusIntro {
+                        CatPuzzleBoardAdvanceBanner(bonusSize: size)
+                            .transition(reduceMotion ? .identity : .scale.combined(with: .opacity))
+                            .task(id: model.gameSerial) {
+                                AccessibilityNotification.Announcement(tr("ボーナスステージ（%@）", size.sizeLabel)).post()
+                                try? await Task.sleep(for: .seconds(1.6))
+                                withGameAnimation { model.clearBonusIntro() }
+                            }
+                    }
+                }
                 .rewardOffer(continueRescue, for: .continue, isPresented: model.isOfferingContinue,
                              services: services, gameID: CatPuzzleModel.gameID)
                 // 広告のロード〜視聴中は盤に触れない（ナンプレと同じ。視聴後のヒントは盤の今の形から読み直す）。
@@ -833,7 +845,7 @@ public struct CatPuzzleView: View {
             ]
             // ノーミス連続の行（下）が出るときは、次の盤の行を譲って 4 行に収める（開始シートには出る）。
             let showsStreak = model.noMissStreak >= CatPuzzleNoMiss.showsFrom
-            if !showsStreak, let board = CatPuzzleStageProgressText.nextBoard(next) { lines.append(board) }
+            if !showsStreak, let board = CatPuzzleStageProgressText.nextBoard(next) ?? CatPuzzleStageProgressText.bonus(next) { lines.append(board) }
         }
         if let earned = model.lastEventPoints {
             // イベント開催中のステージ。SE で行が増えすぎないよう、パーフェクトの行は +3pt に譲る（#3204）。
