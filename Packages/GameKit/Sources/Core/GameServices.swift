@@ -162,6 +162,13 @@ public struct GameServices {
         reminders?.gameDidBeginPlay(gameID: gameID)
     }
 
+    /// 「新しいゲーム」で盤を手つかずに戻し、次の `gameDidRestart` を最初の操作まで遅らせる Model が、
+    /// 戻した時点で呼ぶ（#3226）。進行中のプレイがあればその場で閉じる（指していれば `game_end`（`quit`））。
+    @MainActor
+    public func gameDidAbandon(gameID: String) {
+        analytics?.abandonPlay(gameID: gameID)
+    }
+
     /// そのプレイで**1手指した**（盤面が動いた）ときに各 Model から呼ぶ（#500）。冪等。
     ///
     /// この1点だけが「捨てたら途中離脱として数える盤面か」を決める。配っただけ・開いただけの

@@ -783,6 +783,8 @@ public final class BlackjackModel {
         dealerTask = nil
         isRevealingNatural = false
         recordResult = nil
+        // 次の `gameDidRestart` は 1 回目を配るまで来ない。旧プレイの `quit` を放置時間込みにしない（#3226）。
+        services?.gameDidAbandon(gameID: gameID)
         matchSerial += 1
         format = .tenRounds  // 配る前の帯に前の形（単発戦）を残さない（次の形は `deal(format:)` が決める）
         completedRounds = 0
