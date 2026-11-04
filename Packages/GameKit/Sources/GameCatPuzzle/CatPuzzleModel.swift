@@ -57,62 +57,62 @@ public final class CatPuzzleModel {
         case cat = 2
     }
 
-    public private(set) var size: CatPuzzleSize
-    public private(set) var puzzle: CatPuzzle
-    public private(set) var marks: [Mark]
+    public internal(set) var size: CatPuzzleSize
+    public internal(set) var puzzle: CatPuzzle
+    public internal(set) var marks: [Mark]
     /// 答えでないマスに猫を置こうとした回数。
-    public private(set) var mistakes = 0
+    public internal(set) var mistakes = 0
     /// 答えでないマスに猫を置こうとして付いた、固定の赤い ×（タップ・戻す・やり直しで消えない。中断データに保存）。
-    public private(set) var wrongCrosses: Set<Int> = []
+    public internal(set) var wrongCrosses: Set<Int> = []
     /// 直近に赤い × が付いたマス（揺れ・赤の点滅の演出用）。次の操作で消える。保存しない。
-    public private(set) var lastWrongCell: Int?
+    public internal(set) var lastWrongCell: Int?
     /// この局のヒントの回数（無料 `freeHints` 回 + 広告で最大 `adHints` 回）。勘定は Core の `BoardHintBudget`。
-    public private(set) var hints = BoardHintBudget(freeLimit: CatPuzzleModel.freeHints, adLimit: CatPuzzleModel.adHints)
+    public internal(set) var hints = BoardHintBudget(freeLimit: CatPuzzleModel.freeHints, adLimit: CatPuzzleModel.adHints)
     /// この局で使ったヒントの回数（無料・広告の合計。中断データに保存する）。ステージでは「猫を教える」も数える。
     public var hintsUsed: Int { stage == nil ? hints.used : stageAssistsUsed }
     /// ステージのこの局で使ったヒント・「猫を教える」の合計（`hintsUsed` の元）。
-    private var stageAssistsUsed = 0
+    var stageAssistsUsed = 0
     /// ステージ共通のヒントの残り（無料ぶん）。0 のとき次の 1 回に広告が要る。
-    public private(set) var stageHintsLeft = CatPuzzleModel.stageSupplyCount
+    public internal(set) var stageHintsLeft = CatPuzzleModel.stageSupplyCount
     /// ステージ共通の「猫を 1 匹教える」の残り（無料ぶん）。
-    public private(set) var stageTeachLeft = CatPuzzleModel.stageSupplyCount
+    public internal(set) var stageTeachLeft = CatPuzzleModel.stageSupplyCount
     /// 局の通し番号。広告を出す前に控え、視聴中に新しい局へ入れ替わっていたら報酬を乗せない（#815）。
-    public private(set) var gameSerial = 0
+    public internal(set) var gameSerial = 0
     /// ヒントで置いた猫のマス（印付き・タップでも「戻す」「やり直し」でも消えない。会長の決まり 2026-10-21）。
-    public private(set) var hintCells: Set<Int> = []
+    public internal(set) var hintCells: Set<Int> = []
     /// ヒントで置いた × のマス（印付き・猫と同じく消えない。推理の 1 歩で確定した「いない」マス）。
-    public private(set) var hintCrosses: Set<Int> = []
+    public internal(set) var hintCrosses: Set<Int> = []
     /// 直近のヒントの中身（盤の下の理由の文と、光らせる行・列・部屋、置いた・× にしたマスの枠に使う）。次の操作で消える。保存しない。
-    public private(set) var lastHint: CatPuzzleHint?
+    public internal(set) var lastHint: CatPuzzleHint?
     /// 最初の 1 手からの経過秒。開いて眺めているだけの時間は数えない。
-    public private(set) var elapsedSeconds = 0
-    public private(set) var isSolved = false
+    public internal(set) var elapsedSeconds = 0
+    public internal(set) var isSolved = false
     /// ミスが `maxMistakes` 回になって終局した（負け）。
-    public private(set) var isFailed = false
+    public internal(set) var isFailed = false
     /// 3 回目のミスの直後で、広告を見て続けるかを選ばせている間。計時は止まり、盤は操作できない。
     /// 断る（`declineContinue`）か広告を見る（`continueAfterAd`）まで終局にしない。
-    public private(set) var isOfferingContinue = false
+    public internal(set) var isOfferingContinue = false
     /// この局でコンティニューを使った。使ったら 2 回目の提案はせず、次の 3 回目のミスでそのまま負け。
-    public private(set) var continueUsed = false
+    public internal(set) var continueUsed = false
     /// クリアのダイアログを出すか。最後の猫を置いてから `clearCardDelay` おいて真になる（`revealClearCardIfDue`）。
-    public private(set) var showsClearCard = false
+    public internal(set) var showsClearCard = false
     /// 盤が切り替わる面に進んだ直後だけ、新しい盤の大きさが入る（「8×8 に進んだ！」の演出用・#3240）。
     /// 前の面をクリアして「次のステージへ」で入ったときだけで、開始シートや再開では立てない。`clearBoardAdvance` で下ろす。
-    public private(set) var boardAdvance: CatPuzzleSize?
+    public internal(set) var boardAdvance: CatPuzzleSize?
     /// ボーナスステージを始めた直後だけ、その盤の大きさが入る（盤の上の「ボーナスステージ」表示用・#3260）。
     /// `startStage` で始めたときは前の面のクリア後でも開始シートからでも立てる。`clearBonusIntro` で下ろす。
-    public private(set) var bonusIntro: CatPuzzleSize?
+    public internal(set) var bonusIntro: CatPuzzleSize?
     /// クリアした時刻（ダイアログまでの間を測る）。
-    private var solvedAt: ContinuousClock.Instant?
+    var solvedAt: ContinuousClock.Instant?
     /// 直近の決着で確定した自己ベスト。クリアのカードに 1 行出す。
-    public private(set) var recordResult: RecordResult?
+    public internal(set) var recordResult: RecordResult?
     /// タップした回数（手数）。
-    public private(set) var moves = 0
+    public internal(set) var moves = 0
     /// ステージモードの面の番号（#3048）。自由に遊ぶ盤なら nil。
-    public private(set) var stage: Int?
+    public internal(set) var stage: Int?
     /// 鍵の面（#3235）の「鍵の猫」のマス。鍵の面でない・鍵の猫が決まらない問題（鍵が実装される前の中断データ）は nil で、
     /// その局は鍵の制限なしで遊ぶ。問題から決まるので保存しない（印は保存してあり、鍵が開いたかはそこから読む）。
-    public private(set) var keyCat: Int?
+    public internal(set) var keyCat: Int?
     /// 鍵の部屋の番号。
     public var keyRoom: Int? { keyCat.flatMap { puzzle.rooms.indices.contains($0) ? puzzle.rooms[$0] : nil } }
     /// 鍵が閉じているか（鍵の猫をまだ見つけていない）。閉じている間、鍵の部屋の外には × も猫も置けない。
@@ -129,17 +129,17 @@ public final class CatPuzzleModel {
     /// 特典の順位を読んでいる最中（二重に読まない）。
     @ObservationIgnored var isClaimingDailyReward = false
     /// ステージの問題を裏で作っている間（`startStage`）。盤は操作できず、計時もしない。
-    public private(set) var isPreparingStage = false
+    public internal(set) var isPreparingStage = false
     /// ステージの進み具合（次に遊ぶ面の番号）の保存先。テストは専用の `UserDefaults` を渡す。
     @ObservationIgnored let stageDefaults: UserDefaults
     /// 1 か月のランキングイベント（#3204）の現在時刻の取り出し口（テストが期間内外を作るために差し替える）。
     @ObservationIgnored var eventNow: () -> Date = { Date() }
     /// イベントで今日（JST）貯めた合計 pt（端末に保存・`CatPuzzleEvent`）。日付をまたいだら `refreshEventTotal()` で 0 に戻す。
-    public private(set) var eventTotal = 0
+    public internal(set) var eventTotal = 0
     /// 直前のステージのクリアで得た pt。期間外・クリアしていないときは nil。
-    public private(set) var lastEventPoints: Int?
+    public internal(set) var lastEventPoints: Int?
     /// `lastEventPoints` が鍵の面の 2 倍（#3259）か。クリアのカードに「鍵の面 ×2」と添える。
-    public private(set) var lastEventWasKey = false
+    public internal(set) var lastEventWasKey = false
     /// Game Center へ合計を送っている最中の Task（二重に送らない・テストが完了を待つ）。
     @ObservationIgnored var eventSubmitTask: Task<Void, Never>?
     /// ステージをミス 0 回でクリアした面の連続数と、その最高（端末に保存・#3244）。自由に遊ぶは対象外。
@@ -147,11 +147,11 @@ public final class CatPuzzleModel {
     public private(set) var noMissStreak = 0
     public private(set) var noMissBest = 0
     /// 終局のおじさんの一言（文言の表のキー・#3255）。クリア・負けの瞬間に面番号（自由に遊ぶは局の通し番号）から決め、保存しない。
-    public private(set) var uncleLine: String?
+    public internal(set) var uncleLine: String?
     /// 直前に出した一言（同じ一言を続けて出さないための記憶）。アプリを開いている間だけ覚える。
     @ObservationIgnored private var lastUncleLine: String?
     /// 直前のクリアで連続の最高を更新した。クリアのカードに「自己ベスト」と添える。
-    public private(set) var beatNoMissBest = false
+    public internal(set) var beatNoMissBest = false
     /// 開始シートに出す今日の合計。画面を開いたまま 0:00 JST を過ぎても前日の値を出さないよう、保存から都度読む。
     public var todayEventTotal: Int { CatPuzzleEvent.total(stageDefaults, now: eventNow()) }
     /// 今日クリアした面の数（共有の「n 面クリア」・#3237）。
@@ -161,21 +161,21 @@ public final class CatPuzzleModel {
     /// アプリ内イベントの告知期間か（ハブのタイルの「イベント開催中」の印が使う・#3204）。期間は `CatPuzzleEvent` の 1 か所。
     nonisolated public static func isEventPeriod(now: Date = Date()) -> Bool { CatPuzzleEvent.isActive(now: now) }
     /// ステージの問題の作成を頼んだ回数。作っている間に別の局へ切り替わったら、出来上がった問題は捨てる。
-    @ObservationIgnored private var stageRequest = 0
+    @ObservationIgnored var stageRequest = 0
     /// 次の面を先に作っておく（遊んでいる間に裏で作り、「次のステージへ」で待たせない）。
-    @ObservationIgnored private var prefetched: (number: Int, task: Task<CatPuzzle, Never>)?
+    @ObservationIgnored var prefetched: (number: Int, task: Task<CatPuzzle, Never>)?
     /// 作っている最中のステージの問題を盤に出すまでの段取り（テストが待つ）。
-    @ObservationIgnored private(set) var stagePreparation: Task<Void, Never>?
+    @ObservationIgnored internal(set) var stagePreparation: Task<Void, Never>?
     /// いま作っている面の番号と、その問題を作っている計算（取り消すときに止める）。
-    @ObservationIgnored private var preparingStage: Int?
-    @ObservationIgnored private var stageGeneration: Task<CatPuzzle, Never>?
+    @ObservationIgnored var preparingStage: Int?
+    @ObservationIgnored var stageGeneration: Task<CatPuzzle, Never>?
 
     let services: GameServices?
-    private var generator: SplitMix64?
+    var generator: SplitMix64?
     /// 「戻す」用の履歴（印。保存しない。ヒントは履歴に積まず、戻してもヒントの猫は残す）。
-    private var history: [[Mark]] = []
+    var history: [[Mark]] = []
     /// 直前の 1 回目のタップ（ダブルタップの 2 回目が来たら、その × の付け外しを取り消すための控え）。保存しない。
-    private struct PendingTap {
+    struct PendingTap {
         let cell: Int
         let at: ContinuousClock.Instant
         /// 1 回目で × を付け外ししたか（猫・決まった印のマスでは何も変わらない）。
@@ -184,8 +184,8 @@ public final class CatPuzzleModel {
         let historyCount: Int
         let movesBefore: Int
     }
-    @ObservationIgnored private var pendingTap: PendingTap?
-    private let stopwatch = GameStopwatch(persistInterval: CatPuzzleModel.persistInterval)
+    @ObservationIgnored var pendingTap: PendingTap?
+    let stopwatch = GameStopwatch(persistInterval: CatPuzzleModel.persistInterval)
     /// 現在時刻の取り出し口（テストが時間を進めるために差し替える）。
     var clockNow: ElapsedClock.Now {
         get { stopwatch.now }
@@ -251,7 +251,7 @@ public final class CatPuzzleModel {
     }
 
     /// 遅らせている新規開始の `game_start`（`defersStart`）。冪等で、2 回目以降は何もしない。
-    @ObservationIgnored private var pendingInitialStart = false
+    @ObservationIgnored var pendingInitialStart = false
 
     /// 開始シートを閉じた（このまま今の盤で遊ぶ）・最初の操作をしたときに、遅らせていた `game_start` を数える。
     public func startPlayIfPending() {
@@ -305,7 +305,7 @@ public final class CatPuzzleModel {
     public var canTeach: Bool { stage != nil && !isFrozen && nextUnplacedCat != nil }
 
     /// 教える猫。鍵が閉じている間は鍵の猫、開いていれば、まだ置いていない答えのマスのうち番号が最小のもの。
-    private var nextUnplacedCat: Int? {
+    var nextUnplacedCat: Int? {
         if isKeyLocked { return keyCat }
         return puzzle.solutionCells.filter { marks.indices.contains($0) && marks[$0] != .cat }.min()
     }
@@ -326,13 +326,13 @@ public final class CatPuzzleModel {
     }
 
     /// 鍵の部屋の外を触ったときの案内のきっかけ。操作は受け付けない。
-    private func rejectLockedTouch() {
+    func rejectLockedTouch() {
         lockedTouches += 1
         services?.feedback.notify(.warning)
     }
 
     /// 鍵の猫が置かれて鍵が開いたら、演出のきっかけを数える。
-    private func noteKeyOpened(wasLocked: Bool) {
+    func noteKeyOpened(wasLocked: Bool) {
         guard wasLocked, !isKeyLocked, keyCat != nil else { return }
         keyOpenings += 1
     }
@@ -342,7 +342,7 @@ public final class CatPuzzleModel {
 
     /// 猫が置かれた音。盤が完成する手はクリアの音（`finish()`）が受け持つので鳴らさない。
     /// 鍵が開いた手は鳴き声の代わりに鍵の音。
-    private func playFoundSound(wasLocked: Bool) {
+    func playFoundSound(wasLocked: Bool) {
         guard !CatPuzzleLogic.isSolved(puzzle: puzzle, cats: catCells) else { return }
         if wasLocked, !isKeyLocked, keyCat != nil {
             services?.feedback.impact(.cat(.keyOpen))
@@ -356,7 +356,7 @@ public final class CatPuzzleModel {
     public var isOver: Bool { isSolved || isFailed }
 
     /// 盤を操作できない間（終局、またはコンティニューの提案中）。
-    private var isFrozen: Bool { isOver || isOfferingContinue || isPreparingStage }
+    var isFrozen: Bool { isOver || isOfferingContinue || isPreparingStage }
 
     /// 負けたあとに見せる、まだ見つけていない猫の場所（正解のうち猫の印が無いマス。行→列の順）。負けていなければ空。
     public var unfoundCats: [Int] {
@@ -440,440 +440,20 @@ public final class CatPuzzleModel {
         return true
     }
 
-    // MARK: - スライドで続けて ×（#3116）
-
-    /// 指の動きがマスの一辺のこの割合に届くまではタップとして扱う（届いたらスライド）。
-    public static let slideThreshold: Double = 0.4
-
-    /// スライドと決める指の動き（pt）。マスの一辺の `slideThreshold` 倍だが、12×12 のような小さいマス
-    /// （iPhone SE で約 27pt）でタップのわずかな指のぶれがスライドにならないよう、9×9 の SE と同じ 14pt を下限にする（#3201）。
-    public static func slideDistance(cellSide: CGFloat) -> CGFloat {
-        max(cellSide * slideThreshold, 14)
-    }
-
-    /// 盤の座標（盤の左上が原点）から、いま指があるマスの番号。盤の外（余白・枠の外）は nil。
-    public static func cell(at point: CGPoint, side: Int, cellSide: CGFloat, inset: CGFloat) -> Int? {
-        let col = Int(((point.x - inset) / cellSide).rounded(.down))
-        let row = Int(((point.y - inset) / cellSide).rounded(.down))
-        guard (0..<side).contains(col), (0..<side).contains(row) else { return nil }
-        return row * side + col
-    }
-
-    /// `from` から `to` までに通ったマス（両端を含む。マスの中心どうしを結ぶ線）。速いスライドで飛んだマスを埋める。
-    public static func cellsOnLine(from: Int, to: Int, side: Int) -> [Int] {
-        var (col, row) = (from % side, from / side)
-        let (endCol, endRow) = (to % side, to / side)
-        let dx = abs(endCol - col), dy = abs(endRow - row)
-        let (stepX, stepY) = (col < endCol ? 1 : -1, row < endRow ? 1 : -1)
-        var error = dx - dy
-        var cells = [row * side + col]
-        while col != endCol || row != endRow {
-            let doubled = error * 2
-            if doubled > -dy { error -= dy; col += stepX }
-            if doubled < dx { error += dx; row += stepY }
-            cells.append(row * side + col)
-        }
-        return cells
-    }
 
     /// スライド 1 回ぶんの状態。向きは最初に触れたマスで決まる（空なら付ける・× なら外す）。
-    private struct CrossDrag {
+    struct CrossDrag {
         let adds: Bool
         var changed: Set<Int> = []
         var last: Int?
         var hasChangedAny = false
     }
-    @ObservationIgnored private var crossDrag: CrossDrag?
-
-    /// スライドの開始（指が `slideThreshold` 以上動いて、スライドと決まったとき）。最初のマスの印で向きを決め、
-    /// そのマスにも適用する。ダブルタップの控え（`pendingTap`）は捨てる。
-    public func beginCrossDrag(cell: Int) {
-        pendingTap = nil
-        guard !isFrozen, marks.indices.contains(cell) else { return }
-        // 鍵の部屋の外から始めたスライドは受け付けない（案内は 1 回だけ）。
-        if isLockedOut(cell: cell) {
-            rejectLockedTouch()
-            return
-        }
-        crossDrag = CrossDrag(adds: marks[cell] != .cross)
-        dragCross(to: cell)
-    }
-
-    /// 指が `cell` に来た（盤の外に出ているときは nil）。前のマスとの間も通ったものとして、向きに合うマスだけ変える。
-    /// 同じマスは 1 回のスライドで 1 回しか変えない。猫・決まった印のマスは変えない。
-    public func dragCross(to cell: Int?) {
-        guard var drag = crossDrag, !isFrozen else { return }
-        defer { crossDrag = drag }
-        guard let cell, marks.indices.contains(cell) else {
-            drag.last = nil
-            return
-        }
-        let path = drag.last.map { Self.cellsOnLine(from: $0, to: cell, side: puzzle.side) } ?? [cell]
-        drag.last = cell
-        for passed in path where !drag.changed.contains(passed) {
-            guard !isFixed(cell: passed), marks[passed] != .cat, !isLockedOut(cell: passed),
-                  marks[passed] == (drag.adds ? .empty : .cross) else { continue }
-            if !drag.hasChangedAny {
-                // 最初に変わるときに 1 回だけ履歴を積む（スライド全体が「戻す」1 回ぶん・手数も 1）。
-                drag.hasChangedAny = true
-                startPlayIfPending()
-                lastHint = nil
-                lastWrongCell = nil
-                moves += 1
-                if !stopwatch.isRunning { startTimer() }
-                services?.gameDidProgress(gameID: Self.gameID)
-                history.append(marks)
-            }
-            drag.changed.insert(passed)
-            marks[passed] = drag.adds ? .cross : .empty
-            services?.feedback.impact(.light)
-        }
-    }
-
-    /// 指を離した（スライドの確定）。変わったマスがあれば保存する。
-    public func endCrossDrag() {
-        guard let drag = crossDrag else { return }
-        crossDrag = nil
-        if drag.hasChangedAny { persist() }
-    }
-
-    /// ダブルタップ: そのマスで猫を見つける（空でも × でも同じ）。答えのマスなら猫を置き、答えでなければ猫は置かず
-    /// 赤い × を固定で置いてミスを 1 数える。猫のいるマス・ヒントで置いた猫・×、赤い × のマスでは何もしない。
-    public func findCat(cell: Int) {
-        pendingTap = nil
-        guard !isFrozen, marks.indices.contains(cell), !isFixed(cell: cell), marks[cell] != .cat else { return }
-        if isLockedOut(cell: cell) {
-            rejectLockedTouch()
-            return
-        }
-        let wasLocked = isKeyLocked
-        startPlayIfPending()
-        lastHint = nil
-        lastWrongCell = nil
-        moves += 1
-        if !stopwatch.isRunning { startTimer() }
-        services?.gameDidProgress(gameID: Self.gameID)
-        if !puzzle.solutionCells.contains(cell) {
-            // 戻せない印なので履歴には積まない（「戻す」で取り消せる操作ではない）。
-            marks[cell] = .cross
-            wrongCrosses.insert(cell)
-            lastWrongCell = cell
-            mistakes += 1
-            // 置いた猫の数 ÷ 盤の辺（%）を「どこまで進めてミスしたか」として載せる（#3232）。
-            services?.gameDidMiss(
-                gameID: Self.gameID, cause: nil, progressPercent: catCells.count * 100 / puzzle.side
-            )
-            if mistakes >= Self.maxMistakes {
-                if continueUsed {
-                    fail()
-                } else {
-                    offerContinue()
-                }
-            } else {
-                services?.feedback.impact(.cat(.miss))
-                persist()
-            }
-            return
-        }
-        history.append(marks)
-        marks[cell] = .cat
-        noteKeyOpened(wasLocked: wasLocked)
-        playFoundSound(wasLocked: wasLocked)
-        if CatPuzzleLogic.isSolved(puzzle: puzzle, cats: catCells) {
-            finish()
-        } else {
-            persist()
-        }
-    }
-
-    /// 直前の × の付け外し・見つけた猫を取り消す。ヒントで置いた猫・×、赤い × は戻しても残る。
-    public func undo() {
-        guard canUndo, let previous = history.popLast() else { return }
-        pendingTap = nil
-        crossDrag = nil  // 進行中のスライドは捨てる（盤が変わるため）
-        marks = previous
-        keepFixedMarks()
-        lastHint = nil
-        lastWrongCell = nil
-        moves += 1
-        services?.feedback.impact(.light)
-        persist()
-    }
-
-    /// 印を全部消して同じ問題を最初から。ミス・ヒント・経過秒は引き継ぎ、ヒントで置いた猫・×、赤い × も残る。
-    public func reset() {
-        guard !isFrozen else { return }
-        history.removeAll()
-        pendingTap = nil
-        crossDrag = nil  // 進行中のスライドは捨てる（盤が変わるため）
-        marks = Array(repeating: .empty, count: puzzle.cellCount)
-        keepFixedMarks()
-        lastHint = nil
-        lastWrongCell = nil
-        services?.feedback.impact(.light)
-        // 印の無い盤は保存しない（開いただけの盤を「続き」にしない）。ヒント・赤い × の印があれば保存する。
-        persist()
-    }
-
-    /// ヒントを 1 回使う。推理の 1 歩（`CatPuzzleLogic.hint`）を盤に反映する: 確定した × を置き、猫が確定する
-    /// ときだけ猫を置く。答えでない位置の猫があれば先にそれを × に変える。ヒントで置いた猫・× は印付きで消せない。
-    /// 回数は必ず 1 だけ減り、盤は必ず 1 歩進む。置いた結果で盤が完成すればそのままクリア。
-    /// 無料ぶんだけを使う。使い切っていたら何もしない（広告の 1 回は `grantAdHint(forGame:)`）。
-    public func useHint() {
-        guard canHint, !needsAdForHint, let hint = nextHint else { return }
-        if stage != nil {
-            stageHintsLeft -= 1
-            stageDefaults.set(stageHintsLeft, forKey: Self.stageHintsLeftKey)
-        } else if !hints.consume() {
-            return
-        }
-        apply(hint)
-    }
-
-    /// 広告を最後まで見たあとの 1 回。`game` は広告を出す前に控えた `gameSerial`。
-    /// 局が入れ替わっていた・終局した・無料ぶんが残っている・盤を進める手が無いときは適用せず false（回数も減らさない）。
-    @discardableResult
-    public func grantAdHint(forGame game: Int) -> Bool {
-        guard game == gameSerial, canHint, needsAdForHint, let hint = nextHint else { return false }
-        // ステージは広告 1 回で 1 回ぶん（残りは 0 のまま）。自由に遊ぶは広告枠を 1 つ使う。
-        if stage == nil, !hints.consumeAd() { return false }
-        apply(hint)
-        return true
-    }
+    @ObservationIgnored var crossDrag: CrossDrag?
 
     /// 「餌をあげる」で猫がおびき出されたマス（#3304）。盤がここに餌の皿を一瞬出す。`clearLure()` で消す。
-    public private(set) var lureCell: Int?
+    public internal(set) var lureCell: Int?
     /// 餌をあげるたびに増える。同じマスに続けてあげても、画面の「消すまでの待ち」を最初から数え直すため。
-    public private(set) var lureToken = 0
-
-    public func clearLure() { lureCell = nil }
-
-    /// 猫を 1 匹教える（ステージだけ。画面の名前は「餌をあげる」）。無料ぶんを使う。使い切っていたら何もしない（広告の 1 回は `grantAdTeach(forGame:)`）。
-    public func teachCat() {
-        guard canTeach, !needsAdForTeach, let cell = nextUnplacedCat else { return }
-        stageTeachLeft -= 1
-        stageDefaults.set(stageTeachLeft, forKey: Self.stageTeachLeftKey)
-        placeTaughtCat(at: cell)
-    }
-
-    /// 広告を最後まで見たあとの「猫を 1 匹教える」1 回。局が入れ替わっていた・終局した・無料ぶんが残っているときは適用せず false。
-    @discardableResult
-    public func grantAdTeach(forGame game: Int) -> Bool {
-        guard game == gameSerial, canTeach, needsAdForTeach, let cell = nextUnplacedCat else { return false }
-        placeTaughtCat(at: cell)
-        return true
-    }
-
-    /// 教えた猫を正解のマスに置く。ヒントで置いた猫と同じ扱い（印付き・固定）。置いた結果で盤が完成すればそのままクリア。
-    private func placeTaughtCat(at cell: Int) {
-        pendingTap = nil
-        crossDrag = nil  // 進行中のスライドは捨てる（盤が変わるため）
-        startPlayIfPending()
-        let wasLocked = isKeyLocked
-        lureCell = cell
-        lureToken += 1
-        marks[cell] = .cat
-        hintCells.insert(cell)
-        noteKeyOpened(wasLocked: wasLocked)
-        stageAssistsUsed += 1
-        lastHint = nil
-        lastWrongCell = nil
-        moves += 1
-        if !stopwatch.isRunning { startTimer() }
-        services?.gameDidUseTeach(gameID: Self.gameID)
-        services?.gameDidProgress(gameID: Self.gameID)
-        playFoundSound(wasLocked: wasLocked)
-        if CatPuzzleLogic.isSolved(puzzle: puzzle, cats: catCells) {
-            finish()
-        } else {
-            persist()
-        }
-    }
-
-    /// ステージ共通のヒント・猫を教えるの残りに足して保存する（前日のランキングの特典・#3256）。
-    func addStageSupply(hints: Int, teaches: Int) {
-        stageHintsLeft = min(stageHintsLeft + max(0, hints), Self.stageSupplyCap)
-        stageTeachLeft = min(stageTeachLeft + max(0, teaches), Self.stageSupplyCap)
-        stageDefaults.set(stageHintsLeft, forKey: Self.stageHintsLeftKey)
-        stageDefaults.set(stageTeachLeft, forKey: Self.stageTeachLeftKey)
-    }
-
-    /// 保存してある残り。鍵が無ければ（初回・既存の利用者）全回数、壊れた値は範囲に丸める。
-    private static func storedSupply(_ defaults: UserDefaults, _ key: String) -> Int {
-        guard defaults.object(forKey: key) != nil else { return stageSupplyCount }
-        return min(max(defaults.integer(forKey: key), 0), stageSupplyCap)
-    }
-
-    /// ヒントの中身を盤に反映する（回数の消費は呼び出し側が済ませている）。
-    private func apply(_ hint: CatPuzzleHint) {
-        pendingTap = nil
-        crossDrag = nil  // 進行中のスライドは捨てる（盤が変わるため）
-        startPlayIfPending()
-        let wasLocked = isKeyLocked
-        for cell in hint.removed + hint.crossed {
-            marks[cell] = .cross
-            hintCrosses.insert(cell)
-        }
-        if let placed = hint.placed {
-            marks[placed] = .cat
-            hintCells.insert(placed)
-        }
-        noteKeyOpened(wasLocked: wasLocked)
-        lastHint = hint
-        lastWrongCell = nil
-        if stage != nil { stageAssistsUsed += 1 }
-        moves += 1
-        if !stopwatch.isRunning { startTimer() }
-        services?.gameDidUseHint(gameID: Self.gameID)
-        services?.gameDidProgress(gameID: Self.gameID)
-        playFoundSound(wasLocked: wasLocked)
-        if CatPuzzleLogic.isSolved(puzzle: puzzle, cats: catCells) {
-            finish()
-        } else {
-            persist()
-        }
-    }
-
-    /// ヒントで置いた猫・×、赤い × を盤に戻す（「戻す」「やり直し」で消えないように）。
-    private func keepFixedMarks() {
-        for cell in hintCells where marks.indices.contains(cell) { marks[cell] = .cat }
-        for cell in hintCrosses.union(wrongCrosses) where marks.indices.contains(cell) { marks[cell] = .cross }
-    }
-
-    /// 新規ゲーム（自由に遊ぶ）。`size` を渡すと盤の大きさを変える。ステージの途中からでも自由に遊ぶへ切り替わる。
-    public func newGame(size newSize: CatPuzzleSize? = nil) {
-        size = (newSize ?? size).freePlaySize
-        cancelStagePreparation()
-        begin(puzzle: Self.makePuzzle(size: size, generator: &generator), size: size, stage: nil)
-    }
-
-    // MARK: - ステージ（#3048）
-
-    /// ステージの進み具合（次に遊ぶ面の番号）の保存キー。進み具合はこの番号だけを持つ（面ごとの記録は持たない）。
-    public static let stageProgressKey = "catPuzzleStage"
-
-    /// 次に遊ぶ面の番号（1 始まり）。クリアするたびに 1 つ進み、負けても戻らない。
-    public var savedStage: Int { max(1, stageDefaults.integer(forKey: Self.stageProgressKey)) }
-
-    /// ステージの面を始める。`number` を省くと次に遊ぶ面（`savedStage`）。問題はステージ番号から決めた種で作る
-    /// （`CatPuzzleStage`・9×9 は数秒かかることがあるので裏で作る）。作っている間は `isPreparingStage` が真で、
-    /// 盤は前のまま操作できない。先に作っておいた次の面（`prefetchStage`）があればそれを使う。
-    public func startStage(_ number: Int? = nil) {
-        let n = max(1, number ?? savedStage)
-        // 同じ面を作っている最中の 2 回目（「次のステージへ」の連打）は何もしない（同じ問題を二重に作らない）。
-        if isPreparingStage, preparingStage == n { return }
-        cancelStagePreparation()
-        let request = stageRequest
-        pendingTap = nil
-        bonusIntro = nil
-        crossDrag = nil  // 進行中のスライドは捨てる（盤が変わるため）
-        stopwatch.stop()
-        isPreparingStage = true
-        preparingStage = n
-        let task: Task<CatPuzzle, Never>
-        if let prefetched, prefetched.number == n {
-            task = prefetched.task
-        } else {
-            // 別の面を先に作っていたら止める（使わない計算を残さない）。
-            prefetched?.task.cancel()
-            prefetched = nil
-            task = Self.makeStagePuzzle(n)
-        }
-        stageGeneration = task
-        stagePreparation = Task { [weak self] in
-            let made = await task.value
-            guard let self, self.stageRequest == request else { return }
-            self.isPreparingStage = false
-            self.preparingStage = nil
-            self.stageGeneration = nil
-            let advanced = self.isSolved && self.stage == n - 1 && CatPuzzleStage(n).entersNewBoard
-            self.begin(puzzle: made, size: CatPuzzleStage(n).size, stage: n)
-            self.boardAdvance = advanced ? CatPuzzleStage(n).size : nil
-            self.bonusIntro = CatPuzzleStage(n).isBonus ? CatPuzzleStage(n).size : nil
-            self.prefetchStage(n + 1)
-        }
-    }
-
-    /// 「8×8 に進んだ！」を下ろす。
-    public func clearBoardAdvance() { boardAdvance = nil }
-
-    /// 「ボーナスステージ」の表示を下ろす。
-    public func clearBonusIntro() { bonusIntro = nil }
-
-    /// 次の面を裏で作っておく（作り終えた問題は `startStage` が使う）。
-    private func prefetchStage(_ number: Int) {
-        guard prefetched?.number != number else { return }
-        prefetched?.task.cancel()
-        prefetched = (number, Self.makeStagePuzzle(number))
-    }
-
-    /// 作っている最中のステージの問題を捨てる（出来上がっても盤に出さない）。作っている計算も止める
-    /// （`CatPuzzleStage.makePuzzle` は取り消されたら途中で抜ける）。止めた計算が先読みのものなら、先読みの記録も消す。
-    private func cancelStagePreparation() {
-        stageRequest += 1
-        if let generation = stageGeneration {
-            generation.cancel()
-            if prefetched?.task == generation { prefetched = nil }
-        }
-        stageGeneration = nil
-        stagePreparation = nil
-        isPreparingStage = false
-        preparingStage = nil
-    }
-
-    /// ステージの問題をメインスレッドの外で作る。
-    nonisolated private static func makeStagePuzzle(_ number: Int) -> Task<CatPuzzle, Never> {
-        Task.detached(priority: .userInitiated) { CatPuzzleStage(number).makePuzzle() }
-    }
-
-    /// `game_start` の `level`。ステージは面の番号（チャリンコおじさんと同じ `stage-N`）、自由に遊ぶは盤の大きさ。
-    var analyticsLevel: AnalyticsLevel {
-        stage.map { .stage($0) } ?? size.analyticsLevel
-    }
-
-    /// 新しい問題で局を始める（自由に遊ぶ・ステージ共通）。
-    private func begin(puzzle newPuzzle: CatPuzzle, size newSize: CatPuzzleSize, stage newStage: Int?) {
-        size = newSize
-        stage = newStage
-        bonusIntro = nil
-        pendingTap = nil
-        crossDrag = nil  // 進行中のスライドは捨てる（盤が変わるため）
-        stopwatch.stop()
-        puzzle = newPuzzle
-        keyCat = Self.keyCat(of: newPuzzle, stage: newStage)
-        marks = Array(repeating: .empty, count: puzzle.cellCount)
-        history.removeAll()
-        mistakes = 0
-        uncleLine = nil
-        continueUsed = false
-        isOfferingContinue = false
-        hints.reset()
-        stageAssistsUsed = 0
-        gameSerial += 1
-        hintCells = []
-        hintCrosses = []
-        wrongCrosses = []
-        lastWrongCell = nil
-        lastHint = nil
-        elapsedSeconds = 0
-        moves = 0
-        isSolved = false
-        isFailed = false
-        // 開始シートで始めた局は `gameDidRestart` だけで数える（遅らせていた開始は捨てる）。
-        pendingInitialStart = false
-        showsClearCard = false
-        lureCell = nil
-        lastEventPoints = nil
-        lastEventWasKey = false
-        beatNoMissBest = false
-        refreshEventTotal()
-        solvedAt = nil
-        recordResult = nil
-        services?.snapshots.clear(for: Self.gameID)
-        services?.gameDidRestart(gameID: Self.gameID, level: analyticsLevel)
-        // 新しい問題が出た瞬間から計時する（止めるのは画面側のシート・背面など）。
-        startTimer()
-    }
+    public internal(set) var lureToken = 0
 
     // MARK: - 計時
 
@@ -901,7 +481,7 @@ public final class CatPuzzleModel {
         if advanced.crossedPersistBoundary { persist() }
     }
 
-    private func startTimer() {
+    func startTimer() {
         stopwatch.start(base: elapsedSeconds) { [weak self] in self?.syncElapsed() }
     }
 
@@ -924,7 +504,7 @@ public final class CatPuzzleModel {
         )
     }
 
-    private func finish() {
+    func finish() {
         syncElapsed()
         stopwatch.stop()
         isSolved = true
@@ -979,46 +559,10 @@ public final class CatPuzzleModel {
         noMissStreak = 0
     }
 
-    /// ステージのクリアで、期間に関係なく（常設・#3298）デイリーの pt を貯めて Game Center へ送る（#3204）。`gameDidFinish` より前に呼び、
-    /// `game_end` に `event_points` を載せる。ミスは画面に出ている数（コンティニューで戻したぶんは含まない）。ヒント・猫を教えるは見ない。
-    private func awardEventPoints() {
-        guard stage != nil else { return }
-        let earnedOnKey = stage.map { CatPuzzleStage($0).isKey } ?? false
-        let earned = CatPuzzleEvent.points(mistakes: mistakes, isKey: earnedOnKey)
-        lastEventPoints = earned
-        lastEventWasKey = earnedOnKey
-        eventTotal = CatPuzzleEvent.add(earned, to: stageDefaults, now: eventNow())
-        services?.gameDidEarnEventPoints(gameID: Self.gameID, points: earned)
-        submitEventTotalIfNeeded()
-    }
-
-    /// 今日の合計のうち Game Center へ未送信のぶんがあれば送る。未ログイン・オフラインでも pt は貯まり、
-    /// 送れなかったら送り済みの控えを進めない（次の決着か画面を開いたときに、**その日のうちなら**送り直す。前日分は送らない）。
-    public func submitEventTotalIfNeeded() {
-        let now = eventNow()
-        refreshEventTotal()
-        let total = CatPuzzleEvent.total(stageDefaults, now: now)
-        let day = CatPuzzleEvent.day(of: now)
-        guard total > CatPuzzleEvent.sent(stageDefaults, now: now), eventSubmitTask == nil,
-              let reporter = services?.gameCenter, reporter.isSignedIn else { return }
-        eventSubmitTask = Task { [weak self] in
-            let sent = await reporter.submitWeeklyAndWait(
-                gameID: Self.gameID, leaderboardID: GameCenterLeaderboard.catPuzzleEvent, value: total)
-            guard let self else { return }
-            if sent { CatPuzzleEvent.markSent(total, day: day, in: self.stageDefaults) }
-            self.eventSubmitTask = nil
-            // 送っているあいだにさらに貯まっていたら続けて送る。失敗したときは繰り返さないが、日をまたいでいたら新しい日の分は送る。
-            if sent || CatPuzzleEvent.day(of: self.eventNow()) != day { self.submitEventTotalIfNeeded() }
-        }
-    }
-
-    /// 今日の合計の送信（`submitEventTotalIfNeeded`）が終わるまで待つ。クリアの流れが、送った pt を含む順位を読むため（#3304）。
-    public func awaitEventSubmission() async { await eventSubmitTask?.value }
-
     /// 3 回目のミス。広告を見て続けるかを選ばせる。負けはここで付ける（マインスイーパーと同じ）。コンティニューしたら
     /// `continueAfterAd()` が取り消す。付けておかないと、提案を放置して「新規」で捨てた局が負けにならない。計時は止め、提案の最中に離れても同じ提案から
     /// 続けられるよう、ミスが上限のまま保存する（保存しないと、アプリを閉じて開き直すだけで 3 回目のミスが無かったことになる）。
-    private func offerContinue() {
+    func offerContinue() {
         syncElapsed()
         stopwatch.stop()
         isOfferingContinue = true
@@ -1063,7 +607,7 @@ public final class CatPuzzleModel {
 
     /// ミスが上限に達した終局（負け）。記録・解析は負け（`game_end` result=loss）。中断データは消す。
     /// - Parameter recordsLoss: false のときは記録済み（`offerContinue`）なので負けを付け直さない。
-    private func fail(recordsLoss: Bool = true) {
+    func fail(recordsLoss: Bool = true) {
         syncElapsed()
         stopwatch.stop()
         isFailed = true
@@ -1097,7 +641,7 @@ public final class CatPuzzleModel {
         showsClearCard = true
     }
 
-    private func persist() {
+    func persist() {
         // 印の無い盤と解き終えた盤は保存しない（印を全部消したら、残っていた保存も捨てる）。
         guard hasProgressToLose else {
             services?.snapshots.clear(for: Self.gameID)
@@ -1113,7 +657,7 @@ public final class CatPuzzleModel {
     }
 
     /// 鍵の面（9×9 までは 10 面ごと・10×10 以上は 20 面ごと）の鍵の猫。鍵の面でなければ・鍵の猫が決まらなければ nil。
-    private static func keyCat(of puzzle: CatPuzzle, stage: Int?) -> Int? {
+    static func keyCat(of puzzle: CatPuzzle, stage: Int?) -> Int? {
         guard let stage, CatPuzzleStage(stage).isKey else { return nil }
         return CatPuzzleSolver.keyCat(puzzle)
     }
@@ -1122,7 +666,7 @@ public final class CatPuzzleModel {
         marks.indices.filter { marks[$0] == .cat }
     }
 
-    private static func makePuzzle(size: CatPuzzleSize, generator: inout SplitMix64?) -> CatPuzzle {
+    static func makePuzzle(size: CatPuzzleSize, generator: inout SplitMix64?) -> CatPuzzle {
         if var seeded = generator {
             defer { generator = seeded }
             return CatPuzzleLogic.generate(size: size, using: &seeded)
