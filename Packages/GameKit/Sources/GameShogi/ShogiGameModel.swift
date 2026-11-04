@@ -546,15 +546,29 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
 
     /// 達人（平手・駒落ちのどの手合いも含む）の勝ち数が、いま付けた 1 勝だけか。
     private func isFirstMasterWin() -> Bool {
-        guard aiLevel == ShogiMasterEngine.level, sente == .ai || gote == .ai,
-              let log = services?.playLog else { return false }
-        let wins = log.records(gameID: gameID)
+        guard aiLevel == ShogiMasterEngine.level, sente == .ai || gote == .ai else { return false }
+        return masterWinCount() == 1
+    }
+
+    /// 端末の記録にある、達人（平手・駒落ちのどの手合いも含む）の勝ち数。
+    private func masterWinCount() -> Int {
+        guard let log = services?.playLog else { return 0 }
+        return log.records(gameID: gameID)
             .filter { record in
                 guard let key = record.recordKey else { return false }
                 return key == "\(gameID)#master" || key.hasPrefix("\(gameID)#master-")
             }
             .reduce(0) { $0 + $1.wins }
-        return wins == 1
+    }
+
+    /// 達人に勝った記録があるのに Game Center で未解除なら、実績を送り直す（#3219）。
+    /// 初勝利の瞬間に未サインイン・オフラインだと実績は送られず、`wins == 1` の判定では二度と送られないため、
+    /// 将棋を開くたびに呼ぶ。未サインイン・読めなかったとき（オフライン等）は何もしない。
+    public func syncMasterAchievement() async {
+        guard masterWinCount() >= 1, let reporter = services?.gameCenter,
+              let remote = await reporter.fetchUnlockedAchievementIDs(),
+              !remote.contains(GameCenterAchievements.shogiMaster) else { return }
+        reporter.reportUnlocked([GameCenterAchievements.shogiMaster])
     }
 
     public func clearSelection() {

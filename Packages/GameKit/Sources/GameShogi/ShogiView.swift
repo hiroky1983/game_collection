@@ -114,6 +114,7 @@ public struct ShogiView: View {
                 move: move, piece: model.position.squares[to],
                 isCheck: model.position.isKingInCheck(model.position.sideToMove))
         }
+        .task { await model.syncMasterAchievement() }
         .task {
             #if DEBUG
             // 撮影用: 終局後レイアウト（検討ナビ・レコメンドのオーバーレイ）を即再現する。
