@@ -634,6 +634,64 @@ check "呼び出し側: 承認済みの孤児を数える" "1" \
 check "呼び出し側: 未承認だけなら 0（#1075）" "0" \
   "$(run_orphan_block "$(orphan_issues "1016|ai:proposed,ai:in-progress|$OLD")")"
 
+# gh の一覧取得の失敗を「空」と読み替えない（#3294）。仕事10（取り残しコミット）と着手候補の取得を、
+# 本物のブロックのまま gh を失敗させて実行する。git は一時リポジトリに refs/remotes/origin/* だけ置いて本物を使う
+echo "== 10-b. gh の一覧取得が失敗した回は空扱いにしない（#3294）=="
+ORPHAN_COMMITS_BLOCK=$(awk '/^# 仕事10: マージ済み PR のブランチに取り残されたコミット/ { f = 1 } /^# 仕事11:/ { f = 0 } f' "$TARGET")
+check "仕事10 のブロックを切り出せた" "1" "$(printf '%s\n' "$ORPHAN_COMMITS_BLOCK" | grep -c '^ORPHAN_COMMITS=0 ORPHAN_SCAN_OK=0')"
+GR=$(mktemp -d)
+git init -q "$GR"
+(
+  cd "$GR" || exit 1
+  git -c user.email=t@t -c user.name=t commit -q --allow-empty -m a
+  A=$(git rev-parse HEAD)
+  git -c user.email=t@t -c user.name=t commit -q --allow-empty -m b
+  B=$(git rev-parse HEAD)
+  git update-ref refs/remotes/origin/main "$A"
+  git update-ref refs/remotes/origin/release/v1 "$A"
+  git update-ref refs/remotes/origin/feat "$B"
+)
+# 引数: オープン PR の head 一覧 / オープン一覧を失敗させるか(1) / マージ済み一覧を失敗させるか(1)。出力: "孤児コミット数 ログ行数"
+run_orphan_commits_block() {
+  local open="$1" fail_open="$2" fail_merged="$3"
+  (
+    DUTY_DIR="$GR"
+    LOGF=$(mktemp)
+    log() { echo "$*" >>"$LOGF"; }
+    gh() {
+      case "$*" in
+        *"--state open"*) [ "$fail_open" = 1 ] && return 1; printf '%s' "$open" ;;
+        *"--state merged"*) [ "$fail_merged" = 1 ] && return 1; printf 'feat\trelease/v1\n' ;;
+        *) return 1 ;;
+      esac
+    }
+    eval "$ORPHAN_COMMITS_BLOCK" >/dev/null 2>&1
+    printf '%s %s' "$ORPHAN_COMMITS" "$(wc -l <"$LOGF" | tr -d ' ')"
+    rm -f "$LOGF"
+  )
+}
+check "対照: 取り残しのあるマージ済みブランチは数える" "1 0" "$(run_orphan_commits_block "" 0 0)"
+check "対照: オープン PR のあるブランチは数えない" "0 0" "$(run_orphan_commits_block "feat" 0 0)"
+check "オープン PR の一覧が取れない回は「PR なし」と読まず水増ししない・ログを1行出す" "0 1" "$(run_orphan_commits_block "" 1 0)"
+check "マージ済み一覧が取れない回は検知を飛ばし、ログを1行出す" "0 1" "$(run_orphan_commits_block "" 0 1)"
+check "両方失敗ならログは2行" "0 2" "$(run_orphan_commits_block "" 1 1)"
+
+CANDIDATES_BLOCK=$(awk '/^if ! CANDIDATES=\$\(gh issue list/ { f = 1 } /^# 重い Issue の一覧/ { f = 0 } f' "$TARGET")
+check "着手候補の取得ブロックを切り出せた" "1" "$(printf '%s\n' "$CANDIDATES_BLOCK" | grep -c 'if ! CANDIDATES=')"
+run_candidates_block() {
+  local fail="$1"
+  (
+    LOGF=$(mktemp)
+    log() { echo "$*" >>"$LOGF"; }
+    gh() { [ "$fail" = 1 ] && return 1; printf '[{"number":7,"labels":[{"name":"ai:approved"}],"milestone":null}]' | jq -r "${@: -1}"; }
+    eval "$CANDIDATES_BLOCK" >/dev/null 2>&1
+    printf '[%s] %s' "$CANDIDATES" "$(wc -l <"$LOGF" | tr -d ' ')"
+    rm -f "$LOGF"
+  )
+}
+check "対照: 成功すれば候補を返してログは出ない" "[7 false false] 0" "$(run_candidates_block 0)"
+check "着手候補の取得に失敗した回は空にしてログに取得失敗を残す" "[] 1" "$(run_candidates_block 1)"
+
 echo "== 11. 呼び出し側が共通定義を使っている（判定の写しを作っていない）=="
 USES=$(grep -c 'DUTY_JQ_COMMENT_LIB"' "$TARGET")
 check "仕事5・仕事8・仕事11・仕事12・仕事13 の5箇所が DUTY_JQ_COMMENT_LIB を渡している" "5" "$USES"
@@ -652,6 +710,8 @@ for v in APPROVED THREADS PENDING_REVIEW CONFLICTS RINGI_REPLIES STALLED RELEASE
   check "$v=1 だけで起動する" "yes" "$(has_work "$v=1")"
 done
 check "未設定の値は 0 として扱う" "no" "$( ( unset APPROVED THREADS; duty_has_work && echo yes || echo no ) )"
+check "起動ログは孤児検知を飛ばした回を skipped と出す（0 件と区別・#3294）" "1" \
+  "$(grep -c 'orphan_commits=$(\[ "${ORPHAN_SCAN_OK:-0}" -eq 1 \]' "$TARGET")"
 check "呼び出し側が duty_has_work を通している" "1" "$(grep -c '^if ! duty_has_work; then' "$TARGET")"
 
 echo "== 13. 日次サマリ: ログから起動回数と課金経路を数える（#2580）=="
