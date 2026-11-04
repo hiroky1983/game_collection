@@ -1095,6 +1095,8 @@ struct CatPuzzleNewGameSheet: View {
     @State private var mode: CatPuzzlePlayMode
     @State private var size: CatPuzzleSize
     @State private var showRanking = false
+    /// 開始シートの順位の読み込み（#3312）。シートを開いたときに 1 度だけ読む。
+    @State private var rankModel: CatPuzzleRankingModel?
 
     init(initialMode: CatPuzzlePlayMode, initial: CatPuzzleSize, nextStage: Int, noMissBest: Int = 0,
          eventTotal: Int = 0, onOpenRanking: (@MainActor () -> Void)? = nil,
@@ -1127,11 +1129,19 @@ struct CatPuzzleNewGameSheet: View {
                     .themeCaption(12).foregroundStyle(Theme.inkSubText)
             }
             if mode == .stage {
-                Self.eventSection(total: eventTotal, onOpenRanking: makeRanking == nil ? nil : { showRanking = true })
+                Self.eventSection(total: eventTotal, rank: rankModel?.state,
+                                  onOpenRanking: makeRanking == nil ? nil : { showRanking = true })
             }
             if mode == .free {
                 Self.sizeSection(selection: $size)
             }
+        }
+        .task {
+            // 順位は後から差し込む。読み込み中・読めないときは合計 pt だけを出す（待たせない）。
+            guard rankModel == nil, let makeRanking else { return }
+            let model = makeRanking()
+            rankModel = model
+            await model.load()
         }
         .sheet(isPresented: $showRanking) {
             if let makeRanking {
@@ -1159,14 +1169,15 @@ struct CatPuzzleNewGameSheet: View {
     }
 
     /// 今日のランキングの節（ステージだけ・常設・#3204・#3298）。ポイントのつき方、貯めた合計、アプリ内のランキング画面を開く導線（#3236）。
-    static func eventSection(total: Int, onOpenRanking: (@MainActor () -> Void)?) -> some View {
+    static func eventSection(total: Int, rank: CatPuzzleRankingState? = nil,
+                             onOpenRanking: (@MainActor () -> Void)?) -> some View {
         GameSetupSection(tr("今日のランキング")) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(tr("ステージをクリアして今日の pt を貯めよう（毎日 日本時間の 0 時にリセット）。残りライフ 3 で 3pt・2 で 2pt・1 で 1pt（鍵の面は 2 倍）"))
                     .themeBody(13).foregroundStyle(Theme.inkSubText)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack {
-                    Text(tr("今日の合計 %lldpt", total))
+                    Text(Self.totalText(total: total, rank: rank))
                         .themeBody(15).monospacedDigit()
                     Spacer(minLength: 8)
                     if let onOpenRanking {
@@ -1182,6 +1193,17 @@ struct CatPuzzleNewGameSheet: View {
             }
             .accessibilityElement(children: .contain)
         }
+    }
+
+    /// 今日のランキングの欄の合計行（#3312）。順位が読めていれば「今日 n 位 / m 人・合計 xx pt」、
+    /// 読み込み中・未サインイン・読めなかった・今日まだ記録が無いときは合計 pt だけ。
+    static func totalText(total: Int, rank: CatPuzzleRankingState?) -> String {
+        guard case .ready(let content)? = rank, let myRank = content.myRank else {
+            return tr("今日の合計 %lldpt", total)
+        }
+        return content.participants >= myRank
+            ? tr("今日 %1$lld位 / %2$lld人・合計 %3$lldpt", myRank, content.participants, total)
+            : tr("今日 %1$lld位・合計 %2$lldpt", myRank, total)
     }
 
     /// 難易度の節（静止画の確認でも中身だけ描けるよう切り出している）。

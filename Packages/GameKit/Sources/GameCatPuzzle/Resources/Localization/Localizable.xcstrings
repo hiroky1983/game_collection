@@ -1466,6 +1466,28 @@
         }
       }
     },
+    "今日 %1$lld位 / %2$lld人・合計 %3$lldpt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today: #%1$lld of %2$lld · Total: %3$lld pt"
+          }
+        }
+      }
+    },
+    "今日 %1$lld位・合計 %2$lldpt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today: #%1$lld · Total: %2$lld pt"
+          }
+        }
+      }
+    },
     "今日の合計 %lldpt" : {
       "extractionState" : "manual",
       "localizations" : {
