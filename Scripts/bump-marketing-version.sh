@@ -224,7 +224,9 @@ fi
 TITLE="chore(release): バージョンを ${V} (build ${NEW_B}) に更新"
 HEAD_BRANCH="chore/release-version-v${V}-b${NEW_B}"
 
-PR="$(gh pr list -R "$REPO" --state open --base "$BASE" --head "$HEAD_BRANCH" --json number --jq '.[0].number // empty' 2>/dev/null)"
+# 失敗を「既存 PR なし」と読み替えない（版数更新の PR を重ねて作ってしまうため・#3308）
+PR="$(gh pr list -R "$REPO" --state open --base "$BASE" --head "$HEAD_BRANCH" --json number --jq '.[0].number // empty' 2>/dev/null)" \
+  || die "既存の版数更新 PR を確認できませんでした（gh pr list が失敗）。重複して作らないよう止めます"
 if [ -n "$PR" ]; then
   echo "bump-marketing-version: 同じ版数更新の PR #$PR が既に開いています。それを使います"
 else

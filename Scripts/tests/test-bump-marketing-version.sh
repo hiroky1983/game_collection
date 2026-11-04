@@ -118,7 +118,7 @@ cat >"$TMP/bin/gh" <<'EOF'
 printf "%s\n" "$(echo "$*" | tr "\n" " ")" >>"$FAKE_GH_LOG"
 case "$1 $2" in
   "api "*) [[ "$2" == *protection ]] && echo "${FAKE_LOCK:-false}"; exit 0 ;;
-  "pr list") exit 0 ;;
+  "pr list") exit "${FAKE_PRLIST_RC:-0}" ;;
   "pr create") echo "https://github.com/hiroky1983/game_collection/pull/9999"; exit 0 ;;
   "pr checks")
     # FAKE_NOCHECKS_FILE に数字があれば、その回数だけ「まだチェックが付いていない」を返す
@@ -221,6 +221,16 @@ clear_chore
 if run_wait FAKE_MERGE_RC=1; then ng "マージに失敗したのに成功した"; else ok "マージに失敗したら止める"; fi
 clear_chore
 if run_wait FAKE_STATE=OPEN; then ng "state が MERGED でないのに成功した"; else ok "マージ後の state が MERGED でなければ止める（握りつぶさない）"; fi
+
+echo "== 4-c2. 既存 PR の確認（gh pr list）が失敗したら新規 PR を作らず止める（#3308）=="
+clear_chore
+if run_wait FAKE_PRLIST_RC=1; then ng "gh pr list が失敗したのに成功した"; else ok "gh pr list が失敗したら止める"; fi
+if grep -q '既存の版数更新 PR を確認できませんでした' "$TMP/out.txt"; then ok "止めた理由を出力する"; else ng "理由が出力されない: $(cat "$TMP/out.txt")"; fi
+if [ -z "$(git --git-dir="$ORIGIN" for-each-ref 'refs/heads/chore/')" ] && ! grep -q 'pr create' "$FAKE_GH_LOG"; then
+  ok "そのとき push も PR 作成もしない"
+else
+  ng "確認に失敗したのに push か PR 作成をしている"
+fi
 
 echo "== 4-d. 過去タグのビルド番号が読めなければ止める（黙って床から外さない）=="
 clear_chore

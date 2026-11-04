@@ -1375,9 +1375,14 @@ query {
   | select($nudges < 3)] | length' 2>/dev/null || echo 0)
 
 # 仕事4: コンフリクトで滞留しているオープン PR（誰のトリガーにも掛からず放置される穴の解消）
-CONFLICTS=$(gh pr list -R hiroky1983/game_collection --state open --json mergeable,closingIssuesReferences 2>/dev/null \
-  | jq --argjson busy "$OTHER_CLAIMS_JSON" "$DUTY_JQ_BUSY_LIB"'[.[] | select(linked_to_busy($busy) | not)
+# gh の失敗を「0 件」と読み替えない（コンフリクトの PR があっても当番が起きなくなるため・#3308）
+if CONFLICT_PRS=$(gh pr list -R hiroky1983/game_collection --state open --json mergeable,closingIssuesReferences 2>/dev/null); then
+  CONFLICTS=$(printf '%s' "$CONFLICT_PRS" | jq --argjson busy "$OTHER_CLAIMS_JSON" "$DUTY_JQ_BUSY_LIB"'[.[] | select(linked_to_busy($busy) | not)
       | select(.mergeable == "CONFLICTING")] | length' 2>/dev/null || echo 0)
+else
+  CONFLICTS=0
+  log "オープン PR の一覧を取れなかったため、コンフリクト PR の検知（仕事4）を飛ばす（0 件という意味ではない）"
+fi
 
 # 仕事5: 決裁コメントの着信（ringi:pending の Issue に決裁スレッド以外の新規コメントが付いたら
 # 会長の決裁着信の可能性として当番を起こす。判定と反映は当番エージェントが行う）
@@ -1401,7 +1406,13 @@ query {
 
 # 仕事6: マージ可能なのに放置されている PR（CLEAN かつ auto-merge 未設定）
 # 「完成したのに誰もマージしない」滞留（PR #58 で実際に発生）の検知
-STALLED=$(count_stalled "$(gh pr list -R hiroky1983/game_collection --state open --json mergeStateStatus,autoMergeRequest,isDraft,closingIssuesReferences 2>/dev/null)" "$OTHER_CLAIMS_JSON")
+# gh の失敗（空文字）を jq に渡して 0 件にしない（#3308）
+if STALLED_PRS=$(gh pr list -R hiroky1983/game_collection --state open --json mergeStateStatus,autoMergeRequest,isDraft,closingIssuesReferences 2>/dev/null); then
+  STALLED=$(count_stalled "$STALLED_PRS" "$OTHER_CLAIMS_JSON")
+else
+  STALLED=0
+  log "オープン PR の一覧を取れなかったため、放置 PR の検知（仕事6）を飛ばす（0 件という意味ではない）"
+fi
 STALLED="${STALLED:-0}"
 
 # 仕事7: App Store で公開済みなのに main へ未マージの release ブランチ
