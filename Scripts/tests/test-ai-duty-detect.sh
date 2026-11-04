@@ -601,7 +601,7 @@ check "単語の途中（disclose / prefs）は紐づけと読まない" "[]" \
 check "本文参照の Issue は孤児に数えない・参照の無い Issue は数える" "1" \
   "$(count_orphans "$(orphan_issues "1511|ai:approved,ai:in-progress|$OLD" "80|ai:approved,ai:in-progress|$OLD")" 1800 "$(pr_linked_issue_numbers '[{"body":"Closes #1511","closingIssuesReferences":{"nodes":[]}}]')")"
 check "呼び出し側: 仕事6 が isDraft を取得して純粋関数に渡している（取り忘れると全件が非ドラフト扱い）" "1" \
-  "$(grep -c 'STALLED=$(count_stalled "$(gh pr list .*--json mergeStateStatus,autoMergeRequest,isDraft,closingIssuesReferences' "$TARGET")"
+  "$(grep -c 'if STALLED_PRS=$(gh pr list .*--json mergeStateStatus,autoMergeRequest,isDraft,closingIssuesReferences' "$TARGET")"
 check "呼び出し側: 仕事9 が PR 本文を取得して紐づけ判定に通している" "1" \
   "$(grep -c '^LINKED_ISSUES=$(pr_linked_issue_numbers' "$TARGET")"
 
@@ -691,6 +691,30 @@ run_candidates_block() {
 }
 check "対照: 成功すれば候補を返してログは出ない" "[7 false false] 0" "$(run_candidates_block 0)"
 check "着手候補の取得に失敗した回は空にしてログに取得失敗を残す" "[] 1" "$(run_candidates_block 1)"
+
+# 仕事4（コンフリクト）・仕事6（放置 PR）の取得失敗も「0 件」と読み替えない（#3308）。本物のブロックのまま gh を失敗させる
+echo "== 10-d. 仕事4・6 は gh の失敗を 0 件と読み替えず、ログを1行出す（#3308）=="
+CONFLICT_BLOCK=$(awk '/^# 仕事4: コンフリクトで滞留/ { f = 1 } /^# 仕事5:/ { f = 0 } f' "$TARGET")
+STALLED_BLOCK=$(awk '/^# 仕事6: マージ可能なのに放置/ { f = 1 } /^# 仕事7:/ { f = 0 } f' "$TARGET")
+check "仕事4 のブロックを切り出せた" "1" "$(printf '%s\n' "$CONFLICT_BLOCK" | grep -c 'if CONFLICT_PRS=')"
+check "仕事6 のブロックを切り出せた" "1" "$(printf '%s\n' "$STALLED_BLOCK" | grep -c 'if STALLED_PRS=')"
+# 引数: 検知ブロック / gh を失敗させるか(1) / 出力する変数名。出力: "件数 ログ行数"
+run_pr_block() {
+  local block="$1" fail="$2" var="$3"
+  (
+    OTHER_CLAIMS_JSON='[]'
+    LOGF=$(mktemp)
+    log() { echo "$*" >>"$LOGF"; }
+    gh() { [ "$fail" = 1 ] && return 1; printf '[{"mergeable":"CONFLICTING","mergeStateStatus":"CLEAN","autoMergeRequest":null,"isDraft":false,"closingIssuesReferences":[]}]'; }
+    eval "$block" >/dev/null 2>&1
+    printf '%s %s' "${!var}" "$(wc -l <"$LOGF" | tr -d ' ')"
+    rm -f "$LOGF"
+  )
+}
+check "対照: 仕事4 は成功すれば数えてログは出ない" "1 0" "$(run_pr_block "$CONFLICT_BLOCK" 0 CONFLICTS)"
+check "仕事4: gh が失敗した回は 0 に倒しログを1行出す" "0 1" "$(run_pr_block "$CONFLICT_BLOCK" 1 CONFLICTS)"
+check "対照: 仕事6 は成功すれば数えてログは出ない" "1 0" "$(run_pr_block "$STALLED_BLOCK" 0 STALLED)"
+check "仕事6: gh が失敗した回は 0 に倒しログを1行出す" "0 1" "$(run_pr_block "$STALLED_BLOCK" 1 STALLED)"
 
 echo "== 11. 呼び出し側が共通定義を使っている（判定の写しを作っていない）=="
 USES=$(grep -c 'DUTY_JQ_COMMENT_LIB"' "$TARGET")
