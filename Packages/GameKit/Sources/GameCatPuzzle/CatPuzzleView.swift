@@ -4,42 +4,42 @@ import CoreOjisanPixel
 
 /// おじさんちのねこさがし（#2250）のプレイ画面。家の間取りのマスをタップで ×（いない）を付け外しし、ダブルタップで猫を見つける。
 public struct CatPuzzleView: View {
-    private let services: GameServices
-    @State private var model: CatPuzzleModel
+    let services: GameServices
+    @State var model: CatPuzzleModel
     /// 最後に選んだ盤の大きさ（次に開いたときの開始シートの初期値）。
     @AppStorage("catPuzzleSize") private var preferredSize = CatPuzzleSize.normal.rawValue
     /// 最後に選んだ遊び方（ステージ／自由に遊ぶ・#3048）。開始シートの初期値。
     @AppStorage("catPuzzleMode") private var preferredMode = CatPuzzlePlayMode.stage.rawValue
     /// ステージのクリアのカードを「盤を見る」で閉じたか（新しい局で開け直す）。
-    @State private var clearCardClosed = false
+    @State var clearCardClosed = false
     /// ステージのクリアの流れ（ライフが pt に → ランキング → モーダル・#3304）。クリアのたびに頭から。
-    @State private var clearFlow = CatPuzzleClearFlow()
+    @State var clearFlow = CatPuzzleClearFlow()
     /// 盤を押している指の状態（タップかスライドかの判定。#3116）。
     @State private var boardTouch = BoardTouch()
     /// 盤の拡大と移動（2 本指・#3238）。新しい局・盤の大きさが変わったら等倍に戻す。
     @State private var zoom = CatPuzzleBoardZoom()
     /// 開始シート（難易度を選ぶ）。続きの盤が無ければ最初に出す（他のゲームと同じ・会長 QA 2026-10-21・build 43）。
-    @State private var showNewGame: Bool
+    @State var showNewGame: Bool
     /// 「＋」で途中の局をやめるかの確認。
     @State private var showConfirmNewGame = false
     /// 「やり直し」（印を全部消す）の確認。
-    @State private var showConfirmClear = false
+    @State var showConfirmClear = false
     /// コンティニュー済みの局の負けカードを「盤を見る」で閉じたか（新しい局で開け直す）。
-    @State private var failCardClosed = false
+    @State var failCardClosed = false
     /// ヒントの広告救済（無料 1 回を使い切った後の 1 回。連打ガード・広告・失敗アラート。15パズル・ナンプレと同じ #526）。
-    @State private var hintRescue = RewardedRescue()
+    @State var hintRescue = RewardedRescue()
     /// 「猫を 1 匹教える」の広告の段取り（ステージだけ・#3203。ヒントとは別の残りなので救済も別に持つ）。
-    @State private var teachRescue = RewardedRescue()
+    @State var teachRescue = RewardedRescue()
     /// コンティニュー（3 回目のミスで広告を見て続ける）の広告の段取り（#2780。ヒントとは別の救済として持つ）。
     @State private var continueRescue = RewardedRescue()
     /// 負けたあとの答え合わせで、これまでに盤へ出した「見つけていない猫」の数（1 匹ずつ増やす）。
     @State private var revealedGhosts = 0
     /// ヒントを上限まで使い切ったあとに押したときの一言を出している間（数秒で消える・#3048）。
-    @State private var showsHintUsedUp = false
+    @State var showsHintUsedUp = false
     /// 鍵の部屋の外を触ったときの案内を出している間（数秒で消える・#3235）。
-    @State private var showsKeyLockedHint = false
+    @State var showsKeyLockedHint = false
     /// 鍵の猫を見つけた直後の「鍵が開いた」を出している間。
-    @State private var showsKeyOpened = false
+    @State var showsKeyOpened = false
     /// 鍵の面の説明を出しているか。初めて鍵の面に来たとき 1 回だけ（`CatPuzzleKeyIntro`）。
     @State private var showsKeyIntro = false
     @AppStorage(CatPuzzleKeyIntro.seenKey) private var keyIntroSeen = false
@@ -565,7 +565,7 @@ public struct CatPuzzleView: View {
 
     /// 結果カードの「広告を見てコンティニュー」。押したときだけ広告を出し、見終えたらミスを 1 回ぶん戻す（自動再生しない）。
     /// どの局に対する広告かを出す前に控え、ロード中に入れ替わった局へは乗せない（#729）。
-    private func requestContinue() {
+    func requestContinue() {
         guard !continueRescue.isWatching, model.isOfferingContinue else { return }
         let game = model.gameSerial
         continueRescue.request(
@@ -597,384 +597,6 @@ public struct CatPuzzleView: View {
         }
     }
 
-    // MARK: - 盤の下
-
-    /// 盤の下の 1 行。ヒント・赤い × の説明・終局のおじさんの一言。高さは常に確保して盤が跳ねないようにする。
-    private var messageLine: some View {
-        ZStack {
-            if model.isSolved {
-                // おじさんの一言は横いっぱいの吹き出しにして、文字が窮屈にならないようにする（会長 QA 2026-10-21・build 42）。
-                ojisanLine(face: .cheer, text: tr(model.uncleLine ?? CatPuzzleUncleLines.clearNormal[0]))
-            } else if model.isFailed {
-                ojisanLine(face: .frown, text: tr(model.uncleLine ?? CatPuzzleUncleLines.fail[0]))
-            } else if model.lastWrongCell != nil, model.mistakesRemaining == 1 {
-                // 残りミス 1 回は一段強く（アイコン付き・太字）。次の 1 回で終わることを見逃さないようにする。
-                Label(tr("あと1回で終わり！ そこに猫はいない"), systemImage: "exclamationmark.triangle.fill")
-                    .scaledFont(15, weight: .heavy, design: .rounded)
-                    .foregroundStyle(Theme.coralText)
-                    .multilineTextAlignment(.center)
-                    .accessibilityHidden(true)
-            } else if model.lastWrongCell != nil {
-                Text(tr("そこに猫はいない！ 赤い×でライフが減った（あと%lld回で終わり）", model.mistakesRemaining))
-                    .scaledFont(14, weight: .bold, design: .rounded)
-                    .foregroundStyle(Theme.coralText)
-                    .multilineTextAlignment(.center)
-                    // 読み上げは `onChange` の通知で伝える。
-                    .accessibilityHidden(true)
-            } else if showsKeyOpened {
-                Label(tr("鍵が開いた！ ほかの部屋にも印を付けられる"), systemImage: "lock.open.fill")
-                    .scaledFont(14, weight: .heavy, design: .rounded)
-                    .foregroundStyle(Theme.tealText)
-                    .multilineTextAlignment(.center)
-                    .accessibilityHidden(true)
-            } else if showsKeyLockedHint {
-                Label(tr("先に鍵の猫を見つけよう"), systemImage: "lock.fill")
-                    .scaledFont(14, weight: .heavy, design: .rounded)
-                    .foregroundStyle(Theme.coralText)
-                    .multilineTextAlignment(.center)
-                    .accessibilityHidden(true)
-            } else if showsHintUsedUp {
-                Label(tr("この局のヒントは使い切りました"), systemImage: "lightbulb.slash")
-                    .scaledFont(14, weight: .bold, design: .rounded)
-                    .foregroundStyle(Theme.inkSubText)
-                    .multilineTextAlignment(.center)
-            } else if let hint = model.lastHint {
-                Label(CatPuzzleAccessibility.message(for: hint, puzzle: model.puzzle, roomName: { CatPuzzleHouse.room($0).name }),
-                      systemImage: "lightbulb.fill")
-                    .scaledFont(14, weight: .bold, design: .rounded)
-                    .foregroundStyle(Theme.yellowText)
-                    .multilineTextAlignment(.center)
-            } else if model.isKeyLocked {
-                Label(tr("鍵の猫を探そう（金色の枠の部屋だけ触れる）"), systemImage: "key.fill")
-                    .scaledFont(14, weight: .bold, design: .rounded)
-                    .foregroundStyle(Theme.yellowText)
-                    .multilineTextAlignment(.center)
-            } else {
-                Text(tr("タップで × を付け外し。ダブルタップでそのマスの猫を見つけます。"))
-                    .scaledFont(14, weight: .semibold, design: .rounded)
-                    .foregroundStyle(Theme.inkSubText)
-                    .multilineTextAlignment(.center)
-            }
-        }
-        .frame(minHeight: 36)
-    }
-
-    /// 終局のおじさんの一言（顔＋横いっぱいの吹き出し）。
-    private func ojisanLine(face: OjisanPixel.Face, text: String) -> some View {
-        HStack(spacing: 10) {
-            OjisanPixel.faceImage(face)
-                .frame(width: 40, height: 37.5)
-            Text(text)
-                .scaledFont(16, weight: .bold, design: .rounded, maxScale: 1.4)
-                .foregroundStyle(Theme.ink)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 16).padding(.vertical, 9)
-                .popCard(corner: Theme.cornerSmall)
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    /// 盤の下の操作（#148・#1689）。遊んでいる間はヒント・戻す・⋯、終局（クリア・ミス 3 回の負け）したら他のゲームと同じ
-    /// 「同じ条件でもう一回」「設定を変える」（`GameReplayBar`）とレコメンドに替える（会長 QA 2026-10-21・build 42）。
-    ///
-    /// 遊んでいる間は操作の段の高さだけを取り、決着後の段（もう一回＋レコメンド）の高さは確保しない（#3048）。
-    /// 確保すると SE で盤が 216pt まで縮み、段の下に画面の 1/4 ほどの空きが残っていた。入れ替えは結果カードを
-    /// 画面全体に出している間（クリアのカード・ミス 3 回のカード）に行い、盤の大きさが変わる瞬間を見せない
-    /// （`showsFinishedControls`）。
-    @ViewBuilder private var controlArea: some View {
-        if Self.showsFinishedControls(model) {
-            GameControlArea(isFinished: true, services: services, ladder: model.stage == nil ? ladder : nil) {
-                if let stage = model.stage, model.isSolved {
-                    CatPuzzleNextStageBar(next: stage + 1,
-                                          onNext: { startStage(stage + 1) },
-                                          onChangeSettings: { showNewGame = true })
-                } else {
-                    GameReplayBar(
-                        onReplay: { replay() },
-                        onChangeSettings: { showNewGame = true }
-                    ) {
-                        RecordLabel(shownRecord)
-                    }
-                }
-            } playing: {
-                EmptyView()
-            }
-        } else {
-            let controls = Self.playControls(
-                for: model,
-                isWatchingAd: hintRescue.isWatching || teachRescue.isWatching,
-                onClear: { showConfirmClear = true },
-                onUndo: { withGameAnimation { model.undo() } },
-                onHint: { requestHint() },
-                onTeach: { Self.requestTeach(model: model, teachRescue: teachRescue, services: services) }
-            )
-            if !controls.menu.isEmpty || !controls.actions.isEmpty {
-                GameOverflowBar(menuItems: controls.menu, actions: controls.actions, verticalPadding: 4)
-            }
-        }
-    }
-
-    /// 決着後の段に替えるか。クリアはカードが出た時点（最後の猫から 1 拍後）、ミス 3 回は提案のカードが出た時点で替える
-    /// （どちらもカードが画面全体を覆っている間に盤の大きさが変わる）。コンティニューで戻ったら遊ぶ段に戻る。
-    static func showsFinishedControls(_ model: CatPuzzleModel) -> Bool {
-        model.showsClearCard || model.isFailed || model.isOfferingContinue
-    }
-
-    /// 遊んでいる間の操作の段（#1834）。広告が絡むヒントと「戻す」を段に、やり直しは「⋯」に入れる。
-    /// 終局した後は何も返さない（終局後は `GameReplayBar` に替わる）。
-    static func playControls(
-        for model: CatPuzzleModel,
-        isWatchingAd: Bool = false,
-        onClear: @escaping () -> Void = {}, onUndo: @escaping () -> Void = {}, onHint: @escaping () -> Void = {},
-        onTeach: @escaping () -> Void = {}
-    ) -> (menu: [GameControlMenuItem], actions: [GameActionItem]) {
-        guard !model.isOver else { return ([], []) }
-        let menu = [
-            GameControlMenuItem(
-                id: "clear", title: tr("やり直し"), systemImage: "arrow.counterclockwise",
-                isDestructive: true, isEnabled: model.hasProgressToLose && !model.isOfferingContinue && !isWatchingAd, action: onClear
-            ),
-        ]
-        // ステージでは「戻す」をやめて「餌をあげる」（解析の purpose は `teach` のまま）にする（#3203）。自由に遊ぶは従来どおり「戻す」。
-        let second = model.stage == nil
-            ? GameActionItem(
-                id: "undo", title: tr("戻す"), systemImage: "arrow.uturn.backward", role: .undo,
-                isEnabled: model.canUndo && !isWatchingAd, action: onUndo
-            )
-            : GameActionItem(
-                id: "teach", title: tr("餌をあげる"), systemImage: "fork.knife", role: .undo,
-                badge: teachBadge(for: model),
-                isEnabled: model.canTeach && !isWatchingAd,
-                accessibilityLabel: model.needsAdForTeach
-                    ? tr("餌をあげる、無料の回数は使い切りました。広告を見ると1回追加")
-                    : tr("餌をあげる、あと%lld回", model.teachRemaining),
-                accessibilityHint: tr("餌で猫を1匹おびき出して、正解のマスに置きます。置いた猫は消せません"),
-                action: onTeach
-            )
-        let actions = [
-            second,
-            GameActionItem(
-                id: "hint", title: tr("ヒント"), systemImage: "lightbulb.fill", role: .hint,
-                badge: hintBadge(for: model),
-                // 上限まで使い切ったら押せない見た目にするが、押すと「使い切りました」と知らせる（広告は出さない・#3048）。
-                isEnabled: (model.canHint || isHintUsedUp(model)) && !isWatchingAd,
-                looksDisabled: isHintUsedUp(model),
-                accessibilityLabel: CatPuzzleAccessibility.hintLabel(remaining: model.hintsRemaining, needsAd: model.needsAdForHint),
-                accessibilityHint: isHintUsedUp(model)
-                    ? tr("この局のヒントは使い切りました")
-                    : tr("推理の1歩を示します。確実に猫のいないマスに×を置き、確定するときだけ猫を置きます"),
-                action: onHint
-            ),
-        ]
-        return (menu, actions)
-    }
-
-    /// ヒントの 2 行目。「あと n 回」は無料ぶんだけで、使い切ったら「0回 ▶ 広告を見て +1」の面にする
-    /// （15パズル・将棋などと同じ `GameActionBadge.hint`。広告の追加まで使い切ったら 0 のまま・#1897）。
-    /// 広告で足せる上限は盤ゲームの 5 回ではなく 3 回なので、それを渡す（#3048）。
-    static func hintBadge(for model: CatPuzzleModel) -> GameActionBadge {
-        // ステージは全ステージ共通の残り。0 なら広告 1 回で 1 回（何度でも）。
-        if model.stage != nil { return model.needsAdForHint ? .ad() : .count(model.hintsRemaining) }
-        return .hint(totalRemaining: model.hints.remaining, needsAd: model.needsAdForHint, adLimit: model.hints.adLimit)
-    }
-
-    /// 無料と広告の追加を合わせて、この局のヒントを上限まで使い切ったか（遊んでいる間だけ）。
-    static func isHintUsedUp(_ model: CatPuzzleModel) -> Bool {
-        model.stage == nil && model.hints.isExhausted && !model.isOver && !model.isOfferingContinue
-    }
-
-    /// 無料が残っていればそのまま示し、使い切っていれば広告を見たあとに示す（広告は押下起点・自動再生しない）。
-    /// 上限まで使い切っていたら広告は出さず、盤の下に「この局のヒントは使い切りました」を数秒出す。
-    private func requestHint() {
-        if Self.isHintUsedUp(model) {
-            showsHintUsedUp = true
-            AccessibilityNotification.Announcement(tr("この局のヒントは使い切りました")).post()
-            return
-        }
-        Self.requestHint(model: model, hintRescue: hintRescue, services: services)
-    }
-
-    /// `requestHint()` の中身（テストからモックの services で広告の成功・失敗を確かめるため static にしている）。
-    /// どの局に対する広告かを出す前に控え、ロード中に始めた新しい局へは乗せない（15パズル・ナンプレのヒントと同じ #815）。
-    static func requestHint(model: CatPuzzleModel, hintRescue: RewardedRescue, services: GameServices) {
-        guard !hintRescue.isWatching, model.canHint else { return }
-        guard model.needsAdForHint else {
-            withGameAnimation { model.useHint() }
-            return
-        }
-        let game = model.gameSerial
-        hintRescue.request(
-            services, gameID: CatPuzzleModel.gameID, purpose: .hint,
-            guardedBy: .checkedByGrant
-        ) {
-            // 広告を見たのに入らなかったら黙って終わらせない（`grantAdHint` が false → 「出せませんでした」）。
-            withGameAnimation { model.grantAdHint(forGame: game) }
-        }
-    }
-
-    /// 「餌をあげる」の 2 行目（ヒントと同じ作法。ステージだけ）。
-    static func teachBadge(for model: CatPuzzleModel) -> GameActionBadge {
-        model.needsAdForTeach ? .ad() : .count(model.teachRemaining)
-    }
-
-    /// 「餌をあげる」を押したとき。無料の残りがあればそのまま置き、0 なら広告を見たあとに置く（ヒントの `requestHint` と同じ局ガード）。
-    static func requestTeach(model: CatPuzzleModel, teachRescue: RewardedRescue, services: GameServices) {
-        guard !teachRescue.isWatching, model.canTeach else { return }
-        guard model.needsAdForTeach else {
-            withGameAnimation { model.teachCat() }
-            return
-        }
-        let game = model.gameSerial
-        teachRescue.request(
-            services, gameID: CatPuzzleModel.gameID, purpose: .teach,
-            guardedBy: .checkedByGrant
-        ) {
-            withGameAnimation { model.grantAdTeach(forGame: game) }
-        }
-    }
-
-    /// 盤の大きさの呼び名。ステージは「ステージ 3（6×6）」、自由に遊ぶは「ふつう（7×7）」。
-    private var boardLabel: String {
-        if let stage = model.stage {
-            return tr("ステージ %1$lld（%2$@）", stage, model.size.sizeLabel)
-        }
-        return tr("%1$@（%2$@）", model.size.label, model.size.sizeLabel)
-    }
-
-    /// 経過時間の時計を出すか。ステージは秒数を持たないので出さない（#3210）。
-    static func showsClock(_ model: CatPuzzleModel) -> Bool { model.stage == nil }
-
-    /// クリアのカードの行。SE の画面に収まるよう 2〜3 行に詰める（#3048。以前は 5 行で盤からはみ出しスクロールになっていた）。
-    /// ヒントは 0 回でも省かず出す（#2613・#2801）。ステージはタイムを出さない（#3210）。
-    var clearDetails: [String] {
-        var lines = [
-            Self.showsClock(model)
-                ? tr("タイム %1$@・ライフ %2$lld・ヒント %3$lld回",
-                     RecordFormat.time(model.elapsedSeconds), model.mistakesRemaining, model.hintsUsed)
-                : tr("ライフ %1$lld・ヒント %2$lld回", model.mistakesRemaining, model.hintsUsed),
-            tr("%1$@・手数 %2$lld", boardLabel, model.moves),
-        ]
-        if let stage = model.stage {
-            // ステージは盤の名前の行を、次の面の位置（#3240）に替える。手数はミス・ヒントの行へ寄せて 4 行に収める。
-            let next = CatPuzzleStage(stage + 1).progress
-            lines = [
-                tr("ライフ %1$lld・ヒント %2$lld回・手数 %3$lld", model.mistakesRemaining, model.hintsUsed, model.moves),
-                tr("次は %1$@・%2$@", CatPuzzleStageProgressText.position(next), CatPuzzleStageProgressText.key(next)),
-            ]
-            // ノーミス連続の行（下）が出るときは、次の盤の行を譲って 4 行に収める（開始シートには出る）。
-            let showsStreak = model.noMissStreak >= CatPuzzleNoMiss.showsFrom
-            if !showsStreak, let board = CatPuzzleStageProgressText.nextBoard(next) ?? CatPuzzleStageProgressText.bonus(next) { lines.append(board) }
-        }
-        if let earned = model.lastEventPoints {
-            // イベント開催中のステージ。SE で行が増えすぎないよう、パーフェクトの行は +3pt に譲る（#3204）。
-            lines.append(model.lastEventWasKey
-                ? tr("イベント +%1$lldpt（鍵の面 ×2）・今日の合計 %2$lldpt", earned, model.eventTotal)
-                : tr("イベント +%1$lldpt・今日の合計 %2$lldpt", earned, model.eventTotal))
-        } else if model.mistakes == 0 {
-            lines.append(tr("ミスなしのパーフェクト！"))
-        }
-        if model.stage != nil, model.noMissStreak >= CatPuzzleNoMiss.showsFrom {
-            lines.append(model.beatNoMissBest
-                ? tr("ノーミス %lld 面連続・自己ベスト", model.noMissStreak)
-                : tr("ノーミス %lld 面連続", model.noMissStreak))
-        }
-        return lines
-    }
-
-    /// 結果に添える記録の行。ステージの記録は秒数を持たず、共通の 1 行（最短タイム）では「クリア記録なし」に
-    /// 化けるので出さない（#3210）。
-    private var shownRecord: RecordResult? { Self.showsClock(model) ? model.recordResult : nil }
-
-    /// クリアのカード（画面全体に重ねる）。ステージは見出しを「ステージ n クリア！」にし、「次のステージへ」を置く。
-    private var clearCard: some View {
-        let title = model.stage.map { tr("ステージ %lld クリア！", $0) } ?? tr("クリア！")
-        return ZStack {
-            Color.black.opacity(0.45)
-            if model.stage != nil, !clearFlow.showsModal {
-                // 猫のアニメのあと、ライフ → pt → ランキングの順に見せてからモーダル（#3304）。
-                CatPuzzleClearFlowCard(
-                    step: clearFlow.step, lives: model.mistakesRemaining,
-                    isKey: model.lastEventWasKey, total: model.eventTotal,
-                    loadRank: { await loadTodayRank() }
-                ) { withGameAnimation { clearFlow.advance() } }
-            } else {
-            GameClearCard(
-                title: title, details: clearDetails,
-                primaryAction: model.stage.map { stage in
-                    GameClearCard.PrimaryAction(
-                        title: tr("次のステージへ"),
-                        hint: tr("ステージ %lld を始めます", stage + 1)
-                    ) { startStage(stage + 1) }
-                },
-                share: CatPuzzleShare.content(for: model)
-            ) {
-                clearCardClosed = true
-            }
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
-        .accessibilityElement(children: .contain)
-        .accessibilityAddTraits(.isModal)
-    }
-
-    /// 今日の順位（Game Center）。読めなければ nil（未サインイン・失敗）。
-    private func loadTodayRank() async -> Int? {
-        // 送った pt が順位に乗ってから読む。友だちの順位は待たず、盤の順位だけを読む。
-        await model.awaitEventSubmission()
-        guard let reporter = services.gameCenter, reporter.isSignedIn else { return nil }
-        guard let board = await reporter.loadWeeklyBoard(
-            gameID: CatPuzzleModel.gameID, leaderboardID: GameCenterLeaderboard.catPuzzleEvent,
-            topCount: CatPuzzleRankingContent.topCount
-        ) else { return nil }
-        return CatPuzzleRankingModel.today(board, now: Date()).myRank
-    }
-
-    /// 3 回目のミスで出す、ただ 1 枚のダイアログ（他のゲームの負けと同じ `BoardGameResultCard`・#2904）。
-    /// 提案中は「広告を見てコンティニュー」でミスが 1 回ぶん戻り、「あきらめて正解を見る」で負けを確定して盤に正解を出す
-    /// （負けはあきらめた時点で確定するので、記録の行はこのカードには出ない）。
-    /// コンティニュー済みの局は負けが確定した状態で出し、「盤を見る」で閉じる（正解はカードの後ろで盤に出る）。
-    /// 補足は 1 行に詰める（#3048。SE で画面の高さぎりぎりだった）。「広告を見ると、ミスが1回ぶん戻ります」は
-    /// コンティニューのボタンの読み上げのヒントに残す。
-    private var failCard: some View {
-        let offering = model.isOfferingContinue
-        return BoardGameResultCard(
-            verdict: .loss,
-            reason: tr("%lld回まちがえた…", CatPuzzleModel.maxMistakes),
-            details: [Self.showsClock(model) ? tr("%1$@・タイム %2$@", boardLabel, RecordFormat.time(model.elapsedSeconds)) : boardLabel],
-            record: offering ? nil : shownRecord,
-            secondaryAction: offering
-                ? BoardGameResultCard.SecondaryAction(
-                    title: tr("広告を見てコンティニュー"),
-                    hint: tr("広告を見ると、ライフが1つ戻ります")
-                ) { requestContinue() }
-                : nil,
-            closeTitle: offering ? tr("あきらめて正解を見る") : nil,
-            closeHint: offering ? tr("負けを確定して、猫のいる場所を盤に表示します") : nil
-        ) {
-            if offering {
-                withGameAnimation { model.declineContinue() }
-            } else {
-                failCardClosed = true
-            }
-        }
-    }
-
-    /// ステージの問題を作っている間に盤へ重ねる表示。
-    private var preparingOverlay: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
-                .fill(Theme.surface.opacity(0.85))
-            VStack(spacing: 10) {
-                ProgressView()
-                Text(tr("問題を用意しています…"))
-                    .scaledFont(15, weight: .bold, design: .rounded)
-                    .foregroundStyle(Theme.inkSubText)
-            }
-        }
-        .accessibilityElement(children: .combine)
-    }
-
     // MARK: - 新規ゲーム
 
     /// 「＋」。途中の盤面があるときは確認を挟んでから開始シートを出す（他のゲームと同じ）。
@@ -988,7 +610,7 @@ public struct CatPuzzleView: View {
     }
 
     /// 勝ちが続いたら一段上の大きさを勧める（#722・#2806）。並びは開始シートの大きさと同じ。自由に遊ぶときだけ。
-    private var ladder: DifficultyLadderPrompt? {
+    var ladder: DifficultyLadderPrompt? {
         let sizes = CatPuzzleSize.allCases
         return DifficultyLadderPrompt(result: model.recordResult, currentLevel: sizes.firstIndex(of: model.size),
                                       levelLabels: sizes.map(\.label)) { index in
@@ -997,7 +619,7 @@ public struct CatPuzzleView: View {
     }
 
     /// 「同じ条件でもう一回」。ステージで負けたら同じ面（同じ問題）にもう一度挑む。自由に遊ぶは同じ大きさの新しい問題。
-    private func replay() {
+    func replay() {
         if let stage = model.stage {
             startStage(stage)
         } else {
@@ -1021,205 +643,7 @@ public struct CatPuzzleView: View {
     }
 
     /// ステージの面を始める。`number` が nil なら次に遊ぶ面。
-    private func startStage(_ number: Int?) {
+    func startStage(_ number: Int?) {
         withGameAnimation { model.startStage(number) }
-    }
-}
-
-// MARK: - 遊び方の選択
-
-/// 入口で選ぶ遊び方（#3048）。`rawValue` は最後に選んだ遊び方の保存に使う。
-enum CatPuzzlePlayMode: String, CaseIterable {
-    /// 1 面ずつ難しくなる連番のステージ。クリアしたら次の面へ進むだけで、前の面には戻らない。
-    case stage
-    /// 盤の大きさを選び、毎回新しい問題（これまでの遊び方）。
-    case free
-
-    var label: String {
-        switch self {
-        case .stage: tr("ステージ")
-        case .free: tr("自由に遊ぶ")
-        }
-    }
-}
-
-/// ステージのクリア後に盤の下へ出す段。「次のステージへ」と「設定を変える」（`GameReplayBar` と同じ形・寸法）。
-struct CatPuzzleNextStageBar: View {
-    let next: Int
-    let onNext: () -> Void
-    let onChangeSettings: () -> Void
-
-    var body: some View {
-        HStack(spacing: GameReplayBarMetrics.buttonSpacing) {
-            Button(action: onNext) {
-                capsule(tr("次のステージへ"), fill: Theme.Fill.coral, foreground: Theme.onAccent)
-            }
-            .accessibilityHint(tr("ステージ %lld を始めます", next))
-            Button(action: onChangeSettings) {
-                capsule(GameReplayBarText.changeSettings, fill: Theme.fillMuted, foreground: .white)
-            }
-        }
-        .themeBody(14)
-        .padding(.horizontal, 16).padding(.vertical, GameReplayBarMetrics.verticalPadding)
-        .popCard(corner: Theme.cornerSmall)
-    }
-
-    private func capsule(_ title: String, fill: Color, foreground: Color) -> some View {
-        Text(title)
-            .lineLimit(1)
-            .minimumScaleFactor(0.7)
-            .foregroundStyle(foreground)
-            .padding(.horizontal, 12)
-            .frame(maxWidth: .infinity, minHeight: GameReplayBarMetrics.buttonHeight)
-            .background(Capsule().fill(fill))
-            .contentShape(Rectangle())
-    }
-}
-
-// MARK: - 開始シート
-
-/// 遊び方（ステージ／自由に遊ぶ）と、自由に遊ぶときの難易度（盤の大きさ）を選んで始めるシート。
-/// 他のゲームと同じ共通の枠（`GameSetupSheet`）。
-struct CatPuzzleNewGameSheet: View {
-    let nextStage: Int
-    /// ノーミス連続の最高（#3244）。0 なら出さない。
-    let noMissBest: Int
-    /// 今日貯めた合計 pt（今日のランキングの欄に出す。常設・#3298）。
-    let eventTotal: Int
-    /// Game Center 本体の画面を開く入口。アプリ内のランキング画面（`makeRanking`）の中のボタンから使う（無ければボタンを出さない）。
-    let onOpenRanking: (@MainActor () -> Void)?
-    /// アプリ内のランキング画面（#3236）のモデルを作る。無ければ「ランキングを見る」ボタンを出さない。
-    let makeRanking: (@MainActor () -> CatPuzzleRankingModel)?
-    let onStart: (CatPuzzlePlayMode, CatPuzzleSize) -> Void
-    let onCancel: () -> Void
-    @State private var mode: CatPuzzlePlayMode
-    @State private var size: CatPuzzleSize
-    @State private var showRanking = false
-    /// 開始シートの順位の読み込み（#3312）。シートを開いたときに 1 度だけ読む。
-    @State private var rankModel: CatPuzzleRankingModel?
-
-    init(initialMode: CatPuzzlePlayMode, initial: CatPuzzleSize, nextStage: Int, noMissBest: Int = 0,
-         eventTotal: Int = 0, onOpenRanking: (@MainActor () -> Void)? = nil,
-         makeRanking: (@MainActor () -> CatPuzzleRankingModel)? = nil,
-         onStart: @escaping (CatPuzzlePlayMode, CatPuzzleSize) -> Void,
-         onCancel: @escaping () -> Void) {
-        self.nextStage = nextStage
-        self.noMissBest = noMissBest
-        self.eventTotal = eventTotal
-        self.onOpenRanking = onOpenRanking
-        self.makeRanking = makeRanking
-        self.onStart = onStart
-        self.onCancel = onCancel
-        _mode = State(initialValue: initialMode)
-        _size = State(initialValue: initial.freePlaySize)
-    }
-
-    var body: some View {
-        GameSetupSheet(
-            kind: .solo,
-            onboarding: CatPuzzleOnboarding.guide,
-            onStart: { onStart(mode, size) }, onCancel: onCancel
-        ) {
-            Self.modeSection(selection: $mode, nextStage: nextStage)
-            if mode == .stage {
-                CatPuzzleStageProgressView(progress: CatPuzzleStage(nextStage).progress)
-            }
-            if mode == .stage, noMissBest >= CatPuzzleNoMiss.showsFrom {
-                Text(tr("ノーミス連続の最高 %lld 面", noMissBest))
-                    .themeCaption(12).foregroundStyle(Theme.inkSubText)
-            }
-            if mode == .stage {
-                Self.eventSection(total: eventTotal, rank: rankModel?.state,
-                                  onOpenRanking: makeRanking == nil ? nil : { showRanking = true })
-            }
-            if mode == .free {
-                Self.sizeSection(selection: $size)
-            }
-        }
-        .task {
-            // 順位は後から差し込む。読み込み中・読めないときは合計 pt だけを出す（待たせない）。
-            guard rankModel == nil, let makeRanking else { return }
-            let model = makeRanking()
-            rankModel = model
-            await model.load()
-        }
-        .sheet(isPresented: $showRanking) {
-            if let makeRanking {
-                CatPuzzleRankingView(model: makeRanking(), onOpenGameCenter: onOpenRanking) { showRanking = false }
-            }
-        }
-    }
-
-    /// 遊び方の節。ステージは次に遊ぶ面の番号を添える。
-    static func modeSection(selection: Binding<CatPuzzlePlayMode>, nextStage: Int) -> some View {
-        GameSetupSection(tr("遊び方")) {
-            HStack(spacing: 6) {
-                let modes = CatPuzzlePlayMode.allCases
-                ForEach(Array(modes.enumerated()), id: \.element) { step, value in
-                    GameSetupChooser(title: value.label,
-                                     subtitle: value == .stage ? tr("ステージ %lld から", nextStage) : tr("盤の大きさを選ぶ"),
-                                     selected: selection.wrappedValue == value,
-                                     accent: DifficultyTile.accent(step: step, of: modes.count),
-                                     metrics: DifficultyTile.metrics) {
-                        selection.wrappedValue = value
-                    }
-                }
-            }
-        }
-    }
-
-    /// 今日のランキングの節（ステージだけ・常設・#3204・#3298）。ポイントのつき方、貯めた合計、アプリ内のランキング画面を開く導線（#3236）。
-    static func eventSection(total: Int, rank: CatPuzzleRankingState? = nil,
-                             onOpenRanking: (@MainActor () -> Void)?) -> some View {
-        GameSetupSection(tr("今日のランキング")) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(tr("ステージをクリアして今日の pt を貯めよう（毎日 日本時間の 0 時にリセット）。残りライフ 3 で 3pt・2 で 2pt・1 で 1pt（鍵の面は 2 倍）"))
-                    .themeBody(13).foregroundStyle(Theme.inkSubText)
-                    .fixedSize(horizontal: false, vertical: true)
-                HStack {
-                    Text(Self.totalText(total: total, rank: rank))
-                        .themeBody(15).monospacedDigit()
-                    Spacer(minLength: 8)
-                    if let onOpenRanking {
-                        Button { onOpenRanking() } label: {
-                            Text(tr("今日のランキングを見る"))
-                                .themeBody(14)
-                                .padding(.horizontal, 12)
-                                .frame(minHeight: 44)
-                                .contentShape(Rectangle())
-                        }
-                    }
-                }
-            }
-            .accessibilityElement(children: .contain)
-        }
-    }
-
-    /// 今日のランキングの欄の合計行（#3312）。順位が読めていれば「今日 n 位 / m 人・合計 xx pt」、
-    /// 読み込み中・未サインイン・読めなかった・今日まだ記録が無いときは合計 pt だけ。
-    static func totalText(total: Int, rank: CatPuzzleRankingState?) -> String {
-        guard case .ready(let content)? = rank, let myRank = content.myRank else {
-            return tr("今日の合計 %lldpt", total)
-        }
-        return content.participants >= myRank
-            ? tr("今日 %1$lld位 / %2$lld人・合計 %3$lldpt", myRank, content.participants, total)
-            : tr("今日 %1$lld位・合計 %2$lldpt", myRank, total)
-    }
-
-    /// 難易度の節（静止画の確認でも中身だけ描けるよう切り出している）。
-    static func sizeSection(selection: Binding<CatPuzzleSize>) -> some View {
-        GameSetupSection(tr("難易度")) {
-            HStack(spacing: 6) {
-                let levels = CatPuzzleSize.allCases
-                ForEach(Array(levels.enumerated()), id: \.element) { step, value in
-                    GameSetupChooser(title: value.label, subtitle: value.sizeLabel,
-                                     selected: selection.wrappedValue == value,
-                                     accent: DifficultyTile.accent(step: step, of: levels.count),
-                                     metrics: DifficultyTile.metrics) {
-                        selection.wrappedValue = value
-                    }
-                }
-            }
-        }
     }
 }
