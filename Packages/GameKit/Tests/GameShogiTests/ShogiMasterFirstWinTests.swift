@@ -11,11 +11,14 @@ import CoreTestSupport
 struct ShogiMasterFirstWinTests {
     private final class SpyGameCenter: GameCenterService {
         var reported: [[GameCenterAchievement]] = []
+        /// Game Center 側の解除済み。nil は読めなかった（オフライン）。
+        var unlocked: Set<String>?
         func submit(_ score: GameCenterScore) {}
         func report(_ achievements: [GameCenterAchievement], completion: @escaping @MainActor (Bool) -> Void) {
             reported.append(achievements)
             completion(true)
         }
+        func unlockedAchievementIDs() async -> Set<String>? { unlocked }
     }
 
     private struct Rig {
@@ -26,7 +29,8 @@ struct ShogiMasterFirstWinTests {
     }
 
     /// ▲5c5b で後手玉が詰む局面（人間が先手）から始める。`aiLevel` が達人なら達人戦。
-    private func makeRig(aiLevel: Int?, suite: String, sente: PlayerKind = .human, gote: PlayerKind = .ai) throws -> Rig {
+    private func makeRig(aiLevel: Int?, suite: String, sente: PlayerKind = .human, gote: PlayerKind = .ai,
+                         signedIn: Bool = true) throws -> Rig {
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let log = PlayLog(defaults: defaults)
@@ -42,7 +46,7 @@ struct ShogiMasterFirstWinTests {
         )
         let spy = SpyFeedbackService()
         let center = SpyGameCenter()
-        let reporter = GameCenterReporter(service: center, allowedGameIDs: ["shogi"])
+        let reporter = GameCenterReporter(service: center, allowedGameIDs: ["shogi"], isAvailable: { signedIn })
         let services = GameServices(snapshots: store, ads: NoopAdService(), feedback: spy, playLog: log, gameCenter: reporter)
         return Rig(model: ShogiGameModel(services: services), spy: spy, center: center, log: log)
     }
@@ -100,6 +104,48 @@ struct ShogiMasterFirstWinTests {
         #expect(!rig.model.isMasterFirstWin)
         #expect(rig.spy.notices == [.error])
         #expect(rig.center.reported.isEmpty)
+    }
+
+    @Test("未サインインで初勝利→サインイン後に開くと、実績を送り直す")
+    func resendsAfterSignIn() async throws {
+        let rig = try makeRig(aiLevel: ShogiMasterEngine.level, suite: "asobiba.shogi.masterfirst.6", signedIn: false)
+        try winByMate(rig.model)
+        #expect(rig.center.reported.isEmpty)
+        // サインイン済みの端末で開き直した想定（同じ記録・同じ Game Center の連携）。
+        let signed = try makeSignedInRig(log: rig.log)
+        signed.center.unlocked = []
+        await signed.model.syncMasterAchievement()
+        #expect(signed.center.reported == [[GameCenterAchievement(achievementID: GameCenterAchievements.shogiMaster, percentComplete: 100)]])
+    }
+
+    @Test("解除済み・勝ち無し・読めなかったときは送らない")
+    func syncSkipsWhenNotNeeded() async throws {
+        let rig = try makeRig(aiLevel: ShogiMasterEngine.level, suite: "asobiba.shogi.masterfirst.7")
+        // 勝ちが無い。
+        rig.center.unlocked = []
+        await rig.model.syncMasterAchievement()
+        #expect(rig.center.reported.isEmpty)
+        _ = rig.log.recordResult(gameID: "shogi", outcome: .win, score: GameScore(variant: "master"))
+        // 解除済み。
+        rig.center.unlocked = [GameCenterAchievements.shogiMaster]
+        await rig.model.syncMasterAchievement()
+        #expect(rig.center.reported.isEmpty)
+        // 読めなかった（オフライン）。
+        rig.center.unlocked = nil
+        await rig.model.syncMasterAchievement()
+        #expect(rig.center.reported.isEmpty)
+        // 未解除なら送る。
+        rig.center.unlocked = []
+        await rig.model.syncMasterAchievement()
+        #expect(rig.center.reported.count == 1)
+    }
+
+    private func makeSignedInRig(log: PlayLog) throws -> Rig {
+        let spy = SpyFeedbackService()
+        let center = SpyGameCenter()
+        let reporter = GameCenterReporter(service: center, allowedGameIDs: ["shogi"])
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), feedback: spy, playLog: log, gameCenter: reporter)
+        return Rig(model: ShogiGameModel(services: services), spy: spy, center: center, log: log)
     }
 
     @Test("実績 ID は ハブの道しるべ（allIDs）に混ぜない")
