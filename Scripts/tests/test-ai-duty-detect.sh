@@ -638,7 +638,7 @@ check "呼び出し側: 未承認だけなら 0（#1075）" "0" \
 # 本物のブロックのまま gh を失敗させて実行する。git は一時リポジトリに refs/remotes/origin/* だけ置いて本物を使う
 echo "== 10-b. gh の一覧取得が失敗した回は空扱いにしない（#3294）=="
 ORPHAN_COMMITS_BLOCK=$(awk '/^# 仕事10: マージ済み PR のブランチに取り残されたコミット/ { f = 1 } /^# 仕事11:/ { f = 0 } f' "$TARGET")
-check "仕事10 のブロックを切り出せた" "1" "$(printf '%s\n' "$ORPHAN_COMMITS_BLOCK" | grep -c '^ORPHAN_COMMITS=0$')"
+check "仕事10 のブロックを切り出せた" "1" "$(printf '%s\n' "$ORPHAN_COMMITS_BLOCK" | grep -c '^ORPHAN_COMMITS=0 ORPHAN_SCAN_OK=0')"
 GR=$(mktemp -d)
 git init -q "$GR"
 (
