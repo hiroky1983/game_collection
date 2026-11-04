@@ -398,17 +398,23 @@ struct RewardGuardCallSiteTests {
         // 対価だけ払って何も起きない状態は広告の契約違反なので、ファイル単位で数を突き合わせる。
         // モデルが結果を返す形（`requestHandledByModel(withOutcome:)`・#727）も `.unavailable` で
         // `showsUnavailable` を立てるので、同じく照合する側として数える。
+        // `CatPuzzleView+Controls.swift` のように extension へ分けた View は、本体と合わせて 1 つの面として数える（#3309）。
         let mismatched = try Self.gameSources()
             .map { (
-                path: $0.path,
+                path: $0.path.replacingOccurrences(of: #"\+\w+\.swift$"#, with: ".swift", options: .regularExpression),
                 checked: Self.occurrences(of: "guardedBy: .checkedByGrant", in: $0.text)
                     + Self.occurrences(of: "requestHandledByModel(withOutcome:", in: $0.text)
                     // Core の幕（#829）は中で `checkedByGrant` を宣言しているので、呼び出しを 1 件と数える。
                     + Self.occurrences(of: "RewardedContinueOverlay(", in: $0.text),
                 alerts: Self.occurrences(of: "unavailable: RewardUnavailableAlert(", in: $0.text)
             ) }
-            .filter { $0.checked != $0.alerts }
-            .map { "\($0.path): 照合する宣言 \($0.checked) 件に対しアラート \($0.alerts) 件" }
+            .reduce(into: [String: (checked: Int, alerts: Int)]()) {
+                let total = $0[$1.path] ?? (0, 0)
+                $0[$1.path] = (total.checked + $1.checked, total.alerts + $1.alerts)
+            }
+            .filter { $0.value.checked != $0.value.alerts }
+            .sorted { $0.key < $1.key }
+            .map { "\($0.key): 照合する宣言 \($0.value.checked) 件に対しアラート \($0.value.alerts) 件" }
         #expect(mismatched.isEmpty, "\(mismatched)")
     }
 
