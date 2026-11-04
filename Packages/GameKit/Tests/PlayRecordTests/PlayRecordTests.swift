@@ -656,6 +656,28 @@ struct PlayRecordStorageTests {
         #expect(log.lastPlayedAtByGame["2048"] == playedAt)
     }
 
+    /// `PlayRecord` の必須キーはこの 7 つだけ。**ここに必須キーを増やしてはいけない。足すなら Optional にする**
+    /// （旧データ救済）。`PlayLog` は `[String: PlayRecord]` を丸ごとデコードし、1 件でも失敗すると
+    /// 全ゲームの自己ベスト・連勝・通算成績が空に倒れる。項目ごとの旧 JSON テストは将来足す項目には効かないため、
+    /// 最小 JSON で守る（#3311）。
+    @Test("必須キーだけの最小 JSON でも PlayRecord が読め、PlayLog 経由でも記録が消えない")
+    func decodesMinimalRequiredKeysOnly() throws {
+        let (_, defaults, name) = makeLog(suite: "minimal-records")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let minimal = """
+        {"metric":"points","plays":3,"wins":1,"losses":2,"draws":0,"currentStreak":0,"bestStreak":1}
+        """
+        let record = try JSONDecoder().decode(PlayRecord.self, from: Data(minimal.utf8))
+        #expect(record.plays == 3)
+        #expect(record.bestStreak == 1)
+
+        defaults.set(Data(#"{"2048":\#(minimal)}"#.utf8), forKey: PlayLog.recordsKey)
+        let log = PlayLog(defaults: defaults)
+        #expect(log.record(gameID: "2048")?.plays == 3, "最小 JSON の記録が空に倒れない")
+        #expect(log.record(gameID: "2048")?.wins == 1)
+    }
+
     @Test("最終プレイ日時は難易度をまたいで最も新しいものを代表にする")
     func lastPlayedAtAcrossVariants() {
         let (log, defaults, name) = makeLog(suite: "last-played")
