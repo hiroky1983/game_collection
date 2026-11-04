@@ -113,4 +113,18 @@ struct CatPuzzleRankingTests {
         #expect(CatPuzzleRankingBoard.rankText(3, of: 120) == "3位 / 120人")
         #expect(CatPuzzleRankingBoard.rankText(3, of: 0) == "3位")
     }
+
+    @Test("開始シートの合計行: 順位あり・なし・読み込み中・失敗・未サインイン（#3312）")
+    func startSheetTotalText() {
+        let withRank = CatPuzzleRankingContent(board: board(rows: [], myRank: 3, myScore: 7, participants: 120), friends: [])
+        #expect(CatPuzzleNewGameSheet.totalText(total: 7, rank: .ready(withRank)) == "今日 3位 / 120人・合計 7pt")
+        let noCount = CatPuzzleRankingContent(board: board(rows: [], myRank: 3, myScore: 7, participants: 0), friends: [])
+        #expect(CatPuzzleNewGameSheet.totalText(total: 7, rank: .ready(noCount)) == "今日 3位・合計 7pt")
+        let noRecord = CatPuzzleRankingContent(board: board(rows: [], myRank: nil, myScore: nil), friends: [])
+        #expect(CatPuzzleNewGameSheet.totalText(total: 0, rank: .ready(noRecord)) == "今日の合計 0pt")
+        #expect(CatPuzzleNewGameSheet.totalText(total: 5, rank: .loading) == "今日の合計 5pt")
+        #expect(CatPuzzleNewGameSheet.totalText(total: 5, rank: .failed) == "今日の合計 5pt")
+        #expect(CatPuzzleNewGameSheet.totalText(total: 5, rank: .signedOut) == "今日の合計 5pt")
+        #expect(CatPuzzleNewGameSheet.totalText(total: 5, rank: nil) == "今日の合計 5pt")
+    }
 }
