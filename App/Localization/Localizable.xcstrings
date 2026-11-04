@@ -683,6 +683,17 @@
         }
       }
     },
+    "イベント中は先頭に表示" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shown first during the event"
+          }
+        }
+      }
+    },
     "イベント開催中" : {
       "extractionState" : "manual",
       "localizations" : {

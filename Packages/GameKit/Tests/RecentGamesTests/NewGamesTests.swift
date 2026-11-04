@@ -185,7 +185,7 @@ struct NewGamesWiringTests {
     func gridPinsNewGames() throws {
         let source = try SourceScan.appSources()
         #expect(
-            source.range(of: #"NewGames\.pinned\(visibleIDs: visible\.map\(\\\.id\)\)"#, options: .regularExpression) != nil,
+            source.range(of: #"NewGames\.pinned\(visibleIDs: visible\.map\(\\\.id\), eventIDs: HubEventBadge\.activeIDs\(\)\)"#, options: .regularExpression) != nil,
             "ハブの並びが NewGames.pinned を通っていない"
         )
         #expect(
@@ -348,5 +348,50 @@ struct UpdatedGamesTests {
         let resume = try #require(badge.range(of: #"badgeCapsule(tr("続きから"))"#))
         #expect(new.lowerBound < event.lowerBound && event.lowerBound < update.lowerBound && update.lowerBound < resume.lowerBound)
         #expect(source.contains("if let updateTag { parts.append(updateTag.label) }"), "読み上げに無い")
+    }
+}
+
+@Suite("開催中のイベントのゲームの先頭固定（#3321）")
+struct NewGamesEventPinTests {
+    private static let order = ["a", "b", "cat", "x", "y"]
+
+    @Test("イベント中のゲームは利用者の並びの途中にあっても先頭に出る")
+    func eventGameIsFirst() {
+        #expect(NewGames.pinned(visibleIDs: Self.order, newIDs: [], eventIDs: ["cat"]) == ["cat", "a", "b", "x", "y"])
+    }
+
+    @Test("期間外（イベントのゲームが空）なら保存した並びのまま")
+    func outsidePeriodKeepsSavedOrder() {
+        #expect(NewGames.pinned(visibleIDs: Self.order, newIDs: [], eventIDs: []) == Self.order)
+    }
+
+    @Test("新着とイベントが重なるときはイベントを先に、新着は次に")
+    func eventBeforeNew() {
+        #expect(NewGames.pinned(visibleIDs: Self.order, newIDs: ["b", "y"], eventIDs: ["cat"]) == ["cat", "b", "y", "a", "x"])
+    }
+
+    @Test("同じゲームが新着でもイベントでも二重に並ばない")
+    func sameGameIsNotDuplicated() {
+        #expect(NewGames.pinned(visibleIDs: Self.order, newIDs: ["cat"], eventIDs: ["cat"]) == ["cat", "a", "b", "x", "y"])
+    }
+
+    @Test("非表示のゲームは並びに入っていないのでイベント中でも出ない")
+    func hiddenEventGameStaysHidden() {
+        #expect(NewGames.pinned(visibleIDs: ["a", "x"], newIDs: [], eventIDs: ["cat"]) == ["a", "x"])
+    }
+
+    @Test("並べ替えの保存（入力の並び）は書き換えない")
+    func inputIsUntouched() {
+        let input = Self.order
+        _ = NewGames.pinned(visibleIDs: input, newIDs: [], eventIDs: ["cat"])
+        #expect(input == ["a", "b", "cat", "x", "y"])
+    }
+
+    @Test("「いちばん上に置く」はイベント中のゲームの直後なら無効・案内はイベントの次と言う")
+    func moveToTopWithEvent() {
+        #expect(NewGames.isAlreadyAtTop(id: "a", orderedIDs: ["cat", "a", "b"], hiddenIDs: [], newIDs: [], eventIDs: ["cat"]))
+        #expect(!NewGames.isAlreadyAtTop(id: "b", orderedIDs: ["cat", "a", "b"], hiddenIDs: [], newIDs: [], eventIDs: ["cat"]))
+        #expect(NewGames.moveToTopAnnouncement(title: "B", id: "b", orderedIDs: ["cat", "a", "b"], hiddenIDs: [], newIDs: [], eventIDs: ["cat"])
+                == "「B」をイベント開催中のゲームの次に移しました")
     }
 }

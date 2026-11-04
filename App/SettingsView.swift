@@ -358,9 +358,17 @@ struct SettingsView: View {
                             .foregroundStyle(Theme.onAccent)
                     }
                     .accessibilityHidden(true)
-                Text(module.title)
-                    .themeBody(16)
-                    .foregroundStyle(isVisible ? Theme.ink : Theme.inkSubText)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(module.title)
+                        .themeBody(16)
+                        .foregroundStyle(isVisible ? Theme.ink : Theme.inkSubText)
+                    // 開催中は並びに関係なくハブの先頭に出る（#3321）。動かしても期間中は先頭のままと分かるようにする。
+                    if HubEventBadge.isShown(gameID: id) {
+                        Text(tr("イベント中は先頭に表示"))
+                            .scaledFont(12)
+                            .foregroundStyle(Theme.inkSubText)
+                    }
+                }
             }
         }
         .tint(Theme.coral) // accent-text-ok: トグルのトラック（面）
