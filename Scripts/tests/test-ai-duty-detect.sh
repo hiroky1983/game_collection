@@ -710,6 +710,8 @@ for v in APPROVED THREADS PENDING_REVIEW CONFLICTS RINGI_REPLIES STALLED RELEASE
   check "$v=1 だけで起動する" "yes" "$(has_work "$v=1")"
 done
 check "未設定の値は 0 として扱う" "no" "$( ( unset APPROVED THREADS; duty_has_work && echo yes || echo no ) )"
+check "起動ログは孤児検知を飛ばした回を skipped と出す（0 件と区別・#3294）" "1" \
+  "$(grep -c 'orphan_commits=$(\[ "${ORPHAN_SCAN_OK:-0}" -eq 1 \]' "$TARGET")"
 check "呼び出し側が duty_has_work を通している" "1" "$(grep -c '^if ! duty_has_work; then' "$TARGET")"
 
 echo "== 13. 日次サマリ: ログから起動回数と課金経路を数える（#2580）=="

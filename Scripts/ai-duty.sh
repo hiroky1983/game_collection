@@ -1528,7 +1528,7 @@ ORPHANS="${ORPHANS:-0}"
 #   - 走査対象はマージ済み PR の直近1000件（`gh pr list` はこの件数までページングする）。
 #     現在のマージ済み PR は60件で全件を覆う。ここを超えたら古い方から検知漏れになるため、
 #     そのときはページングを明示した実装へ切り替える
-ORPHAN_COMMITS=0
+ORPHAN_COMMITS=0 ORPHAN_SCAN_OK=0   # ORPHAN_SCAN_OK: 検知を実行できた回だけ 1（起動ログで「0 件」と「未実施」を分ける）
 if [ -d "$DUTY_DIR/.git" ]; then
   # 一覧の取得に失敗した回は孤児検知を飛ばす。空と読み替えると、オープン PR のあるブランチまで
   # 「PR なし」になって孤児コミットを水増しする／マージ済みが空だと検知が何も言わず止まる（#3294）
@@ -1898,7 +1898,7 @@ if ISSUE_MILESTONE=$(bash "$RUN_DIR/Scripts/pick-issue-milestone.sh" 2>>"$LOG") 
 else
   ISSUE_MILESTONE_NOTE="判定できなかった（理由はログ）。マイルストーンを推測で付けず、マイルストーンが要る Issue の起票は見送って理由を最後に書く"
 fi
-log "当番起動 (slot=$DUTY_SLOT/$DUTY_MAX_SLOTS, issue=${DUTY_ISSUE:-なし}, other_claims=[${OTHER_CLAIMS}], model=$DUTY_MODEL, mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, submission_unfrozen=$SUBMISSION_UNFROZEN, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, orphan_commits=$ORPHAN_COMMITS, blocked_updates=$BLOCKED_UPDATES, ringi_stamps=$RINGI_STAMPS, ship_ready=$SHIP_READY, ship_target=${SHIP_VER:-なし}, workdir=$RUN_DIR, gh_shim=$GH_SHIM_DIR, sims_before=[${SIMS_BEFORE% }])"
+log "当番起動 (slot=$DUTY_SLOT/$DUTY_MAX_SLOTS, issue=${DUTY_ISSUE:-なし}, other_claims=[${OTHER_CLAIMS}], model=$DUTY_MODEL, mode=$MODE, approved=$APPROVED, cr_threads=$THREADS, cr_pending=$PENDING_REVIEW, conflicts=$CONFLICTS, ringi_replies=$RINGI_REPLIES, stalled=$STALLED, released=$RELEASED, submission_unfrozen=$SUBMISSION_UNFROZEN, proposed_replies=$PROPOSED_REPLIES, orphans=$ORPHANS, orphan_commits=$([ "${ORPHAN_SCAN_OK:-0}" -eq 1 ] && echo "$ORPHAN_COMMITS" || echo skipped), blocked_updates=$BLOCKED_UPDATES, ringi_stamps=$RINGI_STAMPS, ship_ready=$SHIP_READY, ship_target=${SHIP_VER:-なし}, workdir=$RUN_DIR, gh_shim=$GH_SHIM_DIR, sims_before=[${SIMS_BEFORE% }])"
 cd "$RUN_DIR" || exit 0
 # 共通の起動関数（API クレジット優先・切れたらサブスク。#2562）。無い世代の worktree でも従来どおり動くようにする
 if [ -f "$RUN_DIR/Scripts/lib/run-claude.sh" ]; then . "$RUN_DIR/Scripts/lib/run-claude.sh"; else run_claude_billed() { "$@" >>"$LOG" 2>&1; }; fi
