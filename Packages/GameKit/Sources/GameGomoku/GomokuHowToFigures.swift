@@ -72,12 +72,12 @@ enum GomokuHowToFigures {
         var body: some View {
             RuleFrames(count: 2, spacing: 14) { index in
                 VStack(spacing: 4) {
-                    RuleMiniBoard(rows: 1, cols: 7, cell: 20, style: .lines) { _, col in
+                    RuleMiniBoard(rows: 1, cols: 7, cell: 17, style: .lines) { _, col in
                         ZStack {
-                            if col == 0 { RuleStone(.white, size: 20) }
-                            if (1...4).contains(col) { RuleStone(.black, size: 20) }
+                            if col == 0 { RuleStone(.white, size: 17) }
+                            if (1...4).contains(col) { RuleStone(.black, size: 17) }
                             if col == 5 {
-                                if index == 0 { RuleBoardMark.ring(size: 16) } else { RuleStone(.white, size: 20) }
+                                if index == 0 { RuleBoardMark.ring(size: 14) } else { RuleStone(.white, size: 17) }
                             }
                         }
                     }
