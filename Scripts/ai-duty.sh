@@ -1230,7 +1230,7 @@ APPROVED=$(gh issue list -R hiroky1983/game_collection --label "ai:approved" --s
 # claim_issue で確保し、取れた1件だけを当番に渡す（他スロットが確保中のものは飛ばす）。
 # 候補が全部ほかの当番に確保されている回は、承認済みがあっても「仕事1 なし」として数える
 # （起動しても着手できる Issue が無く、空振りになるため）。
-CANDIDATES=$(gh issue list -R hiroky1983/game_collection --label "ai:approved" --state open --limit 200 \
+if ! CANDIDATES=$(gh issue list -R hiroky1983/game_collection --label "ai:approved" --state open --limit 200 \
   --json number,labels,milestone \
   --jq '[.[] | ([.labels[].name]) as $l
         | select(($l | index("ai:in-progress")) == null and ($l | index("ringi:pending")) == null
@@ -1240,7 +1240,11 @@ CANDIDATES=$(gh issue list -R hiroky1983/game_collection --label "ai:approved" -
            fable: (($l | index("model:fable")) != null),
            heavy: (($l | index("duty:heavy")) != null),
            ver: ((.milestone.title // "v999.999.999") | ltrimstr("v") | split(".") | map(tonumber? // 999))}]
-        | sort_by(.ver, .number) | .[] | "\(.number) \(.fable) \(.heavy)"' 2>/dev/null || true)
+        | sort_by(.ver, .number) | .[] | "\(.number) \(.fable) \(.heavy)"' 2>/dev/null); then
+  # 失敗を「承認済みなし」と読み替えない（認証切れ・レート制限・通信断が原因ごとログに残らず静かに止まるため・#3294）
+  CANDIDATES=""
+  log "承認済み Issue の一覧を取れなかったため、この回は着手候補なしとして扱う（承認済みなしではなく取得失敗）"
+fi
 # 重い Issue の一覧（着手済みも含む。claim_next_issue が他の当番の抱える Issue の重さを見るのに使う）
 if ! DUTY_HEAVY_ISSUES=$(gh issue list -R hiroky1983/game_collection --label "duty:heavy" --state open --limit 200 \
   --json number --jq '[.[].number | tostring] | join(" ")' 2>/dev/null); then
@@ -1526,7 +1530,20 @@ ORPHANS="${ORPHANS:-0}"
 #     そのときはページングを明示した実装へ切り替える
 ORPHAN_COMMITS=0
 if [ -d "$DUTY_DIR/.git" ]; then
-  OPEN_PR_HEADS=$(gh pr list -R hiroky1983/game_collection --state open --json headRefName --jq '.[].headRefName' 2>/dev/null || true)
+  # 一覧の取得に失敗した回は孤児検知を飛ばす。空と読み替えると、オープン PR のあるブランチまで
+  # 「PR なし」になって孤児コミットを水増しする／マージ済みが空だと検知が何も言わず止まる（#3294）
+  ORPHAN_SCAN_OK=1
+  if ! OPEN_PR_HEADS=$(gh pr list -R hiroky1983/game_collection --state open --json headRefName --jq '.[].headRefName' 2>/dev/null); then
+    ORPHAN_SCAN_OK=0
+    log "オープン PR の一覧を取れなかったため、取り残しコミットの検知（仕事10）を飛ばす"
+  fi
+  if ! MERGED_PR_BRANCHES=$(gh pr list -R hiroky1983/game_collection --state merged --limit 1000 \
+      --json headRefName,baseRefName,headRepositoryOwner \
+      --jq '.[] | select((.headRepositoryOwner.login // "") == "hiroky1983") | "\(.headRefName)\t\(.baseRefName)"' 2>/dev/null | sort -u); then
+    ORPHAN_SCAN_OK=0
+    log "マージ済み PR の一覧を取れなかったため、取り残しコミットの検知（仕事10）を飛ばす（0 件という意味ではない）"
+  fi
+  [ "$ORPHAN_SCAN_OK" -eq 1 ] || MERGED_PR_BRANCHES=""
   while IFS=$'\t' read -r H B; do
     [ -n "${H:-}" ] && [ -n "${B:-}" ] || continue
     printf '%s\n' "$OPEN_PR_HEADS" | grep -qxF "$H" && continue   # オープン PR がある = レビュー対象
@@ -1541,9 +1558,7 @@ if [ -d "$DUTY_DIR/.git" ]; then
       printf '%s\n' "$NOT_IN_MAIN" | grep -qxF "$C" && ORPHAN_COMMITS=$((ORPHAN_COMMITS + 1))
     done
   done <<EOF
-$(gh pr list -R hiroky1983/game_collection --state merged --limit 1000 \
-    --json headRefName,baseRefName,headRepositoryOwner \
-    --jq '.[] | select((.headRepositoryOwner.login // "") == "hiroky1983") | "\(.headRefName)\t\(.baseRefName)"' 2>/dev/null | sort -u)
+$MERGED_PR_BRANCHES
 EOF
 fi
 
