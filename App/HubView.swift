@@ -83,11 +83,11 @@ struct HubView: View {
         max(1, layout.hubColumnCount(containerWidth: layout.width, spacing: Self.gridSpacing))
     }
 
-    /// 表示するゲームの並び。この版の新着を先頭に固定し、そのあとに利用者の並びが続く（#2104）。
-    /// 非表示にしたゲームは `visibleModules` の時点で除かれるので、新着でも出さない。
+    /// 表示するゲームの並び。開催中のイベントのゲーム（#3321）、この版の新着（#2104）の順に先頭へ固定し、
+    /// そのあとに利用者の並びが続く。非表示にしたゲームは `visibleModules` の時点で除かれるので、固定でも出さない。
     private var pinnedVisibleModules: [GameModule] {
         let visible = settings.visibleModules(from: registry)
-        let order = NewGames.pinned(visibleIDs: visible.map(\.id))
+        let order = NewGames.pinned(visibleIDs: visible.map(\.id), eventIDs: HubEventBadge.activeIDs())
         let byID = Dictionary(uniqueKeysWithValues: visible.map { ($0.id, $0) })
         return order.compactMap { byID[$0] }
     }
@@ -640,7 +640,8 @@ struct HubView: View {
             // 先頭かどうかは非表示も含む並びで、新着の固定（#2104）を踏まえて見る（#2124）。
             // 表示中の先頭でも、前に非表示のゲームがあれば動かす余地がある。
             .disabled(NewGames.isAlreadyAtTop(
-                id: module.id, orderedIDs: settings.orderedIDs, hiddenIDs: settings.hiddenIDs))
+                id: module.id, orderedIDs: settings.orderedIDs, hiddenIDs: settings.hiddenIDs,
+                eventIDs: HubEventBadge.activeIDs()))
             Button {
                 hide(module)
             } label: {
@@ -661,7 +662,8 @@ struct HubView: View {
         // 新着は表示で先頭に固定される（#2104）ので、案内は動かす前の並びから実際の位置を伝える（#2124）。
         let announcement = registry.module(id: id).map {
             NewGames.moveToTopAnnouncement(
-                title: $0.title, id: id, orderedIDs: settings.orderedIDs, hiddenIDs: settings.hiddenIDs)
+                title: $0.title, id: id, orderedIDs: settings.orderedIDs, hiddenIDs: settings.hiddenIDs,
+                eventIDs: HubEventBadge.activeIDs())
         }
         // 並びの入れ替えを動きで見せる（Reduce Motion では即時）。無音のままだと VoiceOver 利用者は
         // 動いたことが分からないので、非表示（`hide`）と同じくアナウンスも流す。
@@ -891,6 +893,11 @@ enum HubEventBadge {
     /// 開催期間の外（v1.1.15 の公開から 11/9 まで・12/10 以降）は出さない。期間はゲーム側の 1 か所（`CatPuzzleEvent`）を見る。
     static func isShown(gameID: String, now: Date = Date()) -> Bool {
         gameID == eventGameID && CatPuzzleModel.isEventPeriod(now: now)
+    }
+
+    /// いま印が付いているゲームの ID。ハブの並びが開催中のゲームを先頭に固定する（#3321）のに使う。
+    static func activeIDs(now: Date = Date()) -> Set<String> {
+        isShown(gameID: eventGameID, now: now) ? [eventGameID] : []
     }
 }
 
