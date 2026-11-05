@@ -339,6 +339,72 @@ struct DiceComboModelTests {
         #expect(!model.grantReroll(forGame: game, turn: turn2), "前の局の広告は乗せない")
     }
 
+    /// 1 ターンぶん（通常 3 回 + 広告で振れるだけ）を振って、`category` に入れる。広告で振れた回数を返す。
+    private func playTurnUsingAds(_ model: DiceComboModel, into category: DiceComboCategory) -> Int {
+        rollThrice(model)
+        var ads = 0
+        while model.grantReroll(forGame: model.gameSerial, turn: model.turnSerial) {
+            model.settleRoll()
+            ads += 1
+        }
+        model.choose(category)
+        return ads
+    }
+
+    @Test("広告の振り直しは 1 局 10 回まで。手番ごとの 3 回と両立し、上限後はボタンが「この局はここまで」になる（#3341）")
+    func adRerollIsCappedPerGame() {
+        let model = DiceComboModel(services: makeServices(), seed: 31)
+        let categories = DiceComboCategory.allCases
+        #expect(DiceComboModel.maxAdRerollsPerGame == 10)
+        #expect(playTurnUsingAds(model, into: categories[0]) == 3)
+        #expect(playTurnUsingAds(model, into: categories[1]) == 3)
+        #expect(playTurnUsingAds(model, into: categories[2]) == 3)
+        #expect(model.gameAdRollsUsed == 9 && !model.isAdRerollCapReached)
+        // 4 ターン目は手番の 3 回ではなく、局の残り 1 回で止まる。
+        rollThrice(model)
+        #expect(model.canAdReroll && model.adRerollsRemaining == 1)
+        #expect(model.grantReroll(forGame: model.gameSerial, turn: model.turnSerial))
+        model.settleRoll()
+        #expect(model.isAdRerollCapReached && !model.canAdReroll && model.adRerollsRemaining == 0)
+        #expect(!model.grantReroll(forGame: model.gameSerial, turn: model.turnSerial), "11 回目は振れない")
+        #expect(!model.canHold, "もう振れないのでキープも切り替えられない")
+        model.choose(categories[3])
+        // 次のターンも通常の 3 回は振れるが、広告では振れない。
+        rollThrice(model)
+        #expect(!model.canAdReroll && model.isAdRerollCapReached)
+        #expect(!model.grantReroll(forGame: model.gameSerial, turn: model.turnSerial))
+        #expect(model.canChoose(categories[4]))
+    }
+
+    @Test("1 局の広告回数は中断→再開で保たれ、新しいゲームで 0 に戻る。旧データは手番の回数まで使った扱い（#3341）")
+    func gameAdRollsSurviveResumeAndResetOnNewGame() throws {
+        let store = MemorySnapshotStore()
+        let model = DiceComboModel(services: makeServices(store: store), seed: 32)
+        let categories = DiceComboCategory.allCases
+        _ = playTurnUsingAds(model, into: categories[0])
+        _ = playTurnUsingAds(model, into: categories[1])
+        #expect(model.gameAdRollsUsed == 6)
+        let resumed = DiceComboModel(services: makeServices(store: store), seed: 32)
+        #expect(resumed.gameAdRollsUsed == 6, "役を選んだ直後の中断でも保たれる")
+        _ = playTurnUsingAds(resumed, into: categories[2])
+        _ = playTurnUsingAds(resumed, into: categories[3])
+        #expect(resumed.gameAdRollsUsed == 10 && resumed.isAdRerollCapReached)
+        let again = DiceComboModel(services: makeServices(store: store), seed: 32)
+        #expect(again.isAdRerollCapReached, "上限に達したあとの再開でも広告で振れるようにならない")
+        again.newGame()
+        #expect(again.gameAdRollsUsed == 0 && !again.isAdRerollCapReached)
+
+        let dice = [1, 2, 3, 4, 5], held = Array(repeating: false, count: 5)
+        let old = DiceComboSnapshot(dice: dice, held: held, rollsUsed: 3, scores: [:], adRollsUsed: 2)
+        #expect(DiceComboModel.restore(old)?.gameAdRollsUsed == 2)
+        let tooMany = DiceComboSnapshot(dice: dice, held: held, rollsUsed: 3, scores: [:],
+                                        adRollsUsed: 1, gameAdRollsUsed: 99)
+        #expect(DiceComboModel.restore(tooMany)?.gameAdRollsUsed == DiceComboModel.maxAdRerollsPerGame)
+        let corrupt = #"{"dice":[],"held":[],"rollsUsed":0,"scores":{},"gameAdRollsUsed":"x"}"#
+        let snap = try JSONDecoder().decode(DiceComboSnapshot.self, from: Data(corrupt.utf8))
+        #expect(snap.gameAdRollsUsed == nil && DiceComboModel.restore(snap)?.gameAdRollsUsed == 0)
+    }
+
     @Test("広告で振った回数は中断から復元される。旧データ（戻す用の鍵つき）は読み捨てて読める")
     func adRollsSurviveResumeAndOldKeysAreDropped() throws {
         let store = MemorySnapshotStore()
