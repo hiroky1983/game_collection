@@ -83,8 +83,10 @@ struct HubView: View {
         max(1, layout.hubColumnCount(containerWidth: layout.width, spacing: Self.gridSpacing))
     }
 
-    /// 表示するゲームの並び。常に先頭のゲーム（#3339）、開催中のイベントのゲーム（#3321）、この版の新着（#2104）の順に先頭へ固定し、
+    /// 表示するゲームの並び。開催中のイベントのゲーム（#3321）、この版の新着（#2104）の順に先頭へ固定し、
     /// そのあとに利用者の並びが続く。非表示にしたゲームは `visibleModules` の時点で除かれるので、固定でも出さない。
+    /// ピックアップ（#3358）のゲームもここには通常の位置で入っている（差し色の引きと位置を安定させるため）。
+    /// 区画を出しているあいだ一覧から抜くのは `shownGridEntries`。
     private var pinnedVisibleModules: [GameModule] {
         let visible = settings.visibleModules(from: registry)
         let order = NewGames.pinned(visibleIDs: visible.map(\.id), eventIDs: HubEventBadge.activeIDs())
@@ -110,12 +112,27 @@ struct HubView: View {
         let position: Int
     }
 
+    /// 「ピックアップ」の区画に出すゲーム（#3358）。区画の順は `NewGames.pickupIDs` で固定。
+    private var pickupModules: [GameModule] {
+        NewGames.pickupShownIDs(
+            visibleIDs: settings.visibleModules(from: registry).map(\.id),
+            isHiddenByUser: settings.pickupHidden,
+            isAllCategory: activeCategory == .all
+        ).compactMap { registry.module(id: $0) }
+    }
+
     /// カテゴリーで絞ったあとにグリッドへ並べるゲーム。位置は絞る前の並びでの 1 始まり
-    /// （絞り込みの有無で同じゲームの位置が変わらない）。
+    /// （絞り込みの有無で同じゲームの位置が変わらない）。区画に出しているゲームは一覧に出さない（二重に出さない）。
     private var shownGridEntries: [GridEntry] {
         let entries = pinnedVisibleModules.enumerated().map { GridEntry(module: $0.element, position: $0.offset + 1) }
         guard activeCategory != .all else { return entries }
         return entries.filter { registry.category(of: $0.module.id) == activeCategory }
+    }
+
+    /// 区画のゲームを除いた、「すべて」のときの一覧。
+    private var gridEntriesBelowPickup: [GridEntry] {
+        let picked = Set(pickupModules.map(\.id))
+        return shownGridEntries.filter { !picked.contains($0.module.id) }
     }
 
     /// 「つづき・最近」行（#660）に出す候補。順序と打ち切りの規則は `RecentGames` が持つ。
@@ -211,6 +228,11 @@ struct HubView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                     if activeCategory == .all {
+                        // ピックアップ（#3358）。「つづき・最近」の行と「はじめの1本」より上。
+                        let pickup = pickupModules
+                        if !pickup.isEmpty {
+                            pickupSection(pickup)
+                        }
                         // 中断・記録ともゼロなら**行ごと出さない**（#660）。「すべて」のときだけ出す（モック 01・04b）。
                         // 連続プレイ日数（#1625）は 2 日以上、または昨日まで続いて今日まだのとき（#3060）だけ、行の見出しの右に控えめに出す。
                         let recent = recentCandidates
@@ -253,7 +275,7 @@ struct HubView: View {
                             .padding(.top, 12)
                     }
                     LazyVGrid(columns: columns, spacing: Self.gridSpacing) {
-                        ForEach(shownGridEntries, id: \.module.id) { entry in
+                        ForEach(gridEntriesBelowPickup, id: \.module.id) { entry in
                             gridTile(entry)
                         }
                     }
@@ -604,14 +626,50 @@ struct HubView: View {
     /// NavigationStack は表示中の遷移先を1手で差し替えると描画が壊れる（画面が真っ白になる）。
     /// いったん根まで戻し、次の runloop で積み直す。
     /// グリッドの 1 枚。
-    private func gridTile(_ entry: GridEntry) -> some View {
+    /// 「ピックアップ」の区画（#3358）。見出しと、一覧と同じカード 2 枚。「非表示」で区画を消し、
+    /// 2 本は利用者の並びの位置に戻る（設定の「ピックアップを表示」から再表示できる）。
+    private func pickupSection(_ modules: [GameModule]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(tr("ピックアップ"))
+                    .themeCaption(layout.scaled(12), weight: .heavy)
+                    .foregroundStyle(Theme.inkSubText)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 8)
+                Button {
+                    withGameAnimation(.easeOut(duration: 0.2)) { settings.pickupHidden = true }
+                } label: {
+                    Text(tr("非表示"))
+                        .themeCaption(layout.scaled(12), weight: .heavy)
+                        .foregroundStyle(Theme.inkSubText)
+                        .lineLimit(1)
+                        .fixedSize()
+                        // 当たり判定は枠の内側で 44pt 確保する（枠の外へはみ出させても反応しない）。
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.pop)
+                .accessibilityHint(tr("設定の「ピックアップを表示」から再表示できます"))
+            }
+            .padding(.horizontal, Theme.pad)
+            LazyVGrid(columns: columns, spacing: Self.gridSpacing) {
+                ForEach(Array(modules.enumerated()), id: \.element.id) { offset, module in
+                    gridTile(GridEntry(module: module, position: offset + 1), source: .pickup)
+                }
+            }
+            .padding(.horizontal, Theme.pad)
+        }
+        .padding(.top, 4)
+    }
+
+    private func gridTile(_ entry: GridEntry, source: GameOpenSource = .hub) -> some View {
         let module = entry.module
         let hasResume = isResumable(module.id)
         // 記録が無い（一度も遊んでいない）ゲームに出す。1 回遊べば消える（#2849）。記録が読めないときは出さない。
         let isUnplayed = services.playLog.map { !$0.hasPlayed(gameID: module.id) } ?? false
         // 位置は並べ替え設定を反映した**見えている順**の 1 始まり（#659）。
         return NavigationLink(value: HubRoute(
-            gameID: module.id, source: .hub, position: entry.position, resume: hasResume
+            gameID: module.id, source: source, position: entry.position, resume: hasResume
         )) {
             GameCard(
                 module: module,

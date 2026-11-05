@@ -694,13 +694,57 @@
         }
       }
     },
-    "常に先頭に表示" : {
+    "ピックアップに表示" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Always shown first"
+            "value" : "Shown in Picks"
+          }
+        }
+      }
+    },
+    "ピックアップ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Picks"
+          }
+        }
+      }
+    },
+    "非表示" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide"
+          }
+        }
+      }
+    },
+    "設定の「ピックアップを表示」から再表示できます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can show it again with Show Picks in Settings"
+          }
+        }
+      }
+    },
+    "ピックアップを表示" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Picks"
           }
         }
       }

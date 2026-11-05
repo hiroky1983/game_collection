@@ -87,6 +87,18 @@ struct SettingsView: View {
                     Text(tr("ドラッグで並べ替え、トグルで表示 / 非表示を切り替えられます。"))
                 }
 
+                // MARK: ピックアップ（#3358）
+                Section {
+                    Toggle(isOn: Binding(
+                        get: { !settings.pickupHidden },
+                        set: { settings.pickupHidden = !$0 }
+                    )) {
+                        Label(tr("ピックアップを表示"), systemImage: "pin")
+                            .foregroundStyle(Theme.ink)
+                    }
+                    .tint(Theme.coral) // accent-text-ok: トグルのトラック（面）
+                }
+
                 // MARK: フィードバック
                 Section {
                     Toggle(isOn: Binding(
@@ -363,9 +375,9 @@ struct SettingsView: View {
                         .themeBody(16)
                         .foregroundStyle(isVisible ? Theme.ink : Theme.inkSubText)
                     // 開催中は並びに関係なくハブの先頭に出る（#3321）。動かしても期間中は先頭のままと分かるようにする。
-                    if isVisible, NewGames.alwaysFirstIDs.contains(id) {
-                        // ねこさがしは期間に関係なく常に先頭（#3339）。
-                        Text(tr("常に先頭に表示"))
+                    if isVisible, !settings.pickupHidden, NewGames.pickupIDs.contains(id) {
+                        // ピックアップの区画に出ているゲームは、並びに関係なくハブの一番上に出る（#3358）。
+                        Text(tr("ピックアップに表示"))
                             .scaledFont(12)
                             .foregroundStyle(Theme.inkSubText)
                     } else if isVisible, HubEventBadge.isShown(gameID: id) {

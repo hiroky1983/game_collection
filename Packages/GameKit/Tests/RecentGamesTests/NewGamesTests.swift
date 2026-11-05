@@ -397,43 +397,69 @@ struct NewGamesEventPinTests {
 }
 
 
-@Suite("ねこさがしは常に先頭（#3339）")
-struct NewGamesAlwaysFirstTests {
-    @Test("常に先頭の対象はねこさがし")
-    func alwaysFirstIsCatPuzzle() {
-        #expect(NewGames.alwaysFirstIDs == ["catpuzzle"])
+@Suite("ハブのピックアップ（#3358）")
+struct NewGamesPickupTests {
+    private let all = ["2048", "shogi", "catpuzzle", "speed"]
+
+    @Test("v1.1.16 のピックアップはねこさがしと将棋（この順で固定）")
+    func pickupIsCatPuzzleAndShogi() {
+        #expect(NewGames.pickupIDs == ["catpuzzle", "shogi"])
     }
 
-    @Test("保存した並びで後ろにあっても、期間外でも先頭")
-    func pinsFirstOutsideEventPeriod() {
-        let order = NewGames.pinned(visibleIDs: ["2048", "shogi", "catpuzzle", "speed"])
-        #expect(order == ["catpuzzle", "2048", "shogi", "speed"])
+    @Test("区画は利用者の並びに関係なくピックアップの順で出る")
+    func sectionOrderIsFixed() {
+        #expect(NewGames.pickupShownIDs(visibleIDs: all, isHiddenByUser: false, isAllCategory: true)
+                == ["catpuzzle", "shogi"])
+        #expect(NewGames.pickupShownIDs(visibleIDs: ["shogi", "catpuzzle", "2048"], isHiddenByUser: false, isAllCategory: true)
+                == ["catpuzzle", "shogi"])
     }
 
-    @Test("イベント中の別のゲームは、ねこさがしの次")
-    func otherEventGameComesAfter() {
-        let order = NewGames.pinned(visibleIDs: ["2048", "shogi", "catpuzzle"], eventIDs: ["shogi"])
-        #expect(order == ["catpuzzle", "shogi", "2048"])
+    @Test("非表示にすると区画は空（ID 定数を差し替えても、利用者の選択が優先される）")
+    func hiddenByUserStaysHiddenAcrossVersions() {
+        #expect(NewGames.pickupShownIDs(visibleIDs: all, isHiddenByUser: true, isAllCategory: true).isEmpty)
+        #expect(NewGames.pickupShownIDs(
+            visibleIDs: all, isHiddenByUser: true, isAllCategory: true, pickupIDs: ["2048", "speed"]
+        ).isEmpty)
+        #expect(NewGames.pickupShownIDs(
+            visibleIDs: all, isHiddenByUser: false, isAllCategory: true, pickupIDs: ["2048", "speed"]
+        ) == ["2048", "speed"])
     }
 
-    @Test("ねこさがしがイベント中でも先頭は1つだけ")
-    func catPuzzleAsEventGameIsNotDuplicated() {
-        let order = NewGames.pinned(visibleIDs: ["2048", "catpuzzle"], eventIDs: ["catpuzzle"])
-        #expect(order == ["catpuzzle", "2048"])
+    @Test("カテゴリーを絞り込んでいるあいだは区画を出さない")
+    func noSectionWhileFiltering() {
+        #expect(NewGames.pickupShownIDs(visibleIDs: all, isHiddenByUser: false, isAllCategory: false).isEmpty)
     }
 
-    @Test("非表示にしたら出てこない")
-    func hiddenStaysHidden() {
-        #expect(NewGames.pinned(visibleIDs: ["2048", "shogi"]) == ["2048", "shogi"])
+    @Test("ゲーム自体を非表示にしたものは区画にも出ない")
+    func hiddenGameIsNotInSection() {
+        #expect(NewGames.pickupShownIDs(visibleIDs: ["2048", "shogi"], isHiddenByUser: false, isAllCategory: true)
+                == ["shogi"])
+        #expect(NewGames.pickupShownIDs(visibleIDs: ["2048"], isHiddenByUser: false, isAllCategory: true).isEmpty)
     }
 
-    @Test("「いちばん上に置く」: 先頭の直後なら済み、ねこさがし自身は先頭なら済み")
-    func moveToTopTreatsCatPuzzleAsPinned() {
-        let ordered = ["catpuzzle", "2048", "shogi"]
-        #expect(NewGames.isAlreadyAtTop(id: "2048", orderedIDs: ordered, hiddenIDs: []))
-        #expect(!NewGames.isAlreadyAtTop(id: "shogi", orderedIDs: ordered, hiddenIDs: []))
-        #expect(NewGames.isAlreadyAtTop(id: "catpuzzle", orderedIDs: ordered, hiddenIDs: []))
-        #expect(!NewGames.isAlreadyAtTop(id: "catpuzzle", orderedIDs: ["2048", "catpuzzle"], hiddenIDs: []))
+    @Test("一覧の並びは保存した並び（ねこさがしの先頭固定はやめた）。イベント・新着は先頭へ寄せる")
+    func listOrderNoLongerPinsCatPuzzle() {
+        #expect(NewGames.pinned(visibleIDs: all) == all)
+        #expect(NewGames.pinned(visibleIDs: all, eventIDs: ["shogi"]) == ["shogi", "2048", "catpuzzle", "speed"])
+        #expect(NewGames.pinned(visibleIDs: all, newIDs: ["speed"]) == ["speed", "2048", "shogi", "catpuzzle"])
+    }
+
+    @Test("「いちばん上に置く」はねこさがしを特別扱いしない")
+    func moveToTopHasNoAlwaysFirst() {
+        #expect(!NewGames.isAlreadyAtTop(id: "2048", orderedIDs: ["catpuzzle", "2048"], hiddenIDs: []))
+        #expect(NewGames.moveToTopAnnouncement(title: "B", id: "b", orderedIDs: ["catpuzzle", "b"], hiddenIDs: [])
+                == "「B」を先頭に移しました")
+    }
+
+    @Test("非表示の保存は版のキーを持たない 1 つの真偽値で、設定画面にスイッチがある")
+    func settingsWiring() throws {
+        let settings = try String(
+            contentsOf: SourceScan.repositoryRoot.appendingPathComponent("App/GameSettings.swift"), encoding: .utf8)
+        #expect(settings.contains(#"pickupHiddenKey = "hubPickupHidden_v1""#))
+        let view = try SourceScan.appSources()
+        #expect(view.contains(#"tr("ピックアップを表示")"#))
+        #expect(view.contains("source: .pickup"))
+        #expect(!view.contains("alwaysFirstIDs"))
     }
 
     @Test("登録順の先頭がねこさがし")
