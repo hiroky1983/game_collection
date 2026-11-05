@@ -163,7 +163,7 @@ struct HubCategoryTests {
         for gone in ["heroGameID", "wideTileName", "wideAspect", "gridTile(hero", "wide: Bool"] {
             #expect(!source.contains(gone), "横長タイルの名残: \(gone)")
         }
-        #expect(source.contains("ForEach(shownGridEntries, id: \\.module.id)"))
+        #expect(source.contains("ForEach(gridEntriesBelowPickup, id: \\.module.id)"))
     }
 
     @Test("「イベント開催中」の印は eventGameID（v1.1.15 はねこさがし）のタイルにだけ出し、柵越えおじさんには出さず、NEW を優先する（#2566・#3204）")
@@ -217,7 +217,7 @@ struct HubCategoryTests {
         #expect(SourceScan.matchCount(of: "homerunTally = HomerunHubCount\\.tally\\(\\)", in: source) == 4)
     }
 
-    @Test("柵越えおじさんは登録順の2番目（常に先頭のねこさがしの直後に並ぶ・#2572・#3339）")
+    @Test("柵越えおじさんは登録順の2番目（ねこさがしの直後に並ぶ・#2572・#3339。先頭固定は #3358 でピックアップの区画に置き換わった）")
     func homerunIsRegisteredSecond() throws {
         let source = try String(
             contentsOf: SourceScan.repositoryRoot.appendingPathComponent("App/AppGameServices.swift"), encoding: .utf8)

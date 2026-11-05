@@ -305,6 +305,8 @@ public enum GameOpenSource: String, Equatable, Sendable, CaseIterable {
     case records
     /// ディープリンク `asobiba://game/<game_id>`（#2141。App 内イベントのリンク等）。
     case deeplink
+    /// ハブ最上部の「ピックアップ」の区画（#3358）。版ごとに推す 2 本。並びとして読まないので位置は送らない。
+    case pickup
 
     /// 並びの中の位置を持つ導線か。持たない導線（1枚しか出ないカード・通知）では
     /// `position` の鍵ごと送らない。
@@ -312,7 +314,7 @@ public enum GameOpenSource: String, Equatable, Sendable, CaseIterable {
         switch self {
         case .hub, .recent:                              return true
         case .recommendation, .notification, .firstPick, .quickAction, .hero,
-             .resumeReminder, .reengagement, .challengeReturn, .records, .deeplink: return false
+             .resumeReminder, .reengagement, .challengeReturn, .records, .deeplink, .pickup: return false
         }
     }
 }

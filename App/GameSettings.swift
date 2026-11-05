@@ -89,6 +89,14 @@ final class GameSettings {
         }
     }
 
+    /// ハブの「ピックアップ」の区画を利用者が非表示にしているか（#3358）。既定は表示。
+    /// 版ごとにピックアップのゲームが入れ替わっても保つため、版のキーを持たない 1 つの真偽値だけを保存する
+    /// （一度非表示にした人には、入れ替わっても出さない＝本人の選択を優先）。
+    var pickupHidden: Bool {
+        didSet { UserDefaults.standard.set(pickupHidden, forKey: Self.pickupHiddenKey) }
+    }
+
+    private static let pickupHiddenKey = "hubPickupHidden_v1"
     private static let orderKey    = "gameOrder_v1"
     private static let hiddenKey   = "hiddenGames_v1"
     /// 柵越えおじさんを保存済みの並びの先頭へ一度だけ移したか（#2572）。
@@ -114,6 +122,7 @@ final class GameSettings {
         self.hiddenIDs = GameOrderMerge.mergedHidden(stored: hiddenArr, registered: registeredIDs)
 
         // 未設定（初回起動・キー無し）はオン。既定値の規則は FeedbackPreference が持つ。
+        self.pickupHidden = UserDefaults.standard.bool(forKey: Self.pickupHiddenKey)
         self.hapticsEnabled = Self.haptics.isEnabled
         self.soundEnabled = Self.sound.isEnabled
         self.soundVolume = Self.soundVolumePreference.volume
