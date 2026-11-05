@@ -602,6 +602,7 @@ struct ShiritoriSetupSheet: View {
         ) {
             GameSetupSection(tr("あそびかた")) {
                 VStack(alignment: .leading, spacing: 8) {
+                    // 数が決まっていて増えない 2 択は並べて見せる（#3363・会長「確実な 2 択までスライド UI にするのは意味不明」）。
                     HStack(spacing: 6) {
                         ForEach(Array(ShiritoriMode.allCases.enumerated()), id: \.element) { step, item in
                             GameSetupChooser(
@@ -672,16 +673,9 @@ struct ShiritoriSetupSheet: View {
         Group {
             GameSetupSection(tr("むずかしさ")) {
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 6) {
-                        ForEach(Array(ShiritoriQuota.allCases.enumerated()), id: \.element) { step, level in
-                            GameSetupChooser(
-                                title: level.label, subtitle: "",
-                                selected: quota == level,
-                                accent: DifficultyTile.accent(step: step, of: ShiritoriQuota.allCases.count),
-                                metrics: DifficultyTile.metrics
-                            ) { quota = level }
-                        }
-                    }
+                    SetupStepSelector(
+                        ladder: ShiritoriQuota.allCases.map { ($0, $0.label, "") },
+                        selection: $quota)
                     Text(tr("ノルマ: %@", quota.summary))
                         .themeBody(13)
                         .foregroundStyle(Theme.inkSubText)

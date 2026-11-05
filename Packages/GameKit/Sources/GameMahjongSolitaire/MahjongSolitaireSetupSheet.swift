@@ -29,16 +29,15 @@ struct MahjongSolitaireSetupSheet: View {
     /// シートの中身（節と警告）。枠の外でも描いて確かめられるよう分けてある。
     @ViewBuilder var sections: some View {
         GameSetupSection(tr("盤面のかたち")) {
-            HStack(spacing: 6) {
-                // 並び順は `MahjongSolitaireLayout.all`（亀甲・ピラミッド・十字）。
-                ForEach(MahjongSolitaireLayout.all) { layout in
-                    GameSetupChooser(title: layout.displayName, subtitle: "",
-                                     selected: draft == layout, accent: Theme.Fill.teal,
-                                     metrics: DifficultyTile.metrics) {
-                        draft = layout
-                    }
-                }
-            }
+            // 並び順は `MahjongSolitaireLayout.all`（亀甲・ピラミッド・十字）。
+            SetupStepSelector(
+                options: MahjongSolitaireLayout.all.map {
+                    SetupStepOption(value: $0.id, title: $0.displayName, accent: Theme.Fill.teal)
+                },
+                selection: Binding(
+                    get: { draft.id },
+                    set: { id in if let layout = MahjongSolitaireLayout.all.first(where: { $0.id == id }) { draft = layout } }),
+                showsScale: false)
             Text(tr("どのかたちも144枚で、必ず取り切れるように配ります。最短タイムはかたちごとに別々に記録されます。"))
                 .scaledFont(12, weight: .semibold, design: .rounded)
                 .foregroundStyle(Theme.inkSubText)

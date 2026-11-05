@@ -602,31 +602,17 @@ struct ConcentrationNewGameSheet: View {
             onStart: { onStart(selectedPairCount, selectedCPULevel) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("盤面サイズ")) {
-                HStack(spacing: 12) {
-                    ForEach(ConcentrationPairCount.allCases, id: \.rawValue) { p in
-                        GameSetupChooser(
-                            title: p.displayName,
-                            subtitle: p.subtitle,
-                            selected: selectedPairCount == p,
-                            accent: Theme.Fill.teal,
-                            metrics: Self.metrics
-                        ) { selectedPairCount = p }
-                    }
-                }
+                SetupStepSelector(
+                    options: ConcentrationPairCount.allCases.map {
+                        SetupStepOption(value: $0, title: $0.displayName, detail: $0.subtitle, accent: Theme.Fill.teal)
+                    },
+                    selection: $selectedPairCount)
             }
 
             GameSetupSection(tr("CPUの強さ")) {
-                HStack(spacing: 6) {
-                    ForEach(Array(ConcentrationCPULevel.allCases.enumerated()), id: \.element) { step, l in
-                        GameSetupChooser(
-                            title: l.displayName,
-                            subtitle: l.subtitle,
-                            selected: selectedCPULevel == l,
-                            accent: DifficultyTile.accent(step: step, of: ConcentrationCPULevel.allCases.count),
-                            metrics: DifficultyTile.metrics
-                        ) { selectedCPULevel = l }
-                    }
-                }
+                SetupStepSelector(
+                    ladder: ConcentrationCPULevel.allCases.map { ($0, $0.displayName, $0.subtitle) },
+                    selection: $selectedCPULevel)
             }
         }
     }

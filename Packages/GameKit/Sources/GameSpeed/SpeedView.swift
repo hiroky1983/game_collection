@@ -1135,15 +1135,11 @@ struct SpeedSetupSheet: View {
             onStart: { onStart(settings) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("速さ")) {
-                HStack(spacing: 12) {
-                    ForEach(SpeedLevel.allCases, id: \.self) { level in
-                        GameSetupChooser(title: level.label, subtitle: level.subtitle,
-                                         selected: settings.level == level,
-                                         accent: Theme.Fill.coral, metrics: Self.metrics) {
-                            settings.level = level
-                        }
-                    }
-                }
+                SetupStepSelector(
+                    options: SpeedLevel.allCases.map {
+                        SetupStepOption(value: $0, title: $0.label, detail: $0.subtitle, accent: Theme.Fill.coral)
+                    },
+                    selection: $settings.level)
                 Text(tr("あなたに制限時間はありません。設定の「ゆっくりモード」をオンにすると、CPU はさらにゆっくりになります。"))
                     .themeCaption(11)
                     .foregroundStyle(Theme.inkSubText)

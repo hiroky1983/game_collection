@@ -217,17 +217,9 @@ struct AkariKeshiNewGameSheet: View {
             onStart: { onStart(difficulty) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("難易度")) {
-                HStack(spacing: 6) {
-                    let levels = AkariKeshiDifficulty.allCases
-                    ForEach(Array(levels.enumerated()), id: \.element) { step, value in
-                        GameSetupChooser(title: value.label, subtitle: tr("最短%lld手", value.presses),
-                                         selected: difficulty == value,
-                                         accent: DifficultyTile.accent(step: step, of: levels.count),
-                                         metrics: DifficultyTile.metrics) {
-                            difficulty = value
-                        }
-                    }
-                }
+                SetupStepSelector(
+                    ladder: AkariKeshiDifficulty.allCases.map { ($0, $0.label, tr("最短%lld手", $0.presses)) },
+                    selection: $difficulty)
             }
         }
     }

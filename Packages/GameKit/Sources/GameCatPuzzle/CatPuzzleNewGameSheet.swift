@@ -185,17 +185,9 @@ struct CatPuzzleNewGameSheet: View {
     /// 難易度の節（静止画の確認でも中身だけ描けるよう切り出している）。
     static func sizeSection(selection: Binding<CatPuzzleSize>) -> some View {
         GameSetupSection(tr("難易度")) {
-            HStack(spacing: 6) {
-                let levels = CatPuzzleSize.allCases
-                ForEach(Array(levels.enumerated()), id: \.element) { step, value in
-                    GameSetupChooser(title: value.label, subtitle: value.sizeLabel,
-                                     selected: selection.wrappedValue == value,
-                                     accent: DifficultyTile.accent(step: step, of: levels.count),
-                                     metrics: DifficultyTile.metrics) {
-                        selection.wrappedValue = value
-                    }
-                }
-            }
+            SetupStepSelector(
+                ladder: CatPuzzleSize.allCases.map { ($0, $0.label, $0.sizeLabel) },
+                selection: selection)
         }
     }
 }

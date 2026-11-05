@@ -442,9 +442,6 @@ struct AnzanSetupSheet: View {
         _settings = State(initialValue: initial)
     }
 
-    /// 3 つ横に並ぶので、見出しと副題を標準より少し小さくする。
-    private static let metrics = GameSetupChooser.Metrics(title: .title(20), subtitleSize: 11)
-
     var body: some View {
         GameSetupSheet(
             kind: .solo,
@@ -452,37 +449,25 @@ struct AnzanSetupSheet: View {
             onStart: { onStart(settings) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("桁数")) {
-                HStack(spacing: 12) {
-                    ForEach(AnzanDigits.allCases, id: \.self) { digits in
-                        GameSetupChooser(title: digits.label, subtitle: digits.subtitle,
-                                         selected: settings.digits == digits,
-                                         accent: Theme.Fill.teal, metrics: Self.metrics) {
-                            settings.digits = digits
-                        }
-                    }
-                }
+                SetupStepSelector(
+                    options: AnzanDigits.allCases.map {
+                        SetupStepOption(value: $0, title: $0.label, detail: $0.subtitle, accent: Theme.Fill.teal)
+                    },
+                    selection: $settings.digits)
             }
             GameSetupSection(tr("個数")) {
-                HStack(spacing: 12) {
-                    ForEach(AnzanCount.allCases, id: \.self) { count in
-                        GameSetupChooser(title: count.label, subtitle: "",
-                                         selected: settings.count == count,
-                                         accent: Theme.Fill.purple, metrics: Self.metrics) {
-                            settings.count = count
-                        }
-                    }
-                }
+                SetupStepSelector(
+                    options: AnzanCount.allCases.map {
+                        SetupStepOption(value: $0, title: $0.label, accent: Theme.Fill.purple)
+                    },
+                    selection: $settings.count)
             }
             GameSetupSection(tr("速さ")) {
-                HStack(spacing: 12) {
-                    ForEach(AnzanSpeed.allCases, id: \.self) { speed in
-                        GameSetupChooser(title: speed.label, subtitle: speed.subtitle,
-                                         selected: settings.speed == speed,
-                                         accent: Theme.Fill.coral, metrics: Self.metrics) {
-                            settings.speed = speed
-                        }
-                    }
-                }
+                SetupStepSelector(
+                    options: AnzanSpeed.allCases.map {
+                        SetupStepOption(value: $0, title: $0.label, detail: $0.subtitle, accent: Theme.Fill.coral)
+                    },
+                    selection: $settings.speed)
             }
         }
     }

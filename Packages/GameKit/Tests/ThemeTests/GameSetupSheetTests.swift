@@ -30,7 +30,8 @@ struct GameSetupSheetSourceTests {
         for path in Self.migrated {
             let source = try Self.read(path)
             #expect(source.contains("GameSetupSheet("), "\(path) が共通枠を使っていない")
-            #expect(source.contains("GameSetupChooser("), "\(path) が共通のタイルを使っていない")
+            #expect(source.contains("GameSetupChooser(") || source.contains("SetupStepSelector(")
+                    || source.contains("CPUStrengthPicker("), "\(path) が共通の選択部品を使っていない")
         }
     }
 

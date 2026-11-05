@@ -26,27 +26,18 @@ public struct HanafudaSetupSheet: View {
             onStart: onStart, onCancel: onCancel
         ) {
             GameSetupSection(tr("何局戦うか")) {
-                HStack(spacing: 12) {
-                    ForEach(HanafudaOptions.allowedRounds, id: \.self) { count in
-                        GameSetupChooser(title: tr("%lld局", count), subtitle: "",
-                                          selected: draft.rounds == count,
-                                          accent: Theme.Fill.purple) { draft.rounds = count }
-                    }
-                }
+                SetupStepSelector(
+                    options: HanafudaOptions.allowedRounds.map {
+                        SetupStepOption(value: $0, title: tr("%lld局", $0), accent: Theme.Fill.purple)
+                    },
+                    selection: $draft.rounds)
                 Text(tr("全局が終わった時点で、合計の文数が多いほうの勝ちです。"))
                     .themeBody(12).foregroundStyle(Theme.inkSubText)
             }
             GameSetupSection(tr("CPUの強さ")) {
-                HStack(spacing: 6) {
-                    ForEach(Array(HanafudaDifficulty.allCases.enumerated()), id: \.element) { step, value in
-                        difficultyTile(value, accent: DifficultyTile.accent(step: step, of: HanafudaDifficulty.allCases.count))
-                    }
-                }
-                // 段を選び直してもシートが伸び縮みしないよう 1 行に固定する（`CPUStrengthPicker` と同じ）。
-                Text(draft.difficulty.detail)
-                    .themeBody(13).foregroundStyle(Theme.inkSubText)
-                    .lineLimit(1).minimumScaleFactor(0.7)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                SetupStepSelector(
+                    ladder: HanafudaDifficulty.allCases.map { ($0, $0.label, $0.detail) },
+                    selection: $draft.difficulty)
             }
             GameSetupSection(tr("ローカルルール")) {
                 Toggle(isOn: $draft.sakeYakuEnabled) {
@@ -59,13 +50,6 @@ public struct HanafudaSetupSheet: View {
         }
     }
 
-    private func difficultyTile(_ value: HanafudaDifficulty, accent: Color) -> some View {
-        GameSetupChooser(title: value.label, subtitle: "",
-                          selected: draft.difficulty == value, accent: accent,
-                          metrics: DifficultyTile.metrics) {
-            draft.difficulty = value
-        }
-    }
 }
 
 // MARK: - 役の早見表
