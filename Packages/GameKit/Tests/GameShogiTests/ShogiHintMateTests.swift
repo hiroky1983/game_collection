@@ -102,6 +102,17 @@ struct ShogiHintMateTests {
         #expect(Date().timeIntervalSince(started) < 1.0)
     }
 
+    @Test("詰みの確認が最大まで使われても、達人には出荷の考える時間（2.5 秒）以上が残る（#3350）")
+    func masterKeepsShippedThinkingTimeAfterMateCheck() {
+        let hint = SimpleMinimaxEngine.hint()
+        let mateBudget = hint.timeLimit * SimpleMinimaxEngine.hintAnswerMateShare
+        let masterTime = SimpleMinimaxEngine.searchTime(limit: hint.timeLimit, elapsed: mateBudget)
+        let shipped: TimeInterval = ShogiMasterEngine.shippedTimeLimit
+        #expect(masterTime >= shipped, "ヒントの達人に残る時間 \(masterTime) が出荷の \(shipped) 秒を下回る")
+        // 広告前の「受けが無い」判定は弱めない（ヒントの詰み確認より広い）。
+        #expect(SimpleMinimaxEngine.hintMateShare >= SimpleMinimaxEngine.hintAnswerMateShare)
+    }
+
     // MARK: 相手に詰みがある
 
     @Test("相手に 1 手詰がある局面では、詰まされない手を出す（総当たりで確かめる）")
