@@ -26,6 +26,16 @@ struct CatPuzzleClearFlowCard: View {
     private var gained: Int { isKey ? lives * CatPuzzleEvent.keyMultiplier : lives }
 
     var body: some View {
+        // 順位表（行 36pt × 10）は背が高い。最大の文字サイズ・SE で枠より高くなるときは縦にスクロールさせる
+        // （収まるときは素のカードが選ばれ、見た目は変わらない）。
+        ViewThatFits(in: .vertical) {
+            card
+            ScrollView { card }.scrollBounceBehavior(.basedOnSize)
+        }
+        .task(id: step) { await run() }
+    }
+
+    private var card: some View {
         VStack(spacing: 14) {
             switch step {
             case .lives: livesBody
@@ -47,7 +57,6 @@ struct CatPuzzleClearFlowCard: View {
         .accessibilityAddTraits(.isButton)
         .accessibilityHint(tr("次へ進みます"))
         .accessibilityAction { onFinish() }
-        .task(id: step) { await run() }
     }
 
     // MARK: - ライフ → pt

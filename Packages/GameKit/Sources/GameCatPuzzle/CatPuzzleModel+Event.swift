@@ -40,4 +40,10 @@ extension CatPuzzleModel {
 
     /// 今日の合計の送信（`submitEventTotalIfNeeded`）が終わるまで待つ。クリアの流れが、送った pt を含む順位を読むため（#3304）。
     public func awaitEventSubmission() async { await eventSubmitTask?.value }
+
+    /// 今日の合計が Game Center へ送り終わっているか。送れていないと順位表は合計より古い（#3327）。
+    public func isEventTotalSent() -> Bool {
+        let now = eventNow()
+        return CatPuzzleEvent.sent(stageDefaults, now: now) >= CatPuzzleEvent.total(stageDefaults, now: now)
+    }
 }

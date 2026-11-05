@@ -329,6 +329,8 @@ extension CatPuzzleView {
     private func loadTodayBoard() async -> GameCenterBoard? {
         // 送った pt が順位に乗ってから読む。友だちの順位は待たず、盤の順位だけを読む。
         await model.awaitEventSubmission()
+        // 送れていないと盤は今日の合計より古い。順位表は出さず、合計だけの表示に戻す。
+        guard model.isEventTotalSent() else { return nil }
         guard let reporter = services.gameCenter, reporter.isSignedIn else { return nil }
         guard let board = await reporter.loadWeeklyBoard(
             gameID: CatPuzzleModel.gameID, leaderboardID: GameCenterLeaderboard.catPuzzleEvent,
