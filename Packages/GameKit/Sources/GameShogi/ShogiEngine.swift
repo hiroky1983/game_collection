@@ -239,6 +239,11 @@ public struct SimpleMinimaxEngine: ShogiEngine {
     static let hintOpponentMatePlies = 3
     /// 詰み探索に使ってよい考える時間の割合。超えたら今の探索の答えに戻る（考える時間の上限は変えない）。
     static let hintMateShare = 0.4
+    /// `hintAnswer`（ヒントの 1 手）が詰みの確認に使ってよい割合（#3350）。0.4（最大 1.2 秒）だと、混んだ局面で
+    /// 達人に残る時間が出荷の 2.5 秒を下回り（実測 1.77 秒・13% の局面）、同じ達人との対局で勝率 42% に届かなかった（#3253）。
+    /// 残りの全体 3.0 秒から引いても達人に出荷の 2.5 秒以上が残る値にする（`3.0 × 0.85 − searchOverhead`）。
+    /// 広告の前の「受けが無い」判定（`hasNoDefense`）は判定を弱めないため `hintMateShare` のまま。
+    static let hintAnswerMateShare = 0.15
 
     /// ヒントの 1 手を決める（#2779）。詰みを先に探し、自分に詰みがあればその手、相手に詰みがあれば
     /// それを防ぐ手、受けが無ければ `.hopeless`。詰み探索が時間内に終わらなければ従来どおり探索の最善手。
@@ -249,7 +254,7 @@ public struct SimpleMinimaxEngine: ShogiEngine {
         guard !moves.isEmpty else { return nil }
         let startedAt = Date()
         let mateDeadline = timeLimit.isFinite
-            ? startedAt.addingTimeInterval(timeLimit * Self.hintMateShare) : Date.distantFuture
+            ? startedAt.addingTimeInterval(timeLimit * Self.hintAnswerMateShare) : Date.distantFuture
         var mateSearch = ShogiMateSearch(deadline: mateDeadline)
 
         if let mine = mateSearch.shortestMate(&pos, maxPlies: Self.hintMyMatePlies) { return .mate(mine) }
