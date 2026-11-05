@@ -74,7 +74,9 @@ struct ShogiHintMateTests {
     func mateInThree() throws {
         let pos = try position(Self.mateIn3)
         #expect(!mates(pos, plies: 1))
-        let answer = try #require(engine().hintAnswer(sfen: Self.mateIn3))
+        // Debug ビルドの 3 手詰の探索は 0.45 秒（出荷の詰み確認の上限・#3351）を超えうるので、5 手詰と同じく時間を十分に取る。
+        let relaxed = SimpleMinimaxEngine(level: BoardHintBudget.engineLevel, seed: nil, timeLimit: 60)
+        let answer = try #require(relaxed.hintAnswer(sfen: Self.mateIn3))
         guard case let .mate(move) = answer else { Issue.record("詰ます手になっていない: \(answer)"); return }
         var after = pos
         after.make(move)
@@ -127,6 +129,14 @@ struct ShogiHintMateTests {
         guard case let .move(move) = answer else { Issue.record("ふつうの手になっていない: \(answer)"); return }
         #expect(try position(Position.startSFEN).legalMoves().contains(move))
         #expect(!engine().hasNoDefense(sfen: Position.startSFEN))
+    }
+
+    @Test("詰みの確認に使える時間を引いても、達人の読みに出荷と同じ 2.5 秒が残る（#3351）")
+    func mateShareLeavesShippedMasterTime() {
+        let reserved = SimpleMinimaxEngine.hint().timeLimit * SimpleMinimaxEngine.hintMateShare
+        let left: Double = SimpleMinimaxEngine.hint().timeLimit - reserved
+        // 後始末の 0.03 秒ぶんは出荷の達人も同じなので、ここでは 2.5 秒との差が 0.05 秒以内であることを見る。
+        #expect(left >= ShogiMasterEngine.shippedTimeLimit - 0.05)
     }
 
     @Test("詰み探索が時間内に終わらなければ、今の探索の答えに戻る（断らない）")
