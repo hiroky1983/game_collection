@@ -76,8 +76,13 @@ struct CatPuzzleClearFlow: Equatable {
         let motion: RankingMotion?
 
         var rank: Int? { board.myRank }
-        /// 抜いた人の数（「3 人抜き！」）。
-        var passedCount: Int { motion?.passedCount ?? 0 }
+        /// 抜いた人の数（「3 人抜き！」）。送る前の位置が表の外かもしれないとき（自分が表の最下段から始まり、
+        /// 参加者が表より多い）は、数えきれないので 0 にして出さない。
+        var passedCount: Int {
+            guard let motion else { return 0 }
+            let startsInsideTable = motion.from < motion.entries.count - 1 || board.participants <= board.rows.count
+            return startsInsideTable ? motion.passedCount : 0
+        }
         /// 表を出せるか。自分が上位の外・まだ載っていないときは false で、今までの 1 行の表示に戻す。
         var showsTable: Bool { board.rows.contains(where: \.isMe) }
         var isTop3: Bool { rank.map { (1...3).contains($0) } ?? false }

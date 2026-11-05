@@ -166,6 +166,22 @@ struct CatPuzzleClearFlowTests {
         #expect(flat.showsTable)
     }
 
+    @Test("送る前の位置が表の外かもしれないときは、抜いた人数を出さない（数えきれない）")
+    func passedCountHiddenWhenStartMayBeOffTable() throws {
+        // 自分は 4 位（pt 50）。送る前の合計が 3 pt なら、表の中の誰よりも下から始まる。
+        let rows = (0..<10).map { i in i == 3 ? row("me", 50, rank: 4, me: true) : row("p\(i)", 100 - i, rank: i + 1) }
+        func board(participants: Int) -> GameCenterBoard {
+            GameCenterBoard(rows: rows, myRank: 4, myScore: 50, participants: participants,
+                            start: nil, end: nil, lastWeekRank: nil)
+        }
+        let crowded = try #require(CatPuzzleClearFlow.result(board: board(participants: 40), beforeTotal: 3))
+        #expect(crowded.motion != nil)
+        #expect(crowded.passedCount == 0)
+        // 参加者が全員表に載っているなら、最下段から始まっても数えられる。
+        let small = try #require(CatPuzzleClearFlow.result(board: board(participants: 10), beforeTotal: 3))
+        #expect(small.passedCount == 6)
+    }
+
     @Test("入れ替えを流すときは、流し終わるまで次へ進まない。動きを省くときは短い")
     func rankingDuration() throws {
         let motion = try #require(CatPuzzleClearFlow.result(board: after, beforeTotal: 3)?.motion)
