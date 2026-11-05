@@ -174,7 +174,7 @@ private struct SetupStepList<Value: Hashable>: View {
 
     private func row(_ option: SetupStepOption<Value>) -> some View {
         let selected = option.value == selection
-        return Button {
+        return Button { // a11y-ok: 行全体が minHeight 44 の面で、14pt は飾りの丸だけ
             selection = option.value
             close()
         } label: {
