@@ -83,7 +83,7 @@ struct HubView: View {
         max(1, layout.hubColumnCount(containerWidth: layout.width, spacing: Self.gridSpacing))
     }
 
-    /// 表示するゲームの並び。開催中のイベントのゲーム（#3321）、この版の新着（#2104）の順に先頭へ固定し、
+    /// 表示するゲームの並び。常に先頭のゲーム（#3339）、開催中のイベントのゲーム（#3321）、この版の新着（#2104）の順に先頭へ固定し、
     /// そのあとに利用者の並びが続く。非表示にしたゲームは `visibleModules` の時点で除かれるので、固定でも出さない。
     private var pinnedVisibleModules: [GameModule] {
         let visible = settings.visibleModules(from: registry)

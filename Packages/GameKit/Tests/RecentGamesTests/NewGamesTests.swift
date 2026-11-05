@@ -242,7 +242,7 @@ struct NewGamesPinnedTests {
     @Test("v1.1.15 は新着なし（#3112）: NEW 印・先頭固定・感想カードの対象が空")
     func currentVersionIDsIsEmpty() {
         #expect(NewGames.currentVersionIDs.isEmpty)
-        let order = ["2048", "catpuzzle", "speed", "oldmaid", "hearts"]
+        let order = ["catpuzzle", "2048", "speed", "oldmaid", "hearts"]
         #expect(NewGames.pinned(visibleIDs: order) == order, "登録順のまま")
         #expect(!ReviewRequestPolicy.shouldAskAboutNewGame(state: .init(), gameID: "catpuzzle"))
         #expect(NewGames.notice(count: NewGames.currentVersionIDs.count) == nil)
@@ -393,5 +393,55 @@ struct NewGamesEventPinTests {
         #expect(!NewGames.isAlreadyAtTop(id: "b", orderedIDs: ["cat", "a", "b"], hiddenIDs: [], newIDs: [], eventIDs: ["cat"]))
         #expect(NewGames.moveToTopAnnouncement(title: "B", id: "b", orderedIDs: ["cat", "a", "b"], hiddenIDs: [], newIDs: [], eventIDs: ["cat"])
                 == "「B」をイベント開催中のゲームの次に移しました")
+    }
+}
+
+
+@Suite("ねこさがしは常に先頭（#3339）")
+struct NewGamesAlwaysFirstTests {
+    @Test("常に先頭の対象はねこさがし")
+    func alwaysFirstIsCatPuzzle() {
+        #expect(NewGames.alwaysFirstIDs == ["catpuzzle"])
+    }
+
+    @Test("保存した並びで後ろにあっても、期間外でも先頭")
+    func pinsFirstOutsideEventPeriod() {
+        let order = NewGames.pinned(visibleIDs: ["2048", "shogi", "catpuzzle", "speed"])
+        #expect(order == ["catpuzzle", "2048", "shogi", "speed"])
+    }
+
+    @Test("イベント中の別のゲームは、ねこさがしの次")
+    func otherEventGameComesAfter() {
+        let order = NewGames.pinned(visibleIDs: ["2048", "shogi", "catpuzzle"], eventIDs: ["shogi"])
+        #expect(order == ["catpuzzle", "shogi", "2048"])
+    }
+
+    @Test("ねこさがしがイベント中でも先頭は1つだけ")
+    func catPuzzleAsEventGameIsNotDuplicated() {
+        let order = NewGames.pinned(visibleIDs: ["2048", "catpuzzle"], eventIDs: ["catpuzzle"])
+        #expect(order == ["catpuzzle", "2048"])
+    }
+
+    @Test("非表示にしたら出てこない")
+    func hiddenStaysHidden() {
+        #expect(NewGames.pinned(visibleIDs: ["2048", "shogi"]) == ["2048", "shogi"])
+    }
+
+    @Test("「いちばん上に置く」: 先頭の直後なら済み、ねこさがし自身は先頭なら済み")
+    func moveToTopTreatsCatPuzzleAsPinned() {
+        let ordered = ["catpuzzle", "2048", "shogi"]
+        #expect(NewGames.isAlreadyAtTop(id: "2048", orderedIDs: ordered, hiddenIDs: []))
+        #expect(!NewGames.isAlreadyAtTop(id: "shogi", orderedIDs: ordered, hiddenIDs: []))
+        #expect(NewGames.isAlreadyAtTop(id: "catpuzzle", orderedIDs: ordered, hiddenIDs: []))
+        #expect(!NewGames.isAlreadyAtTop(id: "catpuzzle", orderedIDs: ["2048", "catpuzzle"], hiddenIDs: []))
+    }
+
+    @Test("登録順の先頭がねこさがし")
+    func registryStartsWithCatPuzzle() throws {
+        let source = try SourceScan.appSources()
+        #expect(
+            source.range(of: #"static let registry = GameRegistry\(\[[^\[]*?CatPuzzleModule\(\),\s*(//[^\n]*\s*)*HomerunModule\(\)"#, options: .regularExpression) != nil,
+            "登録順の先頭がねこさがしでない"
+        )
     }
 }

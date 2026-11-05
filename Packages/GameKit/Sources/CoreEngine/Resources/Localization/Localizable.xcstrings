@@ -494,6 +494,17 @@
         }
       }
     },
+    "「%@」を常に先頭のゲームの次に移しました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moved %@ to just after the always-first game"
+          }
+        }
+      }
+    },
     "あそびばの「%1$@」で記録更新！\n%2$@" : {
       "extractionState" : "manual",
       "localizations" : {
