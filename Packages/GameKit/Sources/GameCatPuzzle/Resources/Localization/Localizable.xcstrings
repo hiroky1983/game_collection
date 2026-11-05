@@ -2786,6 +2786,50 @@
           }
         }
       }
+    },
+    "クリアタイム %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear time %@"
+          }
+        }
+      }
+    },
+    "ライフ %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lives %lld"
+          }
+        }
+      }
+    },
+    "餌 %lld回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Treats %lld"
+          }
+        }
+      }
+    },
+    "今日の合計 %1$lldpt・今日 %2$lld 位 / %3$lld 人" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today %1$lld pt · Rank %2$lld of %3$lld"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

@@ -255,29 +255,22 @@ extension CatPuzzleView {
     /// クリアのカードの行。SE の画面に収まるよう 2〜3 行に詰める（#3048。以前は 5 行で盤からはみ出しスクロールになっていた）。
     /// ヒントは 0 回でも省かず出す（#2613・#2801）。ステージはタイムを出さない（#3210）。
     var clearDetails: [String] {
-        var lines = [
-            Self.showsClock(model)
-                ? tr("タイム %1$@・ライフ %2$lld・ヒント %3$lld回",
-                     RecordFormat.time(model.elapsedSeconds), model.mistakesRemaining, model.hintsUsed)
-                : tr("ライフ %1$lld・ヒント %2$lld回", model.mistakesRemaining, model.hintsUsed),
-            tr("%1$@・手数 %2$lld", boardLabel, model.moves),
-        ]
-        if let stage = model.stage {
-            // ステージは盤の名前の行を、次の面の位置（#3240）に替える。手数はミス・ヒントの行へ寄せて 4 行に収める。
-            let next = CatPuzzleStage(stage + 1).progress
+        var lines: [String]
+        if model.stage != nil {
+            // ステージは進み具合・手数を出さない（#3329。進み具合はステージ選択の画面にある）。
+            // 盤の名前・クリアタイム（プレイ中の時計・記録は出さない #3210 のまま）の 2 行。ライフ・ヒント・餌は `clearStats`。
+            lines = [boardLabel, tr("クリアタイム %@", RecordFormat.time(model.elapsedSeconds))]
+        } else {
             lines = [
-                tr("ライフ %1$lld・ヒント %2$lld回・手数 %3$lld", model.mistakesRemaining, model.hintsUsed, model.moves),
-                tr("次は %1$@・%2$@", CatPuzzleStageProgressText.position(next), CatPuzzleStageProgressText.key(next)),
+                tr("タイム %1$@・ライフ %2$lld・ヒント %3$lld回",
+                   RecordFormat.time(model.elapsedSeconds), model.mistakesRemaining, model.hintsUsed),
+                tr("%1$@・手数 %2$lld", boardLabel, model.moves),
             ]
-            // ノーミス連続の行（下）が出るときは、次の盤の行を譲って 4 行に収める（開始シートには出る）。
-            let showsStreak = model.noMissStreak >= CatPuzzleNoMiss.showsFrom
-            if !showsStreak, let board = CatPuzzleStageProgressText.nextBoard(next) ?? CatPuzzleStageProgressText.bonus(next) { lines.append(board) }
         }
-        if let earned = model.lastEventPoints {
-            // イベント開催中のステージ。SE で行が増えすぎないよう、パーフェクトの行は +3pt に譲る（#3204）。
-            lines.append(model.lastEventWasKey
-                ? tr("イベント +%1$lldpt（鍵の面 ×2）・今日の合計 %2$lldpt", earned, model.eventTotal)
-                : tr("イベント +%1$lldpt・今日の合計 %2$lldpt", earned, model.eventTotal))
+        if model.lastEventPoints != nil {
+            // イベント開催中のステージは、今日の合計 pt と今日の順位（読めなければ合計 pt だけ。#3329）。
+            lines.append(CatPuzzleClearFlow.todayLine(total: model.eventTotal, rank: clearStanding?.rank,
+                                                      participants: clearStanding?.participants))
         } else if model.mistakes == 0 {
             lines.append(tr("ミスなしのパーフェクト！"))
         }
@@ -287,6 +280,16 @@ extension CatPuzzleView {
                 : tr("ノーミス %lld 面連続", model.noMissStreak))
         }
         return lines
+    }
+
+    /// ステージのクリアのモーダルに、アイコン付きで出すライフ・ヒント・餌（盤の下のボタンと同じアイコン・#3329）。
+    var clearStats: [GameClearCard.Stat] {
+        guard model.stage != nil else { return [] }
+        return [
+            .init(systemImage: "heart.fill", text: tr("ライフ %lld", model.mistakesRemaining)),
+            .init(systemImage: "lightbulb.fill", text: tr("ヒント %lld回", model.hintsUsed - model.stageTeachesUsed)),
+            .init(systemImage: "fork.knife", text: tr("餌 %lld回", model.stageTeachesUsed)),
+        ]
     }
 
     /// 結果に添える記録の行。ステージの記録は秒数を持たず、共通の 1 行（最短タイム）では「クリア記録なし」に
@@ -303,11 +306,13 @@ extension CatPuzzleView {
                 CatPuzzleClearFlowCard(
                     step: clearFlow.step, lives: model.mistakesRemaining,
                     isKey: model.lastEventWasKey, total: model.eventTotal,
-                    loadBoard: { await loadTodayBoard() }
-                ) { withGameAnimation { clearFlow.advance() } }
+                    loadBoard: { await loadTodayBoard() },
+                    onFinish: { withGameAnimation { clearFlow.advance() } },
+                    onResult: { result in clearStanding = result?.rank.map { ($0, result?.board.participants ?? $0) } }
+                )
             } else {
             GameClearCard(
-                title: title, details: clearDetails,
+                title: title, details: clearDetails, stats: clearStats,
                 primaryAction: model.stage.map { stage in
                     GameClearCard.PrimaryAction(
                         title: tr("次のステージへ"),
@@ -320,7 +325,8 @@ extension CatPuzzleView {
             }
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
+        // ランキングの全画面は領域いっぱいに敷くので、角は丸めない（暗幕が四隅に見えるのを防ぐ）。
+        .clipShape(RoundedRectangle(cornerRadius: clearFlow.step == .ranking ? 0 : Theme.corner))
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isModal)
     }

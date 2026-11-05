@@ -80,6 +80,7 @@ struct ClearShareButton: View {
 public struct GameClearCard: View {
     private let title: String
     private let details: [String]
+    private let stats: [Stat]
     private let record: RecordResult?
     private let onClose: (() -> Void)?
     private let primaryAction: PrimaryAction?
@@ -99,16 +100,31 @@ public struct GameClearCard: View {
         }
     }
 
+    /// 詳細の文の下に 1 行で並べる、アイコン付きの数（ねこさがしのライフ・ヒント・餌・#3329）。
+    public struct Stat: Equatable {
+        public let systemImage: String
+        public let text: String
+
+        public init(systemImage: String, text: String) {
+            self.systemImage = systemImage
+            self.text = text
+        }
+    }
+
+    /// - Parameter stats: 詳細の下に、アイコン付きで 1 行に並べる数（入りきらない文字サイズでは縦に積む）。
     /// - Parameter record: 自己ベストの行に使う記録（15パズル・つなぎ。無ければ行を出さない・#3059）。
-    public init(title: String? = nil, details: [String] = [], record: RecordResult? = nil,
+    public init(title: String? = nil, details: [String] = [], stats: [Stat] = [], record: RecordResult? = nil,
                 primaryAction: PrimaryAction? = nil, share: ClearShare? = nil, onClose: (() -> Void)? = nil) {
         self.title = title ?? tr("クリア！")
         self.details = details
+        self.stats = stats
         self.record = record
         self.primaryAction = primaryAction
         self.share = share
         self.onClose = onClose
     }
+
+    private var spokenDetails: [String] { details + stats.map(\.text) }
 
     /// VoiceOver が 1 回で読む文。見出しの「！」は読み上げでは落とす。
     public static func accessibilityLabel(title: String, details: [String]) -> String {
@@ -129,10 +145,11 @@ public struct GameClearCard: View {
                         .themeBody(15, weight: .semibold, maxScale: 1.5)
                         .foregroundStyle(Theme.ink)
                 }
+                if !stats.isEmpty { statsRow }
             }
             .multilineTextAlignment(.center)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(Self.accessibilityLabel(title: title, details: details))
+            .accessibilityLabel(Self.accessibilityLabel(title: title, details: spokenDetails))
             // 共有ボタンを持つので、読み上げの塊の外に置く（`BoardGameResultCard` と同じ）。
             if record != nil { RecordLabel(record) }
             if let primaryAction {
@@ -175,7 +192,27 @@ public struct GameClearCard: View {
         .playStreakCaption()
         .padding(16)
         .resultCardScrollsWhenTall()
-        .announcesResultAppearance(Self.accessibilityLabel(title: title, details: details))
+        .announcesResultAppearance(Self.accessibilityLabel(title: title, details: spokenDetails))
+    }
+
+    /// アイコン付きの数。1 行に収まらない文字サイズでは縦に積む。
+    private var statsRow: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 14) { statItems }
+            VStack(spacing: 4) { statItems }
+        }
+    }
+
+    private var statItems: some View {
+        ForEach(stats, id: \.text) { stat in
+            Label {
+                Text(stat.text).themeBody(15, weight: .semibold, maxScale: 1.5)
+            } icon: {
+                Image(systemName: stat.systemImage).scaledFont(15, weight: .bold, maxScale: 1.5)
+            }
+            .foregroundStyle(Theme.ink)
+            .fixedSize()
+        }
     }
 }
 

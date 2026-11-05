@@ -88,6 +88,12 @@ struct CatPuzzleClearFlow: Equatable {
         var isTop3: Bool { rank.map { (1...3).contains($0) } ?? false }
     }
 
+    /// クリアのモーダルの「今日の合計 pt と順位」の行（#3329）。順位が読めなかった（未サインイン・失敗・時間切れ）ときは合計 pt だけ。
+    static func todayLine(total: Int, rank: Int?, participants: Int?) -> String {
+        guard let rank, let participants else { return tr("今日の合計 %lldpt", total) }
+        return tr("今日の合計 %1$lldpt・今日 %2$lld 位 / %3$lld 人", total, rank, max(participants, rank))
+    }
+
     /// 順位表に出す上位の人数。
     static let tableRows = 10
 
