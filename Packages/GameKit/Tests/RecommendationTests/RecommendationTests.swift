@@ -50,11 +50,11 @@ import GameKitTestSupport
 // 2026-10-26 の会長決裁（GA4 の 10/22〜26 の実績を踏まえた見直し）で並びを組み直した
 // （`App/AppGameServices.swift` と同じ並びに追従）。
 private let hubOrder = [
-    "homerun", "colorrelay", "solitaire", "poker", "dicecombo", "mahjong4", "othello", "sudoku",
+    "catpuzzle", "homerun", "colorrelay", "solitaire", "poker", "dicecombo", "mahjong4", "othello", "sudoku",
     "gomoku", "ojisanpuzzle", "fruits", "2048", "shogi", "shiritori", "daifugo", "minesweeper",
     "spider", "blackjack", "runner", "anzan", "mahjong", "hanafuda", "go", "blocks",
     "concentration", "chess", "freecell", "fifteen",
-    "catpuzzle", "speed", "oldmaid", "hearts",
+    "speed", "oldmaid", "hearts",
 ]
 
 @MainActor
@@ -62,13 +62,13 @@ private func makeRegistry() -> GameRegistry {
     // BlockPuzzleModule は含めない（#642 / #603。v1.1.5 の `AppEnvironment.registry` と
     // 構成を一致させるため）。HanafudaModule は #668 で戻した。
     GameRegistry([
-        HomerunModule(), ColorRelayModule(), SolitaireModule(), PokerModule(), DiceComboModule(),
+        CatPuzzleModule(), HomerunModule(), ColorRelayModule(), SolitaireModule(), PokerModule(), DiceComboModule(),
         MahjongModule(), OthelloModule(), SudokuModule(), GomokuModule(), OjisanPuzzleModule(),
         FruitsModule(), Game2048Module(), ShogiModule(), ShiritoriModule(), DaifugoModule(),
         MinesweeperModule(), SpiderModule(), BlackjackModule(), RunnerModule(), AnzanModule(),
         MahjongSolitaireModule(), HanafudaModule(), GoModule(), BlocksModule(), ConcentrationModule(),
         ChessModule(), FreeCellModule(), FifteenModule(),
-        CatPuzzleModule(), SpeedModule(), OldMaidModule(), HeartsModule(),
+        SpeedModule(), OldMaidModule(), HeartsModule(),
     ])
 }
 
