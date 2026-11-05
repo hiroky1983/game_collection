@@ -169,6 +169,44 @@ struct OjisanPuzzleModelTests {
         #expect(try #require(model.current).col == start + 1, "1 マスしか動いていないはず")
     }
 
+    @Test("腰が重くて待たされた左右移動は捨てず、待ち時間が明けたら順に効く（#3353）")
+    func throttledMovesAreQueuedNotDropped() async throws {
+        let model = OjisanPuzzleModel(
+            services: nil,
+            board: OjisanPuzzleBoard.emptyBoard(),
+            current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 0, rotation: .up),
+            pain: 90
+        )
+        model.pause()
+        let start = try #require(model.current).col
+        _ = model.move(by: 1)
+        _ = model.move(by: 1)
+        _ = model.move(by: 1)
+        #expect(try #require(model.current).col == start + 1, "待ち時間のあいだは 1 マスだけ")
+        let delay = OjisanPuzzlePain.inputDelayMilliseconds(for: 90)
+        try await Task.sleep(for: .milliseconds(delay * 4 + 300))
+        #expect(try #require(model.current).col == start + 3, "待ち時間を挟んで 3 マス動くはず")
+    }
+
+    @Test("待たされた入力は組が固定されたら次の組へ持ち越さない（#3353）")
+    func queuedInputsAreDroppedOnLock() async throws {
+        let model = OjisanPuzzleModel(
+            services: nil,
+            board: OjisanPuzzleBoard.emptyBoard(),
+            current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 0, rotation: .up),
+            pain: 90
+        )
+        model.pause()
+        _ = model.move(by: 1)
+        _ = model.move(by: 1)
+        _ = model.move(by: 1)
+        #expect(model.hardDrop())
+        for _ in 0..<50 where model.current == nil { model.tick() }
+        let next = try #require(model.current?.col)
+        try await Task.sleep(for: .milliseconds(OjisanPuzzlePain.inputDelayMilliseconds(for: 90) * 4 + 300))
+        #expect(model.current?.col == next, "固定前の入力が次の組に効いている")
+    }
+
     /// 落とす操作まで遅らせると「重い」ではなく「操作を奪われた」手触りになるため、
     /// 下スワイプ（ソフトドロップ）は腰が重くても素通しする。
     @Test("腰が重くても落とす操作は遅らせない")
