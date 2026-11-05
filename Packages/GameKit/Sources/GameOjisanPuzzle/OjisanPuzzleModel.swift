@@ -240,6 +240,7 @@ public final class OjisanPuzzleModel {
 
     /// 落下を止める。局面はそのまま残す。
     public func pause() {
+        clearPendingInputs()
         loop?.cancel()
         loop = nil
     }
@@ -248,7 +249,6 @@ public final class OjisanPuzzleModel {
     public func pauseByUser() {
         guard outcome == nil else { return }
         isUserPaused = true
-        clearPendingInputs()
         pause()
     }
 

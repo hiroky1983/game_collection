@@ -188,6 +188,23 @@ struct OjisanPuzzleModelTests {
         #expect(try #require(model.current).col == start + 3, "待ち時間を挟んで 3 マス動くはず")
     }
 
+    @Test("一時停止すると待たされた入力は捨てる（#3353）")
+    func queuedInputsAreDroppedOnPause() async throws {
+        let model = OjisanPuzzleModel(
+            services: nil,
+            board: OjisanPuzzleBoard.emptyBoard(),
+            current: OjisanPuzzlePair(axisKind: 1, childKind: 2, row: 1, col: 0, rotation: .up),
+            pain: 90
+        )
+        _ = model.move(by: 1)
+        _ = model.move(by: 1)
+        _ = model.move(by: 1)
+        model.pause()
+        let col = try #require(model.current).col
+        try await Task.sleep(for: .milliseconds(OjisanPuzzlePain.inputDelayMilliseconds(for: 90) * 4 + 300))
+        #expect(try #require(model.current).col == col, "一時停止中に待たされた入力が効いている")
+    }
+
     @Test("待たされた入力は組が固定されたら次の組へ持ち越さない（#3353）")
     func queuedInputsAreDroppedOnLock() async throws {
         let model = OjisanPuzzleModel(
