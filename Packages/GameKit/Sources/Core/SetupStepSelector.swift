@@ -66,6 +66,10 @@ public struct SetupStepSelector<Value: Hashable>: View {
             }
         }
         .accessibilityAction(named: tr("一覧から選ぶ")) { showsList = true }
+        .onAppear {
+            // 選択肢に無い値が渡されたときは、表示している先頭の段に揃える（開始ボタンが別の値で始めないため）。
+            if let first = options.first, !options.contains(where: { $0.value == selection }) { selection = first.value }
+        }
         .sheet(isPresented: $showsList) {
             SetupStepList(options: options, selection: $selection) { showsList = false }
         }

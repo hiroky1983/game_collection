@@ -602,9 +602,17 @@ struct ShiritoriSetupSheet: View {
         ) {
             GameSetupSection(tr("あそびかた")) {
                 VStack(alignment: .leading, spacing: 8) {
-                    SetupStepSelector(
-                        ladder: ShiritoriMode.allCases.map { ($0, $0.label, "") },
-                        selection: $mode, showsScale: false)
+                    // 数が決まっていて増えない 2 択は並べて見せる（#3363・会長「確実な 2 択までスライド UI にするのは意味不明」）。
+                    HStack(spacing: 6) {
+                        ForEach(Array(ShiritoriMode.allCases.enumerated()), id: \.element) { step, item in
+                            GameSetupChooser(
+                                title: item.label, subtitle: "",
+                                selected: mode == item,
+                                accent: DifficultyTile.accent(step: step, of: ShiritoriMode.allCases.count),
+                                metrics: DifficultyTile.metrics
+                            ) { mode = item }
+                        }
+                    }
                     Text(mode.summary)
                         .themeBody(13)
                         .foregroundStyle(Theme.inkSubText)
