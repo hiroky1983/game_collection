@@ -48,7 +48,11 @@ public enum NewGames {
     /// v1.1.15 は新着なし（会長指示 2026-10-31）。次に新ゲームを出す版でここへ足す。
     public static let currentVersionIDs: Set<String> = []
 
-    /// ハブに並べるゲームの順。開催中のイベントのゲームを先頭に、次に この版の新着、そのあとに残りを並べる（#3321）。
+    /// 期間やイベントに関係なく、ハブの一番上に固定するゲームの ID（#3339・会長決裁 2026-11-05）。
+    /// 利用者の並び替え設定より優先し、保存した並びは書き換えない。
+    public static let alwaysFirstIDs: [String] = ["catpuzzle"]
+
+    /// ハブに並べるゲームの順。常に先頭のゲーム（#3339）、開催中のイベントのゲーム、この版の新着、そのあとに残りを並べる（#3321）。
     /// どれも元の順（利用者の並び替え設定を反映済みの順）を保つ。保存した並びは書き換えず、表示の順だけを変える
     /// ので、イベントが終われば元の並びに戻る。
     ///
@@ -59,12 +63,15 @@ public enum NewGames {
     public static func pinned(
         visibleIDs: [String],
         newIDs: Set<String> = currentVersionIDs,
-        eventIDs: Set<String> = []
+        eventIDs: Set<String> = [],
+        alwaysFirstIDs: [String] = alwaysFirstIDs
     ) -> [String] {
-        let events = visibleIDs.filter { eventIDs.contains($0) }
-        let news = visibleIDs.filter { newIDs.contains($0) && !eventIDs.contains($0) }
-        let rest = visibleIDs.filter { !newIDs.contains($0) && !eventIDs.contains($0) }
-        return events + news + rest
+        let always = alwaysFirstIDs.filter { visibleIDs.contains($0) }
+        let others = visibleIDs.filter { !alwaysFirstIDs.contains($0) }
+        let events = others.filter { eventIDs.contains($0) }
+        let news = others.filter { newIDs.contains($0) && !eventIDs.contains($0) }
+        let rest = others.filter { !newIDs.contains($0) && !eventIDs.contains($0) }
+        return always + events + news + rest
     }
 
     /// 長押しメニューの「いちばん上に置く」（#662）が、すでに**表示上**その位置にあるか（#2124）。
@@ -78,11 +85,12 @@ public enum NewGames {
         orderedIDs: [String],
         hiddenIDs: Set<String>,
         newIDs: Set<String> = currentVersionIDs,
-        eventIDs: Set<String> = []
+        eventIDs: Set<String> = [],
+        alwaysFirstIDs: [String] = alwaysFirstIDs
     ) -> Bool {
         guard let index = orderedIDs.firstIndex(of: id) else { return true }
         let before = orderedIDs[..<index]
-        let pinnedIDs = newIDs.union(eventIDs)
+        let pinnedIDs = newIDs.union(eventIDs).union(alwaysFirstIDs)
         if pinnedIDs.contains(id) { return before.isEmpty }
         return before.allSatisfy { pinnedIDs.contains($0) && !hiddenIDs.contains($0) }
     }
@@ -94,13 +102,15 @@ public enum NewGames {
         orderedIDs: [String],
         hiddenIDs: Set<String>,
         newIDs: Set<String> = currentVersionIDs,
-        eventIDs: Set<String> = []
+        eventIDs: Set<String> = [],
+        alwaysFirstIDs: [String] = alwaysFirstIDs
     ) -> String {
         func isPinnedAhead(_ ids: Set<String>) -> Bool {
             !ids.contains(id) && orderedIDs.contains { ids.contains($0) && !hiddenIDs.contains($0) }
         }
         if isPinnedAhead(newIDs) { return tr("「%@」を新着の次に移しました", title) }
         if isPinnedAhead(eventIDs) { return tr("「%@」をイベント開催中のゲームの次に移しました", title) }
+        if isPinnedAhead(Set(alwaysFirstIDs)) { return tr("「%@」を常に先頭のゲームの次に移しました", title) }
         return tr("「%@」を先頭に移しました", title)
     }
 

@@ -363,7 +363,12 @@ struct SettingsView: View {
                         .themeBody(16)
                         .foregroundStyle(isVisible ? Theme.ink : Theme.inkSubText)
                     // 開催中は並びに関係なくハブの先頭に出る（#3321）。動かしても期間中は先頭のままと分かるようにする。
-                    if isVisible, HubEventBadge.isShown(gameID: id) {
+                    if isVisible, NewGames.alwaysFirstIDs.contains(id) {
+                        // ねこさがしは期間に関係なく常に先頭（#3339）。
+                        Text(tr("常に先頭に表示"))
+                            .scaledFont(12)
+                            .foregroundStyle(Theme.inkSubText)
+                    } else if isVisible, HubEventBadge.isShown(gameID: id) {
                         Text(tr("イベント中は先頭に表示"))
                             .scaledFont(12)
                             .foregroundStyle(Theme.inkSubText)

@@ -694,6 +694,17 @@
         }
       }
     },
+    "常に先頭に表示" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Always shown first"
+          }
+        }
+      }
+    },
     "イベント開催中" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -217,11 +217,11 @@ struct HubCategoryTests {
         #expect(SourceScan.matchCount(of: "homerunTally = HomerunHubCount\\.tally\\(\\)", in: source) == 4)
     }
 
-    @Test("柵越えおじさんは登録順の先頭（新着の固定の直後に並ぶ・#2572）")
-    func homerunIsRegisteredFirst() throws {
+    @Test("柵越えおじさんは登録順の2番目（常に先頭のねこさがしの直後に並ぶ・#2572・#3339）")
+    func homerunIsRegisteredSecond() throws {
         let source = try String(
             contentsOf: SourceScan.repositoryRoot.appendingPathComponent("App/AppGameServices.swift"), encoding: .utf8)
-        #expect(try registeredModuleTypeNames(source).first == "HomerunModule")
+        #expect(try Array(registeredModuleTypeNames(source).prefix(2)) == ["CatPuzzleModule", "HomerunModule"])
     }
 
     @Test("カテゴリーのチップは押せる範囲が 44pt 以上（HIG の最小値・#2184 の誤タップ対策）")
