@@ -325,7 +325,8 @@ extension CatPuzzleView {
             }
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
+        // ランキングの全画面は領域いっぱいに敷くので、角は丸めない（暗幕が四隅に見えるのを防ぐ）。
+        .clipShape(RoundedRectangle(cornerRadius: clearFlow.step == .ranking ? 0 : Theme.corner))
         .accessibilityElement(children: .contain)
         .accessibilityAddTraits(.isModal)
     }
