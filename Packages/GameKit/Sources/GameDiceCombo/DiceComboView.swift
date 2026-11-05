@@ -319,12 +319,16 @@ public struct DiceComboView: View {
                 id: "reroll", title: tr("広告で振る"), systemImage: "play.rectangle.fill", role: .ad,
                 note: rerollNote,
                 isEnabled: model.canAdReroll && !isWatchingAd,
-                accessibilityLabel: tr("広告を見てもう1回振る、広告で振れるのはあと%lld回", model.adRerollsRemaining),
-                accessibilityHint: model.canAdReroll
-                    ? tr("広告を最後まで見ると、もう1回振れます。キープも使えます")
-                    : model.isAdRerollCapReached
-                        ? tr("この局で広告で振れる回数は上限に達しました")
-                        : tr("通常の3回を振り切ると使えます")
+                accessibilityLabel: rerollRescue.isWatching
+                    ? tr("広告を読み込み中")
+                    : tr("広告を見てもう1回振る、広告で振れるのはあと%lld回", model.adRerollsRemaining),
+                accessibilityHint: rerollRescue.isWatching
+                    ? ""
+                    : model.canAdReroll
+                        ? tr("広告を最後まで見ると、もう1回振れます。キープも使えます")
+                        : model.isAdRerollCapReached
+                            ? tr("この局で広告で振れる回数は上限に達しました")
+                            : tr("通常の3回を振り切ると使えます")
             ) { requestReroll() },
         ], verticalPadding: 0)
         .lineLimit(1)

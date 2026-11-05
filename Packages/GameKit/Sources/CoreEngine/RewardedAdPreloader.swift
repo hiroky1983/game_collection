@@ -27,7 +27,7 @@ public final class RewardedAdPreloader<Ad> {
     /// `chain` の世代。止めたあとに始め直した新しい先読みを、古い先読みの後始末が消さないための印。
     private var chainGeneration = 0
     /// 進行中の読み込み 1 回ぶん。タップがその完了に相乗りする。再試行の待ち時間は含まない。
-    private var attempt: Task<Void, Never>?
+    private var attempt: Task<Bool, Never>?
 
     /// - Parameters:
     ///   - loadTimeout: nil なら打ち切らない（テスト用）。
@@ -70,7 +70,7 @@ public final class RewardedAdPreloader<Ad> {
 
     /// 進行中の読み込みが終わるまで待つ。再試行の待ち時間中は待たずにすぐ返る（タップを長く待たせない）。
     public func awaitCurrentAttempt() async {
-        await attempt?.value
+        _ = await attempt?.value
     }
 
     /// 預かった広告を取り出す。取り出したら空になる。
@@ -98,13 +98,15 @@ public final class RewardedAdPreloader<Ad> {
                 skip = false
             } else {
                 let task = Task { [weak self] in
-                    guard let self, let ad = await self.loadOnce() else { return }
+                    guard let self, let ad = await self.loadOnce() else { return false }
                     self.slot.store(ad, loadedAt: self.now())
+                    return true
                 }
                 attempt = task
-                await task.value
+                // 成否は戻り値で見る。`isReady` で見ると、読み込み直後にタップが `take()` した回を失敗と取り違えて読み直す。
+                let stored = await task.value
                 attempt = nil
-                if isReady { return }
+                if stored { return }
             }
             guard retry < retryDelays.count else { return }
             do { try await sleep(retryDelays[retry]) } catch { return }

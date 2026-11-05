@@ -164,6 +164,8 @@ public final class AdMobAdService: AdService {
         // 読み込み中の 1 回にタップが来たら、もう 1 本読み始めずにその完了を待つ（打ち切りあり）。
         // 再試行の待ち時間中は待たない（押してから長く動かない状態を作らない・#3341）。
         await rewardedPreloader.awaitCurrentAttempt()
+        // 待っている間に画面を離れて取り消されていたら、広告は取り出さずに残す（離れたあとに全画面広告を出さない）。
+        guard !Task.isCancelled else { return false }
         // 先読みした広告があれば読み込みを待たずに出す。失効していた・表示に失敗した回だけ、
         // 従来どおりその場で読み込む。
         if let ad = rewardedPreloader.take(), let root = rootViewController() {
@@ -181,7 +183,9 @@ public final class AdMobAdService: AdService {
 
         // その場で読む。裏の再試行と二重に読まないよう止めておく。
         rewardedPreloader.cancelRetries()
-        guard let ad = await rewardedPreloader.loadNow() else {
+        let loaded = await rewardedPreloader.loadNow()
+        guard !Task.isCancelled else { return false }
+        guard let ad = loaded else {
             // 読み込めなかった回は回線が戻っていない見込みが高いので、間を空けて読み直す。
             if isRewardedPreloadEnabled { rewardedPreloader.start(afterFailure: true) }
             return false

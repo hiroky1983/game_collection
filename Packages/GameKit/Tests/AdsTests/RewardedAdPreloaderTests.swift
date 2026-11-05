@@ -95,6 +95,18 @@ struct RewardedAdPreloaderTests {
         #expect(h.loads == 1)
     }
 
+    @Test("読み込み直後にタップが広告を取り出しても、失敗と取り違えて読み直さない")
+    func takeRightAfterLoadDoesNotTriggerRetry() async {
+        let h = Harness(failures: 0)
+        let p = makePreloader(h)
+        p.start()
+        while h.loads == 0 { await Task.yield() }
+        await p.awaitCurrentAttempt()
+        #expect(p.take() == "ad1")
+        await settle(p)
+        #expect(h.loads == 1 && h.slept.isEmpty)
+    }
+
     @Test("止めたあとに始め直した先読みを、古い先読みの後始末が消さない")
     func restartAfterCancelSurvivesOldChainCleanup() async {
         let h = Harness(failures: 100)
