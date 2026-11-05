@@ -74,7 +74,7 @@ struct ShogiHintMateTests {
     func mateInThree() throws {
         let pos = try position(Self.mateIn3)
         #expect(!mates(pos, plies: 1))
-        // Debug ビルドの 3 手詰の探索は 0.45 秒（出荷の詰み確認の上限・#3351）を超えうるので、5 手詰と同じく時間を十分に取る。
+        // Debug ビルドの 3 手詰の探索は 0.45 秒（出荷の詰み確認の上限・#3350）を超えうるので、5 手詰と同じく時間を十分に取る。
         let relaxed = SimpleMinimaxEngine(level: BoardHintBudget.engineLevel, seed: nil, timeLimit: 60)
         let answer = try #require(relaxed.hintAnswer(sfen: Self.mateIn3))
         guard case let .mate(move) = answer else { Issue.record("詰ます手になっていない: \(answer)"); return }
@@ -99,11 +99,22 @@ struct ShogiHintMateTests {
 
     @Test("詰みがあれば考える時間をまるまる使わずに答える")
     func mateAnswersQuickly() throws {
-        // 詰み探索が 0.45 秒（#3351）で時間切れになって達人の探索へ移らないよう、mateInThree と同じく時間を十分に取る。
+        // 詰み探索が 0.45 秒（#3350）で時間切れになって達人の探索へ移らないよう、mateInThree と同じく時間を十分に取る。
         let relaxed = SimpleMinimaxEngine(level: BoardHintBudget.engineLevel, seed: nil, timeLimit: 60)
         let started = Date()
         _ = relaxed.hintAnswer(sfen: Self.mateIn3)
         #expect(Date().timeIntervalSince(started) < 1.0)
+    }
+
+    @Test("詰みの確認が最大まで使われても、達人には出荷の考える時間（2.5 秒）以上が残る（#3350）")
+    func masterKeepsShippedThinkingTimeAfterMateCheck() {
+        let hint = SimpleMinimaxEngine.hint()
+        let mateBudget = hint.timeLimit * SimpleMinimaxEngine.hintAnswerMateShare
+        let masterTime = SimpleMinimaxEngine.searchTime(limit: hint.timeLimit, elapsed: mateBudget)
+        let shipped: TimeInterval = ShogiMasterEngine.shippedTimeLimit
+        #expect(masterTime >= shipped, "ヒントの達人に残る時間 \(masterTime) が出荷の \(shipped) 秒を下回る")
+        // 広告前の「受けが無い」判定は弱めない（ヒントの詰み確認より広い）。
+        #expect(SimpleMinimaxEngine.hintMateShare >= SimpleMinimaxEngine.hintAnswerMateShare)
     }
 
     // MARK: 相手に詰みがある
@@ -131,14 +142,6 @@ struct ShogiHintMateTests {
         guard case let .move(move) = answer else { Issue.record("ふつうの手になっていない: \(answer)"); return }
         #expect(try position(Position.startSFEN).legalMoves().contains(move))
         #expect(!engine().hasNoDefense(sfen: Position.startSFEN))
-    }
-
-    @Test("詰みの確認に使える時間を引いても、達人の読みに出荷と同じ 2.5 秒が残る（#3351）")
-    func mateShareLeavesShippedMasterTime() {
-        let reserved = SimpleMinimaxEngine.hint().timeLimit * SimpleMinimaxEngine.hintMateShare
-        let left: Double = SimpleMinimaxEngine.hint().timeLimit - reserved
-        // 後始末の 0.03 秒ぶんは出荷の達人も同じなので、ここでは 2.5 秒との差が 0.05 秒以内であることを見る。
-        #expect(left >= ShogiMasterEngine.shippedTimeLimit - 0.05)
     }
 
     @Test("詰み探索が時間内に終わらなければ、今の探索の答えに戻る（断らない）")
