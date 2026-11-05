@@ -275,6 +275,11 @@ public struct AnzanView: View {
             RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
         }
         .padding(12)
+        // 結果が出たことを VoiceOver に 1 回だけ伝える（#3325）。板の `.contain` の中なので追加の修飾は要らない。
+        .announcesResultAppearance(AnzanAccessibility.stageLabel(
+            phase: .result, step: nil, displayedNumber: nil,
+            input: model.input, sum: model.sum, answer: model.answer, isCorrect: model.isCorrect
+        ))
     }
 
     // MARK: - 操作
