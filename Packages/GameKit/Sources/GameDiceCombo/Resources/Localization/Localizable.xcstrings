@@ -888,7 +888,7 @@
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Watch an ad to roll once more, %lld ad rolls left"
+                  "value" : "Watch an ad to roll once more. Up to 5 per game, %lld left this game"
                 }
               }
             }
