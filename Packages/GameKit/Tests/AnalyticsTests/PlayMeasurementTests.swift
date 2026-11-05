@@ -76,7 +76,7 @@ struct QuitTrackingTests {
         analytics.restartPlay(gameID: "solitaire", mode: .endless)
 
         let ends = spy.events.compactMap { event -> (result: AnalyticsResult, mode: AnalyticsMode?)? in
-            if case let .gameEnd(_, result, _, mode, _, _, _, _, _) = event { return (result, mode) } else { return nil }
+            if case let .gameEnd(_, result, _, mode, _, _, _, _, _, _, _) = event { return (result, mode) } else { return nil }
         }
         #expect(ends.count == 1)
         #expect(ends.first?.result == .quit)
@@ -97,7 +97,7 @@ struct QuitTrackingTests {
         let modes = spy.events.compactMap { event -> (name: String, mode: AnalyticsMode?)? in
             switch event {
             case let .gameStart(_, _, mode, _, _):     return ("start", mode)
-            case let .gameEnd(_, _, _, mode, _, _, _, _, _): return ("end", mode)
+            case let .gameEnd(_, _, _, mode, _, _, _, _, _, _, _): return ("end", mode)
             default:                             return nil
             }
         }
@@ -614,6 +614,14 @@ struct RewardOfferWiringTests {
         "GameConcentration.hintRescue",
         // おじさんちのねこさがしのヒント（無料3回を使い切った後・#2250）も同じ形。
         "GameCatPuzzle.hintRescue",
+        // ねこさがしのステージの「猫を 1 匹教える」（0 になったあと・#3203）もヒントと同じ形。
+        "GameCatPuzzle.teachRescue",
+        // ハーツの渡す場面のヒント（無料3回を使い切った後・#3003）も同じ形。
+        "GameHearts.hintRescue",
+        // ババ抜きの「見破る」（常設のボタンで、確認を挟まずに広告へ進む・#3251）もヒントと同じ形。
+        "GameOldMaid.peekRescue",
+        // サイコロ役づくりの「広告で振る」（常設のボタンで、確認を挟まずに広告へ進む・#3257）も同じ形。
+        "GameDiceCombo.rerollRescue",
     ]
 
     @Test("各ゲームの救済は、提示の結線を持つか Core の部品（待った・コンティニューの幕）へ渡している")
@@ -766,8 +774,12 @@ struct RewardAdCallSiteTests {
         // フリーセル・スパイダー・ソリティアのヒントの広告は Core の `BoardHintReader` に寄せた（#2125）ので 3 か所減って34。
         // おじさんの荷物運びパズルの負けから続ける救済（#2013）で 1 か所増えて 36。企画倉庫ゲームの削除（#2545）で 1 か所減って 35。
         // おじさんちのねこさがしのヒント（#2250）で 1 か所増えて 36。
-        // ねこさがしのコンティニューを Core の幕から結果カードへ移した（#2904）ので 1 か所増えて 37（現在値は下の期待値）。
-        #expect(counts.values.reduce(0, +) == 37, "リワード広告の面は37箇所（Core に寄せた待った・コンティニューの幕・3本のヒントを除く）")
+        // ねこさがしのコンティニューを Core の幕から結果カードへ移した（#2904）ので 1 か所増えて 37。
+        // サイコロ役づくりの「役選びを戻す」の補充（#2940）で 1 か所増えて 38。ハーツの渡す場面のヒント（#3003）で 1 か所増えて 39。
+        // ねこさがしのステージの「猫を 1 匹教える」（#3203）で 1 か所増えて 40。
+        // ババ抜きの「見破る」と「引き直し」（#3251）で 2 か所増えて 42。
+        // サイコロ役づくりの「戻す」の補充をやめ（-1）、「広告で振る」と終局後の 0 点の役のやり直しを足した（#3257）ので 43（現在値は下の期待値）。
+        #expect(counts.values.reduce(0, +) == 43, "リワード広告の面は43箇所（Core に寄せた待った・コンティニューの幕・3本のヒントを除く）")
     }
 }
 
@@ -981,6 +993,29 @@ struct RestAcrossRelaunchTests {
         #expect(afterSpy.starts.isEmpty, "開始は送信済みなので数え直さない")
         #expect(afterSpy.ends.map(\.result) == [.win])
         #expect(afterSpy.ends.first?.durationSec == 65, "休憩前の 40 秒 + 戻ってからの 25 秒。終了中の時間は入れない")
+    }
+
+    @Test("アプリが終了しても、休憩前のミス数・猫を教えるの回数は「続きから」の game_end に引き継がれる（#3232）")
+    func missAndTeachSurviveRelaunch() {
+        let store = makeStore()
+        let clock = TestClock()
+        let (before, _) = relaunch(store, clock: clock)
+        before.startPlay(gameID: "2048")
+        before.recordProgress(gameID: "2048")
+        before.recordMissCause(gameID: "2048", cause: nil, progressPercent: 40)
+        before.recordTeachUsed(gameID: "2048")
+        before.leaveGame(gameID: "2048", isResumable: true)
+
+        let (after, afterSpy) = relaunch(store, clock: clock)
+        after.recordGameOpen(gameID: "2048", source: .hub, position: 1, resume: true)
+        after.recordMissCause(gameID: "2048", cause: nil, progressPercent: 60)
+        after.recordTeachUsed(gameID: "2048")
+        after.finishPlay(gameID: "2048", outcome: .win)
+
+        let end = afterSpy.events.last { $0.name == "game_end" }?.parameters
+        #expect(end?["miss_count"] == .int(2))
+        #expect(end?["miss_at"] == .int(60))
+        #expect(end?["teach_used"] == .int(2))
     }
 
     @Test("ハブへ戻らず背面でアプリが終了しても、「続きから」で決着すれば game_end が出る（#2300）")

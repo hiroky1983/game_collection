@@ -63,7 +63,7 @@ struct BackgammonModuleTests {
         let view = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameBackgammon/BackgammonView.swift"))
         #expect(!view.contains("showRewardedAd("), "広告は RewardedRescue 経由でしか出さない（画面からは直接呼ばない）")
         #expect(!code.contains("withAnimation("), "アニメーションは gameAnimation 経由")
-        #expect(code.contains(".task(id: model.aiTurnKey)"), "CPU は aiTurnKey で起動する（#140）")
+        #expect(code.contains(".task(id: PausableTurn(key: model.aiTurnKey"), "CPU は aiTurnKey で起動する（#140）")
         #expect(code.contains("onChange(of: model.aiTurnKey, initial: true)"), "パス案内は手番の鍵で出す（CPU のパス直後に自分もパスになる並びで mustPass が変化しない）・復元後も出る（#414）")
         #expect(!code.contains("onChange(of: model.mustPass"), "mustPass の変化に頼ると true → true の並びで案内が出ない")
         #expect(code.contains("gameDidStart(") && code.contains("gameDidRestart(") && code.contains("gameDidProgress(")

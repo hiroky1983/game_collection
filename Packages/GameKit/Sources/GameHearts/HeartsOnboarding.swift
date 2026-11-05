@@ -1,4 +1,5 @@
 import Core
+import CoreMiniCard
 import SwiftUI
 
 /// 図で見る「はじめての遊び方」（#2827）のハーツ。
@@ -80,7 +81,7 @@ public enum HeartsOnboarding {
             VStack(spacing: 6) {
                 RuleMiniCard("7", suit: .heart, isHighlighted: isOK)
                 RuleVerdictMark(isOK)
-                RuleFigureLabel(caption, color: isOK ? Theme.coralText : Theme.inkSub)
+                RuleFigureLabel(caption, color: isOK ? Theme.coralText : Theme.inkSubText)
                     .frame(maxWidth: 84)
             }
         }

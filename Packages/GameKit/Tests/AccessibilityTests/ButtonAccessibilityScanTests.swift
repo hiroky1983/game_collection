@@ -65,12 +65,36 @@ struct ButtonAccessibilityScanTests {
             && SourceScan.matchCount(of: #"\bText\(|\bLabel\(|accessibilityLabel|accessibilityHidden"#, in: neighborhood) == 0
     }
 
+    /// 近傍に行末の飾りのシェブロンを `Image(systemName:)` で直書きしていて、読み上げから隠していないか（#3053）。
+    /// 隠す手当ては `DisclosureChevron`（隠す処理込み）か `accessibilityHidden` / `accessibilityLabel`。
+    static func hasUnhiddenChevron(_ neighborhood: String) -> Bool {
+        SourceScan.matchCount(of: #"Image\(systemName:\s*"chevron\.(right|down)""#, in: neighborhood) > 0
+            && SourceScan.matchCount(of: #"accessibilityHidden|accessibilityLabel"#, in: neighborhood) == 0
+    }
+
     /// 近傍に 44 未満の固定 frame があり、広げる手当て（contentShape / minTapTarget / 44 以上の frame）が無いか。
     static func isSmallTapTarget(_ neighborhood: String) -> Bool {
         let sizes = frameSizes(in: neighborhood)
         guard sizes.contains(where: { $0 < minTapTarget }) else { return false }
         if sizes.contains(where: { $0 >= minTapTarget }) { return false }
         return !neighborhood.contains("contentShape") && !neighborhood.contains("minTapTarget")
+    }
+
+    /// 近傍が余白（`.padding(.vertical, N)`・N は 12 以下）で高さを決めていて、下限の手当て
+    /// （`minHeight` / `minTapTarget` / `GameButtonStyle`）が無いか。固定 frame が無いので 44pt を割りやすい（#3105）。
+    static func isPaddingSizedButton(_ neighborhood: String) -> Bool {
+        let pattern = #"\.padding\(\.vertical,\s*([0-9]+(?:\.[0-9]+)?)\)|\.padding\(\.horizontal,\s*[0-9.]+\)\s*\.padding\(\.vertical,\s*([0-9]+(?:\.[0-9]+)?)\)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return false }
+        let range = NSRange(neighborhood.startIndex..., in: neighborhood)
+        let small = regex.matches(in: neighborhood, range: range).contains { match in
+            (1...2).contains { group in
+                Range(match.range(at: group), in: neighborhood)
+                    .flatMap { Double(neighborhood[$0]) }.map { $0 <= 12 } ?? false
+            }
+        }
+        guard small else { return false }
+        return !neighborhood.contains("GameButtonStyle") && !neighborhood.contains("minHeight")
+            && !neighborhood.contains("minTapTarget")
     }
 
     /// `.frame(width: 28, height: 28)` の数値リテラルを集める（`minWidth` などの下限指定は含めない）。
@@ -115,12 +139,30 @@ struct ButtonAccessibilityScanTests {
             """)
     }
 
+    @Test("ボタン行末の飾りのシェブロンは VoiceOver から隠す")
+    func decorativeChevronsAreHidden() throws {
+        let found = try Self.offenders(Self.hasUnhiddenChevron)
+        #expect(found.isEmpty, """
+            ボタン内の chevron は DisclosureChevron で描く（直書きなら .accessibilityHidden(true)）。\
+            意図的なら行末に // a11y-ok: 理由。\n\(found.joined(separator: "\n"))
+            """)
+    }
+
     @Test("44pt 未満の固定 frame のボタンには押せる範囲を広げる手当てが要る")
     func smallButtonsExtendTapTarget() throws {
         let found = try Self.offenders(Self.isSmallTapTarget)
         #expect(found.isEmpty, """
             44pt 未満の frame のボタンには .contentShape か GameButtonMetrics.minTapTarget が要る。\
             意図的なら行末に // a11y-ok: 理由。\n\(found.joined(separator: "\n"))
+            """)
+    }
+
+    @Test("余白で高さが決まる 44pt 未満のボタンは GameButtonStyle か minHeight に寄せる")
+    func paddingSizedButtonsHaveMinHeight() throws {
+        let found = try Self.offenders(Self.isPaddingSizedButton)
+        #expect(found.isEmpty, """
+            .padding(.vertical, 12 以下) で高さを決めるボタンは GameButtonStyle(role:shape:) \
+            （minHeight 44pt）に寄せる。意図的なら行末に // a11y-ok: 理由。\n\(found.joined(separator: "\n"))
             """)
     }
 
@@ -143,6 +185,14 @@ struct ButtonAccessibilityScanTests {
         #expect(!Self.isUnlabeledIconButton("Button(\"OK\") { go() }"))
     }
 
+    @Test("隠していないシェブロンは違反、DisclosureChevron や accessibilityHidden があれば通す")
+    func chevronRules() {
+        #expect(Self.hasUnhiddenChevron("Button { go() } label: { HStack { Text(\"a\"); Image(systemName: \"chevron.right\") } }"))
+        #expect(!Self.hasUnhiddenChevron("Button { go() } label: { HStack { Text(\"a\"); DisclosureChevron() } }"))
+        #expect(!Self.hasUnhiddenChevron("Button { go() } label: { HStack { Text(\"a\"); Image(systemName: \"chevron.down\").accessibilityHidden(true) } }"))
+        #expect(!Self.hasUnhiddenChevron("Button { go() } label: { Image(systemName: \"gear\") }"))
+    }
+
     @Test("44 未満の固定 frame は違反、手当てや 44 以上があれば通す")
     func tapTargetRules() {
         #expect(Self.isSmallTapTarget("Button { go() } label: { Image(systemName: \"x\").frame(width: 28, height: 28) }"))
@@ -150,5 +200,14 @@ struct ButtonAccessibilityScanTests {
         #expect(!Self.isSmallTapTarget("Button { go() } label: { Image(systemName: \"x\").frame(width: 28, height: 28) }\n.frame(minWidth: GameButtonMetrics.minTapTarget)"))
         #expect(!Self.isSmallTapTarget("Button { go() } label: { Image(systemName: \"x\").frame(width: 44, height: 44) }"))
         #expect(!Self.isSmallTapTarget("Button { go() } label: { Text(\"a\").frame(maxWidth: .infinity) }"))
+    }
+
+    @Test("余白だけで高さを決めるボタンは違反、GameButtonStyle や minHeight があれば通す")
+    func paddingSizedRules() {
+        #expect(Self.isPaddingSizedButton("Button { go() } label: { Text(\"a\").padding(.vertical, 10) }"))
+        #expect(Self.isPaddingSizedButton("Button { go() } label: { Text(\"a\").padding(.horizontal, 12).padding(.vertical, 7) }"))
+        #expect(!Self.isPaddingSizedButton("Button { go() } label: { Text(\"a\").padding(.vertical, 10) }\n.buttonStyle(GameButtonStyle(role: .ad))"))
+        #expect(!Self.isPaddingSizedButton("Button { go() } label: { Text(\"a\").padding(.vertical, 10).frame(minHeight: 44) }"))
+        #expect(!Self.isPaddingSizedButton("Button { go() } label: { Text(\"a\").padding(.vertical, 16) }"))
     }
 }

@@ -67,6 +67,17 @@
         }
       }
     },
+    "0点の役を1つ、広告を見てやり直せます。\n得点表の色のついた0点の役をタップしてください。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to redo one combo that scored 0.\nTap a highlighted 0-point combo on the score sheet."
+          }
+        }
+      }
+    },
     "1 ターンに 3 回まで振れます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -331,6 +342,17 @@
         }
       }
     },
+    "このまま終える" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finish as is"
+          }
+        }
+      }
+    },
     "このゲームの目的" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -371,6 +393,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Play Again"
+          }
+        }
+      }
+    },
+    "やり直せませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Redo"
           }
         }
       }
@@ -426,6 +459,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Game Over"
+          }
+        }
+      }
+    },
+    "ゲーム終了　合計%lld点" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Game over – %lld points"
           }
         }
       }
@@ -729,6 +773,140 @@
         }
       }
     },
+    "この局 あと%lld回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Game: %lld left"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Game: %lld left"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "広告で振る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Roll via Ad"
+          }
+        }
+      }
+    },
+    "広告を最後まで見ると、もう1回振れます。キープも使えます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch the whole ad to roll once more. Holding dice still works."
+          }
+        }
+      }
+    },
+    "広告を最後まで視聴すると、この役を3回振れる番でやり直せます。\nやり直しは1局に1回までです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch the whole ad to redo this combo with a fresh turn of 3 rolls.\nYou can redo once per game."
+          }
+        }
+      }
+    },
+    "広告を見て、この役をやり直します" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to redo this combo."
+          }
+        }
+      }
+    },
+    "広告を見て「%@」をやり直しますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to redo \"%@\"?"
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに新しいゲームが始まったため、やり直せませんでした。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new game started while the ad was playing, so the combo was not redone."
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに番が進んだため、振り直せませんでした。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The turn moved on while the ad was playing, so no extra roll was added."
+          }
+        }
+      }
+    },
+    "広告を見てもう1回振る、1局5回まで、この局であと%lld回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Watch an ad to roll once more. Up to 5 per game, %lld left this game"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Watch an ad to roll once more. Up to 5 per game, %lld left this game"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "広告を見てやり直す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad and redo"
+          }
+        }
+      }
+    },
     "役を選んでください" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -792,6 +970,17 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "振り直せませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Roll Again"
           }
         }
       }
@@ -880,6 +1069,72 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "If you quit now, your current score sheet will be lost."
+          }
+        }
+      }
+    },
+    "広告を読み込み中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading ad…"
+          }
+        }
+      }
+    },
+    "このターンは使用済み" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Used this turn"
+          }
+        }
+      }
+    },
+    "このターンは広告で振り直し済みです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You've already used the ad roll this turn."
+          }
+        }
+      }
+    },
+    "この局はここまで" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limit reached"
+          }
+        }
+      }
+    },
+    "この局で広告で振れる回数は上限に達しました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You've reached the ad roll limit for this game."
+          }
+        }
+      }
+    },
+    "通常の3回を振り切ると使えます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Available after your 3 regular rolls."
           }
         }
       }

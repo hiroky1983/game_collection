@@ -389,7 +389,13 @@ struct RecordFormatTests {
         #expect(RecordFormat.runnerStageLine(clearedStage: 29) == "5-6 まで到達")
         #expect(RecordFormat.runnerStageLine(clearedStage: 30) == "6-1 まで到達")
         #expect(RecordFormat.runnerStageLine(clearedStage: 35) == "6-6 まで到達")
-        #expect(RecordFormat.runnerStageLine(clearedStage: 42) == "全 42 面クリア")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 42) == "8-1 まで到達")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 47) == "8-6 まで到達")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 48) == "9-1 まで到達")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 53) == "9-6 まで到達")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 54) == "10-1 まで到達")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 59) == "10-6 まで到達")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 60) == "全 60 面クリア")
 
         let moves = PlayRecord.applying(
             outcome: .win, score: GameScore(metric: .fewestMoves, moves: 24), to: nil
@@ -648,6 +654,28 @@ struct PlayRecordStorageTests {
         log.recordResult(gameID: "2048", outcome: .loss, score: GameScore(metric: .points, points: 1), at: playedAt)
         #expect(log.record(gameID: "2048")?.bestPoints == 8888)
         #expect(log.lastPlayedAtByGame["2048"] == playedAt)
+    }
+
+    /// `PlayRecord` の必須キーはこの 7 つだけ。**ここに必須キーを増やしてはいけない。足すなら Optional にする**
+    /// （旧データ救済）。`PlayLog` は `[String: PlayRecord]` を丸ごとデコードし、1 件でも失敗すると
+    /// 全ゲームの自己ベスト・連勝・通算成績が空に倒れる。項目ごとの旧 JSON テストは将来足す項目には効かないため、
+    /// 最小 JSON で守る（#3311）。
+    @Test("必須キーだけの最小 JSON でも PlayRecord が読め、PlayLog 経由でも記録が消えない")
+    func decodesMinimalRequiredKeysOnly() throws {
+        let (_, defaults, name) = makeLog(suite: "minimal-records")
+        defer { defaults.removePersistentDomain(forName: name) }
+
+        let minimal = """
+        {"metric":"points","plays":3,"wins":1,"losses":2,"draws":0,"currentStreak":0,"bestStreak":1}
+        """
+        let record = try JSONDecoder().decode(PlayRecord.self, from: Data(minimal.utf8))
+        #expect(record.plays == 3)
+        #expect(record.bestStreak == 1)
+
+        defaults.set(Data(#"{"2048":\#(minimal)}"#.utf8), forKey: PlayLog.recordsKey)
+        let log = PlayLog(defaults: defaults)
+        #expect(log.record(gameID: "2048")?.plays == 3, "最小 JSON の記録が空に倒れない")
+        #expect(log.record(gameID: "2048")?.wins == 1)
     }
 
     @Test("最終プレイ日時は難易度をまたいで最も新しいものを代表にする")

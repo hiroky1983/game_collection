@@ -61,11 +61,10 @@ public struct OnboardingGuide: Sendable, Equatable {
         [title] + pages.flatMap { [$0.heading] + $0.lines }
     }
 
-    /// v1.1.14 では入口を出さない（#2944・会長決裁 2026-10-26）。花札でページ送り中に固まって
-    /// 落ちた件（#2905・PR #2943）があり、ほかにも Canvas の中で日本語を描く箇所が残っているため。
-    /// 中身・図・テストは消さず、`OnboardingEntry` の入口だけをこの 1 か所で隠す。
-    /// release/v1.1.15 では出す。release → v1.1.15 の同期でこの行が v1.1.15 に流れたら true に戻すこと。
-    public static let isAvailable = false
+    /// 入口を出すか。v1.1.14 では隠していた（#2944・会長決裁 2026-10-26。花札でページ送り中に固まって
+    /// 落ちた件 #2905・PR #2943 などのため）が、Canvas の直し（#2905・#2943・#2945・#2948）が入った
+    /// v1.1.15 では出し直す（#3002）。中身・図・テストは消さず、`OnboardingEntry` の入口をこの 1 か所で切り替える。
+    public static let isAvailable = true
 }
 
 // MARK: - 入口のボタン
@@ -100,7 +99,7 @@ public struct OnboardingEntry: View {
     }
 
     public var body: some View {
-        // v1.1.14 では入口を出さない（`OnboardingGuide.isAvailable` 参照・#2944）。
+        // `OnboardingGuide.isAvailable` が false の版では入口を出さない（#2944）。
         if let guide, OnboardingGuide.isAvailable {
             Button { isPresented = true } label: {
                 switch style {
@@ -111,7 +110,7 @@ public struct OnboardingEntry: View {
                             .themeBody(16, weight: .bold)
                             .multilineTextAlignment(.leading)
                         Spacer(minLength: 0)
-                        Image(systemName: "chevron.right").scaledFont(13, weight: .bold)
+                        DisclosureChevron(tint: nil)
                     }
                     .foregroundStyle(Theme.onAccent)
                     .padding(14)
@@ -126,7 +125,7 @@ public struct OnboardingEntry: View {
                         .background(Capsule().strokeBorder(Theme.coralText.opacity(0.5), lineWidth: 1.5))
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pop)
             #if DEBUG
             // 撮影用（DEBUG 限定・#2827）: `-showOnboarding` で入口のボタンが現れた直後に案内を開く
             // （シミュレータはタップを自動化できないため）。「？」のシートの入口は `-showHowToPlay`、
@@ -245,7 +244,7 @@ public struct OnboardingGuideView: View {
                             .background(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
                                 .strokeBorder(Theme.coralText.opacity(0.5), lineWidth: 1.5))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.pop)
                 }
                 Button {
                     if isLast { onClose() } else { step(1) }
@@ -256,7 +255,7 @@ public struct OnboardingGuideView: View {
                         .background(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
                             .fill(Theme.Fill.coral))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pop)
             }
         }
         .padding(.horizontal, Theme.pad)
@@ -307,7 +306,7 @@ private struct OnboardingPageView: View {
         VStack(spacing: 4) {
             Text(tr("%1$lld / %2$lld", number, total))
                 .scaledFont(12, weight: .black, design: .rounded, maxScale: 1.2)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
             Text(page.heading).themeBody(20, weight: .black)
                 .foregroundStyle(Theme.ink)
                 .multilineTextAlignment(.center)

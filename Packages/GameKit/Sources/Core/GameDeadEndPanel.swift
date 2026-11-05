@@ -56,13 +56,15 @@ public struct GameDeadEndPanel<Buttons: View>: View {
                 .foregroundStyle(Theme.ink)
             Text(message)
                 .themeBody(15, weight: .semibold)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 .multilineTextAlignment(.center)
             VStack(spacing: 12) {
                 buttons
             }
         }
         .padding(28)
+        // iPad の全画面でカードとボタンが画面幅いっぱいに伸びないようにする（#3136）。
+        .frame(maxWidth: RewardedPanelLayout.maxContentWidth)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
         .shadow(color: .black.opacity(0.15), radius: 20, y: 8)
     }
@@ -98,7 +100,7 @@ public struct GameDeadEndActionButton: View {
                 .background(tint, in: RoundedRectangle(cornerRadius: 14))
                 .foregroundStyle(Theme.onAccent)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pop)
         .disabled(isDisabled)
         .opacity(isDisabled ? 0.5 : 1)
     }
@@ -139,7 +141,7 @@ public struct GameDeadEndDismissButton: View {
                         .strokeBorder(Theme.ink.opacity(0.3), lineWidth: 1.5)
                 )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pop)
         .disabled(isDisabled)
         .opacity(isDisabled ? 0.5 : 1)
     }

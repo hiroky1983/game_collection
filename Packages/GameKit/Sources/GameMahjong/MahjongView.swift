@@ -84,7 +84,9 @@ public struct MahjongView: View {
         #else
         let picksSingleHand = false
         #endif
-        _selectedLength = State(initialValue: picksSingleHand ? .singleHand : .tonpuu)
+        // 初期値は最後に選んだ長さ（#3151）。初回は東風戦。
+        let lastLength = services.playLog?.lastStart(String.self, gameID: "mahjong4").flatMap(MahjongGameLength.init(rawValue:))
+        _selectedLength = State(initialValue: picksSingleHand ? .singleHand : lastLength ?? .tonpuu)
     }
 
     public var body: some View {
@@ -441,7 +443,7 @@ public struct MahjongView: View {
             names: (0..<n).map { model.playerName($0) },
             seatWinds: (0..<n).map { model.seatWind($0) },
             currentPlayer: model.phase == .playing ? model.currentPlayer : nil,
-            roundNumber: model.displayedRoundNumber,
+            roundName: model.gameLength.roundName(forRound: model.displayedRoundNumber),
             honba: model.displayedHonba,
             riichiSticks: model.riichiSticks,
             remainingTiles: model.remainingTiles,

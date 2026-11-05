@@ -269,7 +269,7 @@ struct CatPuzzleModelTests {
         #expect(store.exists(for: CatPuzzleModel.gameID), "ヒントの印がある盤は保存する")
     }
 
-    @Test("ヒントは推理の 1 歩として × を置く（印付き・消せない）。無料ぶん 3 回のあとは広告が要る")
+    @Test("ヒントは推理の 1 歩として × を置く（印付き・消せない）。無料ぶん 1 回のあとは広告が要る")
     func hints() {
         let spy = SpyAnalyticsService()
         let model = CatPuzzleModel(services: makeServices(analytics: spy), puzzle: sample)
@@ -280,8 +280,8 @@ struct CatPuzzleModelTests {
         #expect(model.lastHint == hint)
         #expect(model.marks[11] == .cross)
         #expect(model.hintCrosses == [11] && model.hintCells.isEmpty)
-        #expect(model.hintsRemaining == 2)
-        #expect(model.canHint, "次のヒントもすぐ押せる")
+        #expect(model.hintsRemaining == 0, "無料は 1 局 1 回（#3048）")
+        #expect(model.canHint, "無料を使い切っても広告で足せるので押せる")
         // ヒントの × はタップしても変わらず、「戻す」でも残る。
         model.toggleCross(cell: 11)
         #expect(model.marks[11] == .cross)
@@ -290,15 +290,11 @@ struct CatPuzzleModelTests {
         #expect(model.lastHint == nil, "次の操作でヒントの一言は消える")
         model.undo()
         #expect(model.marks[11] == .cross)
-        model.useHint()
-        model.useHint()
-        #expect(model.hintsRemaining == 0)
-        #expect(model.hintCrosses.count + model.hintCells.count >= 3)
         // 無料ぶんを使い切ったら、押せるが次の 1 回は広告（`useHint` だけでは減らず、盤も進まない）。
         #expect(model.needsAdForHint && model.canHint, "無料ぶんを使い切っても広告で足せる")
         let marksBefore = model.marks
         model.useHint()
-        #expect(model.hintsUsed == 3 && model.marks == marksBefore, "広告を見ずに 4 回目は出ない")
+        #expect(model.hintsUsed == 1 && model.marks == marksBefore, "広告を見ずに 2 回目は出ない")
         #expect(spy.events.filter {
             switch $0 {
             case .rewardOffer, .rewardRequest, .rewardAd: true
@@ -346,6 +342,39 @@ struct CatPuzzleModelTests {
         #expect(model.marks[8] == .cat, "ヒントの猫は消せない")
         // 部屋 2 に正しい猫がある → 次のヒントは部屋 2 を指さない。
         #expect(model.nextHint?.highlights.contains(.room(2)) == false)
+    }
+
+    @Test("ステージのクリアは「ステージ」の区分に記録し、自由に遊ぶの大きさ別ベストは変わらない（#3145）")
+    func stageClearDoesNotTouchFreePlayBest() throws {
+        let log = makeLog("stageSplit")
+        let defaults = UserDefaults(suiteName: "asobiba.catpuzzle.tests.stageSplit.progress")!
+        defaults.removePersistentDomain(forName: "asobiba.catpuzzle.tests.stageSplit.progress")
+        let clock = ManualClock()
+        // 先に自由に遊ぶ（かんたん）で 65 秒の記録を作る。
+        let free = CatPuzzleModel(services: makeServices(log: log), puzzle: sample, size: .easy)
+        free.clockNow = clock.now
+        for cell in sample.solutionCells.dropLast() { placeCat(free, at: cell) }
+        clock.advance(by: .seconds(65))
+        free.syncElapsed()
+        placeCat(free, at: sample.solutionCells.last!)
+        #expect(log.record(gameID: CatPuzzleModel.gameID, variant: "easy")?.bestSeconds == 65)
+        // ステージ（かんたんの盤）を 10 秒でクリアしても、かんたんのベストは 65 のまま。
+        let stage = CatPuzzleModel(
+            services: makeServices(log: log), puzzle: sample, size: .easy, stage: 1, stageDefaults: defaults
+        )
+        let stageClock = ManualClock()
+        stage.clockNow = stageClock.now
+        for cell in sample.solutionCells.dropLast() { placeCat(stage, at: cell) }
+        stageClock.advance(by: .seconds(10))
+        stage.syncElapsed()
+        placeCat(stage, at: sample.solutionCells.last!)
+        #expect(stage.isSolved)
+        #expect(log.record(gameID: CatPuzzleModel.gameID, variant: "easy")?.bestSeconds == 65)
+        let stageRecord = try #require(log.record(gameID: CatPuzzleModel.gameID, variant: "stage"))
+        #expect(stageRecord.wins == 1 && stageRecord.variantLabel == "ステージ")
+        // ステージの記録は秒数を持たない（#3210）。
+        #expect(stageRecord.bestSeconds == nil)
+        #expect(stage.recordScore.seconds == nil && free.recordScore.seconds == 65, "自由に遊ぶは今のまま最短タイム")
     }
 
     @Test("全部の猫を置くとクリアし、記録はタイム（大きさごと）。中断データは消える")
@@ -569,9 +598,9 @@ struct CatPuzzleModelTests {
         #expect(model.marks[sample.solutionCells[0]] == .cross, "2 回目のあとも打てる")
         placeCat(model, at: wrongs[2])
         #expect(model.mistakes == 3 && model.mistakesRemaining == 0)
-        // 3 回目のミスでは、まず広告を見て続ける提案（負けは断ってから確定する・#2780）。
+        // 3 回目のミスでは、まず広告を見て続ける提案。負けはこの時点で記録し、断っても二重には付けない（#2780・#3144）。
         #expect(model.isOfferingContinue && !model.isFailed && !model.isCounting)
-        #expect(spy.ends(of: CatPuzzleModel.gameID) == 0 && model.unfoundCats.isEmpty)
+        #expect(spy.ends(of: CatPuzzleModel.gameID) == 1 && model.unfoundCats.isEmpty)
         model.declineContinue()
         #expect(!model.isOfferingContinue)
         #expect(model.isFailed && model.isOver && !model.isSolved)
@@ -707,7 +736,7 @@ struct CatPuzzleModelTests {
         #expect(model.unfoundCats.contains(sample.solutionCells[1]))
     }
 
-    @Test("コンティニュー: 広告のあとミスが 1 回ぶん戻り、赤い × は残る。計時が再開し、解析は負けを送らない")
+    @Test("コンティニュー: 広告のあとミスが 1 回ぶん戻り、赤い × は残る。計時が再開し、提案時に付けた負けは取り消される")
     func continueAfterAd() {
         let store = MemorySnapshotStore()
         let spy = SpyAnalyticsService()
@@ -727,11 +756,58 @@ struct CatPuzzleModelTests {
         #expect(model.mistakes == CatPuzzleModel.maxMistakes - 1 && model.mistakesRemaining == 1)
         #expect(model.wrongCrosses == Set(wrongs.prefix(3)), "最後の赤い × は盤に残る")
         #expect(model.isCounting)
-        #expect(spy.ends(of: CatPuzzleModel.gameID) == 0)
         #expect(!model.continueAfterAd(), "提案が出ていないときは使えない")
         // 続けて遊べる。
         placeCat(model, at: sample.solutionCells[1])
         #expect(model.marks[sample.solutionCells[1]] == .cat)
+    }
+
+    @Test("提案を放置して新規で捨てても、負けが 1 つ付く（#3144）")
+    func abandoningOfferRecordsLoss() {
+        let log = makeLog("abandonOffer")
+        let (model, _) = atThirdMistake(log: log)
+        #expect(model.isOfferingContinue)
+        model.newGame()
+        #expect(log.record(gameID: CatPuzzleModel.gameID, variant: CatPuzzleSize.easy.recordVariant)?.losses == 1)
+    }
+
+    @Test("コンティニューで提案時の負けは取り消され、断っても二重には付かない（#3144）")
+    func continueCancelsLossAndDeclineDoesNotDouble() {
+        let log = makeLog("continueCancel")
+        let (continued, _) = atThirdMistake(log: log)
+        #expect(continued.continueAfterAd())
+        #expect((log.record(gameID: CatPuzzleModel.gameID, variant: CatPuzzleSize.easy.recordVariant)?.losses ?? 0) == 0)
+        #expect(continued.recordResult == nil)
+
+        let declineLog = makeLog("decline")
+        let (declined, _) = atThirdMistake(log: declineLog)
+        declined.declineContinue()
+        #expect(declineLog.record(gameID: CatPuzzleModel.gameID, variant: CatPuzzleSize.easy.recordVariant)?.losses == 1)
+        #expect(declined.recordResult != nil)
+    }
+
+    @Test("ステージのコンティニューは、ステージ側の負けだけを取り消す（自由に遊ぶ側は動かさない・#3177）")
+    func stageContinueCancelsStageLossOnly() throws {
+        let log = makeLog("stageContinueCancel")
+        let defaults = UserDefaults(suiteName: "asobiba.catpuzzle.tests.stageContinueCancel.progress")!
+        defaults.removePersistentDomain(forName: "asobiba.catpuzzle.tests.stageContinueCancel.progress")
+        // 自由に遊ぶ（かんたん）で先に 1 敗しておく。
+        let (free, _) = atThirdMistake(log: log)
+        free.declineContinue()
+        #expect(log.record(gameID: CatPuzzleModel.gameID, variant: "easy")?.losses == 1)
+        // ステージを 3 回ミスして提案 → 広告で続ける。
+        let stage = CatPuzzleModel(
+            services: makeServices(log: log), puzzle: sample, size: .easy, stage: 1, stageDefaults: defaults
+        )
+        let wrongs = (0..<sample.cellCount).filter { !sample.solutionCells.contains($0) }
+        placeCat(stage, at: sample.solutionCells[0])
+        for cell in wrongs.prefix(3) { placeCat(stage, at: cell) }
+        #expect(stage.isOfferingContinue)
+        #expect(try #require(log.record(gameID: CatPuzzleModel.gameID, variant: "stage")).losses == 1)
+        #expect(stage.continueAfterAd())
+        #expect((log.record(gameID: CatPuzzleModel.gameID, variant: "stage")?.losses ?? 0) == 0)
+        #expect((log.record(gameID: CatPuzzleModel.gameID, variant: "stage")?.plays ?? 0) == 0)
+        #expect(log.record(gameID: CatPuzzleModel.gameID, variant: "easy")?.losses == 1, "自由に遊ぶ側の負けは消えない")
     }
 
     @Test("コンティニューは 1 局 1 回。使ったあとの 3 回目のミスはそのまま負け、新しい局で使える")
@@ -822,5 +898,21 @@ struct CatPuzzleModelTests {
         var broken = saved
         broken.mistakes = 3
         #expect(!CatPuzzleSnapshot.isResumable(broken))
+    }
+}
+
+@MainActor
+@Suite("盤が縮む新規でも View の読み出しが落ちない（#3141）")
+struct CatPuzzleStaleIndexTests {
+    @Test("大→小の新規のあと、旧盤面の添字は nil を返す")
+    func staleIndexReturnsNil() {
+        let model = CatPuzzleModel(services: makeServices(), size: .expert, seed: 1)
+        let oldCount = model.puzzle.cellCount
+        model.newGame(size: .easy)
+        let newCount = model.puzzle.cellCount
+        #expect(newCount < oldCount)
+        for index in 0..<newCount { #expect(model.cellState(at: index) != nil) }
+        for index in newCount..<oldCount { #expect(model.cellState(at: index) == nil) }
+        #expect(model.cellState(at: -1) == nil)
     }
 }

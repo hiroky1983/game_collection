@@ -16,4 +16,13 @@ struct DiceComboLocalizationTests {
         #expect(GameDiceCombo.tr("サイコロを振る、残り%lld回", 2, language: .english) == "Roll dice, 2 rolls left")
         #expect(GameDiceCombo.tr("サイコロ%1$lld、%2$lld", 1, 4, language: .english) == "Die 1, 4")
     }
+
+    @Test("広告の振り直し（1 ターン 1 回・1 局 5 回・#3345）の文言に英語の訳がある")
+    func englishAdRerollTerms() {
+        #expect(GameDiceCombo.tr("この局 あと%lld回", 4, language: .english) == "Game: 4 left")
+        #expect(GameDiceCombo.tr("このターンは使用済み", language: .english) == "Used this turn")
+        #expect(GameDiceCombo.tr("この局はここまで", language: .english) == "Limit reached")
+        #expect(GameDiceCombo.tr("このターンは広告で振り直し済みです", language: .english) != "このターンは広告で振り直し済みです")
+        #expect(GameDiceCombo.tr("広告を見てもう1回振る、1局5回まで、この局であと%lld回", 3, language: .english).contains("Up to 5 per game"))
+    }
 }

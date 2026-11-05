@@ -31,6 +31,7 @@ enum CatPuzzleOnboarding {
                     lines: [
                         tr("マスをタップすると、×（いない）を付け外しします。"),
                         tr("ダブルタップで、そのマスの猫を見つけます。"),
+                        tr("指をすべらせると、続けて × を付けたり外したりできます。"),
                     ],
                     figure: { AnyView(CatPuzzleHowToFigures.TapControlsFigure()) }
                 ),
@@ -51,10 +52,10 @@ enum CatPuzzleOnboarding {
                     figure: { AnyView(CatPuzzleHowToFigures.NotAdjacentFigure()) }
                 ),
                 OnboardingPage(
-                    heading: tr("ミスは 3 回まで"),
+                    heading: tr("ライフは 3 つ"),
                     lines: [
-                        tr("答えでないマスをダブルタップすると、赤い × が付いてミスになります。"),
-                        tr("赤い × は消せません。× の付け外しはミスになりません。"),
+                        tr("答えでないマスをダブルタップすると、赤い × が付いてライフが 1 つ減ります。"),
+                        tr("赤い × は消せません。× の付け外しでライフは減りません。"),
                     ],
                     figure: { AnyView(MistakeFigure()) }
                 ),
@@ -62,7 +63,7 @@ enum CatPuzzleOnboarding {
                     heading: tr("勝ち負けの決まり"),
                     lines: [
                         tr("全部の猫を見つけたらクリア。記録はクリアまでのタイムです。"),
-                        tr("ミスが 3 回になると負けです。"),
+                        tr("ライフが 0 になると負けです。"),
                         tr("広告を見ると、1 回だけ続きから遊べます。"),
                     ],
                     figure: { AnyView(ClearFigure()) }
@@ -83,7 +84,7 @@ enum CatPuzzleOnboarding {
                         solved: index == 1, cellSide: 22, showsRoomLabels: false
                     )
                     RuleFigureLabel(index == 0 ? tr("はじめ") : tr("おわり"),
-                                    color: index == 0 ? Theme.inkSub : Theme.coralText)
+                                    color: index == 0 ? Theme.inkSubText : Theme.coralText)
                 }
             }
         }
@@ -98,7 +99,7 @@ enum CatPuzzleOnboarding {
                     crosses: [CatPuzzleOnboarding.mistakeCell],
                     wrongCrosses: [CatPuzzleOnboarding.mistakeCell]
                 )
-                RuleFigureLabel(tr("ミス %1$lld/%2$lld", 1, CatPuzzleModel.maxMistakes), color: Theme.coralText)
+                RuleFigureLabel(tr("ライフ %1$lld/%2$lld", CatPuzzleModel.maxMistakes - 1, CatPuzzleModel.maxMistakes), color: Theme.coralText)
             }
         }
     }

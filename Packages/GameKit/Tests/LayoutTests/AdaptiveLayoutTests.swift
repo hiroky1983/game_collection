@@ -73,6 +73,21 @@ struct AdaptiveLayoutTests {
         }
     }
 
+    /// トランプ卓（ポーカー・ブラックジャック #3181）。iPhone は札も卓の幅も 1pt も動かさない。
+    @Test("トランプ卓の札倍率と幅上限は狭い画面では恒等・広い画面でだけ効く")
+    func cardTableMetrics() {
+        for width in Self.iPhoneWidths {
+            let layout = AdaptiveLayout(width: width)
+            #expect(layout.cardScale == 1)
+            #expect(layout.tableMaxWidth == .infinity)
+        }
+        for width in Self.iPadWidths {
+            let layout = AdaptiveLayout(width: width)
+            #expect(layout.cardScale == 2)
+            #expect(layout.tableMaxWidth == 640)
+        }
+    }
+
     @Test("固定 pt は広い画面でだけ拡大する")
     func elementScaleGrowsOnPad() {
         for width in Self.iPadWidths {

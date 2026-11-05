@@ -1,5 +1,6 @@
 import SwiftUI
 import Core
+import CoreObjectArt
 
 public struct ShiritoriView: View {
     @State private var model: ShiritoriModel
@@ -175,7 +176,7 @@ public struct ShiritoriView: View {
                 } else {
                     Label(tr("%lldゲーム目", max(model.gameNumber, 1)), systemImage: "number")
                         .themeBody(13)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                         .lineLimit(1).minimumScaleFactor(0.7)
                 }
             } trailing: {
@@ -197,7 +198,7 @@ public struct ShiritoriView: View {
         return HStack(spacing: 8) {
             Image(systemName: "timer")
                 .scaledFont(12, weight: .bold)
-                .foregroundStyle(urgent ? Theme.coralText : Theme.inkSub)
+                .foregroundStyle(urgent ? Theme.coralText : Theme.inkSubText)
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Theme.inkSub.opacity(0.2))
@@ -233,12 +234,12 @@ public struct ShiritoriView: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(ShiritoriPresentation.prompt(tail: model.requiredTail, isPlayerTurn: model.isPlayerTurn, phase: model.phase))
-                    .scaledFont(15, weight: .black, design: .rounded)
-                    .foregroundStyle(model.isPlayerTurn ? Theme.tealText : Theme.inkSub)
+                    .scaledFont(layout.scaled(15), weight: .black, design: .rounded)
+                    .foregroundStyle(model.isPlayerTurn ? Theme.tealText : Theme.inkSubText)
                     .lineLimit(2).minimumScaleFactor(0.7)
                 Text(model.lastEvent.map(ShiritoriPresentation.eventText) ?? " ")
-                    .scaledFont(12, weight: .bold, design: .rounded)
-                    .foregroundStyle(isMiss ? Theme.coralText : Theme.inkSub)
+                    .scaledFont(layout.scaled(12), weight: .bold, design: .rounded)
+                    .foregroundStyle(isMiss ? Theme.coralText : Theme.inkSubText)
                     .lineLimit(1).minimumScaleFactor(0.6)
                 scoreLine
             }
@@ -258,10 +259,10 @@ public struct ShiritoriView: View {
                 .foregroundStyle(Theme.coralText)
             if model.mode == .endless {
                 Label(tr("山札 %lld", model.stockCount), systemImage: "square.stack.fill")
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
             }
         }
-        .scaledFont(12, weight: .bold, design: .rounded)
+        .scaledFont(layout.scaled(12), weight: .bold, design: .rounded)
         .lineLimit(1).minimumScaleFactor(0.7)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(tr("あなた%1$lld枚、CPU%2$lld枚", model.playerCount, model.cpuCount)
@@ -613,7 +614,7 @@ struct ShiritoriSetupSheet: View {
                     }
                     Text(mode.summary)
                         .themeBody(13)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                         .lineLimit(2).minimumScaleFactor(0.7)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -654,9 +655,7 @@ struct ShiritoriSetupSheet: View {
                     .themeBody(15)
                     .lineLimit(1).minimumScaleFactor(0.8)
                 Spacer(minLength: 8)
-                Image(systemName: "chevron.down")
-                    .scaledFont(13, weight: .bold)
-                    .foregroundStyle(Theme.inkSub)
+                DisclosureChevron("chevron.down")
                     .rotationEffect(.degrees(showsDetails ? 180 : 0))
             }
             .padding(12)
@@ -664,7 +663,7 @@ struct ShiritoriSetupSheet: View {
             .popCard(corner: Theme.cornerSmall)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pop)
         .foregroundStyle(Theme.ink)
         .accessibilityValue(showsDetails ? tr("開いている") : tr("閉じている"))
     }
@@ -685,7 +684,7 @@ struct ShiritoriSetupSheet: View {
                     }
                     Text(tr("ノルマ: %@", quota.summary))
                         .themeBody(13)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                         .lineLimit(2).minimumScaleFactor(0.7)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }

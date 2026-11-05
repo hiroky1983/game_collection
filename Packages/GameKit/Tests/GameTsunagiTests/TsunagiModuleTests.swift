@@ -47,7 +47,7 @@ struct TsunagiModuleTests {
         #expect(code.contains("BannerSlot("))
         #expect(code.contains("HowToPlayHint(.tsunagi"))
         #expect(code.contains(".howToPlay(HowToPlayGuide.tsunagi.illustrated(TsunagiHowToFigures.items))"))
-        #expect(code.contains("RecordLabel("))
+        #expect(code.contains(".gameClearCard(") && code.contains("record: model.recordResult"), "結果は共通のクリアカードで、記録も載せる（#3059）")
         #expect(!code.contains("Rescue.request("), "広告の救済は足さない（#2235 では広告を追加しない）")
         #expect(!code.contains("showRewardedAd("))
         #expect(!code.contains("withAnimation("), "アニメーションは gameAnimation 経由")

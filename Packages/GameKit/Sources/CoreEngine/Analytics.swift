@@ -58,6 +58,20 @@ public enum RewardPurpose: String, Equatable, Sendable, CaseIterable {
     ///
     /// 盤面を救う 7 種とは違い、**回数制の枠そのものを買い足す**ため 8 つ目として足した（詳細は PR の「社長判断」）。
     case challenge
+    /// 正解の猫を 1 匹置いてもらう（ねこさがしのステージ・#3203）。
+    ///
+    /// 答えそのものを置くので、推理の 1 歩を示すヒント（`hint`）とは別の面として 9 つ目に足した。
+    case teach
+    /// 引こうとしている伏せ札がジョーカーかどうかを確かめる（ババ抜きの「見破る」・#3251）。
+    ///
+    /// 盤を救うのではなく、1 回の選択に答えを教える面なので、ヒント（`hint`）・教える（`teach`）とは別に足した。
+    case peek
+    /// 引いたジョーカーを取り消して引く前に戻し、そのターンだけ場所を見て引き直す（ババ抜き・#3251）。
+    case redraw
+    /// 通常の 3 回を振り切ったあと、もう 1 回振る（サイコロ役づくり・#3257）。1 ターンに最大 3 回。
+    ///
+    /// 盤を救うのではなく、回数制の枠を 1 回ぶん買い足す面だが、`challenge`（1 日の挑戦回数）とは単位が違うため別に足した。
+    case reroll
 }
 
 /// `reward_offer` の `result`。リワード広告を**提示した 1 回がどう終わったか**（#780）。
@@ -202,6 +216,8 @@ public enum AnalyticsMode: String, Equatable, Sendable, CaseIterable {
     case tonpuu
     /// 四人打ち麻雀の一局戦（v1.1.5）。1 対局が 1 局なので `game_start` が機械的に増える。
     case singleHand = "single_hand"
+    /// 四人打ち麻雀の半荘戦（#3098）。
+    case hanchan
     /// チャリンコおじさんのステージ制。面番号は `level` の `stage-N` が持つ。
     case stage
     /// チャリンコおじさんのエンドレス。面が無いので `level` を送らない。
@@ -299,7 +315,7 @@ public struct AnalyticsEngagement: Equatable, Sendable {
 }
 
 /// 送信する解析イベント。**`game_start` / `game_end` / `reward_ad` / `reward_request` / `game_open` /
-/// `reward_offer` / `share_tap` の7種のみ**（#158 の決裁範囲 + #500 の会長決裁 2026-09-08 + #659 の会長決裁 2026-09-12 +
+/// `reward_offer` / `share_tap` の7種に、後続で足した `clear_exit` / `notification_permission` / `review_prompt`（#3061）/ `reward_grant`（#3256）を加えた計 11 種のみ**（#158 の決裁範囲 + #500 の会長決裁 2026-09-08 + #659 の会長決裁 2026-09-12 +
 /// #780 の会長決裁 2026-09-16 + #1043 の会長決裁 2026-09-16）。`game_start` の `play_count` / `days_since_last_play` は
 /// #1195 の会長決裁（2026-09-21・案A）でイベントは増やさずパラメータだけ足した。
 ///
@@ -322,7 +338,8 @@ public enum AnalyticsEvent: Equatable, Sendable {
     case gameEnd(
         gameID: String, result: AnalyticsResult, durationSec: Int,
         mode: AnalyticsMode? = nil, cause: AnalyticsEndCause? = nil, hintsUsed: Int = 0,
-        credit: AnalyticsCredit? = nil, level: AnalyticsLevel? = nil, misses: AnalyticsMissSummary? = nil
+        credit: AnalyticsCredit? = nil, level: AnalyticsLevel? = nil, misses: AnalyticsMissSummary? = nil,
+        eventPoints: Int? = nil, teachUsed: Int = 0
     )
     /// 面をクリアしたあと、次の面へ進まず（もう一度も押さず）画面を離れた（#2848）。パラメータは `game_id` / `level`。
     /// 面を進めるゲーム（`level` が `stage-N`）のクリア（win）の直後に離れたときだけ、離れた 1 回につき 1 回。
@@ -350,6 +367,12 @@ public enum AnalyticsEvent: Equatable, Sendable {
     /// 通知の許可ダイアログの結果（#2008）。ダイアログを実際に出した 1 回につき 1 回。
     /// パラメータは `result` / `trigger` のみで、ゲーム ID は載せない。
     case notificationPermission(result: NotificationPermissionResult, trigger: NotificationPermissionTrigger)
+    /// 評価のお願い（#3061）。カードを出した・どれを押した・OS の評価ダイアログを依頼した、の 1 回につき 1 回。
+    /// パラメータは `kind` / `step` と、遊んだ日数の節目（#3078）のときだけ `trigger`。ゲーム ID は載せない。
+    case reviewPrompt(kind: ReviewPromptKind, step: ReviewPromptStep, trigger: ReviewPromptTrigger? = nil)
+    /// ゲーム内の特典を渡した（ねこさがしのデイリーランキング上位・#3256）。渡した 1 回につき 1 回。
+    /// パラメータは `game_id` / `rank`（前日の順位）/ `items`（`hint` / `teach` / `hint_teach`）のみ。
+    case rewardGrant(gameID: String, rank: Int, items: RewardGrantItems)
 
     /// Firebase のイベント名。
     public var name: String {
@@ -363,6 +386,8 @@ public enum AnalyticsEvent: Equatable, Sendable {
         case .rewardOffer:   return "reward_offer"
         case .shareTap:      return "share_tap"
         case .notificationPermission: return "notification_permission"
+        case .reviewPrompt:  return "review_prompt"
+        case .rewardGrant:   return "reward_grant"
         }
     }
 
@@ -383,7 +408,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
                 if let days = engagement.daysSinceLastPlay { parameters["days_since_last_play"] = .int(days) }
             }
             return parameters
-        case let .gameEnd(gameID, result, durationSec, mode, cause, hintsUsed, credit, level, misses):
+        case let .gameEnd(gameID, result, durationSec, mode, cause, hintsUsed, credit, level, misses, eventPoints, teachUsed):
             var parameters: [String: AnalyticsValue] = [
                 "game_id": .string(gameID),
                 // `AnalyticsResult` は win / loss / draw / quit の4値に閉じた enum。
@@ -396,6 +421,8 @@ public enum AnalyticsEvent: Equatable, Sendable {
             if let cause { parameters["cause"] = .string(cause.rawValue) }
             // ヒントを使わなかったプレイ・ヒントを持たないゲームでは鍵ごと送らない（`cause` と同じ扱い）。
             if hintsUsed > 0 { parameters["hints_used"] = .int(hintsUsed) }
+            // 「猫を教える」を使わなかったプレイ・持たないゲームでは鍵ごと送らない（ねこさがし・#3232）。
+            if teachUsed > 0 { parameters["teach_used"] = .int(teachUsed) }
             // 開始時に `credit` を付けたプレイだけ（開始と終わりを同じ鍵で突き合わせるため・枠ごとの遊んだ時間を出す）。
             if let credit { parameters["credit"] = .string(credit.rawValue) }
             // 開始時に `level` を付けたプレイだけ（`game_start` と同じ値・同じ鍵。#1888）。
@@ -406,6 +433,8 @@ public enum AnalyticsEvent: Equatable, Sendable {
                 if let at = misses.lastAtPercent { parameters["miss_at"] = .int(at) }
                 if let exit = misses.exit { parameters["exit"] = .string(exit.rawValue) }
             }
+            // イベントのポイントを稼いだクリアだけ（ねこさがしの 1 か月イベント・#3204）。
+            if let eventPoints { parameters["event_points"] = .int(eventPoints) }
             return parameters
         case let .clearExit(gameID, level):
             return ["game_id": .string(gameID), "level": .string(level.parameterValue)]
@@ -437,8 +466,66 @@ public enum AnalyticsEvent: Equatable, Sendable {
                 "result": .string(result.rawValue),
                 "trigger": .string(trigger.rawValue),
             ]
+        case let .reviewPrompt(kind, step, trigger):
+            var parameters: [String: AnalyticsValue] = [
+                "kind": .string(kind.rawValue),
+                "step": .string(step.rawValue),
+            ]
+            // 勝利の見せ場のきっかけは従来どおり鍵を送らない。遊んだ日数の節目だけ載せる（#3078）。
+            if let trigger { parameters["trigger"] = .string(trigger.rawValue) }
+            return parameters
+        case let .rewardGrant(gameID, rank, items):
+            return [
+                "game_id": .string(gameID),
+                "rank": .int(rank),
+                "items": .string(items.rawValue),
+            ]
         }
     }
+}
+
+/// `reward_grant` の `items`（#3256）。渡したもの。
+public enum RewardGrantItems: String, Sendable, CaseIterable {
+    case hint
+    case teach
+    case hintTeach = "hint_teach"
+}
+
+/// `review_prompt` の `kind`（#3061）。どちらの評価のお願いか。
+public enum ReviewPromptKind: String, Sendable, CaseIterable {
+    /// 勝利の見せ場の直後に出す、OS の評価ダイアログ（`requestReview`）。
+    case regular
+    /// 新しいゲームを遊んだ直後に出す、アプリ独自のカード。
+    case newGameCard = "new_game_card"
+}
+
+/// `review_prompt` の `trigger`（#3078）。見せ場の勝ち以外のきっかけ。
+public enum ReviewPromptTrigger: String, Sendable, CaseIterable {
+    /// 遊んだ日数が 7 日に達した。
+    case days7 = "days_7"
+    /// 遊んだ日数が 30 日に達した。
+    case days30 = "days_30"
+
+    /// 節目の日数（`ReviewRequestPolicy.daysMilestones`）に対応するきっかけ。
+    public init?(milestone: Int) {
+        switch milestone {
+        case 7: self = .days7
+        case 30: self = .days30
+        default: return nil
+        }
+    }
+}
+
+/// `review_prompt` の `step`（#3061）。
+public enum ReviewPromptStep: String, Sendable, CaseIterable {
+    /// 独自のカードを出した（`kind = new_game_card` のみ）。
+    case shown
+    /// カードの「App Store で感想を書く」を押した（`kind = new_game_card` のみ）。
+    case writeReview = "write_review"
+    /// カードの「あとで」を押した（`kind = new_game_card` のみ）。
+    case later
+    /// OS の評価ダイアログを依頼した（`kind = regular` のみ。出たかどうかは OS しか知らない）。
+    case osRequested = "os_requested"
 }
 
 /// 通知の許可ダイアログの結果（#2008）。
@@ -526,6 +613,10 @@ public final class GameAnalytics {
     private var causes: [String: AnalyticsEndCause] = [:]
     /// 進行中のプレイのミスの回数・最後の地点（#2848）。終わりの `game_end` に載せる。プレイを始め直すと消える。
     private var missCounts: [String: Int] = [:]
+    /// そのプレイのクリアで稼いだイベントのポイント（#3204）。終わりの `game_end` に載せる。
+    private var eventPoints: [String: Int] = [:]
+    /// 進行中のプレイで「猫を教える」を使った回数（#3232）。終わりの `game_end` に `teach_used` として載せる。
+    private var teachCounts: [String: Int] = [:]
     private var missPercents: [String: Int] = [:]
     /// 直前のミスがまだ挽回されていない（走り直していない）プレイ。`quit` の `exit` の元。
     private var unresolvedMisses: Set<String> = []
@@ -591,6 +682,20 @@ public final class GameAnalytics {
         beginPlay(gameID: gameID, level: level, mode: mode, credit: credit)
     }
 
+    /// 「新しいゲーム」で盤を手つかずの状態へ戻し、次のプレイの開始を最初の操作まで遅らせるゲームが、
+    /// 戻した**その場で**呼ぶ（#3226）。進行中のプレイを `restartPlay` と同じ判定で閉じる
+    /// （1手でも指していれば `game_end`（`quit`）、指していなければ何も送らない）。
+    ///
+    /// 呼ばないと `quit` が次の最初の操作まで遅れ、新しい盤を放置した時間が旧プレイの `duration_sec` に混ざる。
+    /// 閉じたあとはプレイの記録が無い状態になるので、戻した盤のままハブへ戻っても `game_end` は二重に出ない。
+    /// 決着済み（`.finished`）や進行中でないプレイには触らない。
+    public func abandonPlay(gameID: String) {
+        guard allowedGameIDs.contains(gameID), case .inFlight = plays[gameID] else { return }
+        endPlayAsQuitIfProgressed(gameID: gameID)
+        plays[gameID] = nil
+        clearClock(gameID: gameID)
+    }
+
     /// そのプレイで1手指した（盤面が動いた）ときに呼ぶ。**冪等**で、何度呼んでも状態は変わらない。
     ///
     /// この値だけが「捨てたら離脱として数える盤面か」を決める。呼ばないゲームでは
@@ -606,6 +711,16 @@ public final class GameAnalytics {
         else { return }
         plays[gameID] = .inFlight(
             startedAt: startedAt, didProgress: true, canResume: canResume, hintsUsed: hintsUsed
+        )
+    }
+
+    /// 「待った」で開始局面まで戻し、手つかずの盤に戻ったときに呼ぶ（#3133）。`recordProgress` の逆。
+    /// 戻さないと、開始直後と同じ盤を捨てても途中離脱に数えてしまう。
+    public func clearProgress(gameID: String) {
+        guard case let .inFlight(startedAt, didProgress, canResume, hintsUsed) = plays[gameID], didProgress
+        else { return }
+        plays[gameID] = .inFlight(
+            startedAt: startedAt, didProgress: false, canResume: canResume, hintsUsed: hintsUsed
         )
     }
 
@@ -637,17 +752,33 @@ public final class GameAnalytics {
         )
     }
 
+    /// 「猫を教える」を 1 回使ったとき（無料・広告のどちらでも）に呼ぶ（#3232）。**イベントは送らない**。
+    /// `recordHintUsed` と同じく覚えておき、終わりの `game_end` に `teach_used` として載せる。
+    /// 進行中のプレイが無ければ何もしない。
+    public func recordTeachUsed(gameID: String) {
+        guard case .inFlight = plays[gameID] else { return }
+        teachCounts[gameID, default: 0] += 1
+    }
+
     /// そのプレイでミスした（穴に落ちた・ぶつかった）ときに呼ぶ（#796）。**イベントは送らない**。
     ///
     /// 覚えておいて、終わりの `game_end` に「最後のミスの原因」として載せる。何度ミスしても
     /// 最後の 1 つで上書きするだけなので、リトライを繰り返しても送信は増えない。
     /// 進行中のプレイが無ければ何もしない（中断からの再開など、開始を数えていないプレイ）。
-    public func recordMissCause(gameID: String, cause: AnalyticsEndCause, progressPercent: Int? = nil) {
+    /// 原因の語彙が無いゲーム（ねこさがし・#3232）は `cause` を nil にする。回数と地点だけが `game_end` に載る。
+    public func recordMissCause(gameID: String, cause: AnalyticsEndCause?, progressPercent: Int? = nil) {
         guard case .inFlight = plays[gameID] else { return }
-        causes[gameID] = cause
+        if let cause { causes[gameID] = cause }
         missCounts[gameID, default: 0] += 1
         missPercents[gameID] = progressPercent
         unresolvedMisses.insert(gameID)
+    }
+
+    /// そのプレイのクリアで稼いだイベントのポイントを覚える（#3204）。**イベントは送らない**。
+    /// `finishPlay` より前に呼ぶと、その `game_end` に `event_points` として載る。
+    public func recordEventPoints(gameID: String, points: Int) {
+        guard case .inFlight = plays[gameID] else { return }
+        eventPoints[gameID] = points
     }
 
     /// 終局したときに呼ぶ。進行中のプレイが無いときは**何も送らない**
@@ -696,6 +827,12 @@ public final class GameAnalytics {
         service.log(.gameOpen(gameID: gameID, source: source, position: position, resume: resume))
     }
 
+    /// ゲーム内の特典を渡したときに呼ぶ（#3256）。プレイの数え方には影響しない。
+    public func recordRewardGrant(gameID: String, rank: Int, items: RewardGrantItems) {
+        guard allowedGameIDs.contains(gameID) else { return }
+        service.log(.rewardGrant(gameID: gameID, rank: rank, items: items))
+    }
+
     /// リザルトの共有ボタンを押したときに呼ぶ（#1043）。プレイの数え方には影響しない。
     public func recordShareTap(gameID: String) {
         guard allowedGameIDs.contains(gameID) else { return }
@@ -707,6 +844,11 @@ public final class GameAnalytics {
         result: NotificationPermissionResult, trigger: NotificationPermissionTrigger
     ) {
         service.log(.notificationPermission(result: result, trigger: trigger))
+    }
+
+    /// 評価のお願いの段階を送る（#3061）。プレイの数え方には影響しない。
+    public func recordReviewPrompt(kind: ReviewPromptKind, step: ReviewPromptStep, trigger: ReviewPromptTrigger? = nil) {
+        service.log(.reviewPrompt(kind: kind, step: step, trigger: trigger))
     }
 
     /// 解析送信の設定（オン / オフ）が切り替わったときに呼ぶ。**数え方の状態を丸ごと捨てる**。
@@ -777,6 +919,10 @@ public final class GameAnalytics {
         var mode: String?
         /// `level` の `parameterValue`。この項目が無い旧版の控えも読めるよう optional（#1888）。
         var level: String?
+        /// 「猫を教える」の回数・ミスの回数と最後の地点（#3232）。旧版の控えには無いので optional。
+        var teachUsed: Int?
+        var missCount: Int?
+        var missPercent: Int?
     }
 
     private func loadRests() -> [String: RestEntry] {
@@ -801,7 +947,8 @@ public final class GameAnalytics {
         rests[gameID] = RestEntry(
             activeSeconds: activeSeconds[gameID] ?? 0, didProgress: didProgress,
             hintsUsed: hintsUsed, mode: modes[gameID]?.rawValue,
-            level: levels[gameID]?.parameterValue
+            level: levels[gameID]?.parameterValue,
+            teachUsed: teachCounts[gameID], missCount: missCounts[gameID], missPercent: missPercents[gameID]
         )
         saveRests(rests)
     }
@@ -821,6 +968,9 @@ public final class GameAnalytics {
         )
         modes[gameID] = entry.mode.flatMap(AnalyticsMode.init(rawValue:))
         levels[gameID] = entry.level.flatMap(AnalyticsLevel.init(parameterValue:))
+        teachCounts[gameID] = entry.teachUsed
+        missCounts[gameID] = entry.missCount
+        missPercents[gameID] = entry.missPercent
         activeSeconds[gameID] = entry.activeSeconds
         resumeClock(gameID: gameID)
     }
@@ -884,7 +1034,8 @@ public final class GameAnalytics {
         service.log(.gameEnd(
             gameID: gameID, result: result, durationSec: seconds,
             mode: modes[gameID], cause: causes[gameID], hintsUsed: hintsUsed, credit: credits[gameID],
-            level: levels[gameID], misses: misses
+            level: levels[gameID], misses: misses, eventPoints: eventPoints[gameID],
+            teachUsed: teachCounts[gameID] ?? 0
         ))
     }
 
@@ -899,6 +1050,8 @@ public final class GameAnalytics {
         // 前のプレイの死因を次のプレイへ持ち越さない。
         causes[gameID] = nil
         missCounts[gameID] = nil
+        eventPoints[gameID] = nil
+        teachCounts[gameID] = nil
         missPercents[gameID] = nil
         unresolvedMisses.remove(gameID)
         finishedResults[gameID] = nil

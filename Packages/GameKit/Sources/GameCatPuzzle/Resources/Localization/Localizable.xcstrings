@@ -133,17 +133,6 @@
         }
       }
     },
-    "そこに猫はいない。赤い×を置いた。ミス %1$lld/%2$lld" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No cat there. A red × was placed. Mistakes %1$lld/%2$lld"
-          }
-        }
-      }
-    },
     "そこに猫はいない！ 赤い×はミス" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -151,17 +140,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "No cat there! A red × counts as a miss"
-          }
-        }
-      }
-    },
-    "そこに猫はいない！ 赤い×はミス（あと%lld回で終わり）" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No cat there! A red × is a mistake (%lld more ends the game)"
           }
         }
       }
@@ -503,17 +481,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Miss %1$lld/%2$lld"
-          }
-        }
-      }
-    },
-    "ミス %1$lld回、あと%2$lld回で終わり" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$lld mistakes, game over after %2$lld more"
           }
         }
       }
@@ -860,6 +827,61 @@
         }
       }
     },
+    "廊下" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hallway"
+          }
+        }
+      }
+    },
+    "洗面所" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Washroom"
+          }
+        }
+      }
+    },
+    "子ども部屋" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kids' Room"
+          }
+        }
+      }
+    },
+    "物置" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Storeroom"
+          }
+        }
+      }
+    },
+    "とことん" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Endless"
+          }
+        }
+      }
+    },
     "途中で終了すると、いまの盤面とタイムが失われます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -900,17 +922,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Difficulty %@"
-          }
-        }
-      }
-    },
-    "タップで ×、ダブルタップで猫" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tap for ×, double-tap to find a cat"
           }
         }
       }
@@ -959,6 +970,17 @@
         }
       }
     },
+    "タップで × を付け外し。ダブルタップでそのマスの猫を見つけます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to add or remove a ×. Double-tap to find the cat in that square."
+          }
+        }
+      }
+    },
     "ダブルタップ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -966,17 +988,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Double-tap"
-          }
-        }
-      }
-    },
-    "タップで × を付け外し、ダブルタップで猫" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tap: toggle ×. Double-tap: cat"
           }
         }
       }
@@ -1103,6 +1114,17 @@
         }
       }
     },
+    "この局のヒントは使い切りました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hints left for this puzzle"
+          }
+        }
+      }
+    },
     "このゲームの目的" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1154,6 +1176,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tap a square to add or remove an × (no cat here)."
+          }
+        }
+      }
+    },
+    "指をすべらせると、続けて × を付けたり外したりできます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Slide your finger to add or remove several ×s in a row."
           }
         }
       }
@@ -1235,28 +1268,6 @@
         }
       }
     },
-    "答えでないマスをダブルタップすると、赤い × が付いてミスになります。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Double-tapping a square with no cat puts a red × there and counts as a mistake."
-          }
-        }
-      }
-    },
-    "赤い × は消せません。× の付け外しはミスになりません。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A red × can't be removed. Adding or removing an × is never a mistake."
-          }
-        }
-      }
-    },
     "勝ち負けの決まり" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1275,17 +1286,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Find every cat to clear the puzzle. Your record is the time it took."
-          }
-        }
-      }
-    },
-    "ミスが 3 回になると負けです。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You lose when you make 3 mistakes."
           }
         }
       }
@@ -1330,6 +1330,1503 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Find them all to clear"
+          }
+        }
+      }
+    },
+    "ステージ %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stage %lld"
+          }
+        }
+      }
+    },
+    "盤の大きさを選ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a board size"
+          }
+        }
+      }
+    },
+    "ミスなしのパーフェクト！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perfect, no misses!"
+          }
+        }
+      }
+    },
+    "ノーミス %lld 面連続" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld stages in a row, no misses"
+          }
+        }
+      }
+    },
+    "ノーミス %lld 面連続・自己ベスト" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld stages in a row, no misses · Personal best"
+          }
+        }
+      }
+    },
+    "ノーミス連続の最高 %lld 面" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best no-miss streak: %lld stages"
+          }
+        }
+      }
+    },
+    "遊び方" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mode"
+          }
+        }
+      }
+    },
+    "自由に遊ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Free play"
+          }
+        }
+      }
+    },
+    "ステージ %lld から" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From stage %lld"
+          }
+        }
+      }
+    },
+    "ステージ %lld を始めます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Starts stage %lld"
+          }
+        }
+      }
+    },
+    "イベント +%1$lldpt・今日の合計 %2$lldpt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Event +%1$lld pt · Today %2$lld pt"
+          }
+        }
+      }
+    },
+    "イベント +%1$lldpt（鍵の面 ×2）・今日の合計 %2$lldpt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Event +%1$lld pt (key stage ×2) · Today %2$lld pt"
+          }
+        }
+      }
+    },
+    "今日 %1$lld位 / %2$lld人・合計 %3$lldpt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today: #%1$lld of %2$lld · Total: %3$lld pt"
+          }
+        }
+      }
+    },
+    "今日 %1$lld位・合計 %2$lldpt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today: #%1$lld · Total: %2$lld pt"
+          }
+        }
+      }
+    },
+    "今日の合計 %lldpt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's total: %lld pt"
+          }
+        }
+      }
+    },
+    "今日のランキングを見る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View today's ranking"
+          }
+        }
+      }
+    },
+    "次のステージへ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next stage"
+          }
+        }
+      }
+    },
+    "ステージ %1$lld（%2$@）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stage %1$lld (%2$@)"
+          }
+        }
+      }
+    },
+    "%1$@・手数 %2$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$lld moves"
+          }
+        }
+      }
+    },
+    "問題を用意しています…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing the puzzle…"
+          }
+        }
+      }
+    },
+    "途中で終了すると、いまの盤面が失われます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If you quit now, the current board will be lost."
+          }
+        }
+      }
+    },
+    "同じ問題を最初から解きます。ミスはそのままです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You'll solve the same puzzle from the start. Mistakes are kept."
+          }
+        }
+      }
+    },
+    "%1$@：%2$lld / %3$lld 面" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: Stage %2$lld of %3$lld"
+          }
+        }
+      }
+    },
+    "%1$@：%2$lld 面目" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: Stage %2$lld"
+          }
+        }
+      }
+    },
+    "次の面から %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "From the next stage: %@"
+          }
+        }
+      }
+    },
+    "次の盤（%1$@）まであと %2$lld 面" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%2$lld more stages until %1$@"
+          }
+        }
+      }
+    },
+    "鍵の面" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Key stage"
+          }
+        }
+      }
+    },
+    "次は鍵の面" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Key stage next"
+          }
+        }
+      }
+    },
+    "鍵の面まであと %lld 面" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld more stages until a key stage"
+          }
+        }
+      }
+    },
+    "%@ に進んだ！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On to %@!"
+          }
+        }
+      }
+    },
+    "次は %1$@・%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next: %1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "ステージ %lld クリア！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stage %lld cleared!"
+          }
+        }
+      }
+    },
+    "%1$@・タイム %2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · Time %2$@"
+          }
+        }
+      }
+    },
+    "ステージ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stages"
+          }
+        }
+      }
+    },
+    "猫を教える" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show a Cat"
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに新しいゲームが始まったか、盤面が変わったため、猫を教えられませんでした。\n残り回数は減っていません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new game started or the board changed while the ad was playing, so the cat couldn't be shown.\nYour remaining uses weren't used."
+          }
+        }
+      }
+    },
+    "鍵を持った猫の面" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Key Cat Stage"
+          }
+        }
+      }
+    },
+    "鍵が閉じている" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Locked"
+          }
+        }
+      }
+    },
+    "鍵が開いた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlocked"
+          }
+        }
+      }
+    },
+    "鍵の札がついた部屋に、鍵を持った猫がいます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The room with the key tag has the cat holding the key."
+          }
+        }
+      }
+    },
+    "その猫を見つけるまで、ほかの部屋には × も猫も置けません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Until you find that cat, you can't place × marks or cats in other rooms."
+          }
+        }
+      }
+    },
+    "鍵の部屋は、ほかのマスを調べなくても、考えれば猫の場所が決まります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can work out the key room's cat by reasoning alone, without marking other squares."
+          }
+        }
+      }
+    },
+    "わかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Got it"
+          }
+        }
+      }
+    },
+    "等倍に戻す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset zoom"
+          }
+        }
+      }
+    },
+    "先に鍵の猫を見つけよう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find the key cat first"
+          }
+        }
+      }
+    },
+    "鍵が開いた！ ほかの部屋にも印を付けられる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlocked! You can mark the other rooms now"
+          }
+        }
+      }
+    },
+    "鍵の猫を探そう（金色の枠の部屋だけ触れる）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find the key cat (only the gold-framed room is open)"
+          }
+        }
+      }
+    },
+    "%@（鍵の部屋）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ (key room)"
+          }
+        }
+      }
+    },
+    "鍵の猫を見つけるまで、この部屋には印を付けられません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can't mark this room until you find the key cat"
+          }
+        }
+      }
+    },
+    "順位を読み込んでいます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading the ranking…"
+          }
+        }
+      }
+    },
+    "Game Center にサインインすると、今日のランキングを見られます。サインインしなくても、あそびはすべてそのまま遊べます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in to Game Center to see today's ranking. You can still play everything without signing in."
+          }
+        }
+      }
+    },
+    "サインインする" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in"
+          }
+        }
+      }
+    },
+    "ランキングを取得できませんでした。通信状況を確かめて、もう一度お試しください" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't load the ranking. Check your connection and try again."
+          }
+        }
+      }
+    },
+    "もう一度読み込む" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try again"
+          }
+        }
+      }
+    },
+    "Game Center で見る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View in Game Center"
+          }
+        }
+      }
+    },
+    "毎日 日本時間の 0 時に切り替わります。ランキングは予告なく終了する場合があります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resets every day at midnight Japan time. The ranking may end without notice."
+          }
+        }
+      }
+    },
+    "今日のランキング" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's Ranking"
+          }
+        }
+      }
+    },
+    "閉じる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
+          }
+        }
+      }
+    },
+    "上位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top players"
+          }
+        }
+      }
+    },
+    "友だち" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Friends"
+          }
+        }
+      }
+    },
+    "まだ誰も記録していません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No one has scored yet."
+          }
+        }
+      }
+    },
+    "今日はまだ記録がありません。ステージをクリアして pt を貯めよう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No score yet today. Clear a stage to earn points!"
+          }
+        }
+      }
+    },
+    "昨日の最終順位 %lld位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday's final rank: %lld"
+          }
+        }
+      }
+    },
+    "%lldpt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld pt"
+          }
+        }
+      }
+    },
+    "%lld位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rank %lld"
+          }
+        }
+      }
+    },
+    "%1$lld位 / %2$lld人" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rank %1$lld of %2$lld"
+          }
+        }
+      }
+    },
+    "あなた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You"
+          }
+        }
+      }
+    },
+    "プレイヤー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Player"
+          }
+        }
+      }
+    },
+    "ねこさがし 今日 %1$lldpt（%2$lld 面クリア）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cat Hunt: %1$lld pt today (%2$lld stages cleared)"
+          }
+        }
+      }
+    },
+    "あそびば ねこさがし" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Asobiba Cat Hunt"
+          }
+        }
+      }
+    },
+    "今日 %lldpt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today %lld pt"
+          }
+        }
+      }
+    },
+    "%lld 面クリア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld stages cleared"
+          }
+        }
+      }
+    },
+    "全員見つかったわい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Found every last one!"
+          }
+        }
+      }
+    },
+    "ようやく静かになったのう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Finally, some peace and quiet."
+          }
+        }
+      }
+    },
+    "ふう、これで夕飯にできる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Phew, now we can have dinner."
+          }
+        }
+      }
+    },
+    "猫らしい隠れ方じゃった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Such a cat-like hiding spot."
+          }
+        }
+      }
+    },
+    "わしより家に詳しいのう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You know this house better than I do."
+          }
+        }
+      }
+    },
+    "今日もよう見つけたな" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another good find today."
+          }
+        }
+      }
+    },
+    "やるのう、お主" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Well done, my friend."
+          }
+        }
+      }
+    },
+    "まったく、どこにでも入りおる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Honestly, they get into everywhere."
+          }
+        }
+      }
+    },
+    "見事な探しっぷりじゃ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "What a splendid search!"
+          }
+        }
+      }
+    },
+    "猫たちもほっとしておる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The cats seem relieved, too."
+          }
+        }
+      }
+    },
+    "これで安心して昼寝ができるわい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Now I can nap in peace."
+          }
+        }
+      }
+    },
+    "一度も外さんとは、恐れ入った" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not a single miss? I'm impressed."
+          }
+        }
+      }
+    },
+    "ぴたりと当てたな、見事じゃ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Right on the mark. Splendid!"
+          }
+        }
+      }
+    },
+    "鍵の猫まで見つけるとは、たいしたもんじゃ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You even found the key cat. Impressive!"
+          }
+        }
+      }
+    },
+    "家が広うなっても、お主にかかれば楽勝じゃな" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Even in a bigger house, it's easy for you."
+          }
+        }
+      }
+    },
+    "こんな広い家でよう見つけたのう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You found them all in such a big house!"
+          }
+        }
+      }
+    },
+    "うーむ、今日は猫の勝ちじゃな" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hmm, the cats win today."
+          }
+        }
+      }
+    },
+    "猫のほうが一枚上手じゃったか" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The cats outsmarted us."
+          }
+        }
+      }
+    },
+    "次こそは見つけてやるわい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next time, I'll find them!"
+          }
+        }
+      }
+    },
+    "どこに隠れたんじゃ、まったく" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Where did they hide, honestly?"
+          }
+        }
+      }
+    },
+    "惜しかったのう、もう一度じゃ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "So close! Let's try once more."
+          }
+        }
+      }
+    },
+    "昨日のランキング %lld位！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday's ranking: #%lld!"
+          }
+        }
+      }
+    },
+    "ヒント ＋%lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hint +%lld"
+          }
+        }
+      }
+    },
+    "OK" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        }
+      }
+    },
+    "ボーナスステージ（%@）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bonus stage (%@)"
+          }
+        }
+      }
+    },
+    "ボーナスステージ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bonus stage"
+          }
+        }
+      }
+    },
+    "次はボーナスステージ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bonus stage next"
+          }
+        }
+      }
+    },
+    "次のボーナスまであと %lld 面" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld more stages until the bonus stage"
+          }
+        }
+      }
+    },
+    "ライフは 3 つ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You have 3 lives"
+          }
+        }
+      }
+    },
+    "答えでないマスをダブルタップすると、赤い × が付いてライフが 1 つ減ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double-tapping a square with no cat puts a red × there and costs one life."
+          }
+        }
+      }
+    },
+    "赤い × は消せません。× の付け外しでライフは減りません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A red × can't be removed. Adding or removing an × never costs a life."
+          }
+        }
+      }
+    },
+    "ライフが 0 になると負けです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You lose when you run out of lives."
+          }
+        }
+      }
+    },
+    "ライフ %1$lld/%2$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lives %1$lld/%2$lld"
+          }
+        }
+      }
+    },
+    "餌をあげる ＋%lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Treat +%lld"
+          }
+        }
+      }
+    },
+    "前日の上位 3 位には、翌日に特典をプレゼント（1 位はヒントと「餌をあげる」、2 位は「餌をあげる」、3 位はヒント）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yesterday's top 3 get a gift the next day (1st: a hint and a \"Treat\", 2nd: a \"Treat\", 3rd: a hint)"
+          }
+        }
+      }
+    },
+    "餌をあげられませんでした" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't Give Treat"
+          }
+        }
+      }
+    },
+    "広告を見ているあいだに新しいゲームが始まったか、盤面が変わったため、猫をおびき出せませんでした。\n残り回数は減っていません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A new game started or the board changed while the ad was playing, so the cat couldn't be lured out.\nYour remaining uses weren't used."
+          }
+        }
+      }
+    },
+    "ライフ %1$lld、あと%2$lld回のミスで終わり" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld lives left, game over after %2$lld more mistakes"
+          }
+        }
+      }
+    },
+    "そこに猫はいない。赤い×を置いた。ライフ %1$lld/%2$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No cat there. A red × was placed. Lives %1$lld/%2$lld"
+          }
+        }
+      }
+    },
+    "そこに猫はいない！ 赤い×でライフが減った（あと%lld回で終わり）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No cat there! A red × cost a life (%lld more ends the game)"
+          }
+        }
+      }
+    },
+    "広告を見ると、ライフが1つ戻ります" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Watch an ad to get one life back."
+          }
+        }
+      }
+    },
+    "餌をあげる" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Treat"
+          }
+        }
+      }
+    },
+    "餌をあげる、無料の回数は使い切りました。広告を見ると1回追加" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Treat. You've used your free uses. Watch an ad to add 1"
+          }
+        }
+      }
+    },
+    "餌をあげる、あと%lld回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Treat, %lld left"
+          }
+        }
+      }
+    },
+    "餌で猫を1匹おびき出して、正解のマスに置きます。置いた猫は消せません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lure one cat out with food and place it on its correct square. A placed cat can't be removed."
+          }
+        }
+      }
+    },
+    "タイム %1$@・ライフ %2$lld・ヒント %3$lld回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time %1$@ · Lives %2$lld · Hints %3$lld"
+          }
+        }
+      }
+    },
+    "ライフ %1$lld・ヒント %2$lld回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lives %1$lld · Hints %2$lld"
+          }
+        }
+      }
+    },
+    "ライフ %1$lld・ヒント %2$lld回・手数 %3$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lives %1$lld · Hints %2$lld · Moves %3$lld"
+          }
+        }
+      }
+    },
+    "ステージをクリアして今日の pt を貯めよう（毎日 日本時間の 0 時にリセット）。残りライフ 3 で 3pt・2 で 2pt・1 で 1pt（鍵の面は 2 倍）" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear stages to earn today's points (resets daily at midnight JST): 3 pts with 3 lives left, 2 with 2, 1 with 1 (key stages ×2)"
+          }
+        }
+      }
+    },
+    "タップで次へ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to continue"
+          }
+        }
+      }
+    },
+    "次へ進みます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Goes to the next step"
+          }
+        }
+      }
+    },
+    "ライフがポイントに！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lives become points!"
+          }
+        }
+      }
+    },
+    "+%lldpt" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+%lld pt"
+          }
+        }
+      }
+    },
+    "鍵の面 ×2" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Key stage ×2"
+          }
+        }
+      }
+    },
+    "ライフ %1$lld、%2$lldpt を獲得" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld lives, earned %2$lld pt"
+          }
+        }
+      }
+    },
+    "今日の結果" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's result"
+          }
+        }
+      }
+    },
+    "今日 %lld 位" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rank %lld today"
+          }
+        }
+      }
+    },
+    "上位 3 位なら、明日 特典がもらえます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top 3 get a gift tomorrow"
+          }
+        }
+      }
+    },
+    "%lld 人抜き！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Passed %lld player!"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Passed %lld players!"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "クリアタイム %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear time %@"
+          }
+        }
+      }
+    },
+    "ライフ %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lives %lld"
+          }
+        }
+      }
+    },
+    "餌 %lld回" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Treats %lld"
+          }
+        }
+      }
+    },
+    "今日の合計 %1$lldpt・今日 %2$lld 位 / %3$lld 人" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today %1$lld pt · Rank %2$lld of %3$lld"
           }
         }
       }

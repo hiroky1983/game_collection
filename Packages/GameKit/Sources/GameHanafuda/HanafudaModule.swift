@@ -26,7 +26,8 @@ public struct HanafudaModule: GameModule {
 
 
     /// 配っただけで一枚も出していない 1 局目は「続き」ではない（#1912）。開始シートで確定した直後に保存される。
-    /// 親が CPU のときは CPU の初手が先に入るので、手札が 8 枚のまま・取り札なしであることで見分ける。
+    /// 親が CPU のときは CPU の初手が先に入るが、人間は何も出していないので続きではない（#3000）。
+    /// 人間の手札が 8 枚のまま・取り札なし・選択待ちでないことで見分ける。
     /// 2 局目以降の配り直しは前の局の結果があるので続きとして扱う。
     public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
         guard let snap = snapshots.load(HanafudaSnapshot.self, for: id) else { return false }
@@ -39,11 +40,24 @@ public struct HanafudaModule: GameModule {
         return Self.isUntouched(snap)
     }
 
+    /// 復元した盤の区分（#3225）。手つかずの開き直しの `game_start` / `game_end` に載せる。
+    public func untouchedSnapshotPlayClass(in snapshots: SnapshotStore) -> PlayClass {
+        guard let snap = snapshots.load(HanafudaSnapshot.self, for: id) else { return PlayClass() }
+        return PlayClass(level: (snap.options ?? HanafudaOptions()).difficulty.analyticsLevel)
+    }
+
     private static func isUntouched(_ snap: HanafudaSnapshot) -> Bool {
         snap.round <= 1
             && snap.phase == .playing
-            && snap.selection == nil && snap.drawnCard == nil
-            && snap.hands.allSatisfy { $0.count == 8 }
-            && snap.captured.allSatisfy(\.isEmpty)
+            && snap.selection == nil
+            && snap.hands.first?.count == 8
+            && snap.captured.first?.isEmpty == true
+    }
+
+    /// 何局目か（「3 / 6局」。広告で延長した局は「延長戦」。画面の表示と同じ形）。
+    public func resumeProgress(in snapshots: SnapshotStore) -> String? {
+        guard let snap = snapshots.load(HanafudaSnapshot.self, for: id) else { return nil }
+        let rounds = (snap.options ?? HanafudaOptions()).rounds
+        return snap.round > rounds ? tr("延長戦") : tr("%1$lld / %2$lld局", snap.round, rounds)
     }
 }

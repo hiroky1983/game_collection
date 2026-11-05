@@ -110,7 +110,7 @@ struct HintNudgeTests {
         #expect(!ring.contains(".padding(-"), "光が枠の外へはみ出して段の高さを変える")
         let row = SourceScan.strippingComments(try SourceScan.packageSource("Sources/Core/GameActionRow.swift"))
         #expect(row.contains("@Environment(\\.hintNudgeIsShowing) private var isNudging"), "カプセルが促しを読んでいない")
-        #expect(row.contains("item.role == .hint && item.isEnabled && isNudging"), "ヒント以外のカプセルまで光る")
+        #expect(row.contains("item.role == .hint && item.isEnabled && !item.looksDisabled && isNudging"), "ヒント以外・使い切ったヒントのカプセルまで光る")
         #expect(row.contains(".hintNudgeGlow(glows, reduceMotion: reduceMotion)"))
     }
 

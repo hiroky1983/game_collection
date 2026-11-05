@@ -35,6 +35,40 @@ struct ColorRelayOpponentCountTests {
         #expect(model.nextPlayer(after: 0) == opponents)
     }
 
+    @Test("結果のまま人数を減らして始め直すとき、hands が縮む前に ranking は空になる（#3084）")
+    func rankingClearsBeforeHandsShrink() async {
+        let (model, _) = makeModel()
+        model.startGame(opponentCount: 3)
+        var turns = 0
+        while model.phase == .playing, turns < 3_000 {
+            turns += 1
+            await model.runCPUTurnsIfNeeded()
+            guard model.phase == .playing, model.isPlayerTurn else { continue }
+            if model.isPlayerPenalized {
+                model.takePenalty()
+            } else if let id = model.playableCardIDs.sorted().first,
+                      let card = model.playerHand.first(where: { $0.id == id }) {
+                model.toggleSelection(card)
+                model.playSelected(color: card.isWild ? ColorRelayRules.dominantColor(in: model.playerHand) : nil)
+            } else if model.canDraw {
+                model.drawCard()
+            } else {
+                model.endTurn()
+            }
+        }
+        #expect(model.ranking.count == 4)
+        var rankingWhenHandsChanged: [Int]?
+        withObservationTracking {
+            _ = model.hands
+        } onChange: {
+            MainActor.assumeIsolated { rankingWhenHandsChanged = model.ranking }
+        }
+        model.startGame(opponentCount: 1)
+        #expect(rankingWhenHandsChanged == [])
+        #expect(model.hands.count == 2)
+        #expect(model.ranking.isEmpty)
+    }
+
     @Test("どの人数でも最後まで決着し、順位は人数ぶん並ぶ", arguments: [1, 2, 3])
     func playsToFinish(opponents: Int) async {
         let (model, _) = makeModel()

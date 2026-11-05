@@ -1,4 +1,5 @@
 import Core
+import CoreMiniBoard
 import SwiftUI
 
 /// 図入りの遊び方（#2044）のオセロの図。文言は `HowToPlayGuide.othello.items`（Core）と同じ順。
@@ -51,7 +52,7 @@ enum OthelloHowToFigures {
                         }
                     }
                     RuleFigureLabel(index == 0 ? tr("黒を置くと…") : tr("はさんだ白が黒に"),
-                                    color: index == 0 ? Theme.coralText : Theme.inkSub)
+                                    color: index == 0 ? Theme.coralText : Theme.inkSubText)
                 }
             }
         }
@@ -69,7 +70,7 @@ enum OthelloHowToFigures {
         private func tally(_ tone: RuleStone.Tone, _ label: String, isWinner: Bool) -> some View {
             VStack(spacing: 4) {
                 RuleStone(tone, size: 34)
-                RuleFigureLabel(label, color: isWinner ? Theme.coralText : Theme.inkSub)
+                RuleFigureLabel(label, color: isWinner ? Theme.coralText : Theme.inkSubText)
                 if isWinner { RuleFigureLabel(tr("多い方の勝ち"), color: Theme.coralText) }
             }
         }

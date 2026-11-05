@@ -44,7 +44,7 @@ import GameCatPuzzle
 /// MVP: 永続化 = FileSnapshotStore、広告 = NoopAdService（M5 で AdMob に差し替え）。
 @MainActor
 enum AppEnvironment {
-    static let services = GameServices(
+    static let services: GameServices = GameServices(
         // 中断データの消去（終局・やり直し・設定の切り替え）を横で捕まえ、そのゲームの
         // お知らせを取り消す（#663）。保存形式と読み書きは `FileSnapshotStore` のまま。
         snapshots: ClearObservingSnapshotStore(base: FileSnapshotStore()) { gameID in
@@ -74,14 +74,17 @@ enum AppEnvironment {
         homerunSound: GatedHomerunSoundService(base: sound) { settings.soundEnabled },
         // 触覚だけの入口（効果音に相乗りしない）。柵越えおじさんの場面ごとの触覚（`HomerunFeedbackCue`）が使う。
         haptics: GatedFeedbackService(base: haptic) { settings.hapticsEnabled },
-        isResumable: { gameID, snapshots in registry.hasResumableSnapshot(gameID: gameID, in: snapshots) }
+        isResumable: { gameID, snapshots in registry.hasResumableSnapshot(gameID: gameID, in: snapshots) },
+        // ねこさがしのイベントの「ランキングを見る」（#3204）。ハブの実績・ランキングと同じダッシュボードを開く。
+        // 未サインインで案内が要るときは、ハブと同じ案内をシートの上に出す。
+        openGameCenter: { GameCenterEntry.openShowingGuidance() }
     )
 
     /// 触覚の実体（`feedback` と `haptics` で共有。ジェネレータを使い回す）。
     static let haptic = HapticFeedbackService()
 
     /// 効果音の実体（`feedback` の操作音と `homerunSound` の場面の音で共有）。
-    static let sound = SoundFeedbackService()
+    static let sound = SoundFeedbackService(volume: { settings.soundVolume })
 
     /// 中断したゲームのお知らせ（#663）。中断データを持ってハブへ戻ったときだけ、1 日ほど後に予約する。
     /// 撮影モードと DEBUG ビルドでは予約しない（撮影・開発中の動作確認の端末に溜めない）。
@@ -96,7 +99,9 @@ enum AppEnvironment {
             guard let module = registry.module(id: gameID), module.resumesFromSnapshot else { return nil }
             guard !settings.hiddenIDs.contains(gameID) else { return nil }
             return module.title
-        }
+        },
+        // 通知の本文に、ハブのタイルと同じ進み具合を添える（#3075）。予約の時点の中断データから読む。
+        progress: { gameID in registry.resumeProgress(gameID: gameID, in: services.snapshots) }
     )
 
     /// ホーム画面アイコン長押し（#1642）。項目の組み直しは `GameCollectionApp` がバックグラウンドへ入るたびに行う。
@@ -196,7 +201,7 @@ enum AppEnvironment {
 
     /// 評価リクエスト。勝ちの中でも見せ場の直後にだけ、間隔を空けて聞く（条件は `ReviewRequestPolicy`）。
     /// バージョンごとに1回までのため、`CFBundleShortVersionString` を判定に使う。
-    static let review = ReviewRequestService(log: playLog, appVersion: shortVersion)
+    static let review = ReviewRequestService(log: playLog, appVersion: shortVersion, analytics: analytics)
 
     /// App Store の商品ページ。設定の「アプリをシェア」と、リザルトの記録の共有（#1043）が添える URL。
     /// キャンペーンのパラメータは付けない（付けるには ASC の Campaign Link の設定が要る・#1043）。
@@ -204,7 +209,7 @@ enum AppEnvironment {
 
     /// App Store のレビュー記入画面を直接開く URL（#1471）。設定の「アプリを評価する」用。
     /// `requestReview` は OS の上限（365 日で 3 回）に達すると何も出ないので、自分から開いた人には使わない。
-    static let writeReviewURL = URL(string: "https://apps.apple.com/app/id6781719499?action=write-review")!
+    static let writeReviewURL = ReviewRequestService.writeReviewURL
 
     /// 表示用のバージョン番号（例 "1.1.1"）。取れなければ判定を止めないよう "0" を使う。
     static var shortVersion: String {
@@ -255,6 +260,11 @@ enum AppEnvironment {
     /// 既にアプリを使っている人の並びには影響しない（`GameSettings` はユーザーの並び替えを
     /// 優先し、ここは「まだ並び替えたことがない人」の初期値だけを決める）。
     static let registry = GameRegistry([
+        // おじさんちのねこさがし（#2250）。企画倉庫から v1.1.14 でハブに公開（会長決裁 2026-10-22）。
+        // 会長決裁（2026-11-05・#3339）で期間に関係なく常にハブの先頭に固定（`NewGames.alwaysFirstIDs`）。
+        // 並び替えをしていない・新規の端末もこの順になるよう、登録順の先頭に置く。
+        // 倉庫へ戻す判断が出たら、この 1 行をコメントアウトし、`web/app/lib/games.ts` からも外す。
+        CatPuzzleModule(),
         // 柵越えおじさん（#1348）。v1.1.9 でハブに公開。3D の打席・回数回復（広告）・
         // 解析・Game Center への送信まで入っている。
         // #2566 で先頭の特別枠から通常のタイルになったので、以前と同じく通常の並びの先頭（新着の固定の直後）に
@@ -338,13 +348,9 @@ enum AppEnvironment {
         // 出荷を決める Issue でこの行のコメントアウトを外し、`web/app/lib/games.ts` にも同じ順で足す。
         // カテゴリーのチップ（`"yonmoku": .board`）は #2385 で先に入れてある。
         // YonmokuModule(),
-        // おじさんちのねこさがし（#2250）。企画倉庫から v1.1.14 でハブに公開（会長決裁 2026-10-22）。
-        // 新着の間は `NewGames.currentVersionIDs` で表示の先頭に固定されるので、登録順は倉庫にあった位置のまま。
-        // 倉庫へ戻す判断が出たら、この 1 行をコメントアウトし、`web/app/lib/games.ts` からも外す。
-        CatPuzzleModule(),
         // スピード（#1323）・ババ抜き（#1577）・ハーツ（#1884）。企画倉庫から v1.1.14 でハブに公開（会長決裁 2026-10-22）。
         // 新着の間は `NewGames.currentVersionIDs` で表示の先頭に固定される。新着の中の並びは登録順なので、
-        // おじさんちのねこさがしの後ろに置いて「ねこさがし → スピード → ババ抜き → ハーツ」の順にしている。
+        // ねこさがしは先頭へ移したので、ここは「スピード → ババ抜き → ハーツ」の順。
         // 倉庫へ戻す判断が出たら、その 1 行をコメントアウトし、`web/app/lib/games.ts` とレコメンドの候補表
         // （`RecommendationPolicy.candidateTable` のその行と、他のゲームの候補に入れた分）も戻すこと。
         SpeedModule(),

@@ -11,8 +11,8 @@ public struct DaifugoView: View {
     @State private var showReference = false
     /// 大貧民の献上を広告で免除する救済（#1048）。
     @State private var waiveRescue = RewardedRescue()
-    /// ボタンから起こす CPU の手番。画面を離れたら止める（#1380。`.task` と違いボタンの Task は自動で止まらない）。
-    @State private var cpuTask: Task<Void, Never>?
+    /// 遊び方（図で見る遊び方を含む）を開いているか。開いているあいだ CPU の手番を止める（#2824）。
+    @State private var isHowToPlayOpen = false
     /// 画面の広さ（#458）。広い画面（iPad）では札の拡大に上限を掛けるのに読む。
     @Environment(\.adaptiveLayout) private var layout
     /// Reduce Motion のときは革命・8切りの弾みを出さない（#2713）。
@@ -21,6 +21,15 @@ public struct DaifugoView: View {
     public init(services: GameServices) {
         self.services = services
         _model = State(initialValue: DaifugoModel(services: services))
+    }
+
+    /// 勝ちが続いたら一段上の強さを勧める（#722・#3152）。並びは開始シートの「CPUの強さ」と同じ。
+    private var ladder: DifficultyLadderPrompt? {
+        DifficultyLadderPrompt(result: model.recordResult,
+                               currentLevel: CPUStrength.ladderIndex(forLevel: model.aiLevel),
+                               levelLabels: CPUStrength.labels) { index in
+            model.startGame(aiLevel: CPUStrength.level(atLadderIndex: index))
+        }
     }
 
     public var body: some View {
@@ -48,7 +57,7 @@ public struct DaifugoView: View {
                 }
                 HowToPlayHint(.daifugo, playLog: services.playLog)
                 actionArea
-                RecommendationSlot(services: services, isFinished: model.phase == .result)
+                RecommendationSlot(services: services, isFinished: model.phase == .result, ladder: ladder)
             }
             // 局面 → リザルトの差し替えは、上の `transition` を効かせるために**入れ替わる側ではなく
             // 残り続ける親**へ置く（枝の中に置くと消える側と一緒に修飾子も消えて効かない）（#195）。
@@ -82,13 +91,8 @@ public struct DaifugoView: View {
                     }
             }
         }
-        .onChange(of: showReference) { _, isOpen in
-            if isOpen { cpuTask?.cancel() } else { runCPU() }
-        }
         // 開始シートにも図で見る遊び方の入口があるので、開いているあいだは手番を止める（#2824）。
-        .onChange(of: showNewGame) { _, isOpen in
-            if isOpen { cpuTask?.cancel() } else { runCPU() }
-        }
+        // 止める・続けるは下の `.task(id:)` が `isCPUPaused` の変化で受ける。
         // 右上の新規で開く開始シート（CPU の強さを選ぶ・#2604）。途中の局を捨てる確認はシートの開始ボタンが兼ねる。
         .sheet(isPresented: $showNewGame) {
             DaifugoNewGameSheet(
@@ -97,13 +101,12 @@ public struct DaifugoView: View {
                 showNewGame = false
                 model.choosePreferredRuleSet(ruleSet)
                 model.startGame(aiLevel: level)
-                runCPU()
             } onCancel: { showNewGame = false }
         }
         // 革命・8切り・階級まで含む細かいルールは3行に収まらないので「くわしいルール」へ送る（#118）。
         // 図で見る遊び方（#2824）は「？」の中から開くので、開いているあいだは CPU の手番を止め、閉じたら続きを回す。
         .howToPlay(HowToPlayGuide.daifugo.illustrated(DaifugoHowToFigures.items).onboarding(DaifugoOnboarding.guide),
-                   onPresent: { cpuTask?.cancel() }, onDismiss: { runCPU() }) { DaifugoRuleSheet() }
+                   onPresent: { isHowToPlayOpen = true }, onDismiss: { isHowToPlayOpen = false }) { DaifugoRuleSheet() }
         .dialogs { anchor in
             anchor.confirmationDialog(tr("投了しますか？"), isPresented: $showResignConfirm, titleVisibility: .visible) {
                 Button(tr("投了する"), role: .destructive) { model.resign() }
@@ -123,6 +126,13 @@ public struct DaifugoView: View {
                 message: tr("広告を見ているあいだに次のゲームが始まったため、免除できませんでした。")
             )
         )
+        // CPU の手番はここ 1 か所で動かす（麻雀と同じ作り・#3146）。手番キーが変わる（人間の操作・CPU の着手・新しいゲーム・早送り）か、
+        // 止める画面（遊び方・早見表・新規対局）の開閉が変わると作り直され、画面を離れれば止まる。
+        // 操作のたびに手で起こす形だと、新しい操作を足したとき 1 か所呼び忘れて CPU 番のまま止まる。
+        .task(id: CPUDriveKey(turn: model.cpuTurnKey, isPaused: isCPUPaused)) {
+            guard !isCPUPaused else { return }
+            await model.runCPUTurnsIfNeeded()
+        }
         .task {
             // 開幕の全画面モーダルは廃止したので、盤を見せたまま既定値で配り始める（#192）。
             // 中断から戻ったときは init が `.playing` まで復元しているので配り直さない。
@@ -131,11 +141,16 @@ public struct DaifugoView: View {
             // 撮影用（#2788）: 早見表だけを開く。
             if ProcessInfo.processInfo.arguments.contains("-daifugoReference") { showReference = true }
             #endif
-            // 中断から戻ったときに CPU の手番が止まったままにならないようにする。
-            // 早見表で止められるよう、操作の後と同じ cpuTask で回す（#2788）。
-            runCPU()
         }
-        .onDisappear { cpuTask?.cancel() }
+    }
+
+    /// CPU の手番を止めておく画面（遊び方・早見表・新規対局）を開いているか（#2788・#2824）。
+    private var isCPUPaused: Bool { isHowToPlayOpen || showReference || showNewGame }
+
+    /// `.task(id:)` の識別子。手番の進行と、止める画面の開閉のどちらが変わっても CPU のタスクを作り直す。
+    private struct CPUDriveKey: Hashable {
+        let turn: AITurnKey
+        let isPaused: Bool
     }
 
     /// 配った直後の交換の帯（#2607）。数秒で消える・タップで閉じる。VoiceOver には出た時点で読み上げる。
@@ -161,7 +176,7 @@ public struct DaifugoView: View {
                     .overlay(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous)
                         .strokeBorder(Theme.ink.opacity(0.85), lineWidth: 2))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pop)
                 .padding(.horizontal, 24)
                 .accessibilityLabel(DaifugoAccessibility.exchangeLines(
                     notice, partnerName: model.playerName(notice.partner), spoken: true).joined(separator: tr("。")))
@@ -177,11 +192,6 @@ public struct DaifugoView: View {
             try? await Task.sleep(for: .seconds(5))
             if !Task.isCancelled { model.dismissExchangeNotice() }
         }
-    }
-
-    private func runCPU() {
-        cpuTask?.cancel()
-        cpuTask = Task { await model.runCPUTurnsIfNeeded() }
     }
 
     // MARK: - ステータス（ヘッダーの行の札）
@@ -328,6 +338,44 @@ public struct DaifugoView: View {
         // 場は「何が出ているか」が分かればよいので 1 要素にまとめる（#188）。
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(DaifugoAccessibility.fieldLabel(model.field, ownerName: fieldOwnerName))
+        // 8切り・革命・しばり・反則上がりが起きた瞬間の一言説明（#2721）。盤の高さを変えないよう重ねで出す。
+        .overlay(alignment: .top) { ruleNoticeBanner }
+    }
+
+    /// ルールの一言説明（#2721）。数秒で消える。VoiceOver には出た時点で読み上げる。
+    @ViewBuilder
+    private var ruleNoticeBanner: some View {
+        Group {
+            if let notice = model.ruleNotice {
+                VStack(spacing: 2) {
+                    ForEach(Array(notice.events.enumerated()), id: \.offset) { _, event in
+                        Text(verbatim: DaifugoAccessibility.ruleEventText(event))
+                            .themeCaption(12, weight: .bold, maxScale: Self.seatTextMaxScale)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.6)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+                .foregroundStyle(Theme.onAccent)
+                .padding(.horizontal, 12).padding(.vertical, 6)
+                .background(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous).fill(Theme.Fill.teal))
+                .overlay(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
+                    .strokeBorder(Theme.ink.opacity(0.85), lineWidth: 1.5))
+                .padding(.horizontal, 8)
+                .allowsHitTesting(false)
+                .transition(.opacity)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(notice.events.map(DaifugoAccessibility.ruleEventText).joined(separator: tr("。")))
+            }
+        }
+        .gameAnimation(.easeInOut(duration: 0.2), value: model.ruleNotice)
+        .task(id: model.ruleNotice?.serial) {
+            guard let notice = model.ruleNotice else { return }
+            AccessibilityNotification.Announcement(
+                notice.events.map(DaifugoAccessibility.ruleEventText).joined(separator: tr("。"))).post()
+            try? await Task.sleep(for: .seconds(3.5))
+            if !Task.isCancelled { model.dismissRuleNotice(serial: notice.serial) }
+        }
     }
 
     /// 場の出し手（`fieldOwner`）の名前。場が空 / 出し手が不明なら nil。
@@ -430,6 +478,7 @@ public struct DaifugoView: View {
     @ViewBuilder
     private func hintLine(_ handHint: DaifugoHandHint?) -> some View {
         let message = model.selectionIssue
+            ?? (model.selectionIsFoulFinish ? tr("反則上がりになります（出すと最下位）") : nil)
             ?? (handHint?.playable.isEmpty == true ? tr("出せる組がありません。パスしてください") : nil)
         if let message {
             CardTableInkReader { ink in
@@ -460,7 +509,6 @@ public struct DaifugoView: View {
             // 自分が上がった後は操作が無くなるので、無効なパス／出すではなく早送りを出す（#191）。
             actionButton(tr("結果まで進める"), role: .primary, disabled: model.isSkippingToResult) {
                 model.skipToResult()
-                runCPU()
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
@@ -469,11 +517,9 @@ public struct DaifugoView: View {
                 // 出せる手が無いときは押してほしいボタンとして主役の色にする（#2693）。
                 actionButton(tr("パス"), role: model.mustPass ? .primary : .skip, disabled: !model.canPass) {
                     model.pass()
-                    runCPU()
                 }
                 actionButton(playButtonTitle, role: .primary, disabled: !model.canPlaySelection) {
                     model.playSelected()
-                    runCPU()
                 }
                 // 投了は盤下の「⋯」メニューに入れる（#1418・会長決裁 #1011 D1）。ヘッダー右は
                 // 役・？・新規の並びに固定するため文字の「投了」は置けない。中断すると次回は必ず
@@ -497,7 +543,6 @@ public struct DaifugoView: View {
                 // 視聴中に次のゲームを始めると、見終えた広告が局ガードで弾かれて見損になる（#911 と同型）。
                 actionButton(tr("もう一回"), role: .primary, disabled: waiveRescue.isWatching) {
                     model.startGame()
-                    runCPU()
                 }
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
@@ -536,6 +581,7 @@ public struct DaifugoView: View {
     /// リザルト見出しに添える但し書き。投了は反則上がりより下の扱いなので先に見る（#194）。
     private var humanResultNote: String? {
         if model.resigned.contains(DaifugoModel.humanIndex) { return tr("投了") }
+        if model.downfallPlayer == DaifugoModel.humanIndex { return tr("都落ち") }
         if model.fouls.contains(DaifugoModel.humanIndex) { return tr("反則上がり") }
         return nil
     }
@@ -543,6 +589,7 @@ public struct DaifugoView: View {
     /// 順位表の各行に添える但し書き（見出しより短く詰める）。
     private func rankRowNote(_ player: Int) -> String? {
         if model.resigned.contains(player) { return tr("投了") }
+        if model.downfallPlayer == player { return tr("都落ち") }
         if model.fouls.contains(player) { return tr("反則") }
         return nil
     }
@@ -552,7 +599,8 @@ public struct DaifugoView: View {
             HStack(spacing: 8) {
                 Image(systemName: model.playerPlace == 0 ? "crown.fill" : "flag.checkered")
                     .scaledFont(20)
-                    .foregroundStyle(model.playerPlace == 0 ? Theme.yellowText : Theme.inkSub)
+                    .foregroundStyle(model.playerPlace == 0 ? Theme.yellowText : Theme.inkSubText)
+                    .accessibilityHidden(true)
                 Text(tr("あなたは %@", model.playerTitle))
                     .scaledFont(17, weight: .black, design: .rounded)
                     .foregroundStyle(model.playerPlace == 0 ? Theme.tealText : Theme.ink)
@@ -594,6 +642,12 @@ public struct DaifugoView: View {
                     }
                 }
             }
+            if let fallen = model.downfallPlayer {
+                Text(tr("都落ち：前のゲームの大富豪（%@）が1位になれなかったので、大貧民に落ちました", model.playerName(fallen)))
+                    .scaledFont(11, weight: .medium, design: .rounded)
+                    .foregroundStyle(Theme.coralText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             // 「今回の結果」（見出し・順位表）を上、「この先」（通算成績・次ゲームの案内）を下に置き、
             // 伸びた分の余りは2つの塊の**間**に集める（#193）。カード全体を中央寄せにすると
             // 見出しが画面の真ん中まで降りてきてしまうので、間に寄せる。
@@ -602,7 +656,7 @@ public struct DaifugoView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text(exchangeNote)
                 .scaledFont(11, weight: .medium, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         // 縦の余りをここで吸い、リザルトの下にフェルトの空白を残さない（#193）。
@@ -797,9 +851,12 @@ struct DaifugoRuleSheet: View {
             (tr("カードの強さ"), tr("弱い ← 3 4 5 6 7 8 9 10 J Q K A 2 → 強い。ジョーカーが最強で、どのカードの代わりにもなります")),
             (tr("出し方"), tr("場が空なら好きな組（1枚・ペア・3枚…）を出せます。場に組があるときは同じ枚数で、より強い組だけ出せます")),
             (tr("革命"), tr("同じ数字を4枚以上まとめて出すと革命。カードの強さが上下逆になります（もう一度出すと元に戻ります）")),
-            (tr("8切り"), tr("8 を含む組を出すと場が流れ、そのまま続けて出せます")),
-            (tr("しばり（任意）"), tr("新規ゲームの開始シートでオンにできます。同じスートが2回続くと、場が流れるまでそのスートの札（とジョーカー）しか出せません")),
-            (tr("反則上がり"), tr("最後の1手が 2・8・ジョーカーだと反則。上がっても大貧民に落ちます")),
+            (tr("ローカルルール"), tr("新規ゲームの開始シートで、8切り・しばり・階段・都落ち・反則上がりのあり／なしを選べます。ルールは局の始めに決まり、途中では変わりません（選んだ組み合わせは次のゲームにも引き継ぎます）")),
+            (tr("8切り"), tr("8 を含む組を出すと場が流れ、出した人がそのまま続けて出せます（初期設定はあり）")),
+            (tr("しばり"), tr("同じスートが2回続くと、場が流れるまでそのスートの札（とジョーカー）しか出せません（初期設定はなし）")),
+            (tr("階段"), tr("同じスートで数が連なる3枚以上（例: ♠5-6-7）を1つの組として出せます。強さは一番強い札で比べ、場と同じ枚数の階段だけで受けます。ジョーカーは欠けた数の代わりになります（初期設定はなし）")),
+            (tr("都落ち"), tr("前のゲームの大富豪が1位で上がれなかったら、その場で大貧民に落ちます（初期設定はなし）")),
+            (tr("反則上がり"), tr("最後の1手が 2・ジョーカー・8（8切りありのとき）だと反則。上がっても大貧民に落ちます（初期設定はあり）")),
             (tr("階級とカード交換"), tr("上がった順に 大富豪・富豪・貧民・大貧民。次のゲームは 大貧民→大富豪 に強い2枚、大富豪→大貧民 に弱い2枚（富豪と貧民は1枚ずつ）を渡します")),
         ]
     }
@@ -811,8 +868,8 @@ struct DaifugoRuleSheet: View {
 
 // MARK: - New Game Sheet
 
-/// 右上の新規で開く開始シート（CPU の強さ・#2604、しばり・#2605）。強さは他の CPU 戦と同じ部品（`CPUStrengthPicker`）を使う。
-/// しばりは既定オフで、選んだ値は次のゲームにも引き継ぐ。
+/// 右上の新規で開く開始シート（CPU の強さ・#2604、ローカルルール・#2605・#2721）。強さは他の CPU 戦と同じ部品（`CPUStrengthPicker`）を使う。
+/// ローカルルールの初期値は従来の採用ルール（8切り・反則上がりあり）で、選んだ値は次のゲームにも引き継ぐ。
 struct DaifugoNewGameSheet: View {
     @State private var level: Int
     @State private var ruleSet: DaifugoRuleSet
@@ -843,16 +900,33 @@ struct DaifugoNewGameSheet: View {
                     tr("出せる最弱の手を選ぶ"), tr("強い札を温存し、革命も狙う"),
                 ])
             }
-            GameSetupSection(tr("しばり")) {
-                HStack(spacing: 12) {
-                    GameSetupChooser(title: tr("なし"), subtitle: tr("ふつうのルール"),
-                                     selected: !ruleSet.isBindEnabled, accent: Theme.fillMuted,
-                                     onAccent: .white) { ruleSet.isBindEnabled = false }
-                    GameSetupChooser(title: tr("あり"), subtitle: tr("同じ柄が2回続くとその柄だけ"),
-                                     selected: ruleSet.isBindEnabled, accent: Theme.fillStrong,
-                                     onAccent: .white) { ruleSet.isBindEnabled = true }
+            GameSetupSection(tr("ローカルルール")) {
+                VStack(spacing: 8) {
+                    ruleToggle(tr("8切り"), tr("8を出すと場が流れ、出した人から"), $ruleSet.isEightCutEnabled)
+                    ruleToggle(tr("しばり"), tr("同じ柄が2回続くとその柄だけ"), $ruleSet.isBindEnabled)
+                    ruleToggle(tr("階段"), tr("同じ柄の連番3枚以上を出せる"), $ruleSet.isSequenceEnabled)
+                    ruleToggle(tr("都落ち"), tr("前の大富豪が1位でないと大貧民へ"), $ruleSet.isDownfallEnabled)
+                    ruleToggle(
+                        tr("反則上がり"),
+                        ruleSet.isEightCutEnabled ? tr("最後が 2・ジョーカー・8 だと最下位") : tr("最後が 2・ジョーカーだと最下位"),
+                        $ruleSet.isFoulFinishEnabled)
                 }
             }
         }
+    }
+
+    /// ローカルルール 1 つぶんのあり／なしの行。行ぜんたいが 44pt 以上のスイッチ。
+    private func ruleToggle(_ title: String, _ detail: String, _ isOn: Binding<Bool>) -> some View {
+        Toggle(isOn: isOn) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).themeBody(16, weight: .bold).foregroundStyle(Theme.ink)
+                Text(detail).themeCaption(12).foregroundStyle(Theme.inkSubText)
+                    .lineLimit(2).minimumScaleFactor(0.8)
+            }
+        }
+        .tint(Theme.fillStrong)
+        .padding(.horizontal, 14).padding(.vertical, 8)
+        .frame(minHeight: 44)
+        .background(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous).fill(Theme.fillMuted.opacity(0.12)))
     }
 }

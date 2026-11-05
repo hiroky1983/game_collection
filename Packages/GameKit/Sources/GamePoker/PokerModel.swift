@@ -516,6 +516,8 @@ public final class PokerModel {
         outcomeNoticeTask?.cancel()
         outcomeNoticeTask = nil
         recordResult = nil
+        // 次の `gameDidRestart` は開始シートで始めるまで来ない。旧プレイの `quit` を放置時間込みにしない（#3226）。
+        services?.gameDidAbandon(gameID: gameID)
         roundSerial += 1
         round = 0
         playerPoints = 0

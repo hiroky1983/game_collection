@@ -60,6 +60,7 @@ public struct GameSetupSheet<Content: View>: View {
         }
         .popBackground()
         .presentationDetents([.large])
+        .setupSheetPageSizing()
         #if DEBUG
         // 撮影用（DEBUG 限定・#2044）: `-autoStartSetup` で既定の選択のまま開始する（「？」のシートを
         // `-showHowToPlay` で撮るとき、開始シートが先に出ていると重ねて出せないため）。
@@ -168,7 +169,7 @@ public struct GameSetupSection<Content: View>: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title).themeBody(15).foregroundStyle(Theme.inkSub)
+            Text(title).themeBody(15).foregroundStyle(Theme.inkSubText)
             content
         }
     }
@@ -197,6 +198,8 @@ public struct GameSetupChooser: View {
         public var titleMinimumScale: CGFloat?
         /// 副題の縮小率。同上。
         public var subtitleMinimumScale: CGFloat?
+        /// 題名に使う行数の上限（既定 2）。1 にすると折り返さずに縮めて収める（将棋の 5 段の並び・#2698）。
+        public var titleLineLimit: Int = 2
 
         public init(
             title: TitleFont = .title(22),
@@ -255,7 +258,7 @@ public struct GameSetupChooser: View {
                 if let icon {
                     Image(systemName: icon)
                         .scaledFont(15, weight: .bold, maxScale: 1.2)
-                        .foregroundStyle(selected ? onAccent : Theme.inkSub)
+                        .foregroundStyle(selected ? onAccent : Theme.inkSubText)
                 }
                 titleText
                 // 副題が空のときは行ごと出さない（CPU の強さの5段階だけは、狭い端末で
@@ -269,7 +272,7 @@ public struct GameSetupChooser: View {
                     .shadow(color: .black.opacity(selected ? 0.15 : 0.06), radius: 6, y: 3)
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pop)
         // 選択中であることを VoiceOver にも伝える（面の色だけでは読み上げに出ない）。
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
     }
@@ -283,13 +286,13 @@ public struct GameSetupChooser: View {
             }
         }
         .foregroundStyle(selected ? onAccent : Theme.ink)
-        .modifier(ShrinkToFit(minimumScale: metrics.titleMinimumScale))
+        .modifier(ShrinkToFit(minimumScale: metrics.titleMinimumScale, lineLimit: metrics.titleLineLimit))
     }
 
     private var subtitleText: some View {
         Text(subtitle)
             .font(.system(size: metrics.subtitleSize, weight: .semibold, design: .rounded)) // fixed-size: セットアップ部品の寸法定数（metrics.subtitleSize）で揃える。枠が固定寸法のため追従させない
-            .foregroundStyle(selected ? onAccent : Theme.inkSub)
+            .foregroundStyle(selected ? onAccent : Theme.inkSubText)
             .modifier(ShrinkToFit(minimumScale: metrics.subtitleMinimumScale))
     }
 }
@@ -299,11 +302,28 @@ public struct GameSetupChooser: View {
 /// 末尾が `...` になったりするのを防ぐ・#2318）。
 private struct ShrinkToFit: ViewModifier {
     let minimumScale: CGFloat?
+    var lineLimit: Int = 2
 
     func body(content: Content) -> some View {
         content
-            .lineLimit(2)
+            .lineLimit(lineLimit)
             .minimumScaleFactor(minimumScale ?? 0.6)
             .padding(.horizontal, 4)
+    }
+}
+
+// MARK: - iPad での大きさ（#3186）
+
+private extension View {
+    /// iPad では何も指定しないと約 578×645pt の定型サイズで開き、下が大きく空く／ルールの要点が切れる。
+    /// iOS 18 以上は `.page`（画面に合わせた大きさ）にする。iPhone は常に全幅の `.large` なので見た目は変わらない。
+    /// 最低 OS が 17 のため、17 では従来どおり（何も付けない）。
+    @ViewBuilder
+    func setupSheetPageSizing() -> some View {
+        if #available(iOS 18.0, macOS 15.0, *) {
+            self.presentationSizing(.page)
+        } else {
+            self
+        }
     }
 }

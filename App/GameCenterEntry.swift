@@ -1,4 +1,5 @@
 import GameKit
+import UIKit
 
 /// 実績・ランキング画面への導線（#334）。
 ///
@@ -36,5 +37,24 @@ enum GameCenterEntry {
         }
         GKAccessPoint.shared.trigger(state: .dashboard) {}
         return .openedDashboard
+    }
+
+    /// 未サインインで出せるサインイン画面も無いときの案内の文言（ハブの「きろく」と、ゲーム内の導線で共有）。
+    static var signInGuidanceTitle: String { tr("Game Center にサインインしていません") }
+    static var signInGuidanceMessage: String {
+        tr("iPhone の「設定」＞「Game Center」からサインインすると、実績と世界のランキングを見られます。サインインしなくても、あそびはすべてそのまま遊べます。")
+    }
+
+    /// ゲーム内の導線（ねこさがしの「ランキングを見る」・#3204）から開く。`needsSignInGuidance` のときは、
+    /// ハブと同じ案内をいちばん手前の画面（開始シートの上）にアラートで出す（黙って無反応にしない）。
+    static func openShowingGuidance() {
+        guard open() == .needsSignInGuidance else { return }
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+        guard var presenter = scene?.keyWindow?.rootViewController else { return }
+        while let presented = presenter.presentedViewController, !presented.isBeingDismissed { presenter = presented }
+        let alert = UIAlertController(title: signInGuidanceTitle, message: signInGuidanceMessage, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .cancel))
+        presenter.present(alert, animated: true)
     }
 }

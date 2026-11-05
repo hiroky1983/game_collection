@@ -7,7 +7,7 @@ public struct MahjongModule: GameModule {
     /// 一度出したら変えられない（変えると過去の記録と結びつかなくなる）。
     public let id = "mahjong4"
     public var title: String { tr("麻雀") }
-    public var description: String { tr("CPU3人と東風戦。立直・鳴きあり！") }
+    public var description: String { tr("CPU3人と東風戦・半荘戦。立直・鳴きあり！") }
     /// 並んだ牌に見える記号。将棋が `square.grid.3x3.fill` を使っているので同じ形は避ける
     /// （ハブのカードはアイコンで見分けるため、被ると別のゲームに見える）。
     public var icon: Image { Image(systemName: "rectangle.3.group.fill") }
@@ -33,10 +33,25 @@ public struct MahjongModule: GameModule {
         return Self.isUntouched(snap)
     }
 
+    /// 復元した盤の区分（#3225）。手つかずの開き直しの `game_start` / `game_end` に載せる。
+    public func untouchedSnapshotPlayClass(in snapshots: SnapshotStore) -> PlayClass {
+        guard let snap = snapshots.load(MahjongSnapshot.self, for: id) else { return PlayClass() }
+        return PlayClass(mode: (snap.gameLength ?? .tonpuu).analyticsMode)
+    }
+
     private static func isUntouched(_ snap: MahjongSnapshot) -> Bool {
         snap.roundNumber == 1 && snap.honba == 0 && snap.dealer == 0
             && snap.handResult == nil
             && snap.discards.allSatisfy(\.isEmpty)
             && (snap.melds ?? []).allSatisfy(\.isEmpty)
+    }
+
+    /// 局の名前（「東2局」「南3局」）。リザルト中の中断は決着した局を出す（`MahjongModel.displayedRoundNumber` と同じ）。
+    /// 一局戦は進み具合が意味を持たないので出さない。
+    public func resumeProgress(in snapshots: SnapshotStore) -> String? {
+        guard let snap = snapshots.load(MahjongSnapshot.self, for: id) else { return nil }
+        let length = snap.gameLength ?? .tonpuu
+        guard length != .singleHand else { return nil }
+        return length.roundName(forRound: snap.handResult?.roundNumber ?? snap.roundNumber)
     }
 }

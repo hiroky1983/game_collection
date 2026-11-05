@@ -1,4 +1,5 @@
 import Core
+import CoreOjisanPixel
 import Foundation
 
 /// 走者のコマの選び方と絵の置き方（#701）。

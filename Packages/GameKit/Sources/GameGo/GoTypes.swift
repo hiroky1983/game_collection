@@ -111,6 +111,11 @@ public struct GoBoard: Hashable, Sendable {
         set { self[point.row, point.col] = newValue }
     }
 
+    /// 範囲内ならその交点の石、範囲外なら `nil`（#3141）。盤が縮む新規の差分更新で旧添字の子が評価されても落ちないようにする。
+    public func stone(row: Int, col: Int) -> GoStone? {
+        contains(row: row, col: col) ? self[row, col] : nil
+    }
+
     public func contains(row: Int, col: Int) -> Bool {
         row >= 0 && row < size && col >= 0 && col < size
     }

@@ -41,6 +41,8 @@ private func playToFinish(_ model: OldMaidModel, maxTurns: Int = 3_000) async ->
     var turns = 0
     while model.phase == .playing, turns < maxTurns {
         turns += 1
+        // ジョーカーを引いた直後の引き直しの返事待ちは断って進める（#3251）。
+        if model.canRedraw { model.declineRedraw() }
         await model.runCPUTurnsIfNeeded()
         guard model.phase == .playing, model.isPlayerTurn, let target = model.humanTarget else { continue }
         model.toggleSelection(model.hands[target][0].id)
@@ -232,6 +234,7 @@ struct OldMaidModelFaceTests {
         #expect(model.lastDrawnCardID == OldMaidCard.jokerID)
         #expect(model.isJokerWatched)
         let before = Set(model.playerHand)
+        model.declineRedraw()   // 引き直しの返事待ちのあいだは混ぜられない（#3251）
         model.shuffleHand()
         #expect(!model.isJokerWatched)
         #expect(Set(model.playerHand) == before)
@@ -323,5 +326,47 @@ struct OldMaidPersistenceTests {
                 recordKey: "oldmaid#\(strength.recordVariantKey)", language: .japanese))
             #expect(model.recordScore.variantLabel != nil)
         }
+    }
+}
+
+// MARK: - CPU 手番キー（#3146）
+
+@MainActor
+struct OldMaidCPUTurnKeyTests {
+    /// `OldMaidView` は `.task(id: model.cpuTurnKey)` 1 か所で CPU を起こす。キーが変わらない操作があると、
+    /// その操作の後に CPU 番のまま止まる。
+    @Test("引く・CPU の着手・新しいゲームのどれでも手番キーが変わる")
+    func keyChangesAfterEveryTurnAdvancingOperation() async {
+        let model = makeModel()
+        var seen: Set<AITurnKey> = []
+        func expectFreshKey(_ what: String) {
+            #expect(seen.insert(model.cpuTurnKey).inserted, "\(what)の後に手番キーが変わらない")
+        }
+        model.startGame()
+        expectFreshKey("新しいゲーム")
+        var humanDraws = 0
+        var steps = 0
+        while model.phase == .playing, steps < 3_000, humanDraws < 3 {
+            steps += 1
+            let before = model.cpuTurnKey
+            await model.runCPUTurnsIfNeeded()
+            if model.cpuTurnKey != before { expectFreshKey("CPU の着手") }
+            guard model.phase == .playing, model.isPlayerTurn, let target = model.humanTarget else { continue }
+            model.toggleSelection(model.hands[target][0].id)
+            model.drawSelected()
+            humanDraws += 1
+            expectFreshKey("札を引く")
+        }
+        #expect(humanDraws > 0)
+        model.startGame()
+        expectFreshKey("対局の作り直し")
+    }
+
+    @Test("CPU の手番は手番キーの .task(id:) 1 か所で起こし、操作側から手で起こさない")
+    func viewDrivesCPUFromSingleTask() throws {
+        let code = SourceScan.strippingComments(try SourceScan.packageSource("Sources/GameOldMaid/OldMaidView.swift"))
+        #expect(code.contains(".task(id: CPUDriveKey(turn: model.cpuTurnKey"))
+        #expect(code.components(separatedBy: "runCPUTurnsIfNeeded()").count - 1 == 1)
+        #expect(!code.contains("cpuTask") && !code.contains("runCPU()"))
     }
 }

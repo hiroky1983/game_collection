@@ -291,6 +291,9 @@ public final class FruitsModel {
         persist()
         // `game_end` は送信済みなので、続きは次の 1 プレイとして数え直す（#158）。
         services?.gameDidRestart(gameID: Self.gameID)
+        // 続きの盤面は既に遊んだ盤面。`drop()` を待つと、落とさず「はじめから」を押したとき
+        // `game_end`(quit) が出ない。`gameDidProgress` は冪等なので次の `drop()` でも二重に数えない。
+        services?.gameDidProgress(gameID: Self.gameID)
         return true
     }
 

@@ -665,6 +665,28 @@
         }
       }
     },
+    "空き 約52〜56" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "About 52-56 blanks"
+          }
+        }
+      }
+    },
+    "上級" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expert"
+          }
+        }
+      }
+    },
     "空き 約46〜50" : {
       "extractionState" : "manual",
       "localizations" : {

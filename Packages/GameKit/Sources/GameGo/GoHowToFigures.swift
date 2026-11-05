@@ -1,4 +1,5 @@
 import Core
+import CoreMiniBoard
 import SwiftUI
 
 /// 図入りの遊び方（#2044）の囲碁の図。文言は `HowToPlayGuide.go.items`（Core）と同じ順。
@@ -24,7 +25,7 @@ enum GoHowToFigures {
                         }
                     }
                     RuleFigureLabel(index == 0 ? tr("交点をタップ") : tr("石が置かれる"),
-                                    color: index == 0 ? Theme.coralText : Theme.inkSub)
+                                    color: index == 0 ? Theme.coralText : Theme.inkSubText)
                 }
             }
         }
@@ -47,7 +48,7 @@ enum GoHowToFigures {
                         }
                     }
                     RuleFigureLabel(index == 0 ? tr("最後のすき間を埋める") : tr("白が取り上げられる"),
-                                    color: index == 0 ? Theme.coralText : Theme.inkSub)
+                                    color: index == 0 ? Theme.coralText : Theme.inkSubText)
                 }
             }
         }

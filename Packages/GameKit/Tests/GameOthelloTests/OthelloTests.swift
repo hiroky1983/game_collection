@@ -293,6 +293,25 @@ struct OthelloPassDeadlockTests {
         #expect(model.gameOver == false)
     }
 
+    /// #3104: View の `onChange` が発火しなくても、Model の `performAIMoveIfNeeded()` が人間側のパスを確定する。
+    /// 確定しないと着手も「待った」も塞がって投了しか残らない。
+    @Test func performAIMoveIfNeededConfirmsHumanPass() async throws {
+        let store = MemorySnapshotStore()
+        try store.save(
+            othelloSnapshot(cells: othelloCells(othelloWhiteMustPassDiagram),
+                            currentStone: .white, humanSide: .white, mustPass: true),
+            for: "othello")
+        let model = OthelloModel(services: makeServices(store), flipSettleDelay: .zero)
+        try #require(model.mustPass && !model.isAITurn)
+
+        await model.performAIMoveIfNeeded()
+
+        #expect(model.mustPass == false)
+        #expect(model.currentStone == .black)
+        #expect(model.passEventID == 1)
+        #expect(model.humanPassEventID == 1)
+    }
+
     /// パスは石が動かない操作なので、押した 1 回の触覚だけが手応えになる（#2540）。
     @Test func confirmPassGivesLightImpactOnce() throws {
         let store = MemorySnapshotStore()

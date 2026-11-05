@@ -82,6 +82,9 @@ public struct GameServices {
     /// 「続きから戻れる途中の局か」の判定（#1847）。ハブの「続きから」と同じ `GameModule.hasResumableSnapshot` を
     /// App 層が差し込む。nil（テスト・プレビュー）のときは「中断データが在る」だけで見る。
     public let isResumable: ((String, SnapshotStore) -> Bool)?
+    /// Game Center のダッシュボード（実績・ランキング）を開く入口（#3204。ねこさがしのイベントの「ランキングを見る」）。
+    /// App 層が差し込む。nil（テスト・プレビュー）のときは導線を出さない。
+    public let openGameCenter: (@MainActor () -> Void)?
 
     public init(
         snapshots: SnapshotStore,
@@ -98,7 +101,8 @@ public struct GameServices {
         returnReminder: ChallengeReturnReminderService? = nil,
         homerunSound: HomerunSoundService = NoopHomerunSoundService(),
         haptics: FeedbackService = NoopFeedbackService(),
-        isResumable: ((String, SnapshotStore) -> Bool)? = nil
+        isResumable: ((String, SnapshotStore) -> Bool)? = nil,
+        openGameCenter: (@MainActor () -> Void)? = nil
     ) {
         self.snapshots = snapshots
         self.ads = ads
@@ -115,6 +119,7 @@ public struct GameServices {
         self.homerunSound = homerunSound
         self.haptics = haptics
         self.isResumable = isResumable
+        self.openGameCenter = openGameCenter
     }
 
     /// ゲーム画面を開いて新規にプレイが始まったときに各 Model から呼ぶ（#158）。
@@ -140,9 +145,10 @@ public struct GameServices {
     /// `gameDidStart` は冪等なので、Model が既に数えていれば何も増えない。画面が出たあとに呼ぶのは、
     /// 難易度などを持つ Model の `gameDidStart` を先に通すため。
     @MainActor
-    public func gameScreenDidAppear(gameID: String, hasUntouchedSnapshot: Bool) {
+    public func gameScreenDidAppear(gameID: String, hasUntouchedSnapshot: Bool, playClass: PlayClass = PlayClass()) {
         guard hasUntouchedSnapshot else { return }
-        gameDidStart(gameID: gameID)
+        // 復元した盤の `level` / `mode` を載せる（#3225）。載せないと後の `game_end` からも区分が落ちる。
+        gameDidStart(gameID: gameID, level: playClass.level, mode: playClass.mode)
     }
 
     /// 「新しいゲーム」「次のラウンド」で次のプレイを始めたときに各 Model から呼ぶ（#158）。
@@ -157,6 +163,13 @@ public struct GameServices {
         reminders?.gameDidBeginPlay(gameID: gameID)
     }
 
+    /// 「新しいゲーム」で盤を手つかずに戻し、次の `gameDidRestart` を最初の操作まで遅らせる Model が、
+    /// 戻した時点で呼ぶ（#3226）。進行中のプレイがあればその場で閉じる（指していれば `game_end`（`quit`））。
+    @MainActor
+    public func gameDidAbandon(gameID: String) {
+        analytics?.abandonPlay(gameID: gameID)
+    }
+
     /// そのプレイで**1手指した**（盤面が動いた）ときに各 Model から呼ぶ（#500）。冪等。
     ///
     /// この1点だけが「捨てたら途中離脱として数える盤面か」を決める。配っただけ・開いただけの
@@ -167,6 +180,13 @@ public struct GameServices {
         reminders?.gameDidBeginPlay(gameID: gameID)
     }
 
+    /// 「待った」で**開始局面まで戻した**（盤が手つかずに戻った）ときに各 Model から呼ぶ（#3133）。
+    /// `gameDidProgress` で立てた「捨てたら途中離脱」の印を戻す。冪等。
+    @MainActor
+    public func gameDidUndoToStart(gameID: String) {
+        analytics?.clearProgress(gameID: gameID)
+    }
+
     /// ヒントを**1回使った**（無料・広告のどちらでも）ときに各 Model から呼ぶ（#1326・#1500）。`game_end` の `hints_used` に載る。
     ///
     /// 途中離脱の `game_end` は Model を経由せず共通経路で出るため、決着時に値を渡す形ではなく
@@ -174,6 +194,20 @@ public struct GameServices {
     @MainActor
     public func gameDidUseHint(gameID: String) {
         analytics?.recordHintUsed(gameID: gameID)
+    }
+
+    /// 「猫を教える」を**1回使った**（無料・広告のどちらでも）ときに各 Model から呼ぶ（#3232）。`game_end` の `teach_used` に載る。
+    /// ヒント（`gameDidUseHint`）とは別に数える。
+    @MainActor
+    public func gameDidUseTeach(gameID: String) {
+        analytics?.recordTeachUsed(gameID: gameID)
+    }
+
+    /// ステージのクリアで稼いだイベントのポイントを伝える（#3204）。そのクリアの `gameDidFinish` の**前**に呼ぶと、
+    /// `game_end` に `event_points` として載る。
+    @MainActor
+    public func gameDidEarnEventPoints(gameID: String, points: Int) {
+        analytics?.recordEventPoints(gameID: gameID, points: points)
     }
 
     /// この局は**画面を離れたら失われる**ことを各 Model から伝える（#500）。
@@ -260,6 +294,12 @@ public struct GameServices {
         analytics?.recordShareTap(gameID: gameID)
     }
 
+    /// ゲーム内の特典（ねこさがしのデイリーランキング上位・#3256）を渡したときに呼ぶ。`reward_grant` を送るだけ。
+    @MainActor
+    public func gameDidGrantReward(gameID: String, rank: Int, items: RewardGrantItems) {
+        analytics?.recordRewardGrant(gameID: gameID, rank: rank, items: items)
+    }
+
     /// リワード広告を出し、**要求した時点で** `reward_request`、**視聴完了したときだけ**
     /// `reward_ad` を送る（#500 / #659）。
     ///
@@ -294,7 +334,7 @@ public struct GameServices {
     /// 決着ではない（`gameDidFinish` は呼ばない）。解析が原因を覚えておき、そのプレイの
     /// `game_end` に「最後のミスの原因」（`cause`）として載せる。イベントの種類は増やさない。
     @MainActor
-    public func gameDidMiss(gameID: String, cause: AnalyticsEndCause, progressPercent: Int? = nil) {
+    public func gameDidMiss(gameID: String, cause: AnalyticsEndCause?, progressPercent: Int? = nil) {
         analytics?.recordMissCause(gameID: gameID, cause: cause, progressPercent: progressPercent)
     }
 
@@ -309,7 +349,8 @@ public struct GameServices {
     ///   - isReviewHighlight: その勝ちが評価リクエストの「見せ場」か（#1471）。既定は true
     ///     （＝勝てば見せ場）。ブラックジャックのブラックジャック・ポーカーの役・対 CPU 盤面ゲームの
     ///     強さなど、勝ちの中でも絞りたいゲームだけ false を渡す。**自己ベストの更新は、ここで渡した
-    ///     値にかかわらず全ゲーム共通で見せ場になる**（連勝記録は含めない）。
+    ///     値にかかわらず全ゲーム共通で見せ場になる**。同じく全ゲーム共通で、そのゲームの記録が
+    ///     ちょうど 3 連勝に達した回と、Game Center の実績を新たに解除した回も見せ場になる（#3097）。
     /// - Returns: 更新後の自己ベストと更新内訳。リザルトに `RecordLabel` で 1 行出すのに使う。
     ///   記録を持たない構成（テスト・プレビュー）では nil。
     @MainActor
@@ -328,9 +369,20 @@ public struct GameServices {
         // 中断データに残すため、中断データの有無だけでは途中の局と見分けられない。
         reminders?.gameDidFinish(gameID: gameID)
         let isNewScoreBest = result.map { $0.update.points || $0.update.highestValue || $0.update.seconds || $0.update.moves } ?? false
+        // 3 連勝（CPU の強さを問わない・ちょうど 3 に達した回だけ・#3097）。
+        let reachedThreeWinStreak = outcome == .win && result?.record.currentStreak == 3
+        // 実績の新規達成（#3097）。`review`（勝利数）と `recommendations`（遊んだゲーム）が `PlayLog` を
+        // 更新する**前**の値から判定する。Game Center への送信はこれまでどおり最後。
+        let unlocksAchievement = gameCenter?.wouldUnlockAchievement(
+            gameID: gameID,
+            outcome: outcome,
+            totalWins: playLog?.totalWins ?? 0,
+            playedGameIDs: playLog?.playedGameIDs ?? []
+        ) ?? false
         let willRequestReview = review?.gameDidFinish(
             outcome: outcome,
-            isHighlight: isReviewHighlight || isNewScoreBest
+            isHighlight: isReviewHighlight || isNewScoreBest || reachedThreeWinStreak || unlocksAchievement,
+            gameID: gameID
         ) ?? false
         recommendations?.gameDidFinish(gameID: gameID, isSuppressedByOtherPrompt: willRequestReview)
         // Game Center（#289）は**最後**に呼ぶ。実績の進捗は `PlayLog` の通算値から作るため、

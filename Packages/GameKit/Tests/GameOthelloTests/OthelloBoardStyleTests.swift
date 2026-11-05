@@ -115,4 +115,47 @@ struct OthelloBoardStyleTests {
         // 勝敗の確認を待たせすぎない上限。
         #expect(OthelloBoardStyle.resultOverlayFadeDuration <= 0.4)
     }
+
+    // MARK: - 直前手マーカー（#3093）
+
+    private static func averageFace(top: UInt32, bottom: UInt32) -> (Double, Double, Double) {
+        let t = components(top), b = components(bottom)
+        return ((t.0 + b.0) / 2, (t.1 + b.1) / 2, (t.2 + b.2) / 2)
+    }
+
+    @Test("白石の上の直前手の点は石の面に対して 3:1 以上")
+    func lastMoveDotOnWhiteMeetsNonTextContrast() {
+        for face in [OthelloBoardStyle.stoneWhiteFaceTop, OthelloBoardStyle.stoneWhiteFaceBottom] {
+            let dot = Self.composite(OthelloBoardStyle.lastMoveDotOnWhite, over: face,
+                                     alpha: OthelloBoardStyle.lastMoveDotOnWhiteOpacity)
+            #expect(Self.contrast(dot, Self.components(face)) >= Self.nonTextMinimum)
+        }
+    }
+
+    @Test("黒石の上の直前手の点は石の面に対して 3:1 以上")
+    func lastMoveDotOnBlackMeetsNonTextContrast() {
+        for face in [OthelloBoardStyle.stoneBlackFaceTop, OthelloBoardStyle.stoneBlackFaceBottom] {
+            let dot = Self.composite(OthelloBoardStyle.lastMoveDotOnBlack, over: face,
+                                     alpha: OthelloBoardStyle.lastMoveDotOnBlackOpacity)
+            #expect(Self.contrast(dot, Self.components(face)) >= Self.nonTextMinimum)
+        }
+    }
+
+    /// 改善前の「盤の緑 50%」は白石の上で 3:1 に届かなかった、という前提を固定する。
+    @Test("改善前の緑 50% の点は白石の上で 3:1 に届かない")
+    func previousLastMoveDotFailedOnWhite() {
+        let face = Self.averageFace(top: OthelloBoardStyle.stoneWhiteFaceTop,
+                                    bottom: OthelloBoardStyle.stoneWhiteFaceBottom)
+        let g = Self.components(OthelloBoardStyle.boardGreen)
+        let before = (0.5 * g.0 + 0.5 * face.0, 0.5 * g.1 + 0.5 * face.1, 0.5 * g.2 + 0.5 * face.2)
+        #expect(Self.contrast(before, face) < Self.nonTextMinimum)
+    }
+
+    @Test("直前手の輪は石の縁の外側に収まる")
+    func lastMoveRingStaysInsideCell() {
+        let outer = OthelloBoardStyle.stoneRadiusRatio
+            + (OthelloBoardStyle.lastMoveRingGap + OthelloBoardStyle.lastMoveRingLineWidth / 2) / 36
+        #expect(outer < 0.5 + 0.05)
+        #expect(OthelloBoardStyle.lastMoveDotRadiusRatio < 0.5)
+    }
 }

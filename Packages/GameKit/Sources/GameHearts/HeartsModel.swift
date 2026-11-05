@@ -36,6 +36,10 @@ struct HeartsSnapshot: Codable {
     let receivedIDs: [Int]
     let aiLevel: Int
     let turnSerial: Int
+    /// 渡す場面のヒントを使った回数（#3003）。鍵を持たない古い中断データは未使用として読む。
+    let hintsUsed: Int?
+    /// 渡す場面で光らせている 3 枚の札 ID（#3140）。鍵を持たない古い中断データは印なしとして読む。
+    let passHintIDs: [Int]?
 }
 
 // MARK: - Model
@@ -90,6 +94,11 @@ public final class HeartsModel: AITurnGuarded {
     public private(set) var turnSerial = 0
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに 1 行出す。
     public private(set) var recordResult: RecordResult?
+    /// 渡す場面のヒントの残り（#3003）。回数・広告での補充・順位表の扱いは Core の `BoardHintBudget`
+    /// （将棋・チェス・15パズルなどと共通）。1 対局で数え、`startMatch` で戻る。
+    public private(set) var passHints = BoardHintBudget()
+    /// ヒントが示した「渡すとよい 3 枚」の ID。この手の渡す場面だけ持ち、保存しない。
+    public private(set) var passHintIDs: Set<Int> = []
     /// 対局の最初の手を配ったまま、まだ 1 枚も渡していない局か（#240）。保存しない。
     private var isUntouchedDeal = false
 
@@ -133,6 +142,15 @@ public final class HeartsModel: AITurnGuarded {
             receivedIDs     = Set(snap.receivedIDs)
             aiLevel         = snap.aiLevel
             turnSerial      = snap.turnSerial
+            passHints       = BoardHintBudget(used: snap.hintsUsed ?? 0)
+            // 印は渡す場面で、いまの手札にある札だけ戻す（食い違う保存は印なしにして回数だけ残す）。
+            if snap.phase == .passing, let ids = snap.passHintIDs, !ids.isEmpty,
+               Set(ids).isSubset(of: Set(snap.hands[Self.humanIndex].map(\.id))) {
+                passHintIDs = Set(ids)
+            }
+        } else if let last = services?.playLog?.lastStart(Int.self, gameID: gameID) {
+            // 中断データが無いときの開始シートの初期値は最後に選んだ強さ（#3151）。
+            aiLevel = CPUStrength.strength(for: last).rawValue
         }
     }
 
@@ -179,8 +197,37 @@ public final class HeartsModel: AITurnGuarded {
 
     /// 手札 1 枚のヒント（#190）。設定でオフ / 相手の番 / 全部出せる ときは `.none`。
     public func hint(for card: HeartsCard, playable: Set<Int>) -> HeartsCardHint {
+        // 渡す場面のヒントは押して求めたものなので、表示設定（オフ）には従わない。
+        if phase == .passing { return passHintIDs.contains(card.id) ? .recommendedPass : .none }
         guard hints.isEnabled, isPlayerTurn, playable.count < playerHand.count else { return .none }
         return playable.contains(card.id) ? .playable : .unplayable
+    }
+
+    /// 渡す場面のヒントを押せるか。渡す場面で、残りがあり、この手でまだ示していないとき（同じ手札なら同じ答えなので 2 回は使わせない）。
+    public var canUseHint: Bool { phase == .passing && !passHints.isExhausted && passHintIDs.isEmpty }
+
+    /// 無料ぶんを使い切っていて、次の 1 回に広告が要るか。
+    public var needsAdForHint: Bool { !passHints.hasFreeRemaining && !passHints.isExhausted }
+
+    /// 渡す場面のヒントを無料で 1 回使う。使い切っていれば何もしない（広告の 1 回は `grantAdHint(forTurn:)`）。
+    public func requestHint() {
+        guard canUseHint, !needsAdForHint, passHints.consume() else { return }
+        showPassHint()
+    }
+
+    /// 広告を最後まで見たあとの 1 回。`turn` は広告を出す前に控えた `turnSerial`（手や対局が入れ替わっていたら適用せず false）。
+    @discardableResult
+    public func grantAdHint(forTurn turn: Int) -> Bool {
+        guard turn == turnSerial, canUseHint, needsAdForHint, passHints.consumeAd() else { return false }
+        showPassHint()
+        return true
+    }
+
+    private func showPassHint() {
+        passHintIDs = Set(HeartsCPU.recommendedPass(hand: playerHand).map(\.id))
+        services?.gameDidUseHint(gameID: gameID)
+        services?.feedback.impact(.light)
+        persist()
     }
 
     /// 人間の最終順位（0 始まり。同点は同じ順位）。決着していなければ nil。
@@ -206,10 +253,12 @@ public final class HeartsModel: AITurnGuarded {
     /// 新しい対局を始める（合計点を 0 に戻して 1 手目を配る）。
     public func startMatch(aiLevel: Int? = nil) {
         if let aiLevel { self.aiLevel = aiLevel }
+        services?.playLog?.saveLastStart(self.aiLevel, gameID: gameID)
         totals = Array(repeating: 0, count: Self.playerCount)
         handNumber = 0
         ranking = []
         recordResult = nil
+        passHints.reset()
         dealHand()
         isUntouchedDeal = true
         // 配ったばかりの局は保存しない。前の対局の中断データも残さない。
@@ -237,6 +286,7 @@ public final class HeartsModel: AITurnGuarded {
         lastTrickWinner = nil
         receivedIDs = []
         passSelection = []
+        passHintIDs = []
         selectedID = nil
         currentPlayer = Self.humanIndex
         turnSerial += 1
@@ -280,6 +330,7 @@ public final class HeartsModel: AITurnGuarded {
         hands = hands.map { $0.sorted { $0.sortKey < $1.sortKey } }
         receivedIDs = Set(passes[HeartsRules.passSource(to: Self.humanIndex)].map(\.id))
         passSelection = []
+        passHintIDs = []
         isUntouchedDeal = false
         currentPlayer = HeartsRules.startingPlayer(hands: hands)
         turnSerial += 1
@@ -360,11 +411,13 @@ public final class HeartsModel: AITurnGuarded {
     /// それ以外の強さは強さ別の区分に分ける（大富豪と同じ作法・#2604、#2716）。
     var recordScore: GameScore {
         let strength = CPUStrength.strength(for: aiLevel)
-        guard strength != .standard else { return GameScore(metric: .winLoss) }
+        // ヒントを 1 回でも使った対局は順位表へ送らない（`BoardHintBudget.winLossScore` と同じ扱い）。
+        guard strength != .standard else { return passHints.winLossScore }
         let variant = strength.recordVariantKey
         return GameScore(
             metric: .winLoss, variant: variant,
-            variantLabel: RecordVariantLabels.stored(gameID: gameID, variant: variant)
+            variantLabel: RecordVariantLabels.stored(gameID: gameID, variant: variant),
+            isLeaderboardEligible: !passHints.wasUsed
         )
     }
 
@@ -386,6 +439,10 @@ public final class HeartsModel: AITurnGuarded {
     }
 
     // MARK: - CPU
+
+    /// CPU の手番を起こす `.task(id:)` の識別子（#3146）。人間の操作・CPU の着手・新しい手のたびに必ず変わる
+    /// （`turnSerial` は新規対局でも戻さず増え続けるので、対局の通し番号と組にしなくても重ならない）。
+    public var cpuTurnKey: Int { turnSerial }
 
     /// CPU の手番とそろった巡の片付けを、人間の番になるか手が終わるまで進める。
     /// View から複数の契機で呼ばれても内部で 1 本に制限する（`withAITurnRunner`・#531）。
@@ -533,7 +590,9 @@ public final class HeartsModel: AITurnGuarded {
             lastTrickWinner: lastTrickWinner,
             receivedIDs: receivedIDs.sorted(),
             aiLevel: aiLevel,
-            turnSerial: turnSerial
+            turnSerial: turnSerial,
+            hintsUsed: passHints.used,
+            passHintIDs: passHintIDs.sorted()
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

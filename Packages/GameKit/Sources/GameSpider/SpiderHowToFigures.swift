@@ -1,4 +1,6 @@
 import Core
+import CoreMiniCard
+import CoreSolitaireFigures
 import SwiftUI
 
 /// 図入りの遊び方（#2044）のスパイダーソリティアの図。文言は `HowToPlayGuide.spider.items`（Core）と同じ順。

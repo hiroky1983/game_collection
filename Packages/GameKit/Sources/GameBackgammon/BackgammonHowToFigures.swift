@@ -1,4 +1,5 @@
 import Core
+import CoreMiniBoard
 import SwiftUI
 
 /// 図入りの遊び方（#2386）のバックギャモンの図。文言は `HowToPlayGuide.backgammon.items`（Core）と同じ順。
@@ -172,7 +173,7 @@ enum BackgammonHowToFigures {
                         }
                     }
                     RuleFigureLabel(index == 0 ? tr("1個だけの駒") : tr("バーへ送る"),
-                                    color: index == 0 ? Theme.inkSub : Theme.coralText)
+                                    color: index == 0 ? Theme.inkSubText : Theme.coralText)
                 }
             }
         }
@@ -203,7 +204,7 @@ enum BackgammonHowToFigures {
                     ])
                     Image(systemName: "arrow.right")
                         .scaledFont(12, weight: .black, maxScale: 1.2)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                     VStack(spacing: 2) {
                         Text(tr("あがり"))
                             .scaledFont(10, weight: .black, design: .rounded, maxScale: 1.15)

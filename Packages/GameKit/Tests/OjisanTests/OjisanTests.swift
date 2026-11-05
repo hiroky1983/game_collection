@@ -1,7 +1,7 @@
 import CoreGraphics
 import SwiftUI
 import Testing
-@testable import Core
+@testable import CoreOjisan
 
 /// おじさん（共通キャラクター・#700）の図案が、向き×表情の全組み合わせで成立していること。
 ///

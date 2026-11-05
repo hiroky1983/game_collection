@@ -258,6 +258,28 @@
         }
       }
     },
+    "3回振り切ったあと、広告を見るとその番にもう1回振れます（1ターンに最大3回）。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "After your 3 rolls, watch an ad to roll once more this turn (up to 3 times per turn)."
+          }
+        }
+      }
+    },
+    "12 の役を埋めたとき 0 点の役があれば、広告を見て 1 局に 1 回だけ、その役をやり直せます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "If any combo scored 0 when all 12 are filled, watch an ad to redo one of them, once per game."
+          }
+        }
+      }
+    },
     "12 の役をぜんぶ埋めたら終わり。合計点で自己ベストを目指そう。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -445,17 +467,6 @@
         }
       }
     },
-    "4 つのスートぶん" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "For all 4 suits"
-          }
-        }
-      }
-    },
     "52 枚すべて最初から見えています。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -496,6 +507,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Play against 3 CPUs from East 1 to East 4. Rankings go by points."
+          }
+        }
+      }
+    },
+    "CPU 3 人と東 1 局から南 4 局まで戦い、持ち点の多い順に順位が決まります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play East 1 through South 4 against 3 CPUs. Rankings go by points."
           }
         }
       }
@@ -596,28 +618,6 @@
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "① 選ぶ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "① Select"
-          }
-        }
-      }
-    },
-    "② 置き先" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "② Destination"
           }
         }
       }
@@ -875,39 +875,6 @@
         }
       }
     },
-    "うきわ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Swim ring"
-          }
-        }
-      }
-    },
-    "うし" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cow"
-          }
-        }
-      }
-    },
-    "うま" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Horse"
-          }
-        }
-      }
-    },
     "おじさんの荷物運びパズルの遊び方" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -930,39 +897,6 @@
         }
       }
     },
-    "かさ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Umbrella"
-          }
-        }
-      }
-    },
-    "きつね" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fox"
-          }
-        }
-      }
-    },
-    "きのこ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mushroom"
-          }
-        }
-      }
-    },
     "おじさんの盆栽の遊び方" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -970,28 +904,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "How to Play Ojisan no Bonsai"
-          }
-        }
-      }
-    },
-    "くつ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shoe"
-          }
-        }
-      }
-    },
-    "くり" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chestnut"
           }
         }
       }
@@ -1014,83 +926,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "If your opponent stops after you call Koi-Koi, their points are doubled."
-          }
-        }
-      }
-    },
-    "こおり" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ice"
-          }
-        }
-      }
-    },
-    "こま" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Spinning top"
-          }
-        }
-      }
-    },
-    "さかな" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fish"
-          }
-        }
-      }
-    },
-    "しか" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Deer"
-          }
-        }
-      }
-    },
-    "すいとう" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Water bottle"
-          }
-        }
-      }
-    },
-    "すし" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sushi"
-          }
-        }
-      }
-    },
-    "すず" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bell"
           }
         }
       }
@@ -1139,50 +974,6 @@
         }
       }
     },
-    "たいこ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Drum"
-          }
-        }
-      }
-    },
-    "たいやき" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Taiyaki"
-          }
-        }
-      }
-    },
-    "たけ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bamboo"
-          }
-        }
-      }
-    },
-    "たこ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Octopus"
-          }
-        }
-      }
-    },
     "たて 9 マス・よこ 9 マス・太線で囲んだ 3×3 のどれにも、同じ数字は 1 つまでです。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1227,17 +1018,6 @@
         }
       }
     },
-    "たまご" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Egg"
-          }
-        }
-      }
-    },
     "だれかが 50 点に届いたら終わり。合計の少ない人が勝ちです。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1249,17 +1029,6 @@
         }
       }
     },
-    "だんご" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dango"
-          }
-        }
-      }
-    },
     "ちがったらカードは伏せられ、CPU の番になります。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1267,17 +1036,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "If they don't match, they're turned back over and it's the CPU's turn."
-          }
-        }
-      }
-    },
-    "つき" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Moon"
           }
         }
       }
@@ -1337,39 +1095,6 @@
         }
       }
     },
-    "なす" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Eggplant"
-          }
-        }
-      }
-    },
-    "にく" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Meat"
-          }
-        }
-      }
-    },
-    "にわとり" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chicken"
-          }
-        }
-      }
-    },
     "はじめから" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1388,17 +1113,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "How to Play Quick Mental Math"
-          }
-        }
-      }
-    },
-    "ふね" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Boat"
           }
         }
       }
@@ -1469,39 +1183,6 @@
         }
       }
     },
-    "まんじゅう" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Steamed bun"
-          }
-        }
-      }
-    },
-    "めがね" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Glasses"
-          }
-        }
-      }
-    },
-    "めだまやき" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fried egg"
-          }
-        }
-      }
-    },
     "もう一回" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1524,39 +1205,6 @@
         }
       }
     },
-    "りんご" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apple"
-          }
-        }
-      }
-    },
-    "わたあめ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cotton candy"
-          }
-        }
-      }
-    },
-    "ウサギ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Rabbit"
-          }
-        }
-      }
-    },
     "オセロの遊び方" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1564,17 +1212,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "How to Play Osero"
-          }
-        }
-      }
-    },
-    "カメ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Turtle"
           }
         }
       }
@@ -1645,39 +1282,6 @@
         }
       }
     },
-    "ギター" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Guitar"
-          }
-        }
-      }
-    },
-    "クジラ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Whale"
-          }
-        }
-      }
-    },
-    "クマ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bear"
-          }
-        }
-      }
-    },
     "クリアの表示を閉じて盤面を見返します" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1700,28 +1304,6 @@
         }
       }
     },
-    "ケーキ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cake"
-          }
-        }
-      }
-    },
-    "コアラ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Koala"
-          }
-        }
-      }
-    },
     "コウや数え方など、細かい決まりは「くわしいルール」で見られます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1729,28 +1311,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "See “Detailed Rules” for ko, scoring, and other details."
-          }
-        }
-      }
-    },
-    "コップ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cup"
-          }
-        }
-      }
-    },
-    "ゴリラ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gorilla"
           }
         }
       }
@@ -1773,28 +1333,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "How to Play Dice Combos"
-          }
-        }
-      }
-    },
-    "シマウマ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zebra"
-          }
-        }
-      }
-    },
-    "スイカ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Watermelon"
           }
         }
       }
@@ -1920,17 +1458,6 @@
         }
       }
     },
-    "ダチョウ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ostrich"
-          }
-        }
-      }
-    },
     "チェスの遊び方" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2032,17 +1559,6 @@
         }
       }
     },
-    "ネコ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cat"
-          }
-        }
-      }
-    },
     "ノルマは かんたん 4 枚・ふつう 6 枚・むずかしい 9 枚です。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2120,24 +1636,24 @@
         }
       }
     },
-    "盤は 6×6・7×7・8×8 の 3 段階で、問題は毎回変わります（答えは 1 通り）。" : {
+    "盤は 6×6・7×7・8×8・9×9 の 4 段階で、問題は毎回変わります（答えは 1 通り）。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Boards come in 6×6, 7×7, and 8×8, with a new puzzle every time (one unique answer)."
+            "value" : "Boards come in 6×6, 7×7, 8×8, and 9×9, with a new puzzle every time (one unique answer)."
           }
         }
       }
     },
-    "ヒントは 1 問につき 3 回まで。記録はクリアまでのタイムです。" : {
+    "ヒントは 1 問につき無料で 1 回（広告を見ると増やせます）。記録はクリアまでのタイムです。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Up to 3 hints per puzzle. Your record is the time to clear."
+            "value" : "One free hint per puzzle (watch an ad for more). Your record is the time to clear."
           }
         }
       }
@@ -2395,17 +1911,6 @@
         }
       }
     },
-    "マイク" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Microphone"
-          }
-        }
-      }
-    },
     "マインスイーパーの遊び方" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2472,17 +1977,6 @@
         }
       }
     },
-    "マフラー" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Scarf"
-          }
-        }
-      }
-    },
     "マンカラの遊び方" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2490,50 +1984,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "How to play Mancala"
-          }
-        }
-      }
-    },
-    "ラクダ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Camel"
-          }
-        }
-      }
-    },
-    "ラッコ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sea otter"
-          }
-        }
-      }
-    },
-    "リス" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Squirrel"
-          }
-        }
-      }
-    },
-    "ワニ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Crocodile"
           }
         }
       }
@@ -4606,28 +4056,6 @@
         }
       }
     },
-    "空" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Empty"
-          }
-        }
-      }
-    },
-    "空いた列" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Empty column"
-          }
-        }
-      }
-    },
     "空いた列があると、山札は配れません。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4782,6 +4210,39 @@
         }
       }
     },
+    "今の進行を終了して始めますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit the current game and start over?"
+          }
+        }
+      }
+    },
+    "終了して始める" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit & start"
+          }
+        }
+      }
+    },
+    "今の盤面は失われます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The current board will be lost."
+          }
+        }
+      }
+    },
     "結果を閉じて盤面を見返します" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4888,17 +4349,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Let go the moment the shrinking ring overlaps the white target to swing. Put the cursor just under the ball to lift it; where you aim and when you let go set the direction."
-          }
-        }
-      }
-    },
-    "置けた" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Placed"
           }
         }
       }
@@ -5750,17 +5200,6 @@
         }
       }
     },
-    "× の付け外しはミスになりません。答えでないマスをダブルタップすると、赤い × が付いてミスになります（赤い × は消せません）。ミスが 3 回になると終わりです。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Adding or removing × never counts as a miss. Double-tapping a square that isn't part of the answer puts a red × there and counts as a miss (the red × can't be removed). Three misses end the game."
-          }
-        }
-      }
-    },
     "+%lld点" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6012,6 +5451,127 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$lld / %2$lld"
+          }
+        }
+      }
+    },
+    "経過%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elapsed %@"
+          }
+        }
+      }
+    },
+    "%1$lld分%2$lld秒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld min %2$lld sec"
+          }
+        }
+      }
+    },
+    "%lld秒" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld sec"
+          }
+        }
+      }
+    },
+    "新しいゲームはどうでしたか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How was the new game?"
+          }
+        }
+      }
+    },
+    "感想をお聞かせください" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "We'd love to hear what you think."
+          }
+        }
+      }
+    },
+    "App Store で感想を書く" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write a review on the App Store"
+          }
+        }
+      }
+    },
+    "あとで" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Later"
+          }
+        }
+      }
+    },
+    "今日の pt をシェア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share today's points"
+          }
+        }
+      }
+    },
+    "× の付け外しでライフは減りません。答えでないマスをダブルタップすると、赤い × が付いてライフが 1 つ減ります（赤い × は消せません）。ライフは 3 つで、0 になると終わりです。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adding or removing an × never costs a life. Double-tapping a square with no cat puts a red × there and costs one life (a red × can't be removed). You have 3 lives, and the game ends at 0."
+          }
+        }
+      }
+    },
+    "あなた" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You"
+          }
+        }
+      }
+    },
+    "プレイヤー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Player"
           }
         }
       }

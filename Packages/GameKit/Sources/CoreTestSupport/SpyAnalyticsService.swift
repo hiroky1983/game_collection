@@ -34,18 +34,23 @@ public final class SpyAnalyticsService: AnalyticsService {
 
     /// `game_end` に載った消費枠（#1685）。載せていないゲームは nil。
     public var endCredits: [AnalyticsCredit?] {
-        events.compactMap { if case let .gameEnd(_, _, _, _, _, _, credit, _, _) = $0 { return .some(credit) } else { return nil } }
+        events.compactMap { if case let .gameEnd(_, _, _, _, _, _, credit, _, _, _, _) = $0 { return .some(credit) } else { return nil } }
+    }
+
+    /// `game_end` に載ったイベントのポイント（#3204）。稼いでいない終わりは nil。
+    public var endEventPoints: [Int?] {
+        events.compactMap { if case let .gameEnd(_, _, _, _, _, _, _, _, _, points, _) = $0 { return .some(points) } else { return nil } }
     }
 
     /// `game_end` に載った難易度・面（#1888）。載せていないゲームは nil。
     public var endLevels: [AnalyticsLevel?] {
-        events.compactMap { if case let .gameEnd(_, _, _, _, _, _, _, level, _) = $0 { return .some(level) } else { return nil } }
+        events.compactMap { if case let .gameEnd(_, _, _, _, _, _, _, level, _, _, _) = $0 { return .some(level) } else { return nil } }
     }
 
     /// `game_end` の `game_id` / `result` / `duration_sec`。
     public var ends: [(gameID: String, result: AnalyticsResult, durationSec: Int)] {
         events.compactMap {
-            if case let .gameEnd(gameID, result, durationSec, _, _, _, _, _, _) = $0 {
+            if case let .gameEnd(gameID, result, durationSec, _, _, _, _, _, _, _, _) = $0 {
                 return (gameID, result, durationSec)
             }
             return nil
@@ -80,6 +85,14 @@ public final class SpyAnalyticsService: AnalyticsService {
     public var offers: [(gameID: String, purpose: RewardPurpose, result: RewardOfferResult)] {
         events.compactMap {
             if case let .rewardOffer(gameID, purpose, result) = $0 { return (gameID, purpose, result) }
+            return nil
+        }
+    }
+
+    /// ゲーム内の特典を渡した記録（#3256）。
+    public var grants: [(gameID: String, rank: Int, items: RewardGrantItems)] {
+        events.compactMap {
+            if case let .rewardGrant(gameID, rank, items) = $0 { return (gameID, rank, items) }
             return nil
         }
     }

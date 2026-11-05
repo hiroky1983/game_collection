@@ -24,7 +24,8 @@ struct MahjongTableScene {
     var seatWinds: [Int]
     /// 対局中の手番。決着後は nil。
     var currentPlayer: Int?
-    var roundNumber: Int
+    /// 卓中央に出す局の名前（「東2局」「南1局」。`MahjongGameLength.roundName(forRound:)`）。
+    var roundName: String
     var honba: Int
     var riichiSticks: Int
     var remainingTiles: Int
@@ -203,7 +204,7 @@ struct MahjongCenterPanel: View {
                         .strokeBorder(Color(hex: 0x3A3A40), lineWidth: max(1, w * 0.02)))
                     .shadow(color: .black.opacity(0.6), radius: w * 0.07, y: w * 0.045)
                 VStack(spacing: w * 0.02) {
-                    led(tr("東%lld局", scene.roundNumber), size: w * 0.14, design: .rounded)
+                    led(scene.roundName, size: w * 0.14, design: .rounded)
                     led("\(scene.remainingTiles)", size: w * 0.24)
                     led(tr("本場%1$lld 供託%2$lld", scene.honba, scene.riichiSticks), size: w * 0.095, design: .rounded)
                         // 左右の家の行（盤の縁から w × 0.40 に置く）の内側に収める
@@ -211,7 +212,7 @@ struct MahjongCenterPanel: View {
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(MahjongAccessibility.roundLabel(
-                    roundNumber: scene.roundNumber, honba: scene.honba, remainingTiles: scene.remainingTiles))
+                    roundName: scene.roundName, honba: scene.honba, remainingTiles: scene.remainingTiles))
                 seat(2, angle: 180, offset: CGSize(width: 0, height: -h * 0.40), unit: w)
                 seat(1, angle: -90, offset: CGSize(width: w * 0.40, height: 0), unit: w)
                 seat(3, angle: 90, offset: CGSize(width: -w * 0.40, height: 0), unit: w)

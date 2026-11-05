@@ -1,4 +1,5 @@
 import Core
+import CoreMiniCard
 import SwiftUI
 
 /// 図入りの遊び方（#2044）のババ抜きの図。文言は `HowToPlayGuide.oldMaid.items`（Core）と同じ順。
@@ -67,7 +68,7 @@ enum OldMaidHowToFigures {
                 example(face: .smile, label: tr("にやり→ジョーカーかも"), color: Theme.coralText) {
                     OldMaidCardFaceView(card: .joker, highlighted: true)
                 }
-                example(face: .worried, label: tr("ひやり→ほかの札かも"), color: Theme.inkSub) {
+                example(face: .worried, label: tr("ひやり→ほかの札かも"), color: Theme.inkSubText) {
                     RuleMiniCard("", isFaceDown: true, isHighlighted: true)
                 }
             }

@@ -78,16 +78,14 @@ struct PokerStartSheet: View {
                 Text(title)
                     .scaledFont(15, weight: .semibold, design: .rounded)
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .scaledFont(13, weight: .semibold)
-                    .foregroundStyle(Theme.inkSub)
+                DisclosureChevron(size: 13, weight: .semibold)
             }
             .foregroundStyle(Theme.coralText)
             .padding(16)
             .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
                 .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pop)
     }
 }
 
@@ -102,7 +100,7 @@ struct PointsTableSheet: View {
             ) {
                 Text(tr("その回に勝った側に、自分の役の点が入ります。負け・引き分けは 0 点です。"))
                     .scaledFont(12, weight: .medium, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 ForEach(PokerScoreTable.table) { entry in
                     HStack(spacing: 8) {
                         Text(entry.rank.description)

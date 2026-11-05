@@ -26,7 +26,7 @@ struct DiceComboOnboardingTests {
             #expect(model.dice.count == DiceComboLogic.diceCount)
         }
         #expect(!model.canRoll, "4 回目は振れない")
-        #expect(!model.canHold, "振り切ったあとはキープを変えられない")
+        #expect(model.canHold, "振り切ったあとも、広告で振り直せるあいだはキープを変えられる（#3257）")
     }
 
     @Test("キープの図: キープした位置の目は振り直しても同じ（図の振り直し後の目もそうなっている）")

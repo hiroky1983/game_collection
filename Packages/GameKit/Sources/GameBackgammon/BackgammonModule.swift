@@ -20,4 +20,21 @@ public struct BackgammonModule: GameModule {
     @MainActor public func makeView(services: GameServices) -> AnyView {
         AnyView(BackgammonView(services: services))
     }
+
+    /// 人間が一手も動かしていない局（オープニングロールで CPU が先手を取って先に動いただけ）は「続き」ではない（#2934）。
+    /// 鍵を持たない旧形式の中断データは従来どおり続きとして扱う。
+    public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
+        guard let snap = snapshots.load(BackgammonSnapshot.self, for: id) else { return false }
+        return snap.humanMoved ?? true
+    }
+
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        snapshots.exists(for: id) && !hasResumableSnapshot(in: snapshots)
+    }
+
+    /// 復元した盤の区分（#3225）。手つかずの開き直しの `game_start` / `game_end` に載せる。
+    public func untouchedSnapshotPlayClass(in snapshots: SnapshotStore) -> PlayClass {
+        guard let snap = snapshots.load(BackgammonSnapshot.self, for: id) else { return PlayClass() }
+        return PlayClass(level: CPUStrength.analyticsLevel(forLevel: snap.aiLevel))
+    }
 }

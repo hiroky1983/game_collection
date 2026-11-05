@@ -11,12 +11,40 @@ public struct DiceComboSnapshot: Codable, Equatable, Sendable {
     public var rollsUsed: Int
     /// 埋めた役の点。鍵は `DiceComboCategory.rawValue`（英字）。
     public var scores: [String: Int]
+    /// このターンに広告で振った回数（#3257）。旧データには無い（nil は 0 として読む）。
+    public var adRollsUsed: Int?
+    /// この局でコンティニュー（広告での 1 役やり直し）を使ったか（#3257）。旧データには無い（nil は未使用）。
+    public var continueUsed: Bool?
+    /// この局に広告で振った回数（#3341）。旧データには無い（nil は「このターンの回数」まで使った扱い）。
+    public var gameAdRollsUsed: Int?
 
-    public init(dice: [Int], held: [Bool], rollsUsed: Int, scores: [String: Int]) {
+    private enum CodingKeys: String, CodingKey {
+        case dice, held, rollsUsed, scores, adRollsUsed, continueUsed, gameAdRollsUsed
+    }
+
+    /// 従来の鍵は厳格に読み、後から足した鍵だけは型が合わなくても捨てて読む
+    /// （広告まわりの値が壊れていても、局そのものは再開できるようにする）。
+    /// 以前あった「役選びを戻す」の鍵（`undosRemaining`・`lastChoice`）は読み捨てる。
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        dice = try container.decode([Int].self, forKey: .dice)
+        held = try container.decode([Bool].self, forKey: .held)
+        rollsUsed = try container.decode(Int.self, forKey: .rollsUsed)
+        scores = try container.decode([String: Int].self, forKey: .scores)
+        adRollsUsed = try? container.decodeIfPresent(Int.self, forKey: .adRollsUsed)
+        continueUsed = try? container.decodeIfPresent(Bool.self, forKey: .continueUsed)
+        gameAdRollsUsed = try? container.decodeIfPresent(Int.self, forKey: .gameAdRollsUsed)
+    }
+
+    public init(dice: [Int], held: [Bool], rollsUsed: Int, scores: [String: Int],
+                adRollsUsed: Int? = nil, continueUsed: Bool? = nil, gameAdRollsUsed: Int? = nil) {
         self.dice = dice
         self.held = held
         self.rollsUsed = rollsUsed
         self.scores = scores
+        self.adRollsUsed = adRollsUsed
+        self.continueUsed = continueUsed
+        self.gameAdRollsUsed = gameAdRollsUsed
     }
 
     /// 1 回も振っていない手つかずの局か（ハブの「続きから」に出さない・#1847 / #2161）。

@@ -43,6 +43,9 @@ enum CatPuzzleHowToFigures {
         var solved = false
         var cellSide: CGFloat = CatPuzzleHowToFigures.cellSide
         var showsRoomLabels = true
+        /// 鍵の面の図（#3235）。鍵を持った猫の部屋と、鍵が閉じているか。
+        var keyRoom: Int? = nil
+        var keyLocked = false
         var body: some View {
             let sample = CatPuzzleHowToFigures.sample
             var marks = Array(repeating: CatPuzzleModel.Mark.empty, count: sample.cellCount)
@@ -50,7 +53,8 @@ enum CatPuzzleHowToFigures {
             for cell in cats { marks[cell] = .cat }
             let violations = CatPuzzleLogic.violations(puzzle: sample, cats: cats)
             return CatPuzzleBoardCanvas(puzzle: sample, marks: marks, conflicts: violations.cells,
-                                        wrongCrosses: wrongCrosses, isSolved: solved, showsRoomLabels: showsRoomLabels, cellSide: cellSide)
+                                        wrongCrosses: wrongCrosses, isSolved: solved, showsRoomLabels: showsRoomLabels,
+                                        keyRoom: keyRoom, keyLocked: keyLocked, cellSide: cellSide)
                 .padding(3)
                 .background(RoundedRectangle(cornerRadius: Theme.cornerSmall / 2, style: .continuous).fill(Theme.surface))
         }
@@ -88,7 +92,8 @@ enum CatPuzzleHowToFigures {
                     arrow("arrow.right")
                     frame(cats: [CatPuzzleHowToFigures.tapCell], caption: tr("ダブルタップ"))
                 }
-                RuleFigureLabel(tr("タップで × を付け外し、ダブルタップで猫"), color: Theme.coralText)
+                RuleFigureLabel(tr("タップで × を付け外し。ダブルタップでそのマスの猫を見つけます。"), color: Theme.coralText)
+                    .frame(width: 300)  // 長い文は 2 行に折る（SE のカード幅 315pt に収める）
             }
         }
 
@@ -98,7 +103,7 @@ enum CatPuzzleHowToFigures {
                 // 説明の無いコマも同じ高さにして、3 コマの盤の高さを揃える。
                 Text(caption ?? " ")
                     .scaledFont(10, weight: .bold, design: .rounded, maxScale: 1.2)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }
@@ -107,7 +112,7 @@ enum CatPuzzleHowToFigures {
         private func arrow(_ systemImage: String) -> some View {
             Image(systemName: systemImage)
                 .scaledFont(12, weight: .black, maxScale: 1.2)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 // 盤（4 マス＋余白）の縦の真ん中に合わせる。
                 .frame(height: CatPuzzleHowToFigures.frameCellSide * 4 + 6)
         }

@@ -4,6 +4,7 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 @testable import Core
+@testable import CoreOjisanPixel
 
 /// ドット絵の器（`PixelSprite`）とおじさんのコマ（`OjisanPixel`）が壊れていないこと。
 /// 絵の良し悪しは機械では測れないので、ここで縛るのは「格子が揃っている」「パレットに無い文字が無い」

@@ -293,6 +293,11 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             attemptMove(to: sq)
             return
         }
+        if sq == selectedSquare {
+            // 選んだ駒をもう一度叩いたら選択を取り消す（拒否ではないので触覚は鳴らさない）。
+            clearSelection()
+            return
+        }
         if let p = position.squares[sq], p.color == position.sideToMove {
             selectedSquare = sq
             services?.feedback.impact(.selection)
@@ -342,7 +347,8 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         moves.append(move)
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
         startPlayIfPending()
-        services?.gameDidProgress(gameID: gameID)
+        // CPU の着手では数えない。人間が未着手のまま離れたら離脱ではない（#3042）。
+        if mover == humanSide { services?.gameDidProgress(gameID: gameID) }
         clearSelection()
         // 盤が動いたらヒントの印は用済み（#1118）。示した手を指したかどうかは問わない。
         hintMove = nil
@@ -442,6 +448,8 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     /// 思考タスクの待ち合わせ点（テスト専用。本番では nil のまま）。
     /// `isThinking = true` と局面の取り込みが済んだ直後・探索の開始前に await する。
     @ObservationIgnored var thinkingGate: (@MainActor () async -> Void)?
+    /// ヒントの考える時間にかける倍率（テスト用。広告の回数の検査で探索を実時間で待たない・#2952）。出荷は 1。
+    @ObservationIgnored var hintThinkingScaleForTesting: Double = 1
 
     /// View の `.task(id:)` に渡す CPU 起動トリガー。
     /// 手数だけだと「0 手のまま黒番で新規対局を始めた」ときに値が変わらず、
@@ -509,10 +517,11 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         guard canUseHint else { return }
         await withAITurnGuard(key: \.aiTurnKey, thinking: \.isHintThinking) {
             let fen = position.toFEN()
+            let scale = hintThinkingScaleForTesting
             await thinkingGate?()
             return await Task.detached(priority: .userInitiated) {
                 // ヒントは対局中の CPU の強さに関わらず常に最強で読む（`BoardHintBudget.engineLevel`）。
-                await SimpleChessEngine.hint().bestMove(fen: fen)
+                await SimpleChessEngine.hint(thinkingScale: scale).bestMove(fen: fen)
             }.value
         } commit: { uci in
             // `canUseHint` は読みの旗が立ったままなのでここでは使えない。前提を個別に確かめ直す。
@@ -548,9 +557,10 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         var outcome: RewardedModelOutcome = .unavailable
         await withAITurnGuard(key: \.aiTurnKey, thinking: \.isHintThinking) {
             let fen = position.toFEN()
+            let scale = hintThinkingScaleForTesting
             await thinkingGate?()
             return await Task.detached(priority: .userInitiated) {
-                await SimpleChessEngine.hint().bestMove(fen: fen)
+                await SimpleChessEngine.hint(thinkingScale: scale).bestMove(fen: fen)
             }.value
         } commit: { uci in
             guard phase == .playing, !gameOver, !isAITurn, pendingPromotion == nil,
@@ -631,6 +641,14 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         reviewPly = moves.count
         undoUsed = true
         clearSelection()
+        // 人間がまだ指していない局（開始局面）まで戻したら、離脱の印を戻す。手が 0 手なら中断データも残さない（#3200）。
+        if !(0..<moves.count).contains(where: { mover(at: $0) == humanSide }) {
+            services?.gameDidUndoToStart(gameID: gameID)
+        }
+        if moves.isEmpty {
+            services?.snapshots.clear(for: gameID)
+            return
+        }
         persist()
     }
 

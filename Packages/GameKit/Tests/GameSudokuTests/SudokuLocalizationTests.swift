@@ -18,6 +18,6 @@ struct SudokuLocalizationTests {
     /// 記録の区分名は保存されるので、表示が英語でも日本語のまま（表示の英語化は #2168）。
     @Test("記録の区分名は日本語のまま")
     func recordLabelsStayJapanese() {
-        #expect(SudokuDifficulty.allCases.map(\.recordLabel) == ["かんたん", "ふつう", "むずかしい"])
+        #expect(SudokuDifficulty.allCases.map(\.recordLabel) == ["かんたん", "ふつう", "むずかしい", "上級"])
     }
 }

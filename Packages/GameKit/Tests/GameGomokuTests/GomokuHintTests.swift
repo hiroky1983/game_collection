@@ -250,7 +250,10 @@ struct GomokuAdHintTests {
     ) -> (GomokuModel, StubAdService) {
         let ads = StubAdService(rewardEarned: rewardEarned)
         let services = GameServices(snapshots: store, ads: ads, screenGeneration: screenGeneration)
-        return (GomokuModel(services: services), ads)
+        let model = GomokuModel(services: services)
+        // 回数・広告の流れを見る検査なので、手の質は問わない。8 回ぶんの探索を実時間で待たない（#2952）
+        model.hintThinkingScaleForTesting = 0.05
+        return (model, ads)
     }
 
     @Test("無料枠が残っているうちは広告を要求しない")
@@ -362,6 +365,7 @@ struct GomokuAdHintTests {
 
         let restoredServices = GameServices(snapshots: store, ads: NoopAdService())
         let restored = GomokuModel(services: restoredServices)
+        restored.hintThinkingScaleForTesting = 0.05
         #expect(restored.hintsRemaining == BoardHintBudget.total - (BoardHintBudget.perGame + 1))
         #expect(restored.needsAdForHint, "無料枠を使い切った状態のまま再開している")
     }

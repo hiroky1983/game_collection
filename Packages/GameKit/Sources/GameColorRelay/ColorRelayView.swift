@@ -6,10 +6,8 @@ public struct ColorRelayView: View {
     private let services: GameServices
     /// 引き札を広告で免除する救済（#1320）。
     @State private var waiveRescue = RewardedRescue()
-    /// 操作の後に CPU の手番を回すタスク。画面を離れたらキャンセルする（CodeRabbit 指摘・PR #1339）。
-    /// `.task` の側は View のライフサイクルで自動的にキャンセルされるが、ボタンから起こした
-    /// 非構造化タスクはそのままでは生き残り、画面外で CPU が打ち続けて決着・記録まで進んでしまう。
-    @State private var cpuTask: Task<Void, Never>?
+    /// 遊び方（図で見る遊び方を含む）を開いているか。開いているあいだ CPU の手番を止める（#2824）。
+    @State private var isHowToPlayOpen = false
     /// 進行中に右上の新規を押したときの確認（#2370）。
     @State private var showConfirmNewGame = false
     /// 右上の新規で開く開始シート（CPU の強さを選ぶ・#2604）。
@@ -59,11 +57,9 @@ public struct ColorRelayView: View {
         }
         // 図で見る遊び方（#2824）は「？」の中から開くので、開いているあいだは CPU の手番を止め、閉じたら続きを回す。
         .howToPlay(HowToPlayGuide.colorRelay.illustrated(ColorRelayHowToFigures.items).onboarding(ColorRelayOnboarding.guide),
-                   onPresent: { cpuTask?.cancel() }, onDismiss: { runCPU() }) { ColorRelayRuleSheet() }
+                   onPresent: { isHowToPlayOpen = true }, onDismiss: { isHowToPlayOpen = false }) { ColorRelayRuleSheet() }
         // 開始シートにも図で見る遊び方の入口があるので、開いているあいだは手番を止める。
-        .onChange(of: showNewGame) { _, isOpen in
-            if isOpen { cpuTask?.cancel() } else { runCPU() }
-        }
+        // 止める・続けるは下の `.task(id:)` が `isCPUPaused` の変化で受ける。
         .dialogs { anchor in
             anchor.confirmationDialog(tr("新規対局しますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
                 Button(tr("終了して新規対局"), role: .destructive) { showNewGame = true }
@@ -89,7 +85,13 @@ public struct ColorRelayView: View {
                 message: tr("広告を見ているあいだに番が進んだため、免除できませんでした。")
             )
         )
-        .onDisappear { cpuTask?.cancel() }
+        // CPU の手番はここ 1 か所で動かす（麻雀と同じ作り・#3146）。手番キーが変わる（人間の操作・CPU の着手・新しいゲーム・免除）か、
+        // 止める画面（遊び方・新規対局）の開閉が変わると作り直され、画面を離れれば止まる。
+        // 操作のたびに手で起こす形だと、新しい操作を足したとき 1 か所呼び忘れて CPU 番のまま止まる。
+        .task(id: CPUDriveKey(turn: model.cpuTurnKey, isPaused: isCPUPaused)) {
+            guard !isCPUPaused else { return }
+            await model.runCPUTurnsIfNeeded()
+        }
         .task {
             // 開幕のモーダルは置かず、盤を見せたまま配り始める（#192）。
             // 中断から戻ったときは init が `.playing` まで復元しているので配り直さない。
@@ -102,9 +104,16 @@ public struct ColorRelayView: View {
                 model.applyDebugScenario(args[i + 1])
             }
             #endif
-            // 中断から戻ったときに CPU の手番が止まったままにならないようにする。
-            runCPU()
         }
+    }
+
+    /// CPU の手番を止めておく画面（遊び方・新規対局）を開いているか（#2824）。
+    private var isCPUPaused: Bool { isHowToPlayOpen || showNewGame }
+
+    /// `.task(id:)` の識別子。手番の進行と、止める画面の開閉のどちらが変わっても CPU のタスクを作り直す。
+    private struct CPUDriveKey: Hashable {
+        let turn: Int
+        let isPaused: Bool
     }
 
     /// 勝ちが続いたら一段上の強さを勧める（#722・#2806）。並びは開始シートの「CPUの強さ」と同じ。
@@ -116,16 +125,9 @@ public struct ColorRelayView: View {
         }
     }
 
-    /// 新しい 1 ゲームを配って、CPU が親なら手番を回す（右上の新規・#2370）。
+    /// 新しい 1 ゲームを配る（右上の新規・#2370）。CPU が親なら手番キーの変化で `.task(id:)` が回す。
     private func startNewGame(aiLevel: Int, opponentCount: Int? = nil) {
         model.startGame(aiLevel: aiLevel, opponentCount: opponentCount)
-        runCPU()
-    }
-
-    /// 人間の操作の後に CPU の手番を回す。前のタスクは止めてから起こす（走者は `withAITurnRunner` が 1 本に保つ）。
-    private func runCPU() {
-        cpuTask?.cancel()
-        cpuTask = Task { await model.runCPUTurnsIfNeeded() }
     }
 
     // MARK: - 卓（#2369 案 B: 上段に相手 3 人・中段に山札と場札）
@@ -202,8 +204,8 @@ public struct ColorRelayView: View {
     /// 相手 1 人の席。アイコン・束・残り枚数・吹き出しの組み方は共通部品（`OpponentSeat`・#2531。大富豪と同じ見た目）。
     private func seat(_ index: Int) -> some View {
         let isCurrent = model.currentPlayer == index && model.phase == .playing
-        let count = model.hands[index].count
-        let action = model.lastActions[index]
+        let count = model.hands.indices.contains(index) ? model.hands[index].count : 0
+        let action = model.lastActions.indices.contains(index) ? model.lastActions[index] : ""
         let cardWidth = metrics.opponentCardWidth
         return OpponentSeat(
             index: index, diameter: metrics.seatDiameter, isCurrent: isCurrent, cardCount: count, lastAction: action,
@@ -235,7 +237,6 @@ public struct ColorRelayView: View {
         VStack(spacing: 4) {
             Button {
                 model.drawCard()
-                runCPU()
             } label: {
                 ZStack {
                     ColorRelayCardBack(width: width).offset(x: 4, y: 4).opacity(0.7)
@@ -316,7 +317,8 @@ public struct ColorRelayView: View {
     /// 自分の席の札（手札の見出し）。自分の番は黄色。
     private var youPill: some View {
         let isTurn = model.isPlayerTurn
-        let action = model.lastActions[ColorRelayModel.humanIndex]
+        let action = model.lastActions.indices.contains(ColorRelayModel.humanIndex)
+            ? model.lastActions[ColorRelayModel.humanIndex] : ""
         return HStack(spacing: 6) {
             Text(isTurn ? tr("あなたの番") : tr("あなた"))
                 .scaledFont(12, weight: .black, design: .rounded)
@@ -432,7 +434,6 @@ public struct ColorRelayView: View {
                 // 視聴中に引くと番が進み、見終えた広告が局ガードで弾かれて見損になる（#911 と同型）。
                 actionButton(tr("%lld枚引く", model.pendingDraw), role: .primary, disabled: waiveRescue.isWatching) {
                     model.takePenalty()
-                    runCPU()
                 }
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
@@ -441,7 +442,7 @@ public struct ColorRelayView: View {
             VStack(spacing: 6) {
                 Text(tr("次の色を選ぶ"))
                     .scaledFont(12, weight: .bold, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 HStack(spacing: 8) {
                     ForEach(RelayColor.allCases, id: \.self) { color in
                         colorChoiceButton(color)
@@ -455,18 +456,15 @@ public struct ColorRelayView: View {
                 if model.canEndTurn {
                     actionButton(tr("出さずに次へ"), role: .skip) {
                         model.endTurn()
-                        runCPU()
                     }
                 } else {
                     // 出せる札が無いときは押してほしいボタンとして主役の色にする（#2693）。
                     actionButton(tr("1枚引く"), role: model.mustDraw ? .primary : .skip, disabled: !model.canDraw) {
                         model.drawCard()
-                        runCPU()
                     }
                 }
                 actionButton(playButtonTitle, role: .primary, disabled: !model.canPlaySelection) {
                     model.playSelected()
-                    runCPU()
                 }
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
@@ -474,7 +472,6 @@ public struct ColorRelayView: View {
         case .result:
             actionButton(tr("もう一回"), role: .primary) {
                 model.startGame()
-                runCPU()
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
@@ -492,7 +489,6 @@ public struct ColorRelayView: View {
                 guardedBy: .checkedByGrant
             ) {
                 let applied = model.waivePenaltyAfterAd(forTurn: turn)
-                if applied { runCPU() }
                 return applied
             }
         } label: {
@@ -508,7 +504,6 @@ public struct ColorRelayView: View {
     private func colorChoiceButton(_ color: RelayColor) -> some View {
         Button {
             model.playSelected(color: color)
-            runCPU()
         } label: {
             VStack(spacing: 4) {
                 Capsule()
@@ -555,7 +550,8 @@ public struct ColorRelayView: View {
             HStack(spacing: 10) {
                 Image(systemName: model.playerPlace == 0 ? "crown.fill" : "flag.checkered")
                     .scaledFont(26)
-                    .foregroundStyle(model.playerPlace == 0 ? Theme.yellowText : Theme.inkSub)
+                    .foregroundStyle(model.playerPlace == 0 ? Theme.yellowText : Theme.inkSubText)
+                    .accessibilityHidden(true)
                 Text(resultHeadline)
                     .scaledFont(22, weight: .black, design: .rounded)
                     .foregroundStyle(model.playerPlace == 0 ? Theme.tealText : Theme.ink)
@@ -585,11 +581,12 @@ public struct ColorRelayView: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
                         Spacer(minLength: 4)
-                        Text(place == 0 ? tr("あがり") : tr("残り%lld枚", model.hands[player].count))
-                            .scaledFont(15, weight: .semibold, design: .rounded)
-                            .foregroundStyle(Theme.inkSub)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.7)
+                        // 人数を減らして始め直す間は、古い順位の席番号が `hands` の範囲外になりうる（#3084）。
+                        if place == 0 {
+                            resultRemainingText(tr("あがり"))
+                        } else if model.hands.indices.contains(player) {
+                            resultRemainingText(tr("残り%lld枚", model.hands[player].count))
+                        }
                     }
                 }
             }
@@ -600,6 +597,14 @@ public struct ColorRelayView: View {
         .popCard(corner: Theme.cornerSmall)
         .frame(maxWidth: ResultLayout.maxWidth)
         .frame(maxWidth: .infinity)
+    }
+
+    private func resultRemainingText(_ text: String) -> some View {
+        Text(text)
+            .scaledFont(15, weight: .semibold, design: .rounded)
+            .foregroundStyle(Theme.inkSubText)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
     }
 
     private var resultHeadline: String {
@@ -769,7 +774,7 @@ struct ColorRelayNewGameSheet: View {
                     }
                 }
                 Text(tr("人数ごとに記録（勝敗・連勝・平均順位）は別々に残ります。"))
-                    .themeBody(12).foregroundStyle(Theme.inkSub)
+                    .themeBody(12).foregroundStyle(Theme.inkSubText)
             }
             GameSetupSection(tr("CPUの強さ")) {
                 // 説明は `ColorRelayRules.cpuPlay` の中身と一致させる（#416）。

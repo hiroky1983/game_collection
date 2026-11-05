@@ -1,4 +1,5 @@
 import Core
+import CoreMiniBoard
 import SwiftUI
 
 /// 図入りの遊び方（#2044）の五目並べの図。文言は `HowToPlayGuide.gomoku.items` /
@@ -40,7 +41,7 @@ enum GomokuHowToFigures {
                         }
                     }
                     RuleFigureLabel(index == 0 ? tr("空いた所をタップ") : tr("石が置かれる"),
-                                    color: index == 0 ? Theme.coralText : Theme.inkSub)
+                                    color: index == 0 ? Theme.coralText : Theme.inkSubText)
                 }
             }
         }
@@ -71,17 +72,17 @@ enum GomokuHowToFigures {
         var body: some View {
             RuleFrames(count: 2, spacing: 14) { index in
                 VStack(spacing: 4) {
-                    RuleMiniBoard(rows: 1, cols: 7, cell: 20, style: .lines) { _, col in
+                    RuleMiniBoard(rows: 1, cols: 7, cell: 17, style: .lines) { _, col in
                         ZStack {
-                            if col == 0 { RuleStone(.white, size: 20) }
-                            if (1...4).contains(col) { RuleStone(.black, size: 20) }
+                            if col == 0 { RuleStone(.white, size: 17) }
+                            if (1...4).contains(col) { RuleStone(.black, size: 17) }
                             if col == 5 {
-                                if index == 0 { RuleBoardMark.ring(size: 16) } else { RuleStone(.white, size: 20) }
+                                if index == 0 { RuleBoardMark.ring(size: 14) } else { RuleStone(.white, size: 17) }
                             }
                         }
                     }
                     RuleFigureLabel(index == 0 ? tr("4 つ並んだ！ ここをあけると 5 つ") : tr("白で止めた"),
-                                    color: index == 0 ? Theme.coralText : Theme.inkSub)
+                                    color: index == 0 ? Theme.coralText : Theme.inkSubText)
                 }
             }
         }

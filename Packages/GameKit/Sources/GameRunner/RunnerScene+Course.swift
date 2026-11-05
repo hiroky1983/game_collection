@@ -59,7 +59,8 @@ extension RunnerScene {
         // 渡れるが、崩れ切れば穴と同じ扱いになる（`RunnerField.isCrumbledGap(at:)`）ので、
         // 地面の側では穴とまったく同じに扱う——ここで場合分けを増やすと、絵だけ地面が残って
         // 「落ちたのに床が見えている」画になる。
-        var gaps = stage.hazards.filter { $0.kind == .pit }
+        // 裂け目（#2729）も幅の広い穴そのもの（絵は穴の着せ替えを幅いっぱいに描く）。
+        var gaps = stage.hazards.filter { $0.kind == .pit || $0.kind == .chasm }
         gaps += stage.crumblingPlatforms.map {
             RunnerHazard(kind: .pit, start: $0.start, length: $0.length)
         }
@@ -81,18 +82,20 @@ extension RunnerScene {
         for floor in stage.sinkFloors { courseLayer.addChild(makeSinkFloor(floor)) }
 
         movingHazards = []
-        for hazard in stage.hazards where hazard.kind != .pit {
+        for hazard in stage.hazards where hazard.kind != .pit && hazard.kind != .chasm {
             switch hazard.kind {
             case .bird:                    movingHazards.append(addBird(hazard))
             case .dog:                     movingHazards.append(addDog(hazard))
             case .boar:                    movingHazards.append(addBoar(hazard))
+            // 落石（#2729）は斜面を下りて転がって来る（位置も高さも距離で決まる）。
+            case .rockfall:                movingHazards.append(addRockfall(hazard))
             // 突き上げ（#1010）は位置は動かないが**伸びた高さが距離で決まる**ので、毎フレーム
             // `frame` を写す仲間（`movingHazards`）に入れる。
             case .shoot, .geyser:          movingHazards.append(addShoot(hazard))
             case .lowBlock, .tallBlock:    courseLayer.addChild(makeBlock(hazard))
             // 高い塀（#1091）は動かないので岩と同じくコース層へ 1 回置くだけ。
             case .wall:                    courseLayer.addChild(makeWall(hazard))
-            case .pit:                     break
+            case .pit, .chasm:             break
             }
         }
 
@@ -134,11 +137,15 @@ extension RunnerScene {
     /// 作ったノードは左端 `platform.start` に置いて返す（コース層へ足すのは呼び出し側。エンドレスは
     /// 同じ長さの台座を使い回す・#1086）。
     func makePlatform(_ platform: RunnerPlatform) -> SKNode {
+        // 高い台座（#2729・東京の歩道橋）は世界の着せ替えではなく高さで分かれる（置くのは東京だけ）。
+        if platform.isHigh { return makeFootbridge(platform) }
         // 里山・港町の着せ替え（#1009）。足場の描画はそのまま残し、別の物はここで分岐する。
         switch world.dressing.platform {
         case .scaffold:   break
         case .strawStack: return makeStrawStack(platform)
         case .crateStack: return makeCrateStack(platform)
+        case .snowBlocks: return makeSnowBlocks(platform)
+        case .stoneStack: return makeStoneStack(platform)
         }
         let node = SKNode()
         node.position = CGPoint(x: platform.start, y: Metrics.groundY)

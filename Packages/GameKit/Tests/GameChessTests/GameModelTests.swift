@@ -479,4 +479,22 @@ struct ChessSelectionFeedbackTests {
         #expect(spy.notices == [.warning])
         #expect(spy.impacts == [.selection])
     }
+
+    @Test("選んだ駒をもう一度叩くと選択が解除され、拒否の触覚は鳴らない。別の駒なら選び直し（#3092）")
+    func retapDeselects() {
+        let spy = SpyFeedbackService()
+        let model = ChessGameModel(
+            services: GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), feedback: spy)
+        )
+        model.tapSquare(ChessSquare.fromName("e2")!)
+        model.tapSquare(ChessSquare.fromName("e2")!)
+        #expect(model.selectedSquare == nil)
+        #expect(spy.notices.isEmpty)
+        #expect(spy.impacts == [.selection])
+
+        model.tapSquare(ChessSquare.fromName("e2")!)
+        model.tapSquare(ChessSquare.fromName("d2")!)
+        #expect(model.selectedSquare == ChessSquare.fromName("d2")!)
+        #expect(spy.notices.isEmpty)
+    }
 }

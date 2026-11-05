@@ -1,3 +1,4 @@
+import Core
 import SwiftUI
 
 /// 図入りの遊び方（#2044）でトランプ系ゲームが共通で使う小さな札。
@@ -85,25 +86,6 @@ public struct RuleMiniCardRow<Content: View>: View {
     }
 }
 
-/// 図の中の小さな文字（札の下の名前・矢印の脇の語）。図は固定寸法なので拡大はわずかに留める。
-public struct RuleFigureLabel: View {
-    private let text: String
-    private let color: Color
-
-    public init(_ text: String, color: Color = Theme.inkSub) {
-        self.text = text
-        self.color = color
-    }
-
-    public var body: some View {
-        Text(text)
-            .scaledFont(11, weight: .black, design: .rounded, maxScale: 1.15)
-            .foregroundStyle(color)
-            .multilineTextAlignment(.center)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-}
-
 /// 札を縦に重ねた列（場札の列）。`step` は 1 枚ぶんずらす高さで、先頭（上）の札が奥になる。
 public struct RuleMiniCardColumn<Content: View>: View {
     private let step: CGFloat
@@ -135,27 +117,12 @@ public struct RuleMiniSlot: View {
                 if let label {
                     Text(label)
                         .scaledFont(11, weight: .black, design: .rounded, maxScale: 1.15)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                         // 英語（Empty 等）は札 1 枚の幅に収まらないことがあるので縮める（#2165）。
                         .lineLimit(1).minimumScaleFactor(0.6)
                         .padding(.horizontal, 2)
                 }
             }
-    }
-}
-
-/// 「できる／できない」の印。色だけに頼らず ○ と ✕ の形でも区別する。
-public struct RuleVerdictMark: View {
-    private let isOK: Bool
-
-    public init(_ isOK: Bool) {
-        self.isOK = isOK
-    }
-
-    public var body: some View {
-        Image(systemName: isOK ? "checkmark.circle.fill" : "xmark.circle.fill")
-            .scaledFont(18, weight: .bold, maxScale: 1.15)
-            .foregroundStyle(isOK ? Color(hex: 0x2E9D6B) : Theme.coralText)
     }
 }
 

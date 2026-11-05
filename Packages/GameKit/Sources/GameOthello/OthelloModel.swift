@@ -51,6 +51,9 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     /// パスが成立するたびに増える通し番号（#2797。囲碁 `passEventID` と同じ）。View は値が変わったことで
     /// 「パス」の札を出す。人間のパスも CPU のパスも数える。永続化せず、0 へも戻さない。
     public private(set) var passEventID: Int = 0
+    /// 人間側のパスが成立するたびに増える通し番号（#3104）。View の VoiceOver 読み上げの契機で、
+    /// 確定が View の `onChange` 経由でも Model の保険経路でも、1 回ずつ読み上げられる。
+    public private(set) var humanPassEventID: Int = 0
     /// 出したままの「パス」の札を畳む契機（待った・新規対局・投了。囲碁 `passBannerDismissID` と同じ）。
     public private(set) var passBannerDismissID: Int = 0
     public private(set) var undoUsed: Bool
@@ -127,7 +130,8 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         return othelloBoardSize * othelloBoardSize - blackCount - whiteCount
     }
     public var canUndo: Bool {
-        !gameOver && !isAITurn && !isThinking && !mustPass && !undoHistory.isEmpty
+        // ヒントの読み中は戻さない（古い局面のヒントを適用しない・#2236 / #3179）。
+        !gameOver && !isAITurn && !isThinking && !isHintThinking && !mustPass && !undoHistory.isEmpty
     }
 
     /// View の `.task(id:)` に渡す CPU 起動トリガー。
@@ -172,8 +176,10 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         } else {
             board        = OthelloBoard()
             currentStone = .black
-            humanSide    = .black
-            aiLevel      = 1
+            // 開始シートの初期値は最後に選んだ条件（#3151）。初回は先手・入門。
+            let last = services?.playLog?.lastStart(OthelloStartChoice.self, gameID: "othello")
+            humanSide    = last.flatMap { OthelloStone(rawValue: $0.humanSide) } ?? .black
+            aiLevel      = CPUStrength.strength(for: last?.aiLevel ?? 1).rawValue
             startedAt    = Date()
             winner       = nil
             isDraw       = false
@@ -219,6 +225,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         // パスを含む一連のやり取りは、直前の自分の着手まとめて `undoLastExchange()` で戻す。
         mustPass     = false
         hintPoint    = nil
+        if currentStone == humanSide { humanPassEventID += 1 }
         currentStone = currentStone.opponent
         turnID      += 1
         passEventID += 1
@@ -244,6 +251,15 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         // 決着・パスの有無は**戻した盤面から導出し直す**（#414）。無条件に false へ倒すと、
         // 打てる手が無い局面へ戻ったときに誰も着手できず、投了か新規対局しか手が無くなる。
         checkTermination()
+        // 人間がまだ指していない局（開始局面）まで戻したら、離脱の印を戻す。手が 0 手なら中断データも残さない（#3200）。
+        let placed = blackCount + whiteCount - 4
+        if !CPUOpening.humanHasMoved(totalMoves: placed, cpuMovesFirst: humanSide == .white) {
+            services?.gameDidUndoToStart(gameID: gameID)
+        }
+        if placed == 0 {
+            services?.snapshots.clear(for: gameID)
+            return
+        }
         persist()
     }
 
@@ -269,6 +285,18 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     }
 
     public func performAIMoveIfNeeded() async {
+        // 人間側のパスの保険（#3104）。View の `onChange(of: mustPass)` が発火しない局面があり、
+        // 発火しないと着手も「待った」も塞がって投了しか残らない。局面が動くたびに回るこの経路でも
+        // 確定させる。`onChange` が先に確定していれば `mustPass` が false なので何もしない。
+        if mustPass, !isAITurn, !gameOver {
+            await withAITurnGuard(key: \.aiTurnKey) {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+            } commit: { _ in
+                guard !isAITurn, mustPass else { return }
+                confirmPass()
+            }
+            return
+        }
         guard isAITurn, !isThinking, !gameOver else { return }
         // 待ちの最中に新規対局が始まると、旧盤面での判断（パス・着手）が新しい盤面に
         // 適用されてしまう。開始時の `aiTurnKey`（対局の通し番号 × turnID）と
@@ -387,6 +415,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         currentStone   = .black
         self.humanSide = humanSide
         self.aiLevel   = aiLevel
+        services?.playLog?.saveLastStart(OthelloStartChoice(humanSide: humanSide.rawValue, aiLevel: aiLevel), gameID: gameID)
         winner         = nil
         isDraw         = false
         lastMove       = nil
@@ -472,7 +501,8 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             .map { $0.0 * othelloBoardSize + $0.1 })
         placementCount += 1
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
-        services?.gameDidProgress(gameID: gameID)
+        // CPU の着手では数えない。人間が未着手のまま離れたら離脱ではない（#3042）。
+        if mover == humanSide { services?.gameDidProgress(gameID: gameID) }
         board.place(row: row, col: col, stone: currentStone)
         lastMove     = (row, col)
         currentStone = currentStone.opponent
@@ -548,4 +578,10 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         )
         try? services?.snapshots.save(snap, for: gameID)
     }
+}
+
+/// 最後に選んだ開始条件（#3151）。中断データとは別に残り、終局しても消えない。
+struct OthelloStartChoice: Codable {
+    var humanSide: Int
+    var aiLevel: Int
 }

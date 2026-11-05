@@ -221,8 +221,9 @@ public final class YonmokuModel: AITurnGuarded, BoardUndoModel {
         moves.append(column)
         lastMove = point
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。冪等。
+        // 人間が白のとき CPU の初手だけでは数えない（#2934。`game_start` は従来どおり）。
         startPlayIfPending()
-        services?.gameDidProgress(gameID: gameID)
+        if mover == humanSide { services?.gameDidProgress(gameID: gameID) }
         if let line = board.winningLine(through: point) {
             winningLine = line
             winner = mover

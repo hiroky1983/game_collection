@@ -12,6 +12,17 @@
         }
       }
     },
+    "%1$@、%2$@、%3$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$@, %3$@"
+          }
+        }
+      }
+    },
     "%1$@。%2$@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -178,6 +189,17 @@
         }
       }
     },
+    "おしまい" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The End"
+          }
+        }
+      }
+    },
     "おはなし" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -240,6 +262,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Replay This Stage"
+          }
+        }
+      }
+    },
+    "この世界: %1$lld / %2$lld クリア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This world: %1$lld / %2$lld cleared"
           }
         }
       }
@@ -387,6 +420,17 @@
         }
       }
     },
+    "ほな、帰ろか" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Well then, time to head home."
+          }
+        }
+      }
+    },
     "まだ見ぬ世界が続く予定です" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -394,6 +438,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "More worlds are on the way"
+          }
+        }
+      }
+    },
+    "まだ遊べません" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "locked"
           }
         }
       }
@@ -438,28 +493,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Finally, it's mine…"
-          }
-        }
-      }
-    },
-    "吊り橋にぶつかった" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ran into a suspension bridge"
-          }
-        }
-      }
-    },
-    "桟橋にぶつかった" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ran into a pier"
           }
         }
       }
@@ -526,6 +559,61 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Endless. Tap to start"
+          }
+        }
+      }
+    },
+    "カモシカにぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a serow"
+          }
+        }
+      }
+    },
+    "カラーコーンにぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a traffic cone"
+          }
+        }
+      }
+    },
+    "キツネにぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a fox"
+          }
+        }
+      }
+    },
+    "クリア" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleared"
+          }
+        }
+      }
+    },
+    "クリア済み" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "cleared"
           }
         }
       }
@@ -706,6 +794,17 @@
         }
       }
     },
+    "タクシーにぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a taxi"
+          }
+        }
+      }
+    },
     "タップでジャンプ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -728,13 +827,13 @@
         }
       }
     },
-    "タップで跳んで42ステージを走りぬけよう" : {
+    "タップで跳んで60ステージを走りぬけよう" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tap to jump and pedal through all 42 stages"
+            "value" : "Tap to jump and pedal through all 60 stages"
           }
         }
       }
@@ -794,6 +893,17 @@
         }
       }
     },
+    "ビル風や！ 手ぇ伸ばしたら飛んでいく……！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Building wind! No, it's blowing away...!"
+          }
+        }
+      }
+    },
     "フォークリフトにぶつかった" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -801,6 +911,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ran into a forklift"
+          }
+        }
+      }
+    },
+    "ブルドーザーにぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a bulldozer"
           }
         }
       }
@@ -827,6 +948,17 @@
         }
       }
     },
+    "ラジオで当選番号や。どれどれ……" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Winning numbers on the radio. Let's see..."
+          }
+        }
+      }
+    },
     "ロープにぶつかった" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -849,6 +981,17 @@
         }
       }
     },
+    "ワールド %1$lld / %2$lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "World %1$lld / %2$lld"
+          }
+        }
+      }
+    },
     "ワールド %lld" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -856,6 +999,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "World %lld"
+          }
+        }
+      }
+    },
+    "ワールド %lld、%@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "World %lld, %@"
           }
         }
       }
@@ -889,6 +1043,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Kyoto & Nara"
+          }
+        }
+      }
+    },
+    "今ここ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You are here"
           }
         }
       }
@@ -959,13 +1124,24 @@
         }
       }
     },
-    "到達済み" : {
+    "初日の出や……ええ眺めやなあ" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "reached"
+            "value" : "New Year's sunrise... what a view."
+          }
+        }
+      }
+    },
+    "前の世界" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous world"
           }
         }
       }
@@ -981,6 +1157,17 @@
         }
       }
     },
+    "古い歩道橋にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into the old footbridge"
+          }
+        }
+      }
+    },
     "古都まで来たで。今度こそや" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -988,6 +1175,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "All the way to the old capital. This time!"
+          }
+        }
+      }
+    },
+    "吊り橋にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a suspension bridge"
           }
         }
       }
@@ -1036,6 +1234,28 @@
         }
       }
     },
+    "富士山" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mt. Fuji"
+          }
+        }
+      }
+    },
+    "山頂の鳥居に引っかかっとった！ 取ったで" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snagged on the summit gate! Got it!"
+          }
+        }
+      }
+    },
     "岩にぶつかった" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1076,6 +1296,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Watch an Ad to Continue"
+          }
+        }
+      }
+    },
+    "当たっとる！……300円や" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It's a winner!... for 300 yen."
           }
         }
       }
@@ -1135,13 +1366,46 @@
         }
       }
     },
-    "未到達" : {
+    "東京" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "not reached yet"
+            "value" : "Tokyo"
+          }
+        }
+      }
+    },
+    "東京まで来てもうた。人も車も多いなあ……あった！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tokyo at last. People, cars... and there it is!"
+          }
+        }
+      }
+    },
+    "東京行きの列車やて？ ほな、行くしかないやろ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bound for Tokyo? Guess I'm going too"
+          }
+        }
+      }
+    },
+    "桟橋にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a pier"
           }
         }
       }
@@ -1157,6 +1421,17 @@
         }
       }
     },
+    "次の世界" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next world"
+          }
+        }
+      }
+    },
     "次の面へ" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1164,6 +1439,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Next Stage"
+          }
+        }
+      }
+    },
+    "歩道橋にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into the footbridge"
           }
         }
       }
@@ -1267,6 +1553,17 @@
         }
       }
     },
+    "溶岩の石垣にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into the lava stone wall"
+          }
+        }
+      }
+    },
     "無敵" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1334,6 +1631,17 @@
         }
       }
     },
+    "看板にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a signboard"
+          }
+        }
+      }
+    },
     "石垣にぶつかった" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1341,6 +1649,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ran into a stone wall"
+          }
+        }
+      }
+    },
+    "石積みにぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into the stone pile"
+          }
+        }
+      }
+    },
+    "砂煙にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into the dust cloud"
           }
         }
       }
@@ -1407,6 +1737,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rides right on his own"
+          }
+        }
+      }
+    },
+    "自動販売機にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a vending machine"
           }
         }
       }
@@ -1489,6 +1830,50 @@
         }
       }
     },
+    "落石にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hit by a falling rock"
+          }
+        }
+      }
+    },
+    "蒸気にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into the steam"
+          }
+        }
+      }
+    },
+    "薄氷の橋にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into the thin-ice bridge"
+          }
+        }
+      }
+    },
+    "西へ西へ……あの山、富士山やないか" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "West, further west... that's Mt. Fuji!"
+          }
+        }
+      }
+    },
     "走った距離が記録" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1567,6 +1952,17 @@
         }
       }
     },
+    "道標にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a trail signpost"
+          }
+        }
+      }
+    },
     "里山" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1618,6 +2014,83 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Expanded"
+          }
+        }
+      }
+    },
+    "雪だるまにぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a snowman"
+          }
+        }
+      }
+    },
+    "雪に埋もれた……除雪車！ 持っていかんで！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buried in snow... hey, snowplow! Don't take it!"
+          }
+        }
+      }
+    },
+    "雪のブロックにぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a snow block"
+          }
+        }
+      }
+    },
+    "雪の峠まで来たで。サルめ、寒ないんか" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snowy pass at last. Monkey, aren't you cold?"
+          }
+        }
+      }
+    },
+    "雪国" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Snow Country"
+          }
+        }
+      }
+    },
+    "雪山にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a snowbank"
+          }
+        }
+      }
+    },
+    "雪柱にぶつかった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ran into a snow spout"
           }
         }
       }

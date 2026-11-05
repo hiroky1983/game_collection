@@ -51,6 +51,7 @@ public struct HanoiView: View {
         }
         // 画面を離れたら・背面に回ったら計時を止め、戻ったら再開する（#375・#1734。`gameTimerLifecycle`・#1857）。
         .gameTimerLifecycle(
+            isHeld: showConfirmReset,
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )
@@ -64,7 +65,7 @@ public struct HanoiView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(tr("手数"))
                     .scaledFont(12, weight: .bold, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 Text("\(model.moves)")
                     .scaledFont(30, weight: .heavy, design: .rounded, maxScale: 1.2).monospacedDigit()
                     .foregroundStyle(Theme.ink)
@@ -72,9 +73,9 @@ public struct HanoiView: View {
             }
             Text(tr("最少 %lld手", model.minimumMoves))
                 .scaledFont(13, weight: .bold, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
             Spacer()
-            GameClockLabel(RecordFormat.time(model.elapsedSeconds))
+            GameClockLabel(RecordFormat.time(model.elapsedSeconds), elapsedSeconds: model.elapsedSeconds)
         }
         .padding(.horizontal, 18).padding(.vertical, 10)
         .popCard(corner: Theme.cornerSmall)
@@ -86,7 +87,7 @@ public struct HanoiView: View {
         HStack(spacing: 6) {
             Text(tr("円盤"))
                 .scaledFont(13, weight: .bold, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
             ForEach(Array(HanoiLogic.diskRange), id: \.self) { count in
                 let isCurrent = count == model.disks
                 Button {
@@ -102,7 +103,7 @@ public struct HanoiView: View {
                                 .fill(isCurrent ? Theme.Fill.teal : Theme.fillMuted)
                         )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pop)
                 .accessibilityLabel(tr("円盤%lld枚", count))
                 .accessibilityAddTraits(isCurrent ? .isSelected : [])
             }
@@ -172,7 +173,7 @@ public struct HanoiView: View {
             } else {
                 Text(model.selectedPeg == nil ? tr("柱をタップして円盤を取ろう") : tr("置きたい柱をタップしよう"))
                     .scaledFont(14, weight: .semibold, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
             }
         }
         .frame(minHeight: 36)

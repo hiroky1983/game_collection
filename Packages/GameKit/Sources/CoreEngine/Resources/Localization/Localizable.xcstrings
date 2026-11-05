@@ -395,6 +395,17 @@
         }
       }
     },
+    "達人" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Master"
+          }
+        }
+      }
+    },
     "CPU%@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -472,6 +483,28 @@
         }
       }
     },
+    "「%@」をイベント開催中のゲームの次に移しました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moved %@ to just after the event game"
+          }
+        }
+      }
+    },
+    "「%@」を常に先頭のゲームの次に移しました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moved %@ to just after the always-first game"
+          }
+        }
+      }
+    },
     "あそびばの「%1$@」で記録更新！\n%2$@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -490,6 +523,39 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "New record in %1$@ (%2$@) on Asobiba!\n%3$@"
+          }
+        }
+      }
+    },
+    "上級追加" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expert added"
+          }
+        }
+      }
+    },
+    "ステージ追加" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stages added"
+          }
+        }
+      }
+    },
+    "新ステージ追加" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New stages"
           }
         }
       }
@@ -611,6 +677,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Endless"
+          }
+        }
+      }
+    },
+    "ステージ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stages"
           }
         }
       }
@@ -865,6 +942,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : ", "
+          }
+        }
+      }
+    },
+    "半荘戦" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hanchan"
           }
         }
       }
@@ -1181,6 +1269,17 @@
         }
       }
     },
+    "中断時は%@。続きから、そのまま遊べます。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When you left: %@. Pick up right where you left off."
+          }
+        }
+      }
+    },
     "続きから、そのまま遊べます。" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1320,6 +1419,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "50 wins in total"
+          }
+        }
+      }
+    },
+    "あと 1 局で連続 %@ 日" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 more game for a %@-day streak"
           }
         }
       }

@@ -1,5 +1,6 @@
 import SwiftUI
 import Core
+import CoreOjisan
 import HomerunCore
 
 /// 打席（`31-at-bat-3D` の 2D 仮絵）。
@@ -238,7 +239,9 @@ struct HomerunAtBatView: View {
     /// 一時停止の画面: 再開・遊び方・操作の説明・途中でやめる（確認つき）。覆いは他ゲームの一時停止と同じ黒 60%。
     private var pausedPanel: some View {
         ZStack {
-            Rectangle().fill(.black.opacity(0.6)).ignoresSafeArea()
+            // 上端のバナー（`BannerSlot`）は覆わない（#3247）。
+            Rectangle().fill(.black.opacity(0.6)).ignoresSafeArea(edges: [.horizontal, .bottom])
+                .padding(.top, BannerSlot.height)
             VStack(spacing: 12) {
                 Text(tr("一時停止")).font(.title3.bold()).foregroundStyle(.white)
                 GameDeadEndActionButton(tr("再開"), systemImage: "play.fill", tint: Theme.Fill.coral) {
@@ -679,7 +682,7 @@ struct HomerunBallResultCard: View {
                 if ball.moon == .broken {
                     Text(tr("挑戦はここまで"))
                         .scaledFont(16, weight: .heavy, design: .rounded)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                     Label(tr("プレイ回数 +%lld プレゼント", HomerunLedger.moonBonus), systemImage: "gift.fill")
                         .scaledFont(18, weight: .heavy, design: .rounded)
                         .foregroundStyle(Theme.coralText)
@@ -697,7 +700,7 @@ struct HomerunBallResultCard: View {
             if ball.kind != .miss || ball.timing != .miss {
                 Text(verbatim: tr("タイミング: %@", HomerunText.timing(ball.timing)))
                     .themeCaption(12)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
             }
             if ball.distance > 0, !ball.isMoon {
                 HomerunSprayChart(balls: [ball], numbered: false)

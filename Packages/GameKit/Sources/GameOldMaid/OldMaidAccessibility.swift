@@ -18,9 +18,11 @@ public enum OldMaidAccessibility {
     }
 
     /// 相手の伏せた札 1 枚の読み上げ文（左から何枚目か・指をかけているか）。
-    public static func targetCardLabel(position: Int, count: Int, isSelected: Bool) -> String {
+    /// - Parameter revealedIsJoker: 広告で正体が見えている札なら、ジョーカーかどうか（#3251）。
+    public static func targetCardLabel(position: Int, count: Int, isSelected: Bool, revealedIsJoker: Bool? = nil) -> String {
         var parts = [tr("伏せた札、左から%1$lld枚目（全%2$lld枚）", position + 1, count)]
         if isSelected { parts.append(tr("選択中")) }
+        if let revealedIsJoker { parts.append(revealedIsJoker ? tr("ジョーカー") : tr("ジョーカーではない")) }
         return parts.joined(separator: tr("、"))
     }
 

@@ -1,5 +1,6 @@
 import SwiftUI
 import Core
+import CoreObjectArt
 
 /// 神経衰弱のカードの絵柄（#601 → #1244）。
 ///
@@ -74,7 +75,7 @@ extension ConcentrationFigure {
 
 // MARK: - 表示
 
-/// 絵柄 1 つぶん。描画は Core の `ObjectCardArt`（40×40 ドット・補間なし）。
+/// 絵柄 1 つぶん。描画は `CoreObjectArt` の `ObjectCardArt`（40×40 ドット・補間なし）。
 struct ConcentrationFigureView: View {
     let figure: ConcentrationFigure
 

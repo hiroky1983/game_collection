@@ -510,27 +510,32 @@ public enum MahjongScoring {
         yaku: [MahjongYakuEntry], han: Int, fu: Int, yakumanCount: Int, context: MahjongWinContext
     ) -> MahjongScore {
         let (base, limitName) = basePoints(han: han, fu: fu, yakumanCount: yakumanCount)
-        let isDealer = context.isDealer
-        if context.isTsumo {
-            let fromNonDealer = roundUp(base * (isDealer ? 2 : 1))
-            let fromDealer = isDealer ? 0 : roundUp(base * 2)
-            let total = isDealer ? fromNonDealer * 3 : fromDealer + fromNonDealer * 2
-            return MahjongScore(
-                yaku: yaku, han: han, fu: fu, limitName: limitName,
-                ronPayment: 0, tsumoFromDealer: fromDealer, tsumoFromNonDealer: fromNonDealer,
-                total: total
-            )
-        }
-        let payment = roundUp(base * (isDealer ? 6 : 4))
+        let payment = payments(base: base, isDealer: context.isDealer, isTsumo: context.isTsumo)
         return MahjongScore(
             yaku: yaku, han: han, fu: fu, limitName: limitName,
-            ronPayment: payment, tsumoFromDealer: 0, tsumoFromNonDealer: 0,
-            total: payment
+            ronPayment: payment.ron, tsumoFromDealer: payment.fromDealer,
+            tsumoFromNonDealer: payment.fromNonDealer, total: payment.total
         )
     }
 
+    /// 基本点からの支払い。**対局の精算と早見表（`MahjongYakuSheet`）が同じ式を使う**ための入口。
+    /// ロンなら `ron` と `total` だけ、ツモなら親の支払い `fromDealer`（親の和了では 0）と子の支払い
+    /// `fromNonDealer` と `total` が入る。
+    static func payments(
+        base: Int, isDealer: Bool, isTsumo: Bool
+    ) -> (ron: Int, fromDealer: Int, fromNonDealer: Int, total: Int) {
+        if isTsumo {
+            let fromNonDealer = roundUp(base * (isDealer ? 2 : 1))
+            let fromDealer = isDealer ? 0 : roundUp(base * 2)
+            let total = isDealer ? fromNonDealer * 3 : fromDealer + fromNonDealer * 2
+            return (0, fromDealer, fromNonDealer, total)
+        }
+        let payment = roundUp(base * (isDealer ? 6 : 4))
+        return (payment, 0, 0, payment)
+    }
+
     /// 基本点（子のロンならこの 4 倍が支払額）と、満貫以上の呼び名。
-    private static func basePoints(han: Int, fu: Int, yakumanCount: Int) -> (Int, String?) {
+    static func basePoints(han: Int, fu: Int, yakumanCount: Int) -> (Int, String?) {
         if yakumanCount > 0 {
             return (8000 * yakumanCount, yakumanCount > 1 ? "\(yakumanCount)倍役満" : "役満")  // i18n-keep: 中断データに保存する役名・満貫名（表示は MahjongHandResult で訳す）
         }
@@ -547,7 +552,7 @@ public enum MahjongScoring {
     }
 
     /// 支払いは 100 点単位に切り上げる。
-    private static func roundUp(_ points: Int) -> Int {
+    static func roundUp(_ points: Int) -> Int {
         (points + 99) / 100 * 100
     }
 

@@ -78,6 +78,16 @@ public enum HanafudaYaku: String, CaseIterable, Sendable, Equatable, Codable {
         }
     }
 
+    /// 枚数で決まる役（タネ・タン・カス）が成立する枚数。札の組み合わせで決まる役は nil。
+    /// 判定（`HanafudaRules`）と早見表の「n枚から」の両方がここを引く。
+    public var countThreshold: Int? {
+        switch self {
+        case .tane, .tan:  return 5
+        case .kasu:        return 10
+        default:           return nil
+        }
+    }
+
     /// 早見表に並べる順（強い役から）。
     public static let displayOrder: [HanafudaYaku] = [
         .goko, .shiko, .ameShiko, .sanko, .inoshikacho, .akatan, .aotan,
@@ -238,20 +248,17 @@ public enum HanafudaScoring {
         }
 
         // 枚数で伸びる役。
-        appendCountYaku(&hits, count: captured.filter { $0.kind == .tane }.count,
-                        threshold: 5, yaku: .tane)
-        appendCountYaku(&hits, count: captured.filter { $0.kind == .tanzaku }.count,
-                        threshold: 5, yaku: .tan)
-        appendCountYaku(&hits, count: captured.filter { $0.kind == .kasu }.count,
-                        threshold: 10, yaku: .kasu)
+        appendCountYaku(&hits, count: captured.filter { $0.kind == .tane }.count, yaku: .tane)
+        appendCountYaku(&hits, count: captured.filter { $0.kind == .tanzaku }.count, yaku: .tan)
+        appendCountYaku(&hits, count: captured.filter { $0.kind == .kasu }.count, yaku: .kasu)
 
         return hits
     }
 
     private static func appendCountYaku(
-        _ hits: inout [HanafudaYakuHit], count: Int, threshold: Int, yaku: HanafudaYaku
+        _ hits: inout [HanafudaYakuHit], count: Int, yaku: HanafudaYaku
     ) {
-        guard count >= threshold else { return }
+        guard let threshold = yaku.countThreshold, count >= threshold else { return }
         hits.append(HanafudaYakuHit(yaku: yaku, points: 1 + (count - threshold)))
     }
 

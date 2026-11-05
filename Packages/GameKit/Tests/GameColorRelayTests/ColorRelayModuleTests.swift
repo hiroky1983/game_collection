@@ -50,6 +50,40 @@ struct ColorRelayModuleTests {
         #expect(module.hasResumableSnapshot(in: store))
     }
 
+    @Test("2 ゲーム目で CPU の先手だけが入った局は「続きから」にならず、人間が打てば従来どおり（#2763）")
+    func cpuFirstOnlyIsNotResumable() async {
+        let store = MemorySnapshotStore()
+        let services = GameServices(snapshots: store, ads: NoopAdService())
+        let module = ColorRelayModule()
+        let model = ColorRelayModel(services: services, cpuDelay: .zero, seed: 7)
+        // CPU が途中で上がらないよう、CPU の手札は多めに持たせる。
+        let hands = [[card(.red, .number(3)), card(.green, .number(5))],
+                     (1...6).map { card(.green, .number($0)) }, (1...6).map { card(.purple, .number($0)) },
+                     (1...6).map { card(.yellow, .number($0)) }]
+        // 2 ゲーム目: CPU1 が親で、人間が打つ前に 1 枚出した直後。
+        model.configureForTesting(hands: hands, top: card(.red, .number(7)), drawPile: [card(.purple, .number(9))],
+                                  currentPlayer: 1, gameNumber: 2, humanHasActed: false)
+        #expect(store.exists(for: ColorRelayModel.gameID), "CPU の手は保存される")
+        #expect(!module.hasResumableSnapshot(in: store))
+        #expect(module.hasUntouchedSnapshot(in: store))
+        #expect(!model.hasProgressToLose)
+        // 復元しても人間未着手のまま。
+        let restored = ColorRelayModel(services: services, cpuDelay: .zero, seed: 7)
+        #expect(!restored.hasProgressToLose)
+        #expect(!module.hasResumableSnapshot(in: store))
+        // 人間が 1 枚出せば従来どおり「続きから」。
+        await restored.runCPUTurnsIfNeeded()
+        if let c = restored.playerHand.first(where: { restored.playableCardIDs.contains($0.id) }) {
+            restored.toggleSelection(c)
+            restored.playSelected(color: c.isWild ? .red : nil)
+        } else {
+            restored.drawCard()
+        }
+        #expect(module.hasResumableSnapshot(in: store))
+        #expect(!module.hasUntouchedSnapshot(in: store))
+        #expect(restored.hasProgressToLose)
+    }
+
     @Test("画面は共通の枠・レコメンド枠・局ガード付きの救済を使い、素のアニメーションを書いていない")
     func viewUsesSharedParts() throws {
         let source = try SourceScan.moduleSources("GameColorRelay")

@@ -213,7 +213,7 @@ struct AnalyticsEventShapeTests {
         #expect(sent == ["accepted", "declined", "not_ready"])
     }
 
-    @Test("イベントは game_start / game_end / reward_ad / reward_request / game_open / reward_offer / share_tap / notification_permission の8種だけで、パラメータも決まった鍵しか持たない")
+    @Test("イベントは game_start / game_end / reward_ad / reward_request / game_open / reward_offer / share_tap / notification_permission / review_prompt / reward_grant の10種だけで、パラメータも決まった鍵しか持たない")
     func namesAndParameters() {
         // 全量の列挙（#659 で2種・#780 で1種・#1043 で1種）。個々の鍵は下と上の各テストで固定する。
         #expect([
@@ -225,9 +225,24 @@ struct AnalyticsEventShapeTests {
             .rewardOffer(gameID: "2048", purpose: .undo, result: .declined),
             .shareTap(gameID: "2048"),
             .notificationPermission(result: .granted, trigger: .resume),
+            .reviewPrompt(kind: .newGameCard, step: .shown),
+            .rewardGrant(gameID: "catpuzzle", rank: 2, items: .teach),
         ].map(\.name) == [
             "game_start", "game_end", "reward_ad", "reward_request", "game_open", "reward_offer", "share_tap",
-            "notification_permission",
+            "notification_permission", "review_prompt", "reward_grant",
+        ])
+
+        // `reward_grant`（#3256）は game_id / rank / items の 3 鍵だけ。items の語彙は enum に閉じる。
+        #expect(RewardGrantItems.allCases.map(\.rawValue) == ["hint", "teach", "hint_teach"])
+        #expect(AnalyticsEvent.rewardGrant(gameID: "catpuzzle", rank: 1, items: .hintTeach).parameters == [
+            "game_id": .string("catpuzzle"), "rank": .int(1), "items": .string("hint_teach"),
+        ])
+
+        // `review_prompt`（#3061）は kind / step の 2 鍵だけで、ゲーム ID を載せない。語彙は enum に閉じる。
+        #expect(ReviewPromptKind.allCases.map(\.rawValue) == ["regular", "new_game_card"])
+        #expect(ReviewPromptStep.allCases.map(\.rawValue) == ["shown", "write_review", "later", "os_requested"])
+        #expect(AnalyticsEvent.reviewPrompt(kind: .newGameCard, step: .writeReview).parameters == [
+            "kind": .string("new_game_card"), "step": .string("write_review"),
         ])
 
         #expect(AnalyticsEvent.gameStart(gameID: "2048").name == "game_start")
@@ -305,10 +320,10 @@ struct AnalyticsEventShapeTests {
         #expect([GameOutcome.win, .loss, .draw].map { AnalyticsResult($0) } == [.win, .loss, .draw])
     }
 
-    @Test("mode は tonpuu / single_hand / stage / endless / backpain / puzzle と将棋の手合い5値・single_round の12値に閉じ、全値がどれかのゲームの遊び方から使われている（#820）")
+    @Test("mode は tonpuu / single_hand / hanchan / stage / endless / backpain / puzzle と将棋の手合い5値・single_round の13値に閉じ、全値がどれかのゲームの遊び方から使われている（#820）")
     func modeIsClosed() {
         #expect(AnalyticsMode.allCases.map(\.rawValue) == [
-            "tonpuu", "single_hand", "stage", "endless", "backpain", "puzzle",
+            "tonpuu", "single_hand", "hanchan", "stage", "endless", "backpain", "puzzle",
             "even", "rook_player", "rook_cpu", "bishop_player", "bishop_cpu", "single_round",
         ])
         // 送る文字列は rawValue そのもの（開始と終わりで同じ値）。
@@ -331,10 +346,10 @@ struct AnalyticsEventShapeTests {
         #expect(Set(used) == Set(AnalyticsMode.allCases))
     }
 
-    @Test("purpose の全量は8種で、reward_ad 以外には載らない（#500）")
+    @Test("purpose の全量は12種で、reward_ad 以外には載らない（#500）")
     func rewardPurposeIsClosed() {
         #expect(RewardPurpose.allCases.map(\.rawValue) == [
-            "undo", "continue", "revival", "hint", "joker", "checkpoint", "shuffle", "challenge",
+            "undo", "continue", "revival", "hint", "joker", "checkpoint", "shuffle", "challenge", "teach", "peek", "redraw", "reroll",
         ])
     }
 
@@ -1488,7 +1503,7 @@ struct RunnerQuitTests {
         #expect(spy.ends.isEmpty, "ミスでは終局しない")
         services.gameDidLeave(gameID: RunnerModel.gameID)
         let end = spy.events.last
-        guard case let .gameEnd(_, result, _, _, cause, _, _, _, _)? = end else { Issue.record("game_end が無い"); return }
+        guard case let .gameEnd(_, result, _, _, cause, _, _, _, _, _, _)? = end else { Issue.record("game_end が無い"); return }
         #expect(result == .quit)
         #expect(cause == .pit)
     }
@@ -1498,14 +1513,14 @@ struct RunnerQuitTests {
         let (services, spy) = makeServices()
         let model = RunnerModel(services: services, startingAt: 1)
         autoPlayCurrentStage(model)
-        guard case let .gameEnd(_, result, _, _, cause, _, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
+        guard case let .gameEnd(_, result, _, _, cause, _, _, _, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
         #expect(result == .win)
         #expect(cause == nil)
         // 次のプレイへ持ち越さない: 2 面でミスして離れると、2 面の死因だけが載る。
         model.advanceToNextStage()
         failCurrentStage(model)
         services.gameDidLeave(gameID: RunnerModel.gameID)
-        guard case let .gameEnd(_, result2, _, _, cause2, _, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
+        guard case let .gameEnd(_, result2, _, _, cause2, _, _, _, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
         #expect(result2 == .quit)
         #expect(cause2 == .pit)
     }
@@ -1517,7 +1532,7 @@ struct RunnerQuitTests {
         let model = RunnerModel(services: services)
         failCurrentStage(model)
         services.gameDidLeave(gameID: RunnerModel.gameID)
-        guard case let .gameEnd(_, result, _, _, _, _, _, _, misses)? = spy.events.last
+        guard case let .gameEnd(_, result, _, _, _, _, _, _, misses, _, _)? = spy.events.last
         else { Issue.record("game_end が無い"); return }
         #expect(result == .quit)
         #expect(misses?.count == 1)
@@ -1538,7 +1553,7 @@ struct RunnerQuitTests {
         failCurrentStage(model)
         model.retryStage()
         autoPlayCurrentStage(model)
-        guard case let .gameEnd(_, result, _, _, _, _, _, _, misses)? = spy.events.last
+        guard case let .gameEnd(_, result, _, _, _, _, _, _, misses, _, _)? = spy.events.last
         else { Issue.record("game_end が無い"); return }
         #expect(result == .win)
         #expect(misses?.count == 2)
@@ -1678,8 +1693,23 @@ struct UntouchedSnapshotReopenTests {
     /// `HubView` が画面を出したあとに呼ぶ経路（`gameScreenDidAppear`）を再現する。
     private func appear(_ module: GameModule, _ services: GameServices, _ snapshots: SnapshotStore) {
         services.gameScreenDidAppear(
-            gameID: module.id, hasUntouchedSnapshot: module.hasUntouchedSnapshot(in: snapshots)
+            gameID: module.id, hasUntouchedSnapshot: module.hasUntouchedSnapshot(in: snapshots),
+            playClass: module.untouchedSnapshotPlayClass(in: snapshots)
         )
+    }
+
+    /// 最後の `game_start` の `mode`（#3225）。
+    private func lastStartMode(_ spy: SpyAnalyticsService) -> AnalyticsMode? {
+        spy.events.reversed().lazy.compactMap { event -> AnalyticsMode?? in
+            if case let .gameStart(_, _, mode, _, _) = event { return .some(mode) } else { return nil }
+        }.first ?? nil
+    }
+
+    /// 最後の `game_end` の `mode`（#3225）。
+    private func lastEndMode(_ spy: SpyAnalyticsService) -> AnalyticsMode? {
+        spy.events.reversed().lazy.compactMap { event -> AnalyticsMode?? in
+            if case let .gameEnd(_, _, _, mode, _, _, _, _, _, _, _) = event { return .some(mode) } else { return nil }
+        }.first ?? nil
     }
 
     @Test("2048: 動かさずに戻って開き直し、遊び切ると 2 回目にも game_start と game_end が 1 回ずつ付く")
@@ -1727,6 +1757,85 @@ struct UntouchedSnapshotReopenTests {
         reopened.resign()
         #expect(spy.starts(of: "shogi") == startsBefore + 1)
         #expect(spy.ends(of: "shogi") == 1)
+    }
+
+    @Test("ナンプレ: 手つかずの盤を開き直した回の game_start / game_end に level が付く（#3225）")
+    func sudokuKeepsLevelOnReopen() async {
+        let snapshots = MemorySnapshotStore()
+        let module = SudokuModule()
+        let (services, spy) = makeHubServices(snapshots: snapshots, modules: [module])
+
+        let first = SudokuModel(services: services, seed: 1)
+        await first.newGame(difficulty: .hard)
+        let hard = spy.startLevels.last ?? nil
+        #expect(hard != nil, "前提: 新規開始は level を送る")
+        services.gameDidLeave(gameID: "sudoku")
+        #expect(module.hasUntouchedSnapshot(in: snapshots))
+
+        let reopened = SudokuModel(services: services, seed: 1)
+        appear(module, services, snapshots)
+        #expect(spy.startLevels.last == .some(hard), "開き直した回の game_start に復元した盤の level が付く")
+        reopened.giveUp()
+        #expect(spy.endLevels.last == .some(hard), "game_end にも同じ level が付く")
+    }
+
+    @Test("将棋: 駒落ちの手つかずの盤を開き直した回の game_start / game_end に level と mode が付く（#3225）")
+    func shogiKeepsModeOnReopen() {
+        let snapshots = MemorySnapshotStore()
+        let module = ShogiModule()
+        let (services, spy) = makeHubServices(snapshots: snapshots, modules: [module])
+
+        let first = ShogiGameModel(services: services)
+        first.newGame(aiLevel: 3, handicap: .rook, dropper: .cpu)
+        let level = spy.startLevels.last ?? nil
+        #expect(level != nil)
+        #expect(lastStartMode(spy) == .rookCPU, "前提: 新規開始は mode を送る")
+        services.gameDidLeave(gameID: "shogi")
+        #expect(module.hasUntouchedSnapshot(in: snapshots), "前提: CPU の初手だけの保存が残っている")
+
+        let reopened = ShogiGameModel(services: services)
+        appear(module, services, snapshots)
+        #expect(spy.startLevels.last == .some(level))
+        #expect(lastStartMode(spy) == .rookCPU)
+        reopened.resign()
+        #expect(spy.endLevels.last == .some(level))
+        #expect(lastEndMode(spy) == .rookCPU)
+    }
+
+    @Test("level / mode を持たない 2048 は従来どおり何も付かない（#3225）")
+    func game2048HasNoPlayClass() {
+        let snapshots = MemorySnapshotStore()
+        let module = Game2048Module()
+        _ = Game2048Model(services: makeHubServices(snapshots: snapshots, modules: [module]).0)
+        #expect(module.untouchedSnapshotPlayClass(in: snapshots) == PlayClass())
+    }
+
+    /// `hasUntouchedSnapshot` を実装する Module は、`untouchedSnapshotPlayClass` も実装する（#3225）。
+    /// 区分（level / mode）を持つゲームが実装し忘れると、開き直した回の計測から区分が落ちる。
+    /// **ソースを走査**して見張る。持たなくてよいのは、`level` も `mode` も送らないゲームだけ。
+    @Test("hasUntouchedSnapshot を実装する Module は untouchedSnapshotPlayClass も実装している")
+    func untouchedImpliesPlayClass() throws {
+        let exempt: [String: String] = [
+            "Game2048Module.swift": "level も mode も送らない",
+            "FifteenModule.swift": "同上",
+            "DiceComboModule.swift": "同上",
+        ]
+        let sources = SourceScan.packageRoot.appendingPathComponent("Sources")
+        let files = try #require(FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil))
+        var checked = 0
+        for case let url as URL in files where url.lastPathComponent.hasSuffix("Module.swift") {
+            let text = try String(contentsOf: url, encoding: .utf8)
+            guard text.contains("public func hasUntouchedSnapshot(") else { continue }
+            checked += 1
+            let name = url.lastPathComponent
+            let hasPlayClass = text.contains("public func untouchedSnapshotPlayClass(")
+            if exempt[name] != nil {
+                #expect(!hasPlayClass, "\(name) は免除表にあるのに実装している。表から外す")
+            } else {
+                #expect(hasPlayClass, "\(name) が untouchedSnapshotPlayClass を実装していない（#3225）")
+            }
+        }
+        #expect(checked >= 15, "走査が空振りしていないこと（見つかった Module: \(checked)）")
     }
 
     @Test("五目並べ: 1 手も打たずに戻って開き直し、そのまま遊ぶと game_start / game_end が付く")

@@ -62,6 +62,12 @@ public struct HeartsCPU: Sendable {
         }
     }
 
+    /// 渡す場面のヒント（#3003）。対局中の CPU の強さには合わせず、常に「むずかしい」の考え方
+    /// （危ない高い札・スペードのクイーン周り・少ないスートを空ける）で 3 枚を選ぶ。乱数は使わず、同じ手札なら同じ 3 枚。
+    public static func recommendedPass(hand: [HeartsCard]) -> [HeartsCard] {
+        HeartsCPU(strength: .hard).hardPass(hand: hand, count: min(HeartsRules.passCount, hand.count))
+    }
+
     /// 持っていると危ない度合い（大きいほど先に渡す）。
     private func passRisk(_ card: HeartsCard, hand: [HeartsCard]) -> Int {
         if card.isQueenOfSpades { return 100 }

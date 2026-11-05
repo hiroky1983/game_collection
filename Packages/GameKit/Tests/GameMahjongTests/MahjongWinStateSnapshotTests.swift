@@ -109,6 +109,41 @@ struct MahjongWinStateSnapshotTests {
         #expect(restored.isFuriten(MahjongModel.humanIndex))
     }
 
+    @Test("ロン見逃し直後のポン選択で中断して再開すると、次家の自摸から局が続く（#3040）")
+    func resumesAfterDeclinedRonDuringCallOffer() throws {
+        let store = MemorySnapshotStore()
+        let model = makeModel(store: store)
+        model.startGame()
+        model.configureForTesting(
+            hands: [MahjongNotation.hand("234m567m88s345p67s"), junkHand(), junkHand(), junkHand()],
+            wall: MahjongNotation.tiles("1111m"),
+            currentPlayer: 1,
+            dealer: 1,
+            drawnTile: MahjongNotation.tile("8s")
+        )
+        model.discardForTesting(MahjongNotation.tile("8s"), by: 1)
+        try #require(model.phase == .ronOffer)
+        model.declineRon()
+        try #require(model.phase == .callOffer)
+
+        let restored = relaunch(store)
+        #expect(restored.phase == .playing)
+        // 切ったのは家 1 なので、次は家 2 の自摸。誰かが打牌待ちになっている。
+        #expect(restored.currentPlayer == 2)
+        #expect(restored.drawnTile != nil)
+        #expect(restored.awaitsDiscard(restored.currentPlayer))
+        // CPU が打牌して、自分の番か鳴きの提示（人間の選択待ち）まで局が進む。
+        var steps = 0
+        while restored.phase == .playing, !restored.isPlayerTurn, steps < 6 {
+            restored.stepCPUForTesting()
+            steps += 1
+        }
+        #expect(
+            restored.isPlayerTurn || restored.phase != .playing,
+            "CPU が打牌して人の選択まで進む（実際: 手番 \(restored.currentPlayer)・phase \(restored.phase)）"
+        )
+    }
+
     @Test("3 項目の鍵が無い旧形式の中断データは、従来どおり（立直中は宣言巡 0・他は false）に戻る")
     func legacySnapshotFallsBack() throws {
         let store = MemorySnapshotStore()

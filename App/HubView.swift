@@ -1,6 +1,7 @@
 import SwiftUI
 import Core
 import GameHomerun
+import GameCatPuzzle
 
 /// ハブからゲーム画面への遷移先（#659）。
 ///
@@ -82,11 +83,11 @@ struct HubView: View {
         max(1, layout.hubColumnCount(containerWidth: layout.width, spacing: Self.gridSpacing))
     }
 
-    /// 表示するゲームの並び。この版の新着を先頭に固定し、そのあとに利用者の並びが続く（#2104）。
-    /// 非表示にしたゲームは `visibleModules` の時点で除かれるので、新着でも出さない。
+    /// 表示するゲームの並び。常に先頭のゲーム（#3339）、開催中のイベントのゲーム（#3321）、この版の新着（#2104）の順に先頭へ固定し、
+    /// そのあとに利用者の並びが続く。非表示にしたゲームは `visibleModules` の時点で除かれるので、固定でも出さない。
     private var pinnedVisibleModules: [GameModule] {
         let visible = settings.visibleModules(from: registry)
-        let order = NewGames.pinned(visibleIDs: visible.map(\.id))
+        let order = NewGames.pinned(visibleIDs: visible.map(\.id), eventIDs: HubEventBadge.activeIDs())
         let byID = Dictionary(uniqueKeysWithValues: visible.map { ($0.id, $0) })
         return order.compactMap { byID[$0] }
     }
@@ -211,13 +212,13 @@ struct HubView: View {
                     VStack(alignment: .leading, spacing: 0) {
                     if activeCategory == .all {
                         // 中断・記録ともゼロなら**行ごと出さない**（#660）。「すべて」のときだけ出す（モック 01・04b）。
-                        // 連続プレイ日数（#1625）は 2 日以上のときだけ、行の見出しの右に控えめに出す。
+                        // 連続プレイ日数（#1625）は 2 日以上、または昨日まで続いて今日まだのとき（#3060）だけ、行の見出しの右に控えめに出す。
                         let recent = recentCandidates
                         if !recent.isEmpty {
                             HubRecentRow(
                                 candidates: recent,
                                 registry: registry,
-                                streakText: PlayDayStreak.hubText(streak: services.playLog?.playStreak() ?? 0)
+                                streakText: services.playLog?.hubStreakText()
                             )
                         }
                         // 記録がゼロの初回だけ「はじめの1本」を1枚出す（#721）。出す条件と何を出すかは `FirstPick` が持つ。
@@ -279,6 +280,8 @@ struct HubView: View {
                 BannerSlot(ads: services.ads)
             }
             .popBackground()
+            // 遊んだ日数の節目の評価のお願い（#3078）。ハブが前面にある間だけ実行する（ゲームを開いたら破棄）。
+            .hubReviewRequestPrompt(services.review, isActive: path.isEmpty)
             // 戻るボタンの文字に使う。ハブ自身ではナビゲーションバーを隠し、見出しは `header` が描く（#2175）。
             .navigationTitle(tr("あそびば"))
             .toolbar(.hidden, for: .navigationBar)
@@ -300,7 +303,8 @@ struct HubView: View {
                             // 手つかずの中断データを開き直した回の `game_start` を数える（#2161）。
                             services.gameScreenDidAppear(
                                 gameID: gameID,
-                                hasUntouchedSnapshot: module.hasUntouchedSnapshot(in: services.snapshots)
+                                hasUntouchedSnapshot: module.hasUntouchedSnapshot(in: services.snapshots),
+                                playClass: module.untouchedSnapshotPlayClass(in: services.snapshots)
                             )
                         }
                 }
@@ -317,7 +321,11 @@ struct HubView: View {
             // 前面へ戻ったら取り消す（#1951）。予約だけを行い、離脱計測（`gameDidLeave`）は呼ばない。
             .onChange(of: scenePhase) { _, phase in
                 // 日付をまたいで戻った回数を、前面に戻ったハブで出し直す（#2208）。
-                if phase == .active { homerunTally = HomerunHubCount.tally() }
+                if phase == .active {
+                    homerunTally = HomerunHubCount.tally()
+                    // 日付をまたいで前面に戻った日も、遊んだ日として数える（#3078。評価のお願いは出さない）。
+                    services.review?.appDidOpen()
+                }
                 guard let current = path.last else { return }
                 switch phase {
                 case .background: services.gameDidEnterBackground(gameID: current.gameID)
@@ -334,6 +342,8 @@ struct HubView: View {
                     // ハブに戻ったら柵越えおじさんの残り回数を読み直す（遊んだ分・0:00 の補充・#2208）。
                     homerunTally = HomerunHubCount.tally()
                 }
+                // ハブに戻った区切りで、遊んだ日数の節目なら評価のお願いの予定を立てる（#3078）。
+                if newPath.isEmpty { services.review?.hubDidBecomeVisible() }
                 // ハブからゲーム画面を開いたことを解析へ伝える（#659）。離脱と対になる
                 // 「空 → 非空」の1か所だけで送る。導線ごとに送ると付け忘れと二重送信の両方が起きる。
                 if oldPath.isEmpty, let opened = newPath.first {
@@ -426,6 +436,8 @@ struct HubView: View {
                 ))
             }
             .task {
+                // 起動した日を遊んだ日として数える（#3078。起動直後には評価のお願いを出さない）。
+                services.review?.appDidOpen()
                 // ATT はハブが描画された直後にシステムダイアログを直接出す（Build 6・審査指摘 2.1 対応）。
                 // 以前は自前の事前説明シートを挟み「最初のゲームを遊び終えてハブに戻った時点」で
                 // 出していたが、(1) ゲームを完了しないレビュアーがダイアログに到達できず審査で
@@ -453,6 +465,12 @@ struct HubView: View {
                 // （`-startGame <id> -simulateReviewRequest` でそのゲームのリザルト経路に乗せる）。
                 if args.contains("-simulateReviewRequest") {
                     services.review?.simulateRequest()
+                }
+                // 撮影用: 新しいゲームの感想カード（#3061）を条件を通さずに出す（`-startGame <id> -simulateNewGameCard`）。
+                // 画面遷移の最中に立てると、画面の作り直しで予定が破棄されるため、遷移が落ち着いてから立てる。
+                if args.contains("-simulateNewGameCard") {
+                    try? await Task.sleep(for: .seconds(2))
+                    services.review?.simulateNewGameCard()
                 }
                 // 動作確認用: 中断のお知らせ（#663）をタップしたのと同じ入口でゲームを開く
                 // （`-simulateNotificationTap <gameID>`）。シミュレータでは通知をタップできないため。
@@ -494,7 +512,8 @@ struct HubView: View {
         }
         .tint(Theme.coralText)
         .sheet(isPresented: $showSettings) {
-            SettingsView(registry: registry, settings: settings, playLog: services.playLog)
+            SettingsView(
+                registry: registry, settings: settings, playLog: services.playLog, feedback: services.feedback)
                 .presentationDetents([.large])
         }
         .sheet(isPresented: $showRecords, onDismiss: {
@@ -520,10 +539,10 @@ struct HubView: View {
             .presentationDetents([.large])
         }
         .dialogs { anchor in
-            anchor.alert(tr("Game Center にサインインしていません"), isPresented: $showGameCenterSignInGuidance) {
+            anchor.alert(GameCenterEntry.signInGuidanceTitle, isPresented: $showGameCenterSignInGuidance) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text(tr("iPhone の「設定」＞「Game Center」からサインインすると、実績と世界のランキングを見られます。サインインしなくても、あそびはすべてそのまま遊べます。"))
+                Text(GameCenterEntry.signInGuidanceMessage)
             }
         }
     }
@@ -600,6 +619,7 @@ struct HubView: View {
                 resumeProgress: hasResume ? registry.resumeProgress(gameID: module.id, in: services.snapshots) : nil,
                 isNew: NewGames.currentVersionIDs.contains(module.id),
                 isEvent: HubEventBadge.isShown(gameID: module.id),
+                updateTag: UpdatedGames.tag(for: module.id),
                 isUnplayed: isUnplayed,
                 // 柵越えおじさんだけ、今日の残り回数（#2208。ボールの絵は #2273）。「イベント開催中」と両方出す（#2572）。
                 count: HubCountBadge.isShown(gameID: module.id) ? homerunTally : nil
@@ -620,7 +640,8 @@ struct HubView: View {
             // 先頭かどうかは非表示も含む並びで、新着の固定（#2104）を踏まえて見る（#2124）。
             // 表示中の先頭でも、前に非表示のゲームがあれば動かす余地がある。
             .disabled(NewGames.isAlreadyAtTop(
-                id: module.id, orderedIDs: settings.orderedIDs, hiddenIDs: settings.hiddenIDs))
+                id: module.id, orderedIDs: settings.orderedIDs, hiddenIDs: settings.hiddenIDs,
+                eventIDs: HubEventBadge.activeIDs()))
             Button {
                 hide(module)
             } label: {
@@ -641,7 +662,8 @@ struct HubView: View {
         // 新着は表示で先頭に固定される（#2104）ので、案内は動かす前の並びから実際の位置を伝える（#2124）。
         let announcement = registry.module(id: id).map {
             NewGames.moveToTopAnnouncement(
-                title: $0.title, id: id, orderedIDs: settings.orderedIDs, hiddenIDs: settings.hiddenIDs)
+                title: $0.title, id: id, orderedIDs: settings.orderedIDs, hiddenIDs: settings.hiddenIDs,
+                eventIDs: HubEventBadge.activeIDs())
         }
         // 並びの入れ替えを動きで見せる（Reduce Motion では即時）。無音のままだと VoiceOver 利用者は
         // 動いたことが分からないので、非表示（`hide`）と同じくアナウンスも流す。
@@ -695,6 +717,8 @@ private struct GameCard: View {
     let isNew: Bool
     /// 「イベント開催中」の印を出すか（#2566）。NEW のほうが優先で、文字の印は左下に 1 つだけ。
     let isEvent: Bool
+    /// その版で中身が増えたゲームのタグ（「新ステージ追加」など・#2790）。優先順は NEW ＞ イベント ＞ 更新 ＞ 続きから。
+    var updateTag: UpdateTag?
     /// 一度も遊んでいないゲームか（#2849）。NEW・イベント・続きからのどれも無いときだけ「未プレイ」を出す。
     let isUnplayed: Bool
     /// 今日の残り回数（柵越えおじさんだけ・#2208）。ボールを上限ぶん並べ、残りは白・使った分は灰色（#2273）。
@@ -792,6 +816,8 @@ private struct GameCard: View {
             badgeCapsule("NEW")
         } else if isEvent {
             badgeCapsule(tr("イベント開催中"))
+        } else if let updateTag {
+            badgeCapsule(updateTag.label)
         } else if hasResume {
             badgeCapsule(tr("続きから"))
         } else if isUnplayed {
@@ -846,6 +872,7 @@ private struct GameCard: View {
         if showsResumeBadge, let resumeProgress { parts.append(resumeProgress) }
         if isNew { parts.append(tr("新着")) }
         if isEvent { parts.append(tr("イベント開催中")) }
+        if let updateTag { parts.append(updateTag.label) }
         if isUnplayed { parts.append(tr("未プレイ")) }
         if let count { parts.append(count.labelText()) }
         return parts.joined(separator: tr("、"))
@@ -857,17 +884,26 @@ enum HubCountBadge {
     @MainActor static func isShown(gameID: String) -> Bool { gameID == HomerunModel.gameID }
 }
 
-/// タイルの画像とゲームごとの差し色（#2175）。差し色は画像に描き込んだ下線の色と同じで、
-/// 「続きから」「NEW」と「つづき・最近」の文字色に使う。値は `Scripts/generate-hub-tiles.py` の `GAMES` と同じ表
-/// （モック 01 の各タイルの `.ul` の色）。表に無いゲームは珊瑚色。
-/// ハブのタイルの「イベント開催中」の印（#2566）。柵越えおじさんは週間ランキング
-/// （`GameCenterLeaderboard.homerunWeekly`）が有効なあいだだけ。ID が nil なら出さない。
 enum HubEventBadge {
-    static func isShown(gameID: String, weeklyLeaderboardID: String? = GameCenterLeaderboard.homerunWeekly) -> Bool {
-        gameID == "homerun" && weeklyLeaderboardID != nil
+    /// 「イベント開催中」の印を出すゲームの ID。イベントを入れ替えるときはここ 1 か所だけ直す
+    /// （v1.1.15 はねこさがしの 1 か月ランキングイベント＝#3204。将棋のイベント #2722・#2958 は保留。
+    /// 柵越えおじさんの週間ランキング自体は続く）。
+    static let eventGameID = "catpuzzle"
+
+    /// 開催期間の外（v1.1.15 の公開から 11/9 まで・12/10 以降）は出さない。期間はゲーム側の 1 か所（`CatPuzzleEvent`）を見る。
+    static func isShown(gameID: String, now: Date = Date()) -> Bool {
+        gameID == eventGameID && CatPuzzleModel.isEventPeriod(now: now)
+    }
+
+    /// いま印が付いているゲームの ID。ハブの並びが開催中のゲームを先頭に固定する（#3321）のに使う。
+    static func activeIDs(now: Date = Date()) -> Set<String> {
+        isShown(gameID: eventGameID, now: now) ? [eventGameID] : []
     }
 }
 
+/// タイルの画像とゲームごとの差し色（#2175）。差し色は画像に描き込んだ下線の色と同じで、
+/// 「続きから」「NEW」と「つづき・最近」の文字色に使う。値は `Scripts/generate-hub-tiles.py` の `GAMES` と同じ表
+/// （モック 01 の各タイルの `.ul` の色）。表に無いゲームは珊瑚色。
 enum HubTileStyle {
     /// モックのタイルの寸法（179 × 215pt）の比率。画像もこの比率で書き出している。
     static let aspect: CGFloat = 179.0 / 215.0
@@ -921,7 +957,7 @@ private struct HubCategoryHeading: View {
                 .themeBody(layout.scaled(15), weight: .black)
             Text(tr("%d本", count))
                 .themeCaption(layout.scaled(12), weight: .heavy)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)

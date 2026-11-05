@@ -24,6 +24,7 @@ public enum RecordVariantLabels {
             case "easy":   return tr("かんたん", language: language)
             case "normal": return tr("ふつう", language: language)
             case "hard":   return tr("むずかしい", language: language)
+            case "expert": return tr("上級", language: language)
             default:       return nil
             }
         case "solitaire":
@@ -67,7 +68,11 @@ public enum RecordVariantLabels {
         case "akarikeshi":
             return difficultyWord(variant, language: language)
         case "mahjong4":
-            return variant == "singleHand" ? tr("一局戦", language: language) : nil
+            switch variant {
+            case "singleHand": return tr("一局戦", language: language)
+            case "hanchan":    return tr("半荘戦", language: language)
+            default:           return nil
+            }
         case "poker":
             // `round10` は 10 回勝負（#2551）。`bonus` はチップ制の頃の区分で、記録は `PlayLog` が読み飛ばす。
             switch variant {
@@ -100,8 +105,10 @@ public enum RecordVariantLabels {
             // 15パズル（#2869）の盤の大きさ。4×4 は区分なし（従来の保存先）。数字と記号だけなので言語で変わらない。
             return ["3x3": "3×3", "5x5": "5×5"][variant]
         case "catpuzzle":
-            // おじさんちのねこさがし（#2250）。キーは盤の大きさ（`CatPuzzleSize.rawValue`: easy / normal / hard）。
-            return difficultyWord(variant, language: language)
+            // おじさんちのねこさがし（#2250）。キーは盤の大きさ（`CatPuzzleSize.rawValue`: easy / normal / hard / expert）。
+            // ステージ（面の番号で難しさが決まる）は自由に遊ぶのベストと混ぜないよう `stage` に分ける（#3145）。
+            if variant == "stage" { return tr("ステージ", language: language) }
+            return variant == "expert" ? tr("とことん", language: language) : difficultyWord(variant, language: language)
         case "daifugo":
             // CPU の強さ別（#2604）。「ふつう」は区分なし（これまでの記録）なので、キーは入門・かんたん・むずかしいだけ。
             return cpuStrengthLabel(variant, language: language)
@@ -187,6 +194,12 @@ public enum RecordVariantLabels {
 
     /// 将棋の駒落ち。キーは `<rook|bishop>-<player|cpu>`（平手は区分を持たない）。
     private static func shogi(_ variant: String, language: AppLanguage?) -> String? {
+        // 達人（#2698）の記録は `master`（平手）／`master-<手合い>`（駒落ち）。
+        if variant == "master" { return tr("達人", language: language) }
+        if variant.hasPrefix("master-") {
+            guard let handicap = shogi(String(variant.dropFirst("master-".count)), language: language) else { return nil }
+            return tr("%1$@・%2$@", tr("達人", language: language), handicap, language: language)
+        }
         let parts = variant.split(separator: "-").map(String.init)
         guard parts.count == 2 else { return nil }
         let handicap: String

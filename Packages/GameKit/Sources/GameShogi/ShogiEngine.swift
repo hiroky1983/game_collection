@@ -203,12 +203,13 @@ public struct SimpleMinimaxEngine: ShogiEngine {
         self.seed = seed
     }
 
-    /// ヒント専用のエンジン（#1739）。「むずかしい」と同じ設定で、考える時間だけ
-    /// `BoardHintBudget.extraThinkingTime` 長い。対局 CPU の「むずかしい」は変えない。
-    static func hint() -> SimpleMinimaxEngine {
-        let base = SimpleMinimaxEngine(level: BoardHintBudget.engineLevel, seed: nil)
-        return SimpleMinimaxEngine(level: BoardHintBudget.engineLevel, seed: nil,
-                  timeLimit: base.timeLimit + BoardHintBudget.extraThinkingTime)
+    /// ヒント専用のエンジン（#1739・#3253）。詰みの確認は今の仕組みのまま、詰みが無い局面の最善手は
+    /// 達人（`ShogiMasterEngine`）で読む。考える時間は達人の出荷値に `BoardHintBudget.extraThinkingTime`
+    /// を足した全体の上限（詰みの確認に使った分は引く）。対局 CPU の段は変えない。
+    /// `thinkingScale` はテスト用（広告の回数の検査などで探索時間を実時間で待たないため。#2952）。出荷は 1。
+    static func hint(thinkingScale: Double = 1) -> SimpleMinimaxEngine {
+        SimpleMinimaxEngine(level: BoardHintBudget.engineLevel, seed: nil,
+            timeLimit: (ShogiMasterEngine.shippedTimeLimit + BoardHintBudget.extraThinkingTime) * thinkingScale)
     }
 
     /// ヒントの答え（#2779）。
@@ -258,12 +259,13 @@ public struct SimpleMinimaxEngine: ShogiEngine {
         let scanned = !mateSearch.timedOut
         if scanned, safe.isEmpty { return .hopeless }
 
-        var ctx = SearchContext(
-            maxDepth: depth, usePositional: usePositional, useQuiescence: useQuiescence,
+        // 詰みが無い局面の最善手は達人で読む（#3253）。相手の詰みを防ぐ手に絞るときは、その手の中から選ぶ。
+        let master = ShogiMasterEngine(
             timeLimit: Self.searchTime(limit: timeLimit, elapsed: Date().timeIntervalSince(startedAt)),
             nodeLimit: nodeLimit)
         let restrict = scanned && safe.count < moves.count
-        guard let best = ctx.search(&pos, rootMoves: restrict ? safe : nil) else { return nil }
+        guard let usi = master.analyze(sfen: sfen, restrictTo: restrict ? Set(safe.map(\.usi)) : nil)?.usi,
+              let best = Move.fromUSI(usi), moves.contains(best) else { return nil }
         return .move(best)
     }
 

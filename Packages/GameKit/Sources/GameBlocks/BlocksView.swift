@@ -130,7 +130,7 @@ public struct BlocksView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(tr("スコア"))
                     .scaledFont(12, weight: .bold, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 Text("\(model.score)")
                     .scaledFont(28, weight: .heavy, design: .rounded).monospacedDigit()
                     .foregroundStyle(Theme.ink)
@@ -143,7 +143,7 @@ public struct BlocksView: View {
             VStack(alignment: .trailing, spacing: 4) {
                 Text(tr("ステージ %1$lld / %2$lld", model.stageNumber, BlocksRules.stageCount))
                     .themeCaption(12)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 livesView
             }
         }

@@ -1,4 +1,6 @@
 import SwiftUI
+import Core
+import CoreMiniCard
 
 /// ソリティア・フリーセル・スパイダーが共通で使う図入りの遊び方の図（#2044）。
 /// 札は `RuleMiniCard`。文言は各ゲームの `HowToPlayGuide` が持ち、ここは図だけ。
@@ -137,7 +139,7 @@ public struct RuleFoundationFigure: View {
                 }
                 Text("…")
                     .scaledFont(16, weight: .black, design: .rounded, maxScale: 1.15)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 RuleMiniCard("K", suit: .spade)
             }
             HStack(spacing: 6) {

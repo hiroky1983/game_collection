@@ -15,6 +15,8 @@ public enum FeedbackImpact: Equatable, Sendable {
     case card(CardSound)
     /// 将棋・囲碁・五目並べ・オセロ・チェスの自分の着手。触覚は `BoardSound.haptic`、効果音は同梱の駒・石の音（#2767）。
     case board(BoardSound)
+    /// ねこさがしの場面（見つけた・ミス・クリア・鍵）。触覚は `CatSound.haptic` / `notice`、効果音は合成した専用の音（#3239）。
+    case cat(CatSound)
 
     /// 効果音を相乗りさせるか。選ぶだけの操作は触覚だけ（効果音を増やさない・#2303）。
     public var hasSound: Bool { self != .selection }
@@ -116,6 +118,43 @@ public struct FeedbackPreference {
     public var isEnabled: Bool {
         get { defaults.object(forKey: key) as? Bool ?? defaultValue }
         nonmutating set { defaults.set(newValue, forKey: key) }
+    }
+}
+
+/// 効果音の音量（小・中・大・#3007）。オンのときだけ意味を持つ。既定は中。
+///
+/// `scale` は `AVAudioPlayer.volume` にそのまま渡す値。中は従来の固定値（0.6）と同じにして、
+/// 設定を触っていない人の聞こえ方を変えない。保存は文字列の rawValue（並びを入れ替えても壊れない）。
+public enum SoundVolume: String, CaseIterable, Sendable {
+    case small
+    case medium
+    case large
+
+    public static let `default`: SoundVolume = .medium
+
+    public var scale: Float {
+        switch self {
+        case .small: return 0.3
+        case .medium: return 0.6
+        case .large: return 1.0
+        }
+    }
+}
+
+/// `SoundVolume` の保存。`FeedbackPreference` と同じく `UserDefaults` の注入でテストできる。
+public struct SoundVolumePreference {
+    private let key: String
+    private let defaults: UserDefaults
+
+    public init(key: String = "soundVolume_v1", defaults: UserDefaults = .standard) {
+        self.key = key
+        self.defaults = defaults
+    }
+
+    /// 保存が無い・読めない値のときは既定（中）。
+    public var volume: SoundVolume {
+        get { defaults.string(forKey: key).flatMap(SoundVolume.init(rawValue:)) ?? .default }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: key) }
     }
 }
 

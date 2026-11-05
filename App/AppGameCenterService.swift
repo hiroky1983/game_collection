@@ -85,15 +85,33 @@ struct AppGameCenterService: GameCenterService {
             )
         }
         var lastWeekRank: Int?
+        var lastWeekStart: Date?
         if includesLastWeek,
            let previous = try? await leaderboard.loadPreviousOccurrence(),
            let last = try? await previous.loadEntries(for: .global, timeScope: .allTime, range: NSRange(location: 1, length: 1)) {
             lastWeekRank = last.0?.rank
+            lastWeekStart = previous.startDate
         }
         let end = leaderboard.startDate.map { $0.addingTimeInterval(leaderboard.duration) }
         return GameCenterBoard(
             rows: rows, myRank: page.0?.rank, myScore: page.0?.score, participants: page.2,
-            start: leaderboard.startDate, end: end, lastWeekRank: lastWeekRank
+            start: leaderboard.startDate, end: end, lastWeekRank: lastWeekRank, lastWeekStart: lastWeekStart
         )
+    }
+
+    /// 友だちの順位表（#3236）。友だちの情報を使う許可が無い・読めなかったときは空（呼び出し側は友だちの欄を出さない）。
+    func loadFriendRows(leaderboardID: String, topCount: Int) async -> [GameCenterBoardRow] {
+        guard let leaderboard = try? await GKLeaderboard.loadLeaderboards(IDs: [leaderboardID]).first,
+              let page = try? await leaderboard.loadEntries(
+                for: .friendsOnly, timeScope: .allTime, range: NSRange(location: 1, length: max(1, topCount))
+              )
+        else { return [] }
+        let me = GKLocalPlayer.local.gamePlayerID
+        return page.1.map { entry in
+            GameCenterBoardRow(
+                id: entry.player.gamePlayerID, name: entry.player.displayName,
+                score: entry.score, rank: entry.rank, isMe: entry.player.gamePlayerID == me
+            )
+        }
     }
 }

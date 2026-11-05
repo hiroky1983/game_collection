@@ -41,7 +41,7 @@ struct MahjongSolitaireSetupSheet: View {
             }
             Text(tr("どのかたちも144枚で、必ず取り切れるように配ります。最短タイムはかたちごとに別々に記録されます。"))
                 .scaledFont(12, weight: .semibold, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
         }
         if discardsProgress {
             Label(tr("途中で終了すると今の盤面が失われます。"),

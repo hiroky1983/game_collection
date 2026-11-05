@@ -10,6 +10,8 @@ import GameHomerun
 final class GameSettings {
     private(set) var orderedIDs: [String]
     private(set) var hiddenIDs: Set<String>
+    /// 現在登録されているゲームの ID（登録順）。並びを初期に戻すときの基準（#3006）。
+    private let registeredIDs: [String]
     /// 触覚フィードバックのオン / オフ。既定はオン。
     var hapticsEnabled: Bool {
         didSet { Self.haptics.isEnabled = hapticsEnabled }
@@ -17,6 +19,10 @@ final class GameSettings {
     /// 効果音のオン / オフ。既定はオン。触覚とは独立に切り替えられる。
     var soundEnabled: Bool {
         didSet { Self.sound.isEnabled = soundEnabled }
+    }
+    /// 効果音の音量（小・中・大・#3007）。既定は中。効果音がオンのときに全ゲームの音へ効く。
+    var soundVolume: SoundVolume {
+        didSet { Self.soundVolumePreference.volume = soundVolume }
     }
     /// ヒント表示のオン / オフ（#190）。既定はオン。
     /// 大富豪の「いま出せるカードの強調」「出せない理由の1行表示」がこれで切り替わる。
@@ -44,6 +50,14 @@ final class GameSettings {
             AppEnvironment.services.snapshots.clear(for: BlocksModel.gameID)
         }
     }
+    /// ゆっくりモードを切り替えると消える中断データが、いま残っているか（#3107）。
+    /// 設定画面が、残っているときだけ切り替え前に確認を出すために読む。
+    var slowModeToggleDiscardsSnapshots: Bool {
+        // 「続きから」の判定ではなく、破棄されるものがあるかの有無なので、生の `exists` で見てよい。
+        // （ハブの走査テスト #809 が `snapshots.exists(` の直書きを禁じるため、変数名は `store`）
+        let store = AppEnvironment.services.snapshots
+        return store.exists(for: RunnerModel.gameID) || store.exists(for: BlocksModel.gameID)
+    }
     /// 解析送信のオン / オフ（#158）。既定はオン。
     /// オフのあいだ `logEvent` は呼ばれず、Firebase の自動収集イベントも止まる。
     var analyticsEnabled: Bool {
@@ -68,6 +82,9 @@ final class GameSettings {
                 AppEnvironment.reminders.cancelAll()
                 AppEnvironment.reengagement.cancelAll()
                 AppEnvironment.returnReminder.cancel()
+            } else if !oldValue {
+                // オフ→オンは自分で再開を選んだ意思表示。久しぶり通知の永続停止を解く（#3135）。
+                AppEnvironment.reengagement.notificationsDidTurnOn()
             }
         }
     }
@@ -78,6 +95,7 @@ final class GameSettings {
     private static let homerunFrontKey = "gameOrderHomerunFront_v1"
     private static let haptics = FeedbackPreference(key: "hapticsEnabled_v1")
     private static let sound   = FeedbackPreference(key: "soundEnabled_v1")
+    private static let soundVolumePreference = SoundVolumePreference()
     // 触覚・効果音と同じ「未設定ならオン」の箱に相乗りする（新しい永続化の仕組みを増やさない）。
     private static let analytics = FeedbackPreference(key: "analyticsEnabled_v1")
     private static let notifications = FeedbackPreference(key: "resumeRemindersEnabled_v1")
@@ -88,6 +106,7 @@ final class GameSettings {
     private static var slowMode: FeedbackPreference { .actionSlowMode }
 
     init(registeredIDs: [String]) {
+        self.registeredIDs = registeredIDs
         let stored = UserDefaults.standard.stringArray(forKey: Self.orderKey) ?? []
         self.orderedIDs = GameOrderMerge.mergedOrder(stored: stored, registered: registeredIDs)
 
@@ -97,6 +116,7 @@ final class GameSettings {
         // 未設定（初回起動・キー無し）はオン。既定値の規則は FeedbackPreference が持つ。
         self.hapticsEnabled = Self.haptics.isEnabled
         self.soundEnabled = Self.sound.isEnabled
+        self.soundVolume = Self.soundVolumePreference.volume
         self.analyticsEnabled = Self.analytics.isEnabled
         let mergedNotificationsEnabled = NotificationsPreferenceMerge.mergedIsEnabled(
             resume: Self.notifications.isEnabled,
@@ -160,6 +180,15 @@ final class GameSettings {
             AppEnvironment.reminders.gameDidHide(gameID: id)
         }
         save()
+    }
+
+    /// 並びを登録順に、非表示をすべて表示に戻す（#3006）。保存した並びと非表示は消す。
+    /// 柵越えおじさんの先頭移動は登録順で先頭になるので、フラグは立てたままでよい。
+    func resetToDefault() {
+        orderedIDs = registeredIDs
+        hiddenIDs = []
+        UserDefaults.standard.removeObject(forKey: Self.orderKey)
+        UserDefaults.standard.removeObject(forKey: Self.hiddenKey)
     }
 
     private func save() {

@@ -1,4 +1,5 @@
 import Core
+import CoreMiniCard
 import SwiftUI
 
 /// 図入りの遊び方（#2044）のポーカーの図。文言は `HowToPlayGuide.poker.items`（Core）と同じ順。
@@ -45,7 +46,7 @@ enum PokerHowToFigures {
                     hand(0)
                     Image(systemName: "arrow.down")
                         .scaledFont(12, weight: .black, maxScale: 1.2)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                     hand(1)
                 }
             }
