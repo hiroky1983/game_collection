@@ -163,6 +163,11 @@ struct CatPuzzleKeyStageTests {
         #expect(model.toggleCross(cell: outside))
         #expect(model.marks[outside] == .cross)
         #expect(model.lockedTouches == 0)
+        // 開いたあとに別の猫を置いても、演出のきっかけは増えない（1 回だけ）。
+        if let other = model.puzzle.solutionCells.first(where: { model.marks[$0] != .cat && $0 != outside }) {
+            model.findCat(cell: other)
+            #expect(model.keyOpenings == 1)
+        }
     }
 
     @Test("戻す・やり直しで鍵の猫が消えれば、また鍵が閉じる")
@@ -208,6 +213,7 @@ struct CatPuzzleKeyStageTests {
         let again = CatPuzzleModel(services: makeServices(store: store), stageDefaults: makeDefaults("resume2"))
         #expect(again.stage == 10)
         #expect(!again.isKeyLocked, "鍵を開けたあとの中断は開いたまま")
+        #expect(again.keyOpenings == 0, "再開した盤では鍵が開く演出のきっかけを数えない（#3330）")
         #expect(again.toggleCross(cell: outsideCell(again)))
     }
 

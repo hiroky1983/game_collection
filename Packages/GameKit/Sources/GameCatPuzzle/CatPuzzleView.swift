@@ -42,6 +42,10 @@ public struct CatPuzzleView: View {
     @State var showsKeyLockedHint = false
     /// 鍵の猫を見つけた直後の「鍵が開いた」を出している間。
     @State var showsKeyOpened = false
+    /// 鍵が開いた直後の盤の演出を出している間（#3330）。
+    @State var keyOpenPlaying = false
+    /// 演出を出し終えた鍵の開いた回数（画面を離れて戻っても同じ開錠で出し直さない）。
+    @State private var keyOpenPlayed = 0
     /// 鍵の面の説明を出しているか。初めて鍵の面に来たとき 1 回だけ（`CatPuzzleKeyIntro`）。
     @State private var showsKeyIntro = false
     @AppStorage(CatPuzzleKeyIntro.seenKey) private var keyIntroSeen = false
@@ -261,6 +265,7 @@ public struct CatPuzzleView: View {
         .onChange(of: model.gameSerial) {
             showsKeyLockedHint = false
             showsKeyOpened = false
+            keyOpenPlaying = false
             zoom.reset()
         }
         // 鍵の部屋の外を触ったら、先に鍵の猫を見つけるよう数秒だけ案内する（盤の揺れは盤の側）。
@@ -280,6 +285,15 @@ public struct CatPuzzleView: View {
             try? await Task.sleep(for: .seconds(2.5))
             guard !Task.isCancelled else { return }
             withGameAnimation { showsKeyOpened = false }
+        }
+        // 同じきっかけで盤の演出（波紋・錠前・光）を 1 秒だけ出す。再開した盤は keyOpenings が 0 のまま出ない（#3330）。
+        .task(id: model.keyOpenings) {
+            guard model.keyOpenings > keyOpenPlayed else { return }
+            keyOpenPlayed = model.keyOpenings
+            keyOpenPlaying = true
+            try? await Task.sleep(for: CatPuzzleKeyOpenEffect.duration)
+            guard !Task.isCancelled else { return }
+            keyOpenPlaying = false
         }
         // 最後の猫を置いたら 1 拍おいてクリアのダイアログを出す。
         .task(id: model.isSolved) {
@@ -395,7 +409,8 @@ public struct CatPuzzleView: View {
                         shakeToken: model.mistakes, isSolved: model.isSolved,
                         ghostCats: Array(model.unfoundCats.prefix(revealedGhosts)),
                         lureCell: model.lureCell,
-                        keyRoom: model.keyRoom, keyLocked: model.isKeyLocked, cellSide: drawnCell
+                        keyRoom: model.keyRoom, keyLocked: model.isKeyLocked,
+                        keyOpening: keyOpenPlaying && !model.isKeyLocked, keyCat: model.keyCat, cellSide: drawnCell
                     )
                     // 鍵の部屋の外を触ったら盤が短く揺れる（Reduce Motion では揺らさない）。
                     .phaseAnimator(CatPuzzleMotion.shakePhases, trigger: model.lockedTouches) { content, phase in

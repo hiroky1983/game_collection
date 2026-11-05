@@ -42,6 +42,10 @@ struct CatPuzzleBoardCanvas: View {
     var keyRoom: Int? = nil
     /// 鍵が閉じている間（鍵の猫をまだ見つけていない）。鍵の部屋の外を薄く覆い、鍵の部屋を金色の枠で囲む。
     var keyLocked = false
+    /// 鍵が開いた直後の演出を出している間（#3330）。再開した盤では立たない。
+    var keyOpening = false
+    /// 鍵を持った猫のマス（開いた演出の光を出す位置）。
+    var keyCat: Int? = nil
     let cellSide: CGFloat
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// 直近のミスのマスを赤い枠で囲んでいる間（付いた瞬間から `CatPuzzleMotion.wrongFrameHold` だけ。Reduce Motion では出さない）。
@@ -77,6 +81,10 @@ struct CatPuzzleBoardCanvas: View {
                 } animation: { _ in
                     reduceMotion ? nil : CatPuzzleMotion.shakeStep
                 }
+            }
+            // 鍵が開いた演出（波紋・光）。札・猫より下、×の上。
+            if keyOpening, let keyRoom {
+                CatPuzzleKeyOpenEffect(puzzle: puzzle, keyRoom: keyRoom, keyCat: keyCat, cellSide: cellSide)
             }
             // 部屋の札。×（通常・ヒント・赤）より上に重ねる（札の背景で × の一部が隠れてよい・会長 QA 2026-10-21・build 43）。
             // 猫より下に敷く（間違えて札のマスに猫を置いても、猫の顔が札に隠れない）。
@@ -356,9 +364,7 @@ struct CatPuzzleBoardCanvas: View {
                     .fill(Color.white.opacity(0.9))
                 HStack(spacing: Self.keyIconGap) {
                     if hasKey {
-                        Image(systemName: "key.fill")
-                            .font(.system(size: layout.fontSize * 0.9, weight: .bold)) // fixed-size: 盤のマスの寸法に比例させる札の鍵（文字と同じ扱い）
-                            .foregroundColor(Theme.yellowText)
+                        CatPuzzleKeyLabelIcon(size: layout.fontSize * 0.9, opening: keyOpening)
                     }
                     Text(name)
                         .font(.system(size: layout.fontSize, weight: .bold, design: .rounded)) // fixed-size: 盤のマスの寸法に比例させる札の文字（図形のジオメトリに従う）
