@@ -338,6 +338,13 @@ public struct GameServices {
         analytics?.recordMissCause(gameID: gameID, cause: cause, progressPercent: progressPercent)
     }
 
+    /// 決着の原因とゲージのまとめを `game_end` に載せる（腰痛おじさんパズルの荷運び・#3352）。
+    /// `gameDidFinish` の**直前**に呼ぶ。イベントの種類は増やさない。
+    @MainActor
+    public func gameDidRecordEndDetail(gameID: String, cause: AnalyticsEndCause?, gauge: AnalyticsGaugeSummary) {
+        analytics?.recordEndDetail(gameID: gameID, cause: cause, gauge: gauge)
+    }
+
     /// ゲームが決着したときに各 Model から呼ぶ唯一の入口。
     ///
     /// 同じリザルト画面に出る2つの依頼（評価リクエスト #53 / レコメンド #52）の競合を

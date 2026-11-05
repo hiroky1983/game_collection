@@ -52,6 +52,10 @@ public final class OjisanPuzzleModel {
     }
     /// 腰痛ゲージ（0...100）。
     public private(set) var pain: Int = 0
+    /// このプレイの開始時のゲージと最大ゲージ・消した荷物の数（`game_end` 用・#3352）。広告で続けた局は続けた時点から数え直す。
+    private var painStart = 0
+    private var painPeak = 0
+    private var clearedCells = 0
     /// 直前の 1 手で何連鎖したか。次に固定するまで出したままにする。
     public private(set) var lastChain: Int = 0
     /// この局で起きた最大の連鎖数（結果に出す・#2810）。始め直すと 0 に戻り、広告で続けた局は引き継ぐ。
@@ -171,6 +175,7 @@ public final class OjisanPuzzleModel {
         next = OjisanPuzzleBoard.makePair(using: &generator)
         rng = generator
         pain = mode.hasGauge ? OjisanPuzzlePain.initial(board: board) : 0
+        resetGaugeStats()
         // 中断データを持たないので、開くたびに新しいプレイ。`gameDidStart` は冪等なので
         // 再描画で init が何度走っても増えない（#158）。
         if announcesStart { announceStartIfNeeded() }
@@ -198,8 +203,16 @@ public final class OjisanPuzzleModel {
         self.pain = OjisanPuzzlePain.clamped(pain)
         self.next = OjisanPuzzleBoard.makePair(using: &generator)
         self.rng = generator
+        resetGaugeStats()
         // 狙った局面から始める入口も、新しいプレイの開始として数える（ブロックならべの同種の入口と同じ扱い）。
         announceStartIfNeeded()
+    }
+
+    /// このプレイのゲージ計測を、今のゲージから数え直す（開始・始め直し・広告で続けた直後。#3352）。
+    private func resetGaugeStats() {
+        painStart = pain
+        painPeak = pain
+        clearedCells = 0
     }
 
     /// `game_start` をまだ送っていなければ送る（冪等）。
@@ -412,6 +425,7 @@ public final class OjisanPuzzleModel {
         next = OjisanPuzzleBoard.makePair(using: &rng)
         score = 0
         pain = mode.hasGauge ? OjisanPuzzlePain.initial(board: board) : 0
+        resetGaugeStats()
         lastChain = 0
         maxChain = 0
         chainDepth = 0
@@ -447,6 +461,7 @@ public final class OjisanPuzzleModel {
         } else {
             board = OjisanPuzzleRescue.clearingTopRows(board)
         }
+        resetGaugeStats()
         self.outcome = nil
         // 後片付け（重力・消去・クリア判定）を一巡させてから次の組を出す。出す位置は塞がっていない。
         phase = .settling
@@ -474,6 +489,7 @@ public final class OjisanPuzzleModel {
             // 見えない段にはみ出して消えた荷物は、盤に載っていないので重さに数えない。
             let placed = pair.cells.filter { OjisanPuzzleBoard.isInside(row: $0.cell.row, col: $0.cell.col) }
             pain = OjisanPuzzlePain.afterLock(pain, weights: placed.map { OjisanPuzzleLuggage.kind($0.kind)?.weight ?? 0 })
+            painPeak = max(painPeak, pain)
         }
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。冪等。
         services?.gameDidProgress(gameID: Self.gameID)
@@ -504,6 +520,8 @@ public final class OjisanPuzzleModel {
             let cells = groups.reduce(0) { $0 + $1.count }
             score += OjisanPuzzleScoring.chainPoints(cells: cells, chain: chainDepth)
             if mode.hasGauge { pain = OjisanPuzzlePain.afterChain(pain, cells: cells, chain: chainDepth) }
+            painPeak = max(painPeak, pain)
+            clearedCells += cells
             board = OjisanPuzzleBoard.removing(board, groups: groups)
             lastChain = chainDepth
             maxChain = max(maxChain, chainDepth)
@@ -554,6 +572,14 @@ public final class OjisanPuzzleModel {
         current = nil
         pause()
         services?.feedback.notify(outcome == .cleared ? .success : .error)
+        // 荷運びモードだけ、負け方（入院／積み上がり）と開始・最大ゲージ・消した数を `game_end` に載せる（#3352）。
+        if mode.hasGauge {
+            services?.gameDidRecordEndDetail(
+                gameID: Self.gameID,
+                cause: outcome == .hospitalized ? .hospital : (outcome == .buried ? .buried : nil),
+                gauge: AnalyticsGaugeSummary(startValue: painStart, peakValue: painPeak, clearedCount: clearedCells)
+            )
+        }
         recordResult = services?.gameDidFinish(
             gameID: Self.gameID,
             outcome: outcome == .cleared ? .win : .loss,

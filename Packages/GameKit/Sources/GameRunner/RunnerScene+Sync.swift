@@ -250,7 +250,7 @@ extension RunnerScene {
     nonisolated static func sinksOutOfSight(cause: AnalyticsEndCause?) -> Bool {
         switch cause {
         case .pit, .sink:                  return true
-        case .rock, .bird, .animal, .none: return false
+        case .rock, .bird, .animal, .hospital, .buried, .none: return false
         }
     }
 
