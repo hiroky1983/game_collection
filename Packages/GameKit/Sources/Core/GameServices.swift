@@ -294,6 +294,18 @@ public struct GameServices {
         analytics?.recordShareTap(gameID: gameID)
     }
 
+    /// 「X でポストして特典をもらう」提案（#3359）を出した・押したときに呼ぶ。`share_tap` に `offer` を載せて送るだけ。
+    @MainActor
+    public func gameDidOfferXShare(gameID: String, step: ShareOfferStep) {
+        analytics?.recordShareTap(gameID: gameID, offer: step)
+    }
+
+    /// X でポストした特典（#3359）を渡したときに呼ぶ。`reward_grant`（`purpose = share`）を送るだけ。
+    @MainActor
+    public func gameDidGrantShareReward(gameID: String, items: RewardGrantItems) {
+        analytics?.recordRewardGrant(gameID: gameID, rank: 0, items: items, purpose: .share)
+    }
+
     /// ゲーム内の特典（ねこさがしのデイリーランキング上位・#3256）を渡したときに呼ぶ。`reward_grant` を送るだけ。
     @MainActor
     public func gameDidGrantReward(gameID: String, rank: Int, items: RewardGrantItems) {

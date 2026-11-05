@@ -85,6 +85,8 @@ public struct GameClearCard: View {
     private let onClose: (() -> Void)?
     private let primaryAction: PrimaryAction?
     private let share: ClearShare?
+    private let xShareOffer: XShareOffer?
+    private let xShareGranted: Bool
     @Environment(\.recordShare) private var recordShare
 
     /// 「盤を見る」の上に置く、次へ進む動線（ねこさがしのステージの「次のステージへ」・#3048）。無ければ出さない。
@@ -114,13 +116,16 @@ public struct GameClearCard: View {
     /// - Parameter stats: 詳細の下に、アイコン付きで 1 行に並べる数（入りきらない文字サイズでは縦に積む）。
     /// - Parameter record: 自己ベストの行に使う記録（15パズル・つなぎ。無ければ行を出さない・#3059）。
     public init(title: String? = nil, details: [String] = [], stats: [Stat] = [], record: RecordResult? = nil,
-                primaryAction: PrimaryAction? = nil, share: ClearShare? = nil, onClose: (() -> Void)? = nil) {
+                primaryAction: PrimaryAction? = nil, share: ClearShare? = nil,
+                xShareOffer: XShareOffer? = nil, xShareGranted: Bool = false, onClose: (() -> Void)? = nil) {
         self.title = title ?? tr("クリア！")
         self.details = details
         self.stats = stats
         self.record = record
         self.primaryAction = primaryAction
         self.share = share
+        self.xShareOffer = xShareOffer
+        self.xShareGranted = xShareGranted
         self.onClose = onClose
     }
 
@@ -167,6 +172,8 @@ public struct GameClearCard: View {
                 // 読み上げの塊の外（共有ボタンはカードの中の独立した操作）。
                 ClearShareButton(share: share, context: recordShare)
             }
+            // 「X でポストして特典をもらう」の提案（#3359）。特典を付けるゲームの、条件を満たした結果画面だけ。
+            if let xShareOffer { XShareOfferView(xShareOffer, granted: xShareGranted) }
             if let onClose {
                 Button(action: onClose) {
                     Text(tr("盤を見る"))

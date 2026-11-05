@@ -298,6 +298,9 @@ struct HomerunResultView: View {
     private var resultContent: some View {
         VStack(spacing: 14) {
             summaryCard
+            if let offer = model.xShareOffer() {
+                XShareOfferView(offer, granted: model.xShareGranted).padding(14).popCard()
+            }
             rankingRow
             HomerunUnlockedCard(items: model.unlockedThisChallenge)
             moonCard

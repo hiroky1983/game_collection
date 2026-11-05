@@ -92,7 +92,7 @@ public final class SpyAnalyticsService: AnalyticsService {
     /// ゲーム内の特典を渡した記録（#3256）。
     public var grants: [(gameID: String, rank: Int, items: RewardGrantItems)] {
         events.compactMap {
-            if case let .rewardGrant(gameID, rank, items) = $0 { return (gameID, rank, items) }
+            if case let .rewardGrant(gameID, rank, items, _) = $0 { return (gameID, rank, items) }
             return nil
         }
     }

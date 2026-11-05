@@ -385,7 +385,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
     ///
     /// 数えるのは**押したこと**で、共有シートで実際に送ったか・どこへ送ったかは載せない
     /// （共有シートは OS の画面で、アプリからは結果を確実には取れないため）。スコアの生値も載せない。
-    case shareTap(gameID: String)
+    case shareTap(gameID: String, offer: ShareOfferStep? = nil)
     /// 通知の許可ダイアログの結果（#2008）。ダイアログを実際に出した 1 回につき 1 回。
     /// パラメータは `result` / `trigger` のみで、ゲーム ID は載せない。
     case notificationPermission(result: NotificationPermissionResult, trigger: NotificationPermissionTrigger)
@@ -394,7 +394,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
     case reviewPrompt(kind: ReviewPromptKind, step: ReviewPromptStep, trigger: ReviewPromptTrigger? = nil)
     /// ゲーム内の特典を渡した（ねこさがしのデイリーランキング上位・#3256）。渡した 1 回につき 1 回。
     /// パラメータは `game_id` / `rank`（前日の順位）/ `items`（`hint` / `teach` / `hint_teach`）のみ。
-    case rewardGrant(gameID: String, rank: Int, items: RewardGrantItems)
+    case rewardGrant(gameID: String, rank: Int, items: RewardGrantItems, purpose: RewardGrantPurpose = .ranking)
 
     /// Firebase のイベント名。
     public var name: String {
@@ -487,8 +487,11 @@ public enum AnalyticsEvent: Equatable, Sendable {
                 "purpose": .string(purpose.rawValue),
                 "result": .string(result.rawValue),
             ]
-        case let .shareTap(gameID):
-            return ["game_id": .string(gameID)]
+        case let .shareTap(gameID, offer):
+            var parameters: [String: AnalyticsValue] = ["game_id": .string(gameID)]
+            // X でポストして特典をもらう提案（#3359）の表示・押下のときだけ `offer` を載せる。通常の共有は `game_id` のみ。
+            if let offer { parameters["offer"] = .string(offer.rawValue) }
+            return parameters
         case let .notificationPermission(result, trigger):
             return [
                 "result": .string(result.rawValue),
@@ -502,12 +505,18 @@ public enum AnalyticsEvent: Equatable, Sendable {
             // 勝利の見せ場のきっかけは従来どおり鍵を送らない。遊んだ日数の節目だけ載せる（#3078）。
             if let trigger { parameters["trigger"] = .string(trigger.rawValue) }
             return parameters
-        case let .rewardGrant(gameID, rank, items):
-            return [
+        case let .rewardGrant(gameID, rank, items, purpose):
+            var parameters: [String: AnalyticsValue] = [
                 "game_id": .string(gameID),
-                "rank": .int(rank),
                 "items": .string(items.rawValue),
             ]
+            // 順位の特典（#3256）は従来どおり `rank` を送り `purpose` は載せない。X でポストした特典（#3359）は順位が無いので
+            // `rank` の代わりに `purpose = share` を送る。
+            switch purpose {
+            case .ranking: parameters["rank"] = .int(rank)
+            case .share: parameters["purpose"] = .string(purpose.rawValue)
+            }
+            return parameters
         }
     }
 }
@@ -517,6 +526,24 @@ public enum RewardGrantItems: String, Sendable, CaseIterable {
     case hint
     case teach
     case hintTeach = "hint_teach"
+    /// 柵越えおじさんのその日のプレイ回数 +1（X でポストした特典・#3359）。
+    case challenge
+}
+
+/// `reward_grant` の `purpose`（#3359）。何の特典か。順位の特典（#3256）は従来どおり載せない。
+public enum RewardGrantPurpose: String, Sendable, CaseIterable {
+    /// デイリーランキングの順位の特典（`rank` を送る）。
+    case ranking
+    /// X でポストした特典（ゲームごとに 1 回）。
+    case share
+}
+
+/// `share_tap` の `offer`（#3359）。「X でポストして特典をもらう」提案の流れ。通常の共有ボタンは載せない。
+public enum ShareOfferStep: String, Sendable, CaseIterable {
+    /// 提案を出した（結果画面に表示した 1 回につき 1 回）。
+    case shown
+    /// 提案の「X でポスト」を押した。
+    case tap
 }
 
 /// `review_prompt` の `kind`（#3061）。どちらの評価のお願いか。
@@ -867,15 +894,15 @@ public final class GameAnalytics {
     }
 
     /// ゲーム内の特典を渡したときに呼ぶ（#3256）。プレイの数え方には影響しない。
-    public func recordRewardGrant(gameID: String, rank: Int, items: RewardGrantItems) {
+    public func recordRewardGrant(gameID: String, rank: Int, items: RewardGrantItems, purpose: RewardGrantPurpose = .ranking) {
         guard allowedGameIDs.contains(gameID) else { return }
-        service.log(.rewardGrant(gameID: gameID, rank: rank, items: items))
+        service.log(.rewardGrant(gameID: gameID, rank: rank, items: items, purpose: purpose))
     }
 
     /// リザルトの共有ボタンを押したときに呼ぶ（#1043）。プレイの数え方には影響しない。
-    public func recordShareTap(gameID: String) {
+    public func recordShareTap(gameID: String, offer: ShareOfferStep? = nil) {
         guard allowedGameIDs.contains(gameID) else { return }
-        service.log(.shareTap(gameID: gameID))
+        service.log(.shareTap(gameID: gameID, offer: offer))
     }
 
     /// 通知の許可ダイアログを出して結果が返ったときに呼ぶ（#2008）。プレイの数え方には影響しない。

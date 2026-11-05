@@ -12,6 +12,8 @@ public struct HomerunLedger: Codable, Equatable, Sendable {
     /// 月が割れたとき（#1680）のプレゼント。当日分として足す（0:00 で消える）。1 日の全体の上限は無い（会長決裁 2026-10-01）。
     /// +2 → +1（会長決裁 2026-10-04）。
     public static let moonBonus = 1
+    /// X でポストしたとき（#3359・会長決裁 2026-11-06）のプレゼント。その日のプレイ回数 +1（当日分・0:00 で消える）。ゲームごとに 1 回だけ。
+    public static let shareBonus = 1
 
     /// 消費する枠の種別（#1685）。
     public enum Credit: Equatable, Sendable {
@@ -109,6 +111,11 @@ public struct HomerunLedger: Codable, Equatable, Sendable {
         guard canPlayWithAd else { return false }
         adPlaysStarted = adPlays + 1
         return true
+    }
+
+    /// X でポストしたプレゼント（#3359）: 今日の回数を `shareBonus` 増やす。月のプレゼントと同じ「ご褒美」の枠で数える。
+    public mutating func grantShareBonus() {
+        moonBonusGranted = bonus + Self.shareBonus
     }
 
     /// 月が割れた（#1680）プレゼント: 今日の回数を `moonBonus` 増やす。上限は無い。

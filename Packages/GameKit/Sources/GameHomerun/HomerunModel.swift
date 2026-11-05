@@ -87,6 +87,10 @@ public final class HomerunModel {
     public private(set) var ledger: HomerunLedger
     public private(set) var records: HomerunRecords
     public private(set) var challenge: HomerunChallenge?
+    /// いまの結果画面に「X でポストして特典をもらう」を出すか（#3359）。1 挑戦の合計飛距離が基準以上で、まだ受け取っていないときだけ立つ。
+    public internal(set) var xShareOfferEligible = false
+    /// 上の提案で特典を渡した（結果画面を開いている間「もらいました」を出すための印）。
+    public internal(set) var xShareGranted = false
     /// 直前の 1 球の結果。
     public private(set) var lastBall: HomerunBattedBall?
     /// 実際に振った回数（見送りは数えない）。打席の 3D の打者がスイングを再生する合図に使う（試作）。
@@ -663,6 +667,13 @@ public final class HomerunModel {
         return ball
     }
 
+    /// X でポストした特典（#3359）: 今日のプレイ回数を +1 して保存する。
+    func applyShareBonus(now: Date) {
+        refreshDay(now: now)
+        ledger.grantShareBonus()
+        HomerunStorage.saveLedger(ledger, defaults)
+    }
+
     private func record(_ challenge: HomerunChallenge) {
         let previousBest = records.bestTotalTenths
         records.record(challenge)
@@ -679,6 +690,7 @@ public final class HomerunModel {
         // （`finish` で表に戻す・チャリンコおじさんの #1143 と同じ仕組み）。`gameDidFinish` が伏せを解くので、その後で伏せる。
         services?.deferReviewRequestUntilResultIsVisible()
         beginWeekly(for: challenge)
+        updateXShareEligibility(for: challenge)
     }
 
     /// 結果の演出の始まり・終わりの時刻（`.finale` の間だけ値がある）。
