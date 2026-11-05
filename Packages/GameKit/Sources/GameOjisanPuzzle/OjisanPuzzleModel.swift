@@ -137,6 +137,16 @@ public final class OjisanPuzzleModel {
     private var loop: Task<Void, Never>?
     /// 直近に左右移動・回転を受け付けた時刻。腰が重いときの「ワンテンポ」を測るのに使う。
     private var lastInputAt: ContinuousClock.Instant?
+    /// 腰が重くて受け付けられなかった左右移動・回転の待ち行列。待ち時間が明けたら順に効かせる（#3353）。
+    /// 組が固定されたら・始め直したら・一時停止したら捨てる（次の組には持ち越さない）。
+    private var pendingInputs: [PendingInput] = []
+    private var pendingInputTask: Task<Void, Never>?
+    /// 待ち行列に溜める上限。指を振り回しても、あとから大量に効き続けないようにする。
+    static let pendingInputLimit = 8
+    private enum PendingInput {
+        case move(Int)
+        case rotate(Bool)
+    }
     /// 直前の回す操作が塞がれて回せなかったか。続けてもう一度押されたら上下（左右）を入れ替える（#2063）。
     /// 動かす・回せる・落ちる・固定するのどれかが起きたら畳む。
     private var rotationBlockedOnce = false
@@ -243,6 +253,7 @@ public final class OjisanPuzzleModel {
 
     /// 落下を止める。局面はそのまま残す。
     public func pause() {
+        clearPendingInputs()
         loop?.cancel()
         loop = nil
     }
@@ -295,7 +306,15 @@ public final class OjisanPuzzleModel {
     /// 左右へ 1 マス動かす。腰が重いと受け付ける間隔が空く（`acceptsInput`）。
     @discardableResult
     public func move(by delta: Int) -> Bool {
-        guard acceptsInput() else { return false }
+        guard !isUserPaused else { return false }
+        guard acceptsInput(), pendingInputs.isEmpty else {
+            enqueue(.move(delta))
+            return false
+        }
+        return applyMove(by: delta)
+    }
+
+    private func applyMove(by delta: Int) -> Bool {
         guard outcome == nil, phase == .dropping, let pair = current,
               let moved = OjisanPuzzleBoard.moved(board, pair, byColumns: delta) else {
             services?.feedback.notify(.warning)
@@ -315,7 +334,15 @@ public final class OjisanPuzzleModel {
     /// （定番の落ち物パズルと同じ「2 回押しで反転」・#2063）。
     @discardableResult
     public func rotate(clockwise: Bool) -> Bool {
-        guard acceptsInput() else { return false }
+        guard !isUserPaused else { return false }
+        guard acceptsInput(), pendingInputs.isEmpty else {
+            enqueue(.rotate(clockwise))
+            return false
+        }
+        return applyRotate(clockwise: clockwise)
+    }
+
+    private func applyRotate(clockwise: Bool) -> Bool {
         guard outcome == nil, phase == .dropping, let pair = current else {
             services?.feedback.notify(.warning)
             return false
@@ -333,6 +360,39 @@ public final class OjisanPuzzleModel {
         acceptInput()
         services?.feedback.impact(.light)
         return true
+    }
+
+    /// 受け付けられなかった入力を待ち行列に積み、待ち時間が明けたら順に効かせる。
+    /// 受け付けなかったときは触覚を鳴らさない（`acceptsInput` と同じ理由）。
+    private func enqueue(_ input: PendingInput) {
+        guard outcome == nil, phase == .dropping, current != nil else { return }
+        if pendingInputs.count < Self.pendingInputLimit { pendingInputs.append(input) }
+        guard pendingInputTask == nil else { return }
+        pendingInputTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self, !self.pendingInputs.isEmpty else { break }
+                let delay = OjisanPuzzlePain.inputDelayMilliseconds(for: self.pain)
+                var wait = Duration.zero
+                if let last = self.lastInputAt {
+                    wait = max(.zero, .milliseconds(delay) - (ContinuousClock.now - last))
+                }
+                try? await Task.sleep(for: wait + .milliseconds(1))
+                guard !Task.isCancelled, !self.isUserPaused, self.outcome == nil, self.phase == .dropping,
+                      self.current != nil, !self.pendingInputs.isEmpty else { break }
+                guard self.acceptsInput() else { continue }
+                switch self.pendingInputs.removeFirst() {
+                case .move(let delta): _ = self.applyMove(by: delta)
+                case .rotate(let clockwise): _ = self.applyRotate(clockwise: clockwise)
+                }
+            }
+            self?.pendingInputTask = nil
+        }
+    }
+
+    private func clearPendingInputs() {
+        pendingInputs.removeAll()
+        pendingInputTask?.cancel()
+        pendingInputTask = nil
     }
 
     /// 接地している組を動かした・回したら、固定を 1 刻み延ばす（上限 `groundExtensionLimit` 回）。
@@ -432,6 +492,7 @@ public final class OjisanPuzzleModel {
         phase = .dropping
         outcome = nil
         lastInputAt = nil
+        clearPendingInputs()
         rotationBlockedOnce = false
         resetGroundGrace()
         recordResult = nil
@@ -480,6 +541,7 @@ public final class OjisanPuzzleModel {
     private func lock(_ pair: OjisanPuzzlePair) {
         board = OjisanPuzzleBoard.locking(board, pair)
         current = nil
+        clearPendingInputs()
         rotationBlockedOnce = false
         resetGroundGrace()
         lastChain = 0
