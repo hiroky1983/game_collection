@@ -241,9 +241,9 @@ Issue番号」を明記し、倉庫段階であることが一目で分かるよ
   release へ同期すること。
 - **審査に提出した時点で、その release ブランチは凍結する**（2026-08-13 追加、タグ名を2026-08-22 訂正）。
   1. 提出したコミットに `vX.Y.Z-submitted` のタグを打って push する（何が審査に入ったかの唯一の証跡）。
-     `vX.Y.Z-build<N>` としていたが、実際の `CURRENT_PROJECT_VERSION` は `fastlane/Fastfile` が
-     `Time.now.strftime("%Y%m%d%H%M")` でビルド時に都度採番するだけで git には残らないため、
-     厳密なビルド番号でのタグ付けは追跡不能だった。コミット単位の `-submitted` に統一する。
+     `vX.Y.Z-build<N>` としていたが、ビルド番号（`CURRENT_PROJECT_VERSION`）は `project.yml` の固定値で、
+     版数更新 PR（`Scripts/bump-marketing-version.sh`）で上げるため git に残る。
+     タグはコミット単位の `-submitted` に統一する（2026-08-22 の結論は変えない）。
   2. GitHub のブランチ保護で `lock_branch: true` を設定し、以降そのブランチへは一切 push しない。
   3. 次版の作業は必ず新しい `release/vX.Y.(Z+1)` を作ってそちらで行う。
   審査中の修正（リジェクト対応）が必要になった場合のみ、会長の承認を得て lock を解除する。
