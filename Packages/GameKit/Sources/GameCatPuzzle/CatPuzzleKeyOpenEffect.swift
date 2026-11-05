@@ -22,7 +22,7 @@ struct CatPuzzleKeyOpenEffect: View {
     static let waveSpan: Double = 0.7
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: nil, paused: false)) { timeline in
+        TimelineView(.animation) { timeline in
             let t = min(1, max(0, timeline.date.timeIntervalSince(start) / Self.seconds))
             Canvas { context, _ in
                 drawVeil(&context, t: t)
@@ -121,7 +121,7 @@ struct CatPuzzleKeyOpenEffect: View {
 }
 
 /// 鍵の部屋の札の鍵アイコン。鍵が開いた演出の間は、閉じた錠前が回りながら開いた錠前になる（はね返る）。
-/// Reduce Motion のときは回さず、入れ替わりを透明度だけで見せる。
+/// Reduce Motion のときは回さず、透明度の入れ替えだけ（即時）。
 struct CatPuzzleKeyLabelIcon: View {
     let size: CGFloat
     let opening: Bool
@@ -147,11 +147,8 @@ struct CatPuzzleKeyLabelIcon: View {
         .onChange(of: opening, initial: true) {
             guard opening else { opened = false; return }
             opened = false
-            if reduceMotion {
-                withAnimation(.easeInOut(duration: 0.3)) { opened = true }
-            } else {
-                withAnimation(.spring(response: 0.45, dampingFraction: 0.35)) { opened = true }
-            }
+            // Reduce Motion では `withGameAnimation` がアニメーションを外し、入れ替わりは即時（`Motion` の方針）。
+            withGameAnimation(.spring(response: 0.45, dampingFraction: 0.35)) { opened = true }
         }
     }
 }
