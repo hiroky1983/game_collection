@@ -265,52 +265,23 @@ struct HomerunRankingSignedOutPage: View {
     }
 }
 
-/// 見出し・自分のカード・一覧。入れ替えアニメはここが持つ。
+/// 見出し・自分のカード・一覧。入れ替えアニメは Core の `RankingBoardView`（#3327）が持つ。
 struct HomerunRankingBoardView: View {
     let board: GameCenterBoard
     let motion: HomerunRankingMotion?
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// 行の並び（id → 0 始まりの位置）。アニメで動かす。
-    @State private var order: [String: Int] = [:]
-    @State private var myMeters = 0
-    @State private var countStart: Date?
-    @State private var countFrom = 0
-    @State private var flying = false
-    @State private var arrived = false
-    @State private var passedFlash: Set<String> = []
-    @State private var animating = false
-
-    static let rowHeight: CGFloat = 54
-
-    private var entries: [HomerunRankEntry] { motion?.entries ?? HomerunRankingPlan.entries(of: board) }
-    private var me: HomerunRankEntry? { entries.first(where: \.isMe) }
-
-    /// 行の順位。アニメの間は並びの位置、静止では Game Center の順位（上位の外の自分の行もそのまま出せる）。
-    private func rank(of entry: HomerunRankEntry) -> Int {
-        animating ? (order[entry.id] ?? 0) + 1 : entry.rank
-    }
-
-    private var myRank: Int? { me.map(rank(of:)) }
-
-    private var above: (entry: HomerunRankEntry, rank: Int)? {
-        guard let myRank, myRank > 1, let e = entries.first(where: { order[$0.id] == myRank - 2 }) else { return nil }
-        return (e, myRank - 1)
-    }
-
-    /// 今回の入れ替えで上がった段数（アニメのときだけ）。
-    private var delta: Int? {
-        guard let motion, let myRank else { return nil }
-        return motion.from + 1 - myRank
-    }
+    static let style = RankingBoardStyle(
+        rowHeight: 54,
+        format: HomerunRankingText.distance,
+        note: HomerunRankingText.moonNote,
+        scoreSize: { $0.moonCount > 0 ? 17 : 18 }
+    )
 
     var body: some View {
-        VStack(spacing: 14) {
+        RankingBoardView(board: board, motion: motion, style: Self.style) { state in
             headerCard
-            myCard
-            listCard
+            myCard(state)
         }
-        .onAppear(perform: setup)
     }
 
     // MARK: - 見出し
@@ -336,8 +307,8 @@ struct HomerunRankingBoardView: View {
 
     // MARK: - 自分
 
-    @ViewBuilder private var myCard: some View {
-        if let myRank {
+    @ViewBuilder private func myCard(_ state: RankingBoardState) -> some View {
+        if let myRank = state.myRank {
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(tr("今週のあなた")).themeCaption(12).foregroundStyle(Theme.inkSubText)
@@ -346,14 +317,15 @@ struct HomerunRankingBoardView: View {
                             .scaledFont(46, weight: .black, design: .rounded, maxScale: 1.2).monospacedDigit()
                             .contentTransition(.numericText(countsDown: true))
                         Text(verbatim: HomerunRankingText.rankSuffix(myRank)).scaledFont(22, weight: .heavy, design: .rounded, maxScale: 1.2)
-                        if arrived, let delta, delta > 0 {
+                        if state.arrived, let delta = state.delta, delta > 0 {
                             ChipText(text: "↑ \(delta)", fill: Theme.Fill.pink)
                                 .padding(.leading, 8)
                                 .transition(.scale.combined(with: .opacity))
                         }
                     }
                     .foregroundStyle(Theme.ink)
-                    CountUpText(from: countFrom, to: myMeters, start: countStart, duration: 0.9)
+                    CountUpText(from: state.countFrom, to: state.myScore, start: state.countStart, duration: 0.9,
+                                format: HomerunRankingText.distance)
                         .scaledFont(22, weight: .heavy, design: .rounded, maxScale: 1.2).monospacedDigit()
                         .foregroundStyle(Theme.ink)
                 }
@@ -362,10 +334,10 @@ struct HomerunRankingBoardView: View {
                     if let lastWeek = board.lastWeekRank {
                         Text(verbatim: tr("先週は %lld位", lastWeek)).themeCaption(12).foregroundStyle(Theme.inkSubText)
                     }
-                    if !arrived {
+                    if !state.arrived {
                         Text(verbatim: " ").themeCaption(13)
-                    } else if let above {
-                        Text(verbatim: HomerunRankingText.gap(aboveMeters: above.entry.meters, myMeters: myMeters, aboveRank: above.rank))
+                    } else if let above = state.above, let aboveRank = state.aboveRank {
+                        Text(verbatim: HomerunRankingText.gap(aboveMeters: above.meters, myMeters: state.myScore, aboveRank: aboveRank))
                             .themeCaption(13).foregroundStyle(Theme.coralText)
                             .multilineTextAlignment(.trailing)
                     } else if myRank == 1 {
@@ -385,181 +357,6 @@ struct HomerunRankingBoardView: View {
             .padding(14)
             .popCard()
         }
-    }
-
-    // MARK: - 一覧
-
-    private var listCard: some View {
-        ZStack(alignment: .top) {
-            ForEach(entries) { entry in
-                let index = order[entry.id] ?? entries.firstIndex(of: entry) ?? 0
-                HomerunRankRow(entry: entry, rank: rank(of: entry), meters: entry.isMe ? myMeters : entry.meters,
-                               countFrom: countFrom, countStart: entry.isMe ? countStart : nil,
-                               isFlying: entry.isMe && flying, isFlashing: passedFlash.contains(entry.id),
-                               isLast: index == entries.count - 1)
-                    .frame(height: Self.rowHeight)
-                    .offset(y: CGFloat(index) * Self.rowHeight)
-                    .zIndex(entry.isMe ? 10 : 0)
-            }
-        }
-        .frame(maxWidth: .infinity, minHeight: Self.rowHeight * CGFloat(entries.count),
-               maxHeight: Self.rowHeight * CGFloat(entries.count), alignment: .top)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.corner, style: .continuous))
-        .popCard()
-    }
-
-    // MARK: - アニメ
-
-    private func setup() {
-        order = Dictionary(uniqueKeysWithValues: entries.enumerated().map { ($1.id, $0) })
-        myMeters = me?.meters ?? 0
-        countFrom = myMeters
-        arrived = true
-        guard let motion, !reduceMotion else {
-            // アニメ無し: 最終の並びと記録をそのまま出す。
-            if let motion { settle(motion) }
-            return
-        }
-        arrived = false
-        animating = true
-        Task { await run(motion) }
-    }
-
-    /// 最終の並びに置く（Reduce Motion、または画面を離れたあと）。
-    private func settle(_ motion: HomerunRankingMotion) {
-        guard let meID = me?.id else { return }
-        let passed = motion.entries.indices.filter { $0 >= motion.to && $0 < motion.from }.map { motion.entries[$0].id }
-        for id in passed { order[id]? += 1 }
-        order[meID] = motion.to
-        myMeters = motion.newMeters
-        countFrom = motion.newMeters
-        animating = true
-    }
-
-    @MainActor
-    private func run(_ motion: HomerunRankingMotion) async {
-        guard let meID = me?.id else { return }
-        try? await Task.sleep(for: .seconds(0.7))
-        // 1) 距離の数え上げ（自分の行と上のカードの両方）。
-        countStart = Date()
-        withGameAnimation(.easeOut(duration: 0.9)) { myMeters = motion.newMeters }
-        try? await Task.sleep(for: .seconds(1.0))
-        let from = motion.from, to = motion.to
-        guard to < from else { arrived = true; return }
-        // 2) 浮かせてから一気に。抜かれた行はまとめて 1 つ下がる。
-        withGameAnimation(.spring(duration: 0.25, bounce: 0.3)) { flying = true }
-        try? await Task.sleep(for: .seconds(0.3))
-        let passedIDs = motion.entries.indices.filter { $0 >= to && $0 < from }.map { motion.entries[$0].id }
-        withGameAnimation(.spring(duration: 0.75, bounce: 0.2)) {
-            for id in passedIDs { order[id]? += 1 }
-            order[meID] = to
-        }
-        try? await Task.sleep(for: .seconds(0.6))
-        passedFlash = Set(passedIDs)
-        withGameAnimation(.spring(duration: 0.4, bounce: 0.45)) { flying = false; arrived = true }
-        try? await Task.sleep(for: .seconds(0.35))
-        withGameAnimation(.easeOut(duration: 0.4)) { passedFlash = [] }
-    }
-}
-
-/// 一覧の 1 行。順位の丸（1〜3 位は金・銀・銅）・名前・距離。自分の行は黄色の面と左の赤い帯。
-struct HomerunRankRow: View {
-    let entry: HomerunRankEntry
-    let rank: Int
-    let meters: Int
-    var countFrom = 0
-    var countStart: Date?
-    var isFlying = false
-    var isFlashing = false
-    var isLast = false
-
-    var body: some View {
-        HStack(spacing: 12) {
-            rankBadge
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(verbatim: entry.name).themeBody(15, weight: .heavy).foregroundStyle(Theme.ink)
-                        .lineLimit(1)
-                    if entry.isMe {
-                        Text(tr("あなた")).themeCaption(10)
-                            .foregroundStyle(Theme.onAccent)
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(Capsule().fill(Theme.Fill.coral))
-                    }
-                }
-                if let note = HomerunRankingText.moonNote(entry) {
-                    Label(note, systemImage: "moon.stars.fill")
-                        .themeCaption(11).foregroundStyle(Theme.purple)
-                }
-            }
-            Spacer(minLength: 8)
-            Group {
-                if entry.isMe {
-                    CountUpText(from: countFrom, to: meters, start: countStart, duration: 0.9)
-                } else {
-                    Text(verbatim: HomerunRankingText.distance(meters))
-                }
-            }
-            .scaledFont(entry.moonCount > 0 ? 17 : 18, weight: .heavy, design: .rounded, maxScale: 1.2).monospacedDigit()
-            .foregroundStyle(Theme.ink)
-            .lineLimit(1).minimumScaleFactor(0.7)
-        }
-        .padding(.horizontal, 14)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(rowBackground)
-        .overlay(alignment: .leading) {
-            if entry.isMe { Rectangle().fill(Theme.coral).frame(width: 4) }
-        }
-        .overlay(alignment: .bottom) {
-            if !isLast { Rectangle().fill(Theme.inkSub.opacity(0.18)).frame(height: 1).padding(.leading, 56) }
-        }
-        .scaleEffect(isFlying ? 1.04 : 1)
-        .shadow(color: .black.opacity(isFlying ? 0.18 : 0), radius: 10, y: 6)
-        .accessibilityElement(children: .combine)
-    }
-
-    private var rowBackground: some View {
-        ZStack {
-            if entry.isMe { Theme.Fill.yellow.opacity(isFlying ? 0.5 : 0.25) }
-            if isFlashing { Theme.Fill.pink.opacity(0.18) }
-        }
-    }
-
-    private var rankBadge: some View {
-        let medal: Color? = rank == 1 ? Color(hex: 0xFFC24B) : rank == 2 ? Color(hex: 0xC9C9CF) : rank == 3 ? Color(hex: 0xD9A066) : nil
-        return ZStack {
-            if let medal {
-                Circle().fill(medal)
-            } else {
-                Circle().strokeBorder(Theme.inkSub.opacity(0.5), lineWidth: 1.5)
-            }
-            Text(verbatim: "\(rank)")
-                .scaledFont(rank <= 3 ? 15 : 14, weight: rank <= 3 ? .black : .heavy, design: .rounded)
-                .foregroundStyle(medal == nil ? Theme.ink : Theme.onAccent)
-                .contentTransition(.numericText(countsDown: true))
-        }
-        .frame(width: 30, height: 30)
-    }
-}
-
-/// `start` から `duration` 秒かけて `from` → `to` に数え上げる距離の文字。`start` が nil なら `to` を出す。
-struct CountUpText: View {
-    let from: Int
-    let to: Int
-    let start: Date?
-    let duration: Double
-
-    var body: some View {
-        TimelineView(AnimationTimelineSchedule(minimumInterval: nil, paused: start == nil)) { context in
-            Text(verbatim: HomerunRankingText.distance(value(at: context.date)))
-        }
-    }
-
-    private func value(at date: Date) -> Int {
-        guard let start else { return to }
-        let p = min(1, max(0, date.timeIntervalSince(start) / duration))
-        let eased = 1 - pow(1 - p, 3)
-        return from + Int((Double(to - from) * eased).rounded())
     }
 }
 

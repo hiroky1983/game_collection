@@ -2763,6 +2763,29 @@
           }
         }
       }
+    },
+    "%lld 人抜き！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Passed %lld player!"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Passed %lld players!"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

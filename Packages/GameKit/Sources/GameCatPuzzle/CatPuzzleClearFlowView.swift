@@ -1,5 +1,6 @@
 import SwiftUI
 import Core
+import CoreEngine
 
 /// クリアの流れ（#3304）のうち、モーダルの前の 2 段（ライフが pt になる／ランキングの結果）を見せるカード。
 /// 段の切り替えは親が持つ `CatPuzzleClearFlow` が決め、このカードは今の段を描いて、時間が来るかタップされたら `onFinish` を呼ぶ。
@@ -10,8 +11,8 @@ struct CatPuzzleClearFlowCard: View {
     let isKey: Bool
     /// 今日の合計 pt（加算後）。
     let total: Int
-    /// 今日の順位を読む処理。読めなければ nil（未サインイン・失敗・時間切れ）。
-    let loadRank: @MainActor () async -> Int?
+    /// 今日の順位表を読む処理。読めなければ nil（未サインイン・失敗・時間切れ）。
+    let loadBoard: @MainActor () async -> GameCenterBoard?
     /// 段の終わり（時間が来た・タップされた）。
     let onFinish: () -> Void
 
@@ -19,7 +20,7 @@ struct CatPuzzleClearFlowCard: View {
     /// pt に飛んだライフの数。
     @State private var flown = 0
     @State private var multiplied = false
-    @State private var rank: Int?
+    @State private var result: CatPuzzleClearFlow.RankingResult?
     @State private var rankSettled = false
 
     private var gained: Int { isKey ? lives * CatPuzzleEvent.keyMultiplier : lives }
@@ -91,23 +92,59 @@ struct CatPuzzleClearFlowCard: View {
             Text(tr("今日の結果"))
                 .themeBody(18, weight: .bold, maxScale: 1.5)
                 .foregroundStyle(Theme.tealText)
-            Text(tr("%lldpt", total))
-                .scaledFont(34, weight: .heavy, design: .rounded, maxScale: 1.3)
-                .monospacedDigit()
-                .foregroundStyle(Theme.ink)
-            if let rank {
+            if let result, result.showsTable {
+                // 柵越えおじさんと同じ、自分の行が飛び上がる順位表（#3327）。
+                RankingBoardView(board: result.board, motion: result.motion, style: rankingStyle) { state in
+                    rankingSummary(state, result: result)
+                }
+            } else {
+                Text(tr("%lldpt", total))
+                    .scaledFont(34, weight: .heavy, design: .rounded, maxScale: 1.3)
+                    .monospacedDigit()
+                    .foregroundStyle(Theme.ink)
+                if let rank = result?.rank {
+                    Text(tr("今日 %lld 位", rank))
+                        .themeBody(20, weight: .bold, maxScale: 1.5)
+                        .foregroundStyle(Theme.coralText)
+                    if (1...3).contains(rank) {
+                        Text(tr("上位 3 位なら、明日 特典がもらえます"))
+                            .themeBody(13, weight: .semibold, maxScale: 1.5)
+                            .foregroundStyle(Theme.inkSubText)
+                    }
+                } else if !rankSettled {
+                    ProgressView().controlSize(.small)
+                }
+            }
+        }
+    }
+
+    private var rankingStyle: RankingBoardStyle {
+        RankingBoardStyle(rowHeight: 36, format: { tr("%lldpt", $0) }, scoreSize: { _ in 16 })
+    }
+
+    /// 順位表の上の見出し。順位の数字は動きに合わせてめくれ、入れ替えが終わったら「N 人抜き！」と特典の一言を出す。
+    /// 行が増えて表がずれないよう、高さは先に確保しておく。
+    private func rankingSummary(_ state: RankingBoardState, result: CatPuzzleClearFlow.RankingResult) -> some View {
+        VStack(spacing: 2) {
+            if let rank = state.myRank {
                 Text(tr("今日 %lld 位", rank))
                     .themeBody(20, weight: .bold, maxScale: 1.5)
                     .foregroundStyle(Theme.coralText)
-                if (1...3).contains(rank) {
-                    Text(tr("上位 3 位なら、明日 特典がもらえます"))
-                        .themeBody(13, weight: .semibold, maxScale: 1.5)
-                        .foregroundStyle(Theme.inkSubText)
-                }
-            } else if !rankSettled {
-                ProgressView().controlSize(.small)
+                    .contentTransition(.numericText(countsDown: true))
+            }
+            if state.arrived, result.passedCount > 0 {
+                Text(tr("%lld 人抜き！", result.passedCount))
+                    .themeBody(15, weight: .heavy, maxScale: 1.5)
+                    .foregroundStyle(Theme.ink)
+                    .transition(.scale.combined(with: .opacity))
+            }
+            if state.arrived, let rank = state.myRank, (1...3).contains(rank) {
+                Text(tr("上位 3 位なら、明日 特典がもらえます"))
+                    .themeBody(13, weight: .semibold, maxScale: 1.5)
+                    .foregroundStyle(Theme.inkSubText)
             }
         }
+        .frame(maxWidth: .infinity, minHeight: 64, alignment: .top)
     }
 
     // MARK: - 進行
@@ -132,12 +169,13 @@ struct CatPuzzleClearFlowCard: View {
             }
             try? await Task.sleep(for: CatPuzzleClearFlow.hold)
         case .ranking:
-            rank = nil
+            result = nil
             rankSettled = false
-            rank = await CatPuzzleClearFlow.loadRank(loadRank)
+            let board = await CatPuzzleClearFlow.loadWithTimeout(loadBoard)
             guard !Task.isCancelled else { return }
+            result = CatPuzzleClearFlow.result(board: board, beforeTotal: total - gained)
             rankSettled = true
-            try? await Task.sleep(for: CatPuzzleClearFlow.hold + .milliseconds(600))
+            try? await Task.sleep(for: CatPuzzleClearFlow.rankingDuration(motion: result?.motion, reduceMotion: reduceMotion))
         case .modal:
             return
         }

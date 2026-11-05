@@ -61,70 +61,32 @@ enum HomerunLobbyRankText {
     }
 }
 
-/// ランキングページの 1 行。
-struct HomerunRankEntry: Identifiable, Equatable {
-    let id: String
-    let name: String
-    let meters: Int
-    /// Game Center の順位。アニメの間は並びの位置（index + 1）で描くので使わない。
-    let rank: Int
-    let isMe: Bool
+/// ランキングページの 1 行（Core の `RankingEntry`・#3327。スコアは m）。
+typealias HomerunRankEntry = RankingEntry
 
-    var moonCount: Int { meters / GameCenterLeaderboard.homerunWeeklyMoonMeters }
-
-    init(_ row: GameCenterBoardRow) {
-        id = row.id
-        name = row.name.isEmpty ? tr("プレイヤー") : row.name
-        meters = row.score
-        rank = row.rank
-        isMe = row.isMe
-    }
-
+extension RankingEntry {
     init(id: String, name: String, meters: Int, rank: Int, isMe: Bool) {
-        self.id = id
-        self.name = name
-        self.meters = meters
-        self.rank = rank
-        self.isMe = isMe
+        self.init(id: id, name: name, score: meters, rank: rank, isMe: isMe)
     }
+
+    var meters: Int { score }
+    var moonCount: Int { score / GameCenterLeaderboard.homerunWeeklyMoonMeters }
 }
 
-/// 今回の挑戦で自分の行が上がるアニメの計画（B 案「一気に飛び上がる」・会長決定 2026-10-09）。
-struct HomerunRankingMotion: Equatable {
-    /// 上がる前の並び（自分は前回までの記録の位置）。
-    let entries: [HomerunRankEntry]
-    /// 今回の記録（m）。
-    let newMeters: Int
-    /// 自分の行の、前の位置と後の位置（0 始まり）。
-    let from: Int
-    let to: Int
+/// 今回の挑戦で自分の行が上がるアニメの計画（B 案「一気に飛び上がる」・会長決定 2026-10-09）。Core の `RankingMotion`。
+typealias HomerunRankingMotion = RankingMotion
+
+extension RankingMotion {
+    var newMeters: Int { newScore }
 }
 
 enum HomerunRankingPlan {
-    /// 一覧に出す行。自分が上位の外なら、末尾に自分の行を足す（順位は Game Center のもの）。
-    static func entries(of board: GameCenterBoard) -> [HomerunRankEntry] {
-        var result = board.rows.map(HomerunRankEntry.init)
-        if !result.contains(where: \.isMe), let rank = board.myRank, let score = board.myScore {
-            result.append(HomerunRankEntry(id: "me", name: tr("あなた"), meters: score, rank: rank, isMe: true))
-        }
-        return result
-    }
+    static func entries(of board: GameCenterBoard) -> [HomerunRankEntry] { RankingPlan.entries(of: board) }
 
-    /// 送る前の自分の記録と送った後の順位表から、アニメを作る（目的の位置は Game Center の順位そのもの。同点の並びもそれに従う）。
-    /// 順位が変わらなくても記録が伸びたら数え上げだけ流す。アニメが無い（記録が伸びなかった・
-    /// 送る前の記録が読めなかった・自分が上位の外）ときは nil で、静止の表を出す。
+    /// 送る前の自分の記録と送った後の順位表から、アニメを作る。送る前の表が読めなかったときは nil（静止の表）。
     static func motion(before: GameCenterBoard?, after: GameCenterBoard) -> HomerunRankingMotion? {
-        guard let before, let newMeters = after.myScore,
-              let to = after.rows.firstIndex(where: \.isMe) else { return nil }
-        let me = after.rows[to]
-        let oldMeters = before.myScore ?? 0
-        guard newMeters > oldMeters else { return nil }
-        let others = after.rows.filter { !$0.isMe }.map(HomerunRankEntry.init)
-        let from = others.filter { $0.meters >= oldMeters }.count
-        var entries = others
-        entries.insert(HomerunRankEntry(id: me.id, name: me.name.isEmpty ? tr("プレイヤー") : me.name,
-                                        meters: oldMeters, rank: from + 1, isMe: true), at: from)
-        return HomerunRankingMotion(entries: entries, newMeters: newMeters, from: from, to: to)
+        guard let before else { return nil }
+        return RankingPlan.motion(beforeScore: before.myScore ?? 0, after: after)
     }
 }
 

@@ -107,6 +107,75 @@ struct CatPuzzleClearFlowTests {
         #expect(!CatPuzzleClearFlow.Standing(total: 6, rank: nil).isTop3)
     }
 
+    // MARK: ランキングの段の順位表（#3327）
+
+    private func row(_ id: String, _ score: Int, rank: Int, me: Bool = false) -> GameCenterBoardRow {
+        GameCenterBoardRow(id: id, name: id, score: score, rank: rank, isMe: me)
+    }
+
+    private func board(_ rows: [GameCenterBoardRow], myRank: Int?, myScore: Int?) -> GameCenterBoard {
+        GameCenterBoard(rows: rows, myRank: myRank, myScore: myScore, participants: rows.count,
+                        start: nil, end: nil, lastWeekRank: nil)
+    }
+
+    /// 自分は 6 pt で 4 位。送る前の 3 pt なら 7 位だった。
+    private var after: GameCenterBoard {
+        board([row("a", 12, rank: 1), row("b", 9, rank: 2), row("c", 7, rank: 3), row("me", 6, rank: 4, me: true),
+               row("d", 5, rank: 5), row("e", 4, rank: 6), row("f", 3, rank: 7)], myRank: 4, myScore: 6)
+    }
+
+    @Test("送る前の合計から今回の pt を足した順位へ、自分の行が上がる。抜いた人数も数える")
+    func rankingMotionMovesUp() throws {
+        let result = try #require(CatPuzzleClearFlow.result(board: after, beforeTotal: 3))
+        let motion = try #require(result.motion)
+        #expect(motion.entries.map(\.id) == ["a", "b", "c", "d", "e", "f", "me"])
+        #expect(motion.entries.last?.score == 3)
+        #expect(motion.from == 6 && motion.to == 3)
+        #expect(motion.newScore == 6)
+        #expect(result.passedCount == 3)
+        #expect(result.showsTable)
+        #expect(result.rank == 4)
+        #expect(!result.isTop3)
+    }
+
+    @Test("順位が変わらなくても pt が増えたら数え上げだけ流す（抜いた人は 0）")
+    func rankingMotionCountUpOnly() throws {
+        let gap = board([row("a", 12, rank: 1), row("b", 9, rank: 2), row("c", 7, rank: 3),
+                         row("me", 6, rank: 4, me: true), row("d", 4, rank: 5)], myRank: 4, myScore: 6)
+        let result = try #require(CatPuzzleClearFlow.result(board: gap, beforeTotal: 5))
+        let motion = try #require(result.motion)
+        #expect(motion.from == 3 && motion.to == 3)
+        #expect(result.passedCount == 0)
+    }
+
+    @Test("上位 3 位に入ったら特典の予告の対象")
+    func rankingTop3() throws {
+        let top = board([row("a", 5, rank: 1), row("me", 4, rank: 2, me: true)], myRank: 2, myScore: 4)
+        #expect(try #require(CatPuzzleClearFlow.result(board: top, beforeTotal: 0)).isTop3)
+    }
+
+    @Test("上位の外・順位表が読めない・pt が伸びていないときは、表のアニメを出さず今までの 1 行へ戻る")
+    func rankingFallsBack() throws {
+        let outside = board([row("a", 50, rank: 1)], myRank: 40, myScore: 3)
+        let out = try #require(CatPuzzleClearFlow.result(board: outside, beforeTotal: 1))
+        #expect(!out.showsTable && out.motion == nil)
+        #expect(out.rank == 40)
+        #expect(CatPuzzleClearFlow.result(board: nil, beforeTotal: 1) == nil)
+        let flat = try #require(CatPuzzleClearFlow.result(board: after, beforeTotal: 6))
+        #expect(flat.motion == nil)
+        #expect(flat.showsTable)
+    }
+
+    @Test("入れ替えを流すときは、流し終わるまで次へ進まない。動きを省くときは短い")
+    func rankingDuration() throws {
+        let motion = try #require(CatPuzzleClearFlow.result(board: after, beforeTotal: 3)?.motion)
+        let moving = CatPuzzleClearFlow.rankingDuration(motion: motion, reduceMotion: false)
+        let still = CatPuzzleClearFlow.rankingDuration(motion: motion, reduceMotion: true)
+        #expect(moving > .seconds(RankingMotion.duration))
+        #expect(still < moving)
+        #expect(CatPuzzleClearFlow.rankingDuration(motion: nil, reduceMotion: false) == still)
+    }
+
     @Test("餌をあげると、おびき出された猫のマスに餌の皿の印が付き、片付けると消える。新しい局には持ち越さない")
     func lure() async {
         let model = makeModel()
