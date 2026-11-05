@@ -60,7 +60,7 @@ struct AkariKeshiModuleTests {
         #expect(code.contains("ladder: ladder") && code.contains("DifficultyLadderPrompt("), "難易度の階段を枠へ渡す")
         #expect(code.contains("BannerSlot("))
         #expect(code.contains("HowToPlayHint(.akariKeshi"))
-        #expect(code.contains("GameSetupSheet(") && code.contains("GameSetupChooser("), "難易度のシートは共通枠から組む")
+        #expect(code.contains("GameSetupSheet(") && code.contains("SetupStepSelector("), "難易度のシートは共通枠から組む")
         #expect(code.contains(".gameTimerLifecycle("), "背面・画面離脱で計時を止める")
         #expect(code.contains(".gameClearCard("), "クリアは共通のカードで示す")
         #expect(code.contains("RecordLabel("))

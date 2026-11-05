@@ -41,8 +41,8 @@ struct MahjongSolitaireSetupSheetTests {
     func sheetListsEveryLayout() throws {
         let source = SourceScan.strippingComments(
             try SourceScan.packageSource("Sources/GameMahjongSolitaire/MahjongSolitaireSetupSheet.swift"))
-        #expect(source.contains("ForEach(MahjongSolitaireLayout.all)"))
-        #expect(source.contains("title: layout.displayName"))
-        #expect(source.contains("GameSetupChooser("))
+        #expect(source.contains("options: MahjongSolitaireLayout.all.map"))
+        #expect(source.contains("title: $0.displayName"))
+        #expect(source.contains("SetupStepSelector("))
     }
 }

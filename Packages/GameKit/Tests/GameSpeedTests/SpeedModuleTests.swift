@@ -57,7 +57,7 @@ struct SpeedModuleTests {
         #expect(code.contains("Button(tr(\"終了して新規対局\"), role: .destructive) { showSetup = true }"),
                 "途中の確認のあとは速さのシートから始める")
         #expect(code.contains("HowToPlayHint(.speed"))
-        #expect(code.contains("GameSetupSheet(") && code.contains("GameSetupChooser("), "速さのシートは共通枠から組む")
+        #expect(code.contains("GameSetupSheet(") && code.contains("SetupStepSelector("), "速さのシートは共通枠から組む")
         #expect(code.components(separatedBy: "Rescue.request(").count - 1 == 1, "救済の入口はタイムの 1 面だけ")
         #expect(code.contains("guardedBy: .checkedByGrant"))
         #expect(code.contains("model.grantTimeoutAfterAd(forGame:"))

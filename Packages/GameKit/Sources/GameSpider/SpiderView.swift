@@ -780,11 +780,9 @@ struct SpiderSetupSheet: View {
             onStart: onStart, onCancel: onCancel
         ) {
             GameSetupSection(tr("スートの数")) {
-                HStack(spacing: 6) {
-                    tile(.one, accent: DifficultyTile.accent(step: 0, of: 3))
-                    tile(.two, accent: DifficultyTile.accent(step: 1, of: 3))
-                    tile(.four, accent: DifficultyTile.accent(step: 2, of: 3))
-                }
+                SetupStepSelector(
+                    ladder: [SpiderSuitCount.one, .two, .four].map { ($0, $0.label, $0.subtitle) },
+                    selection: $draft.suitCount)
                 Text(Self.footer(for: draft.suitCount))
                     .scaledFont(12, weight: .semibold, design: .rounded)
                     .foregroundStyle(Theme.inkSubText)
@@ -795,14 +793,6 @@ struct SpiderSetupSheet: View {
                     .scaledFont(13, weight: .semibold, design: .rounded)
                     .foregroundStyle(Theme.coralText)
             }
-        }
-    }
-
-    private func tile(_ value: SpiderSuitCount, accent: Color) -> some View {
-        GameSetupChooser(title: value.label, subtitle: value.subtitle,
-                         selected: draft.suitCount == value, accent: accent,
-                         metrics: DifficultyTile.metrics) {
-            draft.suitCount = value
         }
     }
 

@@ -42,7 +42,7 @@ struct AnzanModuleTests {
         #expect(code.contains("RecommendationSlot("))
         #expect(code.contains("BannerSlot("))
         #expect(code.contains("HowToPlayHint(.anzan"))
-        #expect(code.contains("GameSetupSheet(") && code.contains("GameSetupChooser("), "難易度のシートは共通枠から組む")
+        #expect(code.contains("GameSetupSheet(") && code.contains("SetupStepSelector("), "難易度のシートは共通枠から組む")
         #expect(code.components(separatedBy: "Rescue.request(").count - 1 == 1, "救済の入口は見直しの 1 面だけ")
         #expect(code.contains("guardedBy: .checkedByGrant"))
         #expect(code.contains("model.replayAfterAd(forGame:"))

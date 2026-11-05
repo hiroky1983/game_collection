@@ -47,19 +47,6 @@ public struct CPUStrengthPicker: View {
     private let extras: [ExtraLevel]
     @Binding private var level: Int
 
-    /// 寸法は他ゲームの難易度タイルと同じ（`DifficultyTile`・#1417）。
-    private static let baseMetrics = DifficultyTile.metrics
-
-    /// 追加の段で 5 列になると「むずかしい」が 2 行に折れるので、そのときだけ 1 行で縮めて収める。
-    private var metrics: GameSetupChooser.Metrics {
-        var m = Self.baseMetrics
-        if !extras.isEmpty {
-            m.titleLineLimit = 1
-            m.titleMinimumScale = 0.6
-        }
-        return m
-    }
-
     public init(level: Binding<Int>, details: [String], extras: [ExtraLevel] = []) {
         _level = level
         self.details = details
@@ -71,41 +58,17 @@ public struct CPUStrengthPicker: View {
         details.indices.contains(strength.ladderIndex) ? details[strength.ladderIndex] : ""
     }
 
-    /// 選んでいる段の説明（追加の段を含む）。
-    private var selectedDetail: String {
-        if let extra = extras.first(where: { $0.level == level }) { return extra.detail }
-        return detail(CPUStrength.strength(for: level))
+    /// 段の並び（共通の段 → 追加の段）。説明は選んでいる段の下に出る（#3363）。
+    private var options: [SetupStepOption<Int>] {
+        CPUStrength.allCases.map {
+            SetupStepOption(value: $0.rawValue, title: $0.label, detail: detail($0), accent: $0.accent)
+        } + extras.map {
+            SetupStepOption(value: $0.level, title: $0.label, detail: $0.detail, accent: $0.accent)
+        }
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                ForEach(CPUStrength.allCases, id: \.rawValue) { strength in
-                    GameSetupChooser(
-                        title: strength.label, subtitle: "",
-                        selected: level == strength.rawValue,
-                        accent: strength.accent, metrics: metrics
-                    ) { level = strength.rawValue }
-                        // 読み上げでは説明もタイルに添える（画面では選んだ段のぶんしか出ないため）。
-                        .accessibilityLabel(strength.label + tr("、") + detail(strength))
-                }
-                ForEach(extras, id: \.level) { extra in
-                    GameSetupChooser(
-                        title: extra.label, subtitle: "",
-                        selected: level == extra.level,
-                        accent: extra.accent, metrics: metrics
-                    ) { level = extra.level }
-                        .accessibilityLabel(extra.label + tr("、") + extra.detail)
-                }
-            }
-            // 段を選び直しても高さが変わらないよう 1 行に固定する（シートが伸び縮みしない）。
-            Text(selectedDetail)
-                .themeBody(13)
-                .foregroundStyle(Theme.inkSubText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityHidden(true)
-        }
+        // 段が増えても同じ高さ・文字を縮めない 1 値＋‹ ›（#3363。5 列で「達人」が 6 割まで縮んでいた）。
+        SetupStepSelector(options: options, selection: $level)
     }
 }

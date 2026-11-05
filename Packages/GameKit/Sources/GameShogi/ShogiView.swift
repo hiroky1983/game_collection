@@ -630,18 +630,13 @@ struct NewGameSheet: View {
             onCancel: onCancel
         ) {
             GameSetupSection(tr("手合い")) {
-                HStack(spacing: 12) {
-                    ForEach(ShogiHandicap.allCases, id: \.self) { option in
-                        GameSetupChooser(
-                            title: option.title,
-                            subtitle: option == .even ? tr("ハンデなし") : tr("上手が駒を落とす"),
-                            selected: handicap == option,
-                            accent: Theme.fillStrong, onAccent: .white,
-                            metrics: .init(title: .body(18), subtitleSize: 11, verticalPadding: 12,
-                                           titleMinimumScale: 0.7, subtitleMinimumScale: 0.6)
-                        ) { handicap = option }
-                    }
-                }
+                SetupStepSelector(
+                    options: ShogiHandicap.allCases.map {
+                        SetupStepOption(value: $0, title: $0.title,
+                                        detail: $0 == .even ? tr("ハンデなし") : tr("上手が駒を落とす"),
+                                        accent: Theme.Fill.yellow)
+                    },
+                    selection: $handicap, showsScale: false)
             }
             if handicap == .even {
                 GameSetupSection(tr("あなたの手番")) {
