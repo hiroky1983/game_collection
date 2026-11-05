@@ -1,12 +1,6 @@
 import SwiftUI
 import Core
 
-/// `.task(id:)` の鍵。手番の鍵に「止めているか」を足し、止めた・再開したの両方でタスクを起こし直す（#2827）。
-private struct PausableTurn: Equatable {
-    let key: AITurnKey
-    let paused: Bool
-}
-
 /// チェスの対局画面（CPU 対戦）。人間の手番側を常に手前に表示する。
 public struct ChessView: View {
     @State private var model: ChessGameModel
@@ -95,11 +89,12 @@ public struct ChessView: View {
             }
         }
         .overlay { checkOverlay }
-        .overlay { promotionOverlay }
+        .overlayAboveBanner { promotionOverlay }
         // 「？」と新規対局シート（図で見る遊び方の入口がある）を開いているあいだは読ませない。
         // 閉じたら鍵（paused）が変わって再起動し、止めていた思考をやり直す。
         .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen || showNewGame)) {
             guard !isHowToPlayOpen, !showNewGame else { return }
+            guard await PausableTurn.waitWhileThinking({ model.isThinking }) else { return }
             await model.performAIMoveIfNeeded()
         }
         // CPU の着手（とチェック）を読み上げる（#2280）。
@@ -188,18 +183,18 @@ public struct ChessView: View {
                                     Text(type.displayName)
                                         .themeCaption(11, weight: .semibold, maxScale: 1.5)
                                         .lineLimit(1).minimumScaleFactor(0.5)
-                                        .foregroundStyle(Theme.inkSub)
+                                        .foregroundStyle(Theme.inkSubText)
                                 }
                                 .frame(width: 66, height: 76)
                                 .background(Theme.surface, in: RoundedRectangle(cornerRadius: 12))
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(.pop)
                             .accessibilityLabel(tr("%@に成る", type.displayName))
                         }
                     }
                     Button(tr("やめる")) { model.cancelPromotion() }
                         .themeBody(14)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                         // 押せる範囲を 44pt にする（#2487）。増えた高さ（文字 1 行ぶん ≒ 26pt）は
                         // 上の隙間と下の余白から半分ずつ引いて、札の外寸を変えない。
                         // 上は VStack の中（隙間 18 pt 以内）に収まるので当たり判定は枠の外へ出ない。
@@ -459,7 +454,7 @@ public struct ChessView: View {
                     .gameAnimation(ChessMotion.turnChange, value: model.position.sideToMove)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
-                    Text(tr("CPU思考中…")).themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text(tr("CPU思考中…")).themeBody(13).foregroundStyle(Theme.inkSubText)
                 } else if let last = model.highlightedMoveText {
                     Text(tr("直前 %@", last)).themeBody(14).foregroundStyle(Theme.ink)
                 }
@@ -469,7 +464,7 @@ public struct ChessView: View {
                 RecordLabel(model.recordResult)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
-                Text(tr("%lld手", model.moves.count)).themeBody(13).foregroundStyle(Theme.inkSub)
+                Text(tr("%lld手", model.moves.count)).themeBody(13).foregroundStyle(Theme.inkSubText)
             }
         }
     }
@@ -549,9 +544,9 @@ private struct CapturedAreaView: View {
                     .themeCaption(11, weight: .bold, maxScale: 1.5)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
-                    .foregroundStyle(isYou ? Theme.tealText : Theme.inkSub)
+                    .foregroundStyle(isYou ? Theme.tealText : Theme.inkSubText)
                 Text(owner.name)
-                    .scaledFont(12).foregroundStyle(Theme.inkSub)
+                    .scaledFont(12).foregroundStyle(Theme.inkSubText)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
             }
@@ -562,7 +557,7 @@ private struct CapturedAreaView: View {
                 if lost.isEmpty {
                     Text(tr("取られた駒なし"))
                         .themeCaption(12, weight: .regular, maxScale: 1.5)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                 } else {
                     // **少し重ねて並べる**。取られた駒は片側で最大 15 枚まで増えるので、
                     // 間隔を空けて並べると帯からはみ出す（15 × 22.9pt ≒ 344pt に対し、
@@ -725,7 +720,7 @@ struct ChessRuleDetail: View {
                                     .foregroundStyle(Theme.ink)
                                 Text(movement)
                                     .themeCaption(12, weight: .regular, maxScale: 1.5)
-                                    .foregroundStyle(Theme.inkSub)
+                                    .foregroundStyle(Theme.inkSubText)
                             }
                         }
                         .accessibilityElement(children: .combine)

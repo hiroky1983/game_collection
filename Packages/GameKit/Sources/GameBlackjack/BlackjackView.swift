@@ -6,6 +6,7 @@ public struct BlackjackView: View {
     private let services: GameServices
     /// 画面の広さ（#458）。スプリット行の高さを札（`.compact` = 42×60）と同じ倍率で拡大する。
     @Environment(\.adaptiveLayout) private var layout
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     /// 負けた回のやり直し（#2552）のリワード広告の段取り（連打ガード・失敗アラート。#526）。
     @State private var retryRescue = RewardedRescue()
     /// ナビバーの「点数のルール」シート（#2596。ポーカーの「役の点数表」と同じ位置）。
@@ -97,6 +98,7 @@ public struct BlackjackView: View {
     private func content(_ metrics: BlackjackVerticalMetrics) -> some View {
         VStack(spacing: metrics.spacing) {
             matchBar(metrics)
+                .frame(maxWidth: layout.tableMaxWidth)
             // 卓・ミニガイド・操作欄を 1 つのまとまりにして、帯の下の残りの真ん中に置く（会長 QA 2026-10-22・#2531）。
             // 全画面にして縦が伸びた分を卓の中（ディーラーとあなたの間）で吸うと、真ん中が大きく空いていた。
             VStack(spacing: 0) {
@@ -119,7 +121,7 @@ public struct BlackjackView: View {
                             Spacer(minLength: 4)
                             playerArea(metrics)
                         }
-                        .frame(maxHeight: layout.scaled(metrics.estimatedSplitTableHeight))
+                        .frame(maxHeight: metrics.estimatedSplitTableHeight * layout.cardScale)
                         .handResultOverlay(model.handResult, appearDelay: .milliseconds(200))
                     }
                     HowToPlayHint(.blackjack, playLog: services.playLog)
@@ -131,6 +133,7 @@ public struct BlackjackView: View {
                             .frame(minHeight: metrics.actionAreaMinHeight, alignment: .top)
                     }
                 }
+                .frame(maxWidth: layout.tableMaxWidth)
                 Spacer(minLength: 0)
             }
             // おすすめは 10 回の勝負を終えたときだけ出す（1 回ごとの結果は勝負の途中）。
@@ -145,26 +148,34 @@ public struct BlackjackView: View {
 
     /// 上の帯。「n 回目 / 10」「勝ち n 点」「連勝 n」を並べる。
     private func matchBar(_ metrics: BlackjackVerticalMetrics) -> some View {
-        HStack(spacing: 12) {
-            Text(model.format == .single
-                    ? tr("単発戦")
-                    : tr("%1$lld回目 / %2$lld", model.currentRound, BlackjackModel.roundsPerMatch))
-                .themeBody(14)
-                .foregroundStyle(Theme.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            if model.showsFinalRoundMark { FinalRoundBadge() }
-            Spacer(minLength: 0)
-            Label(tr("勝ち %lld点", model.points), systemImage: "star.fill")
-                .themeBody(14)
-                .foregroundStyle(Theme.tealText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            Label(tr("連勝 %lld", model.streak), systemImage: "flame.fill")
-                .themeBody(14)
-                .foregroundStyle(Theme.coralText)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+        // 文字サイズが「アクセシビリティ」の段では横一列に収まらないので、回数と得点を 2 段に分ける（#3180）。
+        let layoutBar = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+            : AnyLayout(HStackLayout(spacing: 12))
+        return layoutBar {
+            HStack(spacing: 12) {
+                Text(model.format == .single
+                        ? tr("単発戦")
+                        : tr("%1$lld回目 / %2$lld", model.currentRound, BlackjackModel.roundsPerMatch))
+                    .themeBody(layout.scaled(14))
+                    .foregroundStyle(Theme.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                if model.showsFinalRoundMark { FinalRoundBadge() }
+            }
+            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 0) }
+            HStack(spacing: 12) {
+                Label(tr("勝ち %lld点", model.points), systemImage: "star.fill")
+                    .themeBody(layout.scaled(14))
+                    .foregroundStyle(Theme.tealText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Label(tr("連勝 %lld", model.streak), systemImage: "flame.fill")
+                    .themeBody(layout.scaled(14))
+                    .foregroundStyle(Theme.coralText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
         }
         .padding(.horizontal, 14).padding(.vertical, metrics.chipsVerticalPadding)
         .popCard(corner: Theme.cornerSmall)
@@ -192,12 +203,12 @@ public struct BlackjackView: View {
                     .minimumScaleFactor(0.6)
                     .foregroundStyle(Theme.ink)
                 Text(tr("21 に近いほうが勝ち。勝てば 1 点、ブラックジャックで勝てば 2 点。ディーラーは 17 以上で止まります。"))
-                    .themeBody(13)
-                    .foregroundStyle(Theme.inkSub)
+                    .themeBody(layout.scaled(13))
+                    .foregroundStyle(Theme.inkSubText)
                     .multilineTextAlignment(.center)
                 Text(tr("引き分け・バストは 0 点。引き分けでも連勝は途切れます。"))
-                    .themeBody(13)
-                    .foregroundStyle(Theme.inkSub)
+                    .themeBody(layout.scaled(13))
+                    .foregroundStyle(Theme.inkSubText)
                     .multilineTextAlignment(.center)
             }
         }
@@ -216,7 +227,7 @@ public struct BlackjackView: View {
             CardTableInkReader { ink in
                 HStack {
                     Text(tr("ディーラー"))
-                        .themeBody(13)
+                        .themeBody(layout.scaled(13))
                         .foregroundStyle(ink.labelSub)
                         .accessibilityHidden(model.phase == .result || model.phase == .dealerTurn)
                     Spacer()
@@ -256,7 +267,7 @@ public struct BlackjackView: View {
                 }
             }
             .frame(minHeight: 90)
-            .shrinkToFitWidth(naturalWidth: PlayingCardMetrics.standard.scaled(by: layout.elementScale)
+            .shrinkToFitWidth(naturalWidth: PlayingCardMetrics.standard.scaled(by: layout.cardScale)
                 .rowWidth(count: max(model.dealerHand.count, 2), spacing: 8))
         }
         .padding(.horizontal, 6).padding(.vertical, metrics.areaVerticalPadding)
@@ -295,7 +306,7 @@ public struct BlackjackView: View {
             CardTableInkReader { ink in
                 HStack {
                     Text(tr("あなた"))
-                        .themeBody(13)
+                        .themeBody(layout.scaled(13))
                         .foregroundStyle(ink.label)
                         .accessibilityHidden(!model.playerHand.isEmpty)
                     Spacer()
@@ -331,7 +342,7 @@ public struct BlackjackView: View {
                 }
             }
             .frame(minHeight: 90)
-            .shrinkToFitWidth(naturalWidth: PlayingCardMetrics.standard.scaled(by: layout.elementScale)
+            .shrinkToFitWidth(naturalWidth: PlayingCardMetrics.standard.scaled(by: layout.cardScale)
                 .rowWidth(count: max(model.playerHand.count, 2), spacing: 8))
         }
     }
@@ -345,7 +356,7 @@ public struct BlackjackView: View {
             CardTableInkReader { ink in
                 HStack(spacing: 6) {
                     Text(tr("ハンド%lld", index + 1))
-                        .themeBody(13)
+                        .themeBody(layout.scaled(13))
                         .foregroundStyle(isActive ? ink.label : ink.labelSub)
                         .accessibilityHidden(true)
                     // 枠の色だけで「今どちらを操作しているか」を示すと色覚に依存するため、文字でも出す。
@@ -550,23 +561,23 @@ public struct BlackjackView: View {
                             .themeCaption(12, weight: .medium, maxScale: 1.5)
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                     } else {
                         Text(tr("%1$lld回勝負の結果：勝ち %2$@", BlackjackModel.roundsPerMatch, tr("%lld点", model.points)))
                             .themeCaption(12, weight: .medium, maxScale: 1.5)
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                         Text(tr("勝ち %lld回", model.handsWon))
                             .themeCaption(12, weight: .medium, maxScale: 1.5)
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                         Text(tr("この勝負の最高連勝 %lld", model.bestStreak))
                             .themeCaption(12, weight: .medium, maxScale: 1.5)
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                     }
                 }
                 Spacer()
@@ -601,7 +612,7 @@ public struct BlackjackView: View {
                               action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .themeBody(14)
+                .themeBody(layout.scaled(14))
                 // 文字を拡大すると折り返してボタンの高さが跳ねるため、折り返さずに縮めて収める（#189）。
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
@@ -693,7 +704,7 @@ struct BJCardView: View {
     /// （`.standard` も `.compact` も同じ倍率で大きくなるので、スプリット時の比率は保たれる）。
     @Environment(\.adaptiveLayout) private var layout
 
-    private var scaled: PlayingCardMetrics { metrics.scaled(by: layout.elementScale) }
+    private var scaled: PlayingCardMetrics { metrics.scaled(by: layout.cardScale) }
 
     var body: some View {
         ZStack {
@@ -721,7 +732,7 @@ struct BJCardPlaceholder: View {
     @Environment(\.cardTableInk) private var ink
 
     private var metrics: PlayingCardMetrics {
-        PlayingCardMetrics.standard.scaled(by: layout.elementScale)
+        PlayingCardMetrics.standard.scaled(by: layout.cardScale)
     }
 
     var body: some View {

@@ -1,4 +1,6 @@
 import Core
+import CoreMiniCard
+import CoreSolitaireFigures
 import SwiftUI
 
 /// 図入りの遊び方（#2044）のフリーセルの図。文言は `HowToPlayGuide.freecell.items`（Core）と同じ順。

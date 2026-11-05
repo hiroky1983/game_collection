@@ -6,6 +6,8 @@ public struct GoView: View {
     @State private var model: GoModel
     private let services: GameServices
     @State private var showNewGame: Bool
+    /// 「？」（遊び方）を開いているあいだ CPU の手番を止める（#3218）。
+    @State private var isHowToPlayOpen = false
     @State private var showConfirmNewGame = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
@@ -46,7 +48,7 @@ public struct GoView: View {
         .gameChrome(title: tr("囲碁"), review: services.review,
                     condition: GameChromeCondition(conditionParts),
                     newGame: GameChromeNewGame(.match) { requestNewGame() })
-        .howToPlay(HowToPlayGuide.go.illustrated(GoHowToFigures.items).onboarding(GoOnboarding.guide)) { GoRuleDetails() }
+        .howToPlay(HowToPlayGuide.go.illustrated(GoHowToFigures.items).onboarding(GoOnboarding.guide), onPresent: { isHowToPlayOpen = true }, onDismiss: { isHowToPlayOpen = false }) { GoRuleDetails() }
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             GoNewGameSheet(
                 humanSide: model.humanSide,
@@ -66,7 +68,9 @@ public struct GoView: View {
                 Text(tr("途中で終了すると対局データが失われます。"))
             }
         }
-        .task(id: model.aiTurnKey) {
+        .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen || showNewGame)) {
+            guard !isHowToPlayOpen, !showNewGame else { return }
+            guard await PausableTurn.waitWhileThinking({ model.isThinking }) else { return }
             await model.performAIMoveIfNeeded()
         }
         // CPU の着手・パスを読み上げる（#2280）。パスは `lastMove` が nil になる。
@@ -175,19 +179,19 @@ public struct GoView: View {
             if model.endgame == nil {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
-                    Text(tr("終局の計算中…")).themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text(tr("終局の計算中…")).themeBody(13).foregroundStyle(Theme.inkSubText)
                 }
                 .frame(maxWidth: .infinity)
             } else if let endgame = model.endgame {
                 Text(endgame.score.summary)
                     .themeBody(16).foregroundStyle(Theme.coralText)
                 Text(tr("黒 %1$lld 目 / 白 %2$lld 目 + コミ %3$@", endgame.score.blackArea, endgame.score.whiteArea, komiText(endgame.score)))
-                    .themeBody(12).foregroundStyle(Theme.inkSub)
+                    .themeBody(12).foregroundStyle(Theme.inkSubText)
                     .lineLimit(1).minimumScaleFactor(0.7)
                 if endgame.isUncertain {
                     Label(tr("死活の判定があいまいです。続けて打って決着させることもできます。"),
                           systemImage: "exclamationmark.triangle.fill")
-                        .themeBody(11).foregroundStyle(Theme.inkSub)
+                        .themeBody(11).foregroundStyle(Theme.inkSubText)
                         .multilineTextAlignment(.leading)
                 }
             }
@@ -270,7 +274,8 @@ public struct GoView: View {
                             let col = Int(((val.location.x - pad) / spacing).rounded())
                             let row = Int(((val.location.y - pad) / spacing).rounded())
                             // 盤外・手番違い・禁じ手の判定は Model 側に集約する（#202）。
-                            model.tap(row: row, col: col)
+                            // 設定が 2 段なら仮置き → 確定（#3149・五目並べ #2297 と同じ）。
+                            model.tapOnBoard(row: row, col: col)
                         }
                 )
                 .accessibilityRepresentation {
@@ -280,6 +285,9 @@ public struct GoView: View {
                 // ヒントが示す交点（#2027）。盤の前面に重ねるので、タップと VoiceOver の
                 // 交点グリッドを横取りしないよう両方から外す。
                 hintMark(pad: pad, spacing: spacing)
+
+                // 仮置きの印（#3149）。同じく盤の前面で、タップと VoiceOver を横取りしない。
+                pendingMark(pad: pad, spacing: spacing)
             }
             // 打てないタップを盤の横揺れで伝える（#202）。触覚・効果音は Model 側から鳴る。
             .modifier(GoShake(animatableData: CGFloat(model.rejectedTapCount)))
@@ -306,6 +314,33 @@ public struct GoView: View {
         return DifficultyLadderPrompt(result: model.recordResult, currentLevel: levels.firstIndex(of: model.aiLevel),
                                       levelLabels: levels.map(\.label)) { level in
             model.newGame(humanSide: model.humanSide, level: levels[level], handicap: model.ruleset.handicap, boardSize: model.boardSize)
+        }
+    }
+
+    /// 仮置き中の交点の印（#3149）。薄い石と、指で隠れても位置が分かる十字の強調（五目並べ #2297 と同じ）。
+    ///
+    /// 出す条件は `model.pendingPoint` だけ。確定・移動・手番交代などで Model が消す。
+    @ViewBuilder
+    private func pendingMark(pad: CGFloat, spacing: CGFloat) -> some View {
+        if let point = model.pendingPoint {
+            let x = pad + spacing * CGFloat(point.col)
+            let y = pad + spacing * CGFloat(point.row)
+            let reach = spacing * 0.9
+            ZStack {
+                Path { path in
+                    path.move(to: CGPoint(x: x - reach, y: y)); path.addLine(to: CGPoint(x: x + reach, y: y))
+                    path.move(to: CGPoint(x: x, y: y - reach)); path.addLine(to: CGPoint(x: x, y: y + reach))
+                }
+                .stroke(Theme.coral, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                Circle()
+                    .fill(model.state.sideToMove == .black ? Color(hex: 0x18140E) : Color(hex: 0xF0E8D0))
+                    .opacity(0.55)
+                    .overlay(Circle().stroke(Theme.coral, lineWidth: 2))
+                    .frame(width: spacing * 0.92, height: spacing * 0.92)
+                    .position(x: x, y: y)
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
         }
     }
 
@@ -384,7 +419,7 @@ public struct GoView: View {
                         .accessibilityLabel(GoAccessibility.pointLabel(
                             row: row,
                             col: col,
-                            stone: model.board[row, col],
+                            stone: model.board.stone(row: row, col: col),
                             isLastMove: model.lastMove == GoPoint(row: row, col: col),
                             isDead: dead.contains(GoPoint(row: row, col: col)),
                             isHint: model.hintPoint == GoPoint(row: row, col: col)
@@ -409,14 +444,14 @@ public struct GoView: View {
                 .frame(width: 18, height: 18)
             Text(isYou ? tr("あなた") : "CPU")
                 .scaledFont(13, weight: .bold, design: .rounded)
-                .foregroundStyle(isYou ? Theme.tealText : Theme.inkSub)
+                .foregroundStyle(isYou ? Theme.tealText : Theme.inkSubText)
             Text(stone == .black ? tr("黒・先番") : tr("白・後番"))
                 .scaledFont(13, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
             Spacer()
             Text(tr("取った石 %lld", stone == model.humanSide ? model.capturedByHuman : model.capturedByCPU))
                 .scaledFont(12, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(minHeight: 30)
@@ -435,13 +470,13 @@ public struct GoView: View {
                     .lineLimit(1).minimumScaleFactor(0.7)
             case .scoring:
                 Label(tr("終局の確認"), systemImage: "list.bullet.clipboard")
-                    .themeBody(15).foregroundStyle(Theme.inkSub)
+                    .themeBody(15).foregroundStyle(Theme.inkSubText)
                     .lineLimit(1).minimumScaleFactor(0.7)
             case .playing:
                 TurnBadge(isYourTurn: model.state.sideToMove == model.humanSide)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
-                    Text(tr("CPU思考中…")).themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text(tr("CPU思考中…")).themeBody(13).foregroundStyle(Theme.inkSubText)
                 }
             }
             passBanner
@@ -450,7 +485,7 @@ public struct GoView: View {
                 RecordLabel(model.recordResult)
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
-            Text(tr("%lld手", model.moveCount)).themeBody(13).foregroundStyle(Theme.inkSub)
+            Text(tr("%lld手", model.moveCount)).themeBody(13).foregroundStyle(Theme.inkSubText)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(GoAccessibility.statusLabel(
@@ -504,6 +539,12 @@ public struct GoView: View {
             model: model, services: services, rescue: undoRescue,
             hint: BoardControlBarHint(model, rescue: hintRescue, game: model.gameSerial, activity: [model.moveCount, model.rejectedTapCount]),
             extraItems: [
+                // 盤のタップの方式（#3149）。慣れた人は 1 タップで置くへ戻せる。
+                GameControlMenuItem(id: "confirmPlacement", title: tr("タップは2回で置く"), systemImage: "hand.tap",
+                                    isChecked: model.confirmsPlacement,
+                                    accessibilityHint: tr("オンのとき、1回目のタップで仮置き、同じ交点をもう一度タップで確定します")) {
+                    model.setConfirmsPlacement(!model.confirmsPlacement)
+                },
                 GameControlMenuItem(id: "pass", title: tr("パス"), systemImage: "forward.fill",
                                     isEnabled: !(model.isAITurn || model.isThinking)) { model.pass() }
             ],
@@ -761,7 +802,7 @@ struct GoNewGameSheet: View {
             onStart: { onStart(side, level, side == .black ? handicap : 0, boardSize) }, onCancel: onCancel
         ) {
             Text(tr("中国ルール（面積計算）"))
-                .themeBody(13).foregroundStyle(Theme.inkSub)
+                .themeBody(13).foregroundStyle(Theme.inkSubText)
 
             GameSetupSection(tr("碁盤の大きさ")) {
                 HStack(spacing: 12) {

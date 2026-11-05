@@ -75,6 +75,8 @@ struct DifficultyLadderSlotTests {
             "GameMinesweeper", "GameOthello", "GameShogi", "GameSudoku",
             // #2599: 段の構造を持つのに未配線だった 4 本。フリーセルは段が無いので対象外。
             "GameSolitaire", "GameSpider", "GameShiritori", "GameAnzan",
+            // #3152: CPU の強さを持つのに未配線だったトランプ 2 本。
+            "GameHearts", "GameDaifugo",
         ]
         for name in leveled {
             let dir = sources.appendingPathComponent(name)

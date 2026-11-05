@@ -57,7 +57,7 @@ extension MahjongModel {
             isRinshan: isRinshan,
             isChankan: isChankan,
             seatWind: seatWind(player),
-            roundWind: 0,
+            roundWind: gameLength.roundWind(forRound: roundNumber),
             doraIndicators: doraIndicators,
             uraIndicators: uraIndicators
         )

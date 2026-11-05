@@ -386,6 +386,9 @@ public extension HowToPlayGuide {
     /// 一局戦（東 1 局だけ・#639）の麻雀。
     static var mahjongSingleHand: HowToPlayGuide { mahjong(flow: tr("CPU 3 人と東 1 局だけを戦い、持ち点の多い順に順位が決まります。")) }
 
+    /// 半荘戦（東 1 局〜南 4 局・#3098）の麻雀。
+    static var mahjongHanchan: HowToPlayGuide { mahjong(flow: tr("CPU 3 人と東 1 局から南 4 局まで戦い、持ち点の多い順に順位が決まります。")) }
+
     private static func mahjong(flow: String) -> HowToPlayGuide { HowToPlayGuide(
         gameID: "mahjong4",
         title: tr("麻雀の遊び方"),
@@ -798,6 +801,8 @@ public extension HowToPlayGuide {
         notes: [
             tr("12 の役をぜんぶ埋めたら終わり。合計点で自己ベストを目指そう。"),
             tr("フォーダイス・フルハウスは 5 個の合計が点になります（5 個とも同じ目もフルハウスに数えます）。"),
+            tr("3回振り切ったあと、広告を見るとその番にもう1回振れます（1ターンに最大3回）。"),
+            tr("12 の役を埋めたとき 0 点の役があれば、広告を見て 1 局に 1 回だけ、その役をやり直せます。"),
         ]
     ) }
 
@@ -937,9 +942,9 @@ public extension HowToPlayGuide {
             HowToPlayItem(tr("タップで ×（いない）を付け外し、ダブルタップで猫を見つけます。全部見つけたらクリアです。")),
         ],
         notes: [
-            tr("× の付け外しはミスになりません。答えでないマスをダブルタップすると、赤い × が付いてミスになります（赤い × は消せません）。ミスが 3 回になると終わりです。"),
-            tr("盤は 6×6・7×7・8×8 の 3 段階で、問題は毎回変わります（答えは 1 通り）。"),
-            tr("ヒントは 1 問につき 3 回まで。記録はクリアまでのタイムです。"),
+            tr("× の付け外しでライフは減りません。答えでないマスをダブルタップすると、赤い × が付いてライフが 1 つ減ります（赤い × は消せません）。ライフは 3 つで、0 になると終わりです。"),
+            tr("盤は 6×6・7×7・8×8・9×9 の 4 段階で、問題は毎回変わります（答えは 1 通り）。"),
+            tr("ヒントは 1 問につき無料で 1 回（広告を見ると増やせます）。記録はクリアまでのタイムです。"),
         ]
     ) }
 
@@ -1080,9 +1085,7 @@ public struct HowToPlaySheet<Extra: View>: View {
                                 Label(tr("くわしいルール"), systemImage: "book")
                                     .themeBody(15)
                                 Spacer()
-                                Image(systemName: "chevron.right")
-                                    .scaledFont(13, weight: .bold)
-                                    .foregroundStyle(Theme.inkSub)
+                                DisclosureChevron()
                             }
                             .padding(12)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1220,7 +1223,7 @@ public struct HowToPlayNotesCard: View {
             ForEach(notes, id: \.self) { note in
                 Text(note)
                     .themeBody(13, weight: .medium)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -1253,7 +1256,7 @@ public struct RuleFrames<Frame: View>: View {
                 if index < count - 1 {
                     Image(systemName: "arrow.right")
                         .scaledFont(12, weight: .black, maxScale: 1.2)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                 }
             }
         }
@@ -1287,12 +1290,12 @@ public struct RuleLineup<Entry: View>: View {
                     Rectangle().fill(Theme.inkSub).frame(height: 2)
                     Image(systemName: "chevron.right")
                         .scaledFont(12, weight: .black, maxScale: 1.2)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                         .padding(.leading, -6)
                 }
                 .padding(.horizontal, 6)
                 HStack {
-                    if let low { Text(low).foregroundStyle(Theme.inkSub) }
+                    if let low { Text(low).foregroundStyle(Theme.inkSubText) }
                     Spacer()
                     if let high { Text(high).foregroundStyle(Theme.coralText) }
                 }
@@ -1313,7 +1316,7 @@ public struct RuleStageBand<Above: View>: View {
         public let color: Color
         public let captionColor: Color
 
-        public init(_ caption: String, share: CGFloat, color: Color, captionColor: Color = Theme.inkSub) {
+        public init(_ caption: String, share: CGFloat, color: Color, captionColor: Color = Theme.inkSubText) {
             self.caption = caption
             self.share = share
             self.color = color
@@ -1449,7 +1452,7 @@ public struct RuleFigureCard<Content: View>: View {
                     if let detail {
                         Text(detail)
                             .themeCaption(12, weight: .medium)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                     }
                 }
             }
@@ -1527,7 +1530,7 @@ public struct YakuTableSection<Content: View>: View {
             if let header {
                 Text(header)
                     .themeBody(13, weight: .black)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .padding(.horizontal, 4)
                     .accessibilityAddTraits(.isHeader)
             }
@@ -1540,7 +1543,7 @@ public struct YakuTableSection<Content: View>: View {
             if let footer {
                 Text(footer)
                     .themeCaption(12, weight: .medium)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 4)
             }

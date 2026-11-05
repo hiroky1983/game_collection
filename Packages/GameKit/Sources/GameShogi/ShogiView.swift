@@ -6,6 +6,8 @@ public struct ShogiView: View {
     @State private var model: ShogiGameModel
     private let services: GameServices
     @State private var showNewGame: Bool
+    /// 「？」（遊び方）を開いているあいだ CPU の手番を止める（#3218）。
+    @State private var isHowToPlayOpen = false
     @State private var showConfirmNewGame = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
@@ -66,10 +68,10 @@ public struct ShogiView: View {
                     condition: GameChromeCondition(conditionParts),
                     newGame: GameChromeNewGame(.match) { requestNewGame() })
         // 駒の動きの対応表（漢字の駒 ↔ 名前・動き。#2166）を「くわしいルール」の先に置く。
-        .howToPlay(HowToPlayGuide.shogi.illustrated(ShogiHowToFigures.items).onboarding(ShogiOnboarding.guide)) { ShogiPieceGuideSheet() }
+        .howToPlay(HowToPlayGuide.shogi.illustrated(ShogiHowToFigures.items).onboarding(ShogiOnboarding.guide), onPresent: { isHowToPlayOpen = true }, onDismiss: { isHowToPlayOpen = false }) { ShogiPieceGuideSheet() }
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             NewGameSheet(
-                initialSide: model.humanSide, initialLevel: model.aiLevel, initialSetting: model.matchSetting
+                initialSide: model.humanSide, initialLevel: model.aiLevel, initialSetting: model.startSheetSetting
             ) { side, level, setting in
                 model.newGame(humanSide: side, aiLevel: level, handicap: setting.handicap, dropper: setting.dropper)
                 showNewGame = false
@@ -95,8 +97,10 @@ public struct ShogiView: View {
             if isMate { AccessibilityNotification.Announcement(tr("詰みがあります")).post() }
         }
         .overlay { checkOverlay }
-        .overlay { promotionOverlay }
-        .task(id: model.aiTurnKey) {
+        .overlayAboveBanner { promotionOverlay }
+        .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen || showNewGame)) {
+            guard !isHowToPlayOpen, !showNewGame else { return }
+            guard await PausableTurn.waitWhileThinking({ model.isThinking }) else { return }
             await model.performAIMoveIfNeeded()
         }
         // CPU の着手（と王手）を読み上げる（#2280）。王手バナーは 1 秒で消えるのでここで補う。
@@ -110,6 +114,7 @@ public struct ShogiView: View {
                 move: move, piece: model.position.squares[to],
                 isCheck: model.position.isKingInCheck(model.position.sideToMove))
         }
+        .task { await model.syncMasterAchievement() }
         .task {
             #if DEBUG
             // 撮影用: 終局後レイアウト（検討ナビ・レコメンドのオーバーレイ）を即再現する。
@@ -205,7 +210,7 @@ public struct ShogiView: View {
                     }
                     Button(tr("やめる")) { model.cancelPromotion() }
                         .themeBody(14)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                         // 押せる範囲を 44pt にする（#2487）。増えた高さ（文字 1 行ぶん ≒ 26pt）は
                         // 上の隙間と下の余白から半分ずつ引いて、札の外寸を変えない。
                         // 上は VStack の中（隙間 20 pt 以内）に収まるので当たり判定は枠の外へ出ない。
@@ -319,7 +324,9 @@ public struct ShogiView: View {
 
     /// 勝ちが続いたら一段上の強さを勧める（#722）。並びは開始シートの「CPUの強さ」と同じ。
     private var ladder: DifficultyLadderPrompt? {
-        DifficultyLadderPrompt(result: model.recordResult,
+        // 達人（#2698）は共通の並びの外にある最上段なので、勧める先が無い。
+        guard ShogiMasterEngine.cpuLevel(forLevel: model.aiLevel).isOnLadder else { return nil }
+        return DifficultyLadderPrompt(result: model.recordResult,
                                currentLevel: CPUStrength.ladderIndex(forLevel: model.aiLevel),
                                levelLabels: CPUStrength.labels) { index in
             model.newGame(humanSide: model.humanSide,
@@ -489,6 +496,7 @@ public struct ShogiView: View {
         if let verdict = model.endVerdict, let kind = model.endKind {
             BoardGameResultCard(
                 verdict: verdict,
+                headline: model.isMasterFirstWin ? tr("達人に勝った！") : nil,
                 reason: kind.reasonText,
                 decisiveMove: model.decisiveMoveText,
                 details: [tr("%lld手", model.moves.count)],
@@ -512,7 +520,7 @@ public struct ShogiView: View {
                     .gameAnimation(ShogiMotion.turnChange, value: model.position.sideToMove)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
-                    Text(tr("CPU思考中…")).themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text(tr("CPU思考中…")).themeBody(13).foregroundStyle(Theme.inkSubText)
                 } else if let last = model.highlightedMoveText {
                     Text(tr("直前 %@", last)).themeBody(14).foregroundStyle(Theme.ink)
                 }
@@ -527,7 +535,7 @@ public struct ShogiView: View {
                 // 駒落ちは手合いを添える（平手は従来どおり手数だけ）。
                 Text(model.matchSetting.displayName.map { tr("%1$@・%2$@", $0, tr("%lld手", model.moves.count)) }
                      ?? tr("%lld手", model.moves.count))
-                    .themeBody(13).foregroundStyle(Theme.inkSub)
+                    .themeBody(13).foregroundStyle(Theme.inkSubText)
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
         }
@@ -545,7 +553,7 @@ public struct ShogiView: View {
     /// タイトルの下のチップに出す今の条件。強さ → 手合い（駒落ちは落とす側まで・平手は先後）。
     private var conditionParts: [String] {
         let handicap = model.matchSetting.displayName
-        return [CPUStrength.strength(for: model.aiLevel).label,
+        return [ShogiMasterEngine.strengthLabel(forLevel: model.aiLevel),
                 handicap ?? (model.humanSide == .black ? tr("先手") : tr("後手"))]
     }
 
@@ -668,6 +676,10 @@ struct NewGameSheet: View {
                 // 位置評価・静止探索は全段階で同じ。段で変わるのは時間・深さ・最善手を打つ確率。
                 CPUStrengthPicker(level: $level, details: [
                     tr("1手先だけ読む"), tr("2手先まで読む"), tr("3手先まで読む"), tr("定跡＋深読み"),
+                ], extras: [
+                    // 達人（#2698）は将棋だけの段。探索は `ShogiMasterEngine`。
+                    .init(level: ShogiMasterEngine.level, label: ShogiMasterEngine.label,
+                          accent: Theme.Fill.purple, detail: tr("さらに深く読む最強の段")),
                 ])
             }
         }
@@ -736,9 +748,9 @@ private struct HandAreaView: View {
                     .themeCaption(11, weight: .bold, maxScale: 1.5)
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
-                    .foregroundStyle(isYou ? Theme.tealText : Theme.inkSub)
+                    .foregroundStyle(isYou ? Theme.tealText : Theme.inkSubText)
                 Text(color == .black ? "☗" : "☖")
-                    .themeCaption(12, weight: .regular, maxScale: 1.5).foregroundStyle(Theme.inkSub)
+                    .themeCaption(12, weight: .regular, maxScale: 1.5).foregroundStyle(Theme.inkSubText)
             }
             .frame(width: 38, alignment: .leading)
 
@@ -747,7 +759,7 @@ private struct HandAreaView: View {
                 if owned.isEmpty {
                     Text(tr("持ち駒なし"))
                         .themeCaption(12, weight: .regular, maxScale: 1.5)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                 } else {
                     // 駒の板は幅 scaled(32)+10 で 44pt に届かないので、ボタンの枠を 44pt まで広げて
                     // 当たり判定に入れ、増えたぶんは並べる間隔から引いて見た目を変えない（#1715）。
@@ -759,7 +771,7 @@ private struct HandAreaView: View {
                             let selected = model.selectedHand == type && color == pos.sideToMove
                             let count    = hand[type.rawValue]
                             let isHint   = isYou && model.hintDropType == type
-                            Button { model.tapHand(type, color: color) } label: {
+                            Button { model.tapHand(type, color: color) } label: { // a11y-ok: 駒札の高さは KomaView(32pt)+余白+個数で 44pt 超。幅は tapWidth で確保
                                 VStack(spacing: 2) {
                                     KomaView(piece: Piece(type: type, color: color),
                                              size: layout.scaled(32), pointsUp: isYou)
@@ -777,7 +789,7 @@ private struct HandAreaView: View {
                                         }
                                     Text("×\(count)")
                                         .themeCaption(10, weight: .black, maxScale: 1.5)
-                                        .foregroundStyle(selected ? Theme.coralText : Theme.inkSub)
+                                        .foregroundStyle(selected ? Theme.coralText : Theme.inkSubText)
                                 }
                                 .frame(minWidth: tapWidth)
                                 .contentShape(Rectangle())

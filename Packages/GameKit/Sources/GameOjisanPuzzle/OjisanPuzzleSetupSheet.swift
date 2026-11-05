@@ -59,9 +59,7 @@ struct OjisanPuzzleSetupSheet: View {
                     .themeBody(15)
                     .lineLimit(1).minimumScaleFactor(0.8)
                 Spacer(minLength: 8)
-                Image(systemName: "chevron.down")
-                    .scaledFont(13, weight: .bold)
-                    .foregroundStyle(Theme.inkSub)
+                DisclosureChevron("chevron.down")
                     .rotationEffect(.degrees(showsDetails ? 180 : 0))
             }
             .padding(12)
@@ -69,7 +67,7 @@ struct OjisanPuzzleSetupSheet: View {
             .popCard(corner: Theme.cornerSmall)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pop)
         .foregroundStyle(Theme.ink)
         .accessibilityValue(showsDetails ? tr("開いている") : tr("閉じている"))
     }

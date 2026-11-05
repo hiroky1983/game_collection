@@ -29,6 +29,16 @@ public struct ShogiModule: GameModule {
         return snap.phase == .playing && !humanHasMoved(snap)
     }
 
+    /// 復元した盤の区分（#3225）。手つかずの開き直しの `game_start` / `game_end` に載せる。
+    public func untouchedSnapshotPlayClass(in snapshots: SnapshotStore) -> PlayClass {
+        guard let snap = snapshots.load(ShogiSnapshot.self, for: id) else { return PlayClass() }
+        let setting = ShogiMatchSetting(
+            handicap: ShogiHandicap.detect(initialSFEN: snap.initialSfen),
+            dropper: .from(humanSide: snap.sente == .human ? .black : .white))
+        return PlayClass(
+            level: ShogiMasterEngine.analyticsLevel(forLevel: snap.aiLevel ?? 1), mode: setting.analyticsMode)
+    }
+
     /// 駒落ちの開始局面は後手番（`w`）から始まるので、手番欄を見て先に指す側を決める。
     private func humanHasMoved(_ snap: ShogiSnapshot) -> Bool {
         let goteFirst = CPUOpening.startsWithSecondPlayer(fen: snap.initialSfen, secondPlayerToken: "w")

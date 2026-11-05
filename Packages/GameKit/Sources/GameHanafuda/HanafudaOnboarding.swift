@@ -160,13 +160,13 @@ public enum HanafudaOnboarding {
             VStack(spacing: 6) {
                 Image(systemName: wins ? "crown.fill" : "minus")
                     .scaledFont(16, weight: .bold, maxScale: 1.15)
-                    .foregroundStyle(wins ? Theme.coralText : Theme.inkSub)
+                    .foregroundStyle(wins ? Theme.coralText : Theme.inkSubText)
                 Text(tr("%lld文", points))
                     .scaledFont(22, weight: .black, design: .rounded, maxScale: 1.15)
                     .foregroundStyle(wins ? Theme.onAccent : Theme.ink)
                     .padding(.horizontal, 16).padding(.vertical, 8)
                     .background(Capsule().fill(wins ? Theme.Fill.coral : Theme.surface))
-                RuleFigureLabel(wins ? tr("%@（勝ち）", name) : name, color: wins ? Theme.coralText : Theme.inkSub)
+                RuleFigureLabel(wins ? tr("%@（勝ち）", name) : name, color: wins ? Theme.coralText : Theme.inkSubText)
             }
         }
     }

@@ -66,7 +66,7 @@ public struct SolitaireSetupSheet: View {
                 }
                 Text(Self.footer(for: draft.drawMode))
                     .scaledFont(12, weight: .semibold, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
             }
             if discardsProgress {
                 Label(tr("途中で終了すると今の盤面が失われ、この配札は「クリアできなかった」として記録されます。"),

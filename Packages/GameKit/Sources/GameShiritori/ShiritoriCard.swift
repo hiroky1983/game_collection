@@ -1,4 +1,5 @@
 import Core
+import CoreObjectArt
 
 /// しりとりの札 1 枚（#1243）。絵は神経衰弱と共有する `ObjectCardKind`。
 ///

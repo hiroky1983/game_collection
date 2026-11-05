@@ -5,9 +5,13 @@ public struct BackgammonView: View {
     @State private var model: BackgammonModel
     private let services: GameServices
     @State private var showNewGame = false
+    /// 「？」（遊び方）を開いているあいだ CPU の手番を止める（#3218）。
+    @State private var isHowToPlayOpen = false
     @State private var showPassAlert = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
+    /// 結果カードを閉じたか（#3059）。新しい対局が始まる（`gameOver` が偽に戻る）とリセットする。
+    @State private var resultCardClosed = false
     /// 「ヒント」のリワード広告の段取り（#2302）。
     @State private var hintRescue = RewardedRescue()
 
@@ -23,28 +27,22 @@ public struct BackgammonView: View {
             board
                 .padding(.horizontal, -Theme.pad)
                 .layoutPriority(1)
-                .overlay {
-                    // 勝敗はフェードで出す。修飾子は 1 つのビューに 1 つだけ（入れ子にすると打ち消し合う・#199）。
-                    ZStack {
-                        if model.gameOver {
-                            resultOverlay
-                                .transition(.opacity)
-                        }
-                    }
-                    .gameAnimation(.easeOut(duration: 0.25), value: model.gameOver)
-                }
+                .boardGameResultCard(isPresented: model.gameOver && !resultCardClosed) { resultCard }
             Spacer(minLength: 0)
             HowToPlayHint(.backgammon, playLog: services.playLog)
             controlArea
             BannerSlot(ads: services.ads)
         }
         .gameAnimation(.none, value: model.gameOver)
+        .onChange(of: model.gameOver) { _, over in
+            if !over { resultCardClosed = false }
+        }
         .padding(Theme.pad)
         .gameChrome(title: tr("バックギャモン"), review: services.review,
                     newGame: GameChromeNewGame(.match) {
                         showNewGame = true
                     })
-        .howToPlay(HowToPlayGuide.backgammon.illustrated(BackgammonHowToFigures.items))
+        .howToPlay(HowToPlayGuide.backgammon.illustrated(BackgammonHowToFigures.items), onPresent: { isHowToPlayOpen = true }, onDismiss: { isHowToPlayOpen = false })
         .sheet(isPresented: $showNewGame) {
             BackgammonNewGameSheet(aiLevel: model.aiLevel) { level in
                 model.newGame(aiLevel: level)
@@ -67,7 +65,9 @@ public struct BackgammonView: View {
         .onChange(of: model.aiTurnKey, initial: true) { _, _ in
             if model.mustPass && !model.isAITurn { showPassAlert = true }
         }
-        .task(id: model.aiTurnKey) {
+        .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen || showNewGame)) {
+            guard !isHowToPlayOpen, !showNewGame else { return }
+            guard await PausableTurn.waitWhileThinking({ model.isThinking }) else { return }
             await model.performAIMoveIfNeeded()
         }
         // CPU の手番の締めに 1 回だけ読み上げる（#2280）。
@@ -121,13 +121,13 @@ public struct BackgammonView: View {
                 }
                 .scaledFont(12, weight: .semibold, design: .rounded)
                 .monospacedDigit()
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(tr("ピップカウント、あなた%1$lld、CPU%2$lld", model.humanPips, model.cpuPips))
             }
             Text(statusMessage)
                 .themeBody(13)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -257,50 +257,24 @@ public struct BackgammonView: View {
         )
     }
 
-    private var resultOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.45)
-            VStack(spacing: 12) {
-                // 勝敗・あがり数は 1 回で読ませる（RecordLabel は共有ボタンを持つので外に置く・オセロと同じ）。
-                VStack(spacing: 12) {
-                    let isWin = model.winner == model.humanSide
-                    Image(systemName: isWin ? "trophy.fill" : "flag.fill")
-                        .scaledFont(40, maxScale: 1.2)
-                        .foregroundStyle(isWin ? Theme.yellowText : Theme.coralText)
-                    Text(isWin ? tr("あなたの勝ち！") : tr("CPUの勝ち"))
-                        .scaledFont(24, weight: .bold, design: .rounded)
-                        .foregroundStyle(isWin ? Theme.tealText : Theme.coralText)
-                    if let kind = model.winKind, kind != .single {
-                        Text(tr("%1$@（%2$lld点）", kind.label, kind.rawValue))
-                            .scaledFont(15, weight: .bold, design: .rounded)
-                            .foregroundStyle(Theme.ink)
-                    }
-                    Text(tr("あがり あなた %1$lld – CPU %2$lld", model.board.off(for: .white), model.board.off(for: .black)))
-                        .scaledFont(15, weight: .semibold, design: .rounded)
-                        .monospacedDigit()
-                        .foregroundStyle(Theme.inkSub)
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(resultAccessibilityLabel)
-                RecordLabel(model.recordResult)
+    @ViewBuilder
+    private var resultCard: some View {
+        if model.gameOver {
+            let offLine = tr("あがり あなた %1$lld – CPU %2$lld", model.board.off(for: .white), model.board.off(for: .black))
+            // ギャモン勝ち・バックギャモン勝ちは点数を理由に出し、あがり数は補足の行へ回す。
+            if let kind = model.winKind, kind != .single {
+                BoardGameResultCard(
+                    verdict: model.winner == model.humanSide ? .win : .loss,
+                    reason: tr("%1$@（%2$lld点）", kind.label, kind.rawValue),
+                    details: [offLine], record: model.recordResult
+                ) { resultCardClosed = true }
+            } else {
+                BoardGameResultCard(
+                    verdict: model.winner == model.humanSide ? .win : .loss,
+                    reason: offLine, record: model.recordResult
+                ) { resultCardClosed = true }
             }
-            .padding(28)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
         }
-        .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
-        // 背後の盤へ VoiceOver が移れないようにし、出現を告げる（#2232）。
-        .accessibilityElement(children: .contain)
-        .accessibilityAddTraits(.isModal)
-        .announcesResultAppearance(resultAccessibilityLabel)
-    }
-
-    private var resultAccessibilityLabel: String {
-        var parts = [model.winner == model.humanSide ? tr("あなたの勝ち") : tr("CPUの勝ち")]
-        if let kind = model.winKind, kind != .single {
-            parts.append(tr("%1$@（%2$lld点）", kind.label, kind.rawValue))
-        }
-        parts.append(tr("あがり あなた %1$lld – CPU %2$lld", model.board.off(for: .white), model.board.off(for: .black)))
-        return parts.joined(separator: tr("。"))
     }
 
     /// 対局中（投了・やり直し・待った）と終局後（もう一度・レコメンド）で中身が入れ替わるが、
@@ -495,6 +469,58 @@ private struct BackgammonBoardCanvas: View {
     let hint: BackgammonMove?
 
     var body: some View {
+        ZStack {
+            canvas
+            // 積みの枚数は Canvas の外の Text で置く（Canvas は描き直すたびに文字を組み直す。#2905・#2946）。
+            ForEach(countLabels) { label in
+                Text(verbatim: "\(label.count)")
+                    .font(.system(size: layout.checkerDiameter * 0.5, weight: .bold, design: .rounded)) // fixed-size: 駒の直径に比例させる盤の部品で、駒（盤の寸法）と一体
+                    .foregroundColor(label.side == .white ? Color(hex: 0x2B2624) : .white)
+                    .fixedSize()
+                    .position(label.center)
+            }
+            .accessibilityHidden(true)
+        }
+    }
+
+    /// 駒の厚み（`drawChecker` の `rim`）ぶん上にずれる駒の面の中心。
+    private func faceCenter(of center: CGPoint) -> CGPoint {
+        CGPoint(x: center.x, y: center.y - layout.checkerDiameter / 2 * 0.16 / 2)
+    }
+
+    private struct CountLabel: Identifiable {
+        let id: String
+        let count: Int
+        let side: BackgammonSide
+        let center: CGPoint
+    }
+
+    /// 積みきれない枚数（点は `maxDrawn` 枚超、バーは 3 枚超）を、一番上の駒に重ねて出すラベル。
+    private var countLabels: [CountLabel] {
+        var labels: [CountLabel] = []
+        for index in 0..<BackgammonBoard.pointCount {
+            guard let owner = board.owner(at: index) else { continue }
+            let count = board.count(at: index)
+            let drawn = min(count, BackgammonBoardLayout.maxDrawn)
+            guard count > drawn else { continue }
+            let (_, isTop) = layout.position(of: index)
+            let center = CGPoint(x: layout.centerX(of: index), y: layout.checkerCenterY(k: drawn - 1, isTop: isTop))
+            labels.append(CountLabel(id: "p\(index)", count: count, side: owner, center: faceCenter(of: center)))
+        }
+        let barX = (layout.barMinX + layout.barMaxX) / 2
+        let d = layout.checkerDiameter
+        for side in BackgammonSide.allCases {
+            let count = board.bar(for: side)
+            let drawn = min(count, 3)
+            guard count > drawn else { continue }
+            let k = CGFloat(drawn - 1)
+            let y = side == .white ? layout.height / 2 + d * (k + 0.6) : layout.height / 2 - d * (k + 0.6)
+            labels.append(CountLabel(id: "b\(side)", count: count, side: side, center: faceCenter(of: CGPoint(x: barX, y: y))))
+        }
+        return labels
+    }
+
+    private var canvas: some View {
         Canvas { ctx, _ in
             let u = layout.unit
             let h = layout.height
@@ -563,7 +589,7 @@ private struct BackgammonBoardCanvas: View {
             }
 
             // 駒。
-            func drawChecker(center: CGPoint, side: BackgammonSide, label: String?, highlighted: Bool, hinted: Bool = false) {
+            func drawChecker(center: CGPoint, side: BackgammonSide, highlighted: Bool, hinted: Bool = false) {
                 let r = d / 2
                 let rim = r * 0.16
                 let face = CGRect(x: center.x - r, y: center.y - r - rim / 2, width: d, height: d)
@@ -581,11 +607,6 @@ private struct BackgammonBoardCanvas: View {
                     ctx.stroke(Path(ellipseIn: face.insetBy(dx: -2.5, dy: -2.5)),
                                with: .color(BoardGameHintColor.color), lineWidth: 3)
                 }
-                if let label {
-                    ctx.draw(Text(label).font(.system(size: d * 0.5, weight: .bold, design: .rounded)) // fixed-size: Canvas の ctx.draw に渡す Text で View 修飾子が使えず、図の座標・寸法と一体
-                        .foregroundColor(side == .white ? Color(hex: 0x2B2624) : .white),
-                             at: CGPoint(x: face.midX, y: face.midY))
-                }
             }
 
             for index in 0..<BackgammonBoard.pointCount {
@@ -597,7 +618,6 @@ private struct BackgammonBoardCanvas: View {
                 for k in 0..<drawn {
                     let isLast = k == drawn - 1
                     drawChecker(center: CGPoint(x: cx, y: layout.checkerCenterY(k: k, isTop: isTop)), side: owner,
-                                label: isLast && count > drawn ? "\(count)" : nil,
                                 highlighted: isLast && (selected == index || lastMove?.to == index),
                                 hinted: isLast && hint?.from == index)
                 }
@@ -611,7 +631,6 @@ private struct BackgammonBoardCanvas: View {
                 for k in 0..<drawn {
                     let y = side == .white ? h / 2 + d * (CGFloat(k) + 0.6) : h / 2 - d * (CGFloat(k) + 0.6)
                     drawChecker(center: CGPoint(x: barX, y: y), side: side,
-                                label: k == drawn - 1 && count > drawn ? "\(count)" : nil,
                                 highlighted: k == drawn - 1 && side == .white && selected == BackgammonBoard.bar,
                                 hinted: k == drawn - 1 && side == .white && hint?.from == BackgammonBoard.bar)
                 }

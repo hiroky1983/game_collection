@@ -17,7 +17,7 @@ struct HomerunAchievementsCard: View {
                 Spacer()
                 Text(verbatim: "\(model.achievements.count) / \(HomerunAchievement.allCases.count)")
                     .themeBody(16, weight: .heavy)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
             }
             // 1 列の縦並び（文字を大きく読ませる・会長指示 2026-10-04。以前は横 2 列のグリッド）。
             VStack(alignment: .leading, spacing: 14) {
@@ -28,7 +28,7 @@ struct HomerunAchievementsCard: View {
             if !model.gameCenterLinked {
                 Text(Self.unlinkedNotice)
                     .themeCaption(11)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -41,18 +41,18 @@ struct HomerunAchievementsCard: View {
         return HStack(alignment: .top, spacing: 10) {
             Image(systemName: unlocked ? "trophy.fill" : "lock.fill")
                 .scaledFont(22)
-                .foregroundStyle(unlocked ? Theme.yellowText : Theme.inkSub.opacity(0.5))
+                .foregroundStyle(unlocked ? Theme.yellowText : Theme.inkSubText.opacity(0.5))
                 .frame(width: 28)
             VStack(alignment: .leading, spacing: 3) {
                 Text(verbatim: unlocked ? achievement.title : tr("？？？"))
                     .themeBody(17, weight: .heavy)
-                    .foregroundStyle(unlocked ? Theme.ink : Theme.inkSub)
+                    .foregroundStyle(unlocked ? Theme.ink : Theme.inkSubText)
                     .lineLimit(2)
                     .minimumScaleFactor(0.8)
                 if unlocked {
                     Text(verbatim: achievement.detail)
                         .themeCaption(13)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -105,7 +105,7 @@ struct HomerunUnlockedCard: View {
                 ForEach(items, id: \.self) { item in
                     VStack(alignment: .leading, spacing: 1) {
                         Text(verbatim: item.title).themeBody(15, weight: .heavy).foregroundStyle(Theme.coralText)
-                        Text(verbatim: item.detail).themeCaption(11).foregroundStyle(Theme.inkSub)
+                        Text(verbatim: item.detail).themeCaption(11).foregroundStyle(Theme.inkSubText)
                     }
                     .accessibilityElement(children: .combine)
                 }

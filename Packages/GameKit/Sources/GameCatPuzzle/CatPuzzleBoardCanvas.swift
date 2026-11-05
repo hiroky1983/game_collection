@@ -34,10 +34,23 @@ struct CatPuzzleBoardCanvas: View {
     var isSolved = false
     /// 負けたあとに見せる、まだ見つけていない猫のマス（薄く・点線の枠つきで、自分で見つけた猫と区別する・#2780）。
     var ghostCats: [Int] = []
+    /// 「餌をあげる」で猫がおびき出されたマス。餌の皿を猫の足元に出している間だけ入る（#3304）。
+    var lureCell: Int? = nil
     /// 部屋の名前の札を描くか（遊び方の小さな 3 コマの図だけ外す。札がマスからはみ出すため）。
     var showsRoomLabels = true
+    /// 鍵の面（#3235）で鍵を持った猫がいる部屋。その部屋の札に鍵のアイコンを付ける。鍵の面でなければ nil。
+    var keyRoom: Int? = nil
+    /// 鍵が閉じている間（鍵の猫をまだ見つけていない）。鍵の部屋の外を薄く覆い、鍵の部屋を金色の枠で囲む。
+    var keyLocked = false
+    /// 鍵が開いた直後の演出を出している間（#3330）。再開した盤では立たない。
+    var keyOpening = false
+    /// 鍵を持った猫のマス（開いた演出の光を出す位置）。
+    var keyCat: Int? = nil
     let cellSide: CGFloat
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// 直近のミスのマスを赤い枠で囲んでいる間（付いた瞬間から `CatPuzzleMotion.wrongFrameHold` だけ。Reduce Motion では出さない）。
+    @State private var showsWrongFrame = false
+    @State private var wrongFrameStamp = 0
 
     /// 外周の壁の太さ。
     private var borderWidth: CGFloat { CatPuzzleHouse.wallWidth * 1.5 }
@@ -51,13 +64,15 @@ struct CatPuzzleBoardCanvas: View {
             Canvas { context, _ in
                 drawFloors(&context, rooms: rooms)
                 drawGrid(&context)
+                drawKeyVeil(&context)
                 drawHintGlow(&context)
                 drawConflictFills(&context)
                 drawWalls(&context)
+                drawKeyFrame(&context)
                 drawCrosses(&context)
             }
             // 答えでないマスの赤い ×（付いた瞬間に揺れて点滅する）。
-            // Reduce Motion のときは揺らさず点滅もしない（直近のマスの赤い枠と面は静止で残る）。
+            // Reduce Motion のときは揺らさず、枠も出さない（赤い × だけ）。
             if !isSolved && !wrongCrosses.isEmpty {
                 PhaseAnimator(CatPuzzleMotion.shakePhases, trigger: shakeToken) { phase in
                     Canvas { context, _ in
@@ -67,11 +82,25 @@ struct CatPuzzleBoardCanvas: View {
                     reduceMotion ? nil : CatPuzzleMotion.shakeStep
                 }
             }
+            // 鍵が開いた演出（波紋・光）。札・猫より下、×の上。
+            if keyOpening, let keyRoom {
+                CatPuzzleKeyOpenEffect(puzzle: puzzle, keyRoom: keyRoom, keyCat: keyCat, cellSide: cellSide)
+            }
             // 部屋の札。×（通常・ヒント・赤）より上に重ねる（札の背景で × の一部が隠れてよい・会長 QA 2026-10-21・build 43）。
             // 猫より下に敷く（間違えて札のマスに猫を置いても、猫の顔が札に隠れない）。
             // 文字は `Canvas` の `resolve(Text)` ではなく overlay の `Text` で置く（#2905 の花札と同じ形・#2945）。
             if showsRoomLabels {
                 roomLabels(rooms: rooms)
+            }
+            // 餌の皿（アイコンは Canvas ではなく overlay の Image で置く）。猫はこの上に出てくる。
+            if let lureCell {
+                let frame = CatPuzzleBoardCanvas.rect(of: lureCell, side: n, cellSide: cellSide)
+                Image(systemName: "fork.knife.circle.fill")
+                    .resizable().scaledToFit()
+                    .foregroundStyle(Theme.coralText)
+                    .frame(width: frame.width * 0.42, height: frame.height * 0.42)
+                    .position(x: frame.midX, y: frame.maxY - frame.height * 0.22)
+                    .transition(CatPuzzleMotion.catTransition(reduceMotion: reduceMotion))
             }
             // 猫（弾む・縮む・跳ねる）。クリアで大きくなった猫は壁に少しかぶる。
             CatPuzzleCatLayer(puzzle: puzzle, marks: marks, isSolved: isSolved, cellSide: cellSide, rooms: rooms)
@@ -89,6 +118,16 @@ struct CatPuzzleBoardCanvas: View {
         }
         .frame(width: boardSide, height: boardSide)
         .accessibilityHidden(true)
+        .onChange(of: shakeToken) {
+            guard !reduceMotion else { return }
+            showsWrongFrame = true
+            wrongFrameStamp += 1
+        }
+        .task(id: wrongFrameStamp) {
+            guard showsWrongFrame else { return }
+            try? await Task.sleep(for: CatPuzzleMotion.wrongFrameHold)
+            if !Task.isCancelled { showsWrongFrame = false }
+        }
     }
 
     // MARK: - 行・列・部屋の形
@@ -165,6 +204,21 @@ struct CatPuzzleBoardCanvas: View {
         context.stroke(path, with: .color(CatPuzzleHouse.gridColor), lineWidth: CatPuzzleHouse.gridWidth)
     }
 
+    /// 鍵が閉じている間、鍵の部屋の外のマスを薄く覆う（触れないマスだと分かるように）。
+    private func drawKeyVeil(_ context: inout GraphicsContext) {
+        guard keyLocked, let keyRoom, !isSolved else { return }
+        var veil = Path()
+        for cell in 0..<puzzle.cellCount where puzzle.rooms[cell] != keyRoom { veil.addRect(rect(of: cell)) }
+        context.fill(veil, with: .color(Theme.surface.opacity(0.6)))
+    }
+
+    /// 鍵が閉じている間、鍵の部屋を金色の枠で囲む。
+    private func drawKeyFrame(_ context: inout GraphicsContext) {
+        guard keyLocked, let keyRoom, !isSolved else { return }
+        let outline = Self.outline(of: Set(puzzle.cells(inRoom: keyRoom)), side: puzzle.side, cellSide: cellSide)
+        context.stroke(outline, with: .color(Theme.yellow), style: StrokeStyle(lineWidth: max(3, cellSide * 0.1), lineCap: .square))
+    }
+
     /// 部屋の境目の壁と外周。
     private func drawWalls(_ context: inout GraphicsContext) {
         let n = puzzle.side
@@ -226,23 +280,21 @@ struct CatPuzzleBoardCanvas: View {
         return shape
     }
 
-    /// 答えでないマスの固定の赤い ×（会長 QA 2026-10-21・build 42）。マスを薄い赤で塗り、赤い太い × に白い縁取り。
-    /// 直近に付いたマス（`lastWrongCell`）は赤い枠で囲み、`phase`（揺れの位置。0 で止まる）だけ × を左右にずらし、
-    /// 揺れているあいだはマスの赤を濃くして点滅させる。
+    /// 答えでないマスの固定の赤い ×（赤い太い × に白い縁取り）。マスの背景は塗らない（部屋の色のまま。灰色の部屋と
+    /// 見分けがつかなくなるため・会長 QA 2026-11-03 #3246）。
+    /// 直近に付いたマス（`lastWrongCell`）は付いた瞬間だけ赤い枠で囲み（`showsWrongFrame`）、`phase`（揺れの位置。0 で止まる）だけ × を左右にずらす。
     private func drawWrongCrosses(_ context: inout GraphicsContext, phase: CGFloat) {
         let width = Self.crossWidth(cellSide: cellSide) * 1.15
         let inset = CatPuzzleHouse.wallWidth / 2
         for cell in wrongCrosses.sorted() {
             let r = rect(of: cell)
             let isLast = cell == lastWrongCell
-            let flash = isLast ? abs(phase) * 0.3 : 0
-            context.fill(Path(r), with: .color(Theme.coral.opacity(0.2 + flash)))
             let shift = isLast ? phase * cellSide * 0.09 : 0
             let shape = Self.crossPath(in: r.offsetBy(dx: shift, dy: 0), cellSide: cellSide)
             context.stroke(shape, with: .color(CatPuzzleHouse.crossHalo.opacity(0.95)),
                            style: StrokeStyle(lineWidth: Self.crossHaloWidth(cellSide: cellSide) * 1.1, lineCap: .round))
             context.stroke(shape, with: .color(Theme.coralText), style: StrokeStyle(lineWidth: width, lineCap: .round))
-            if isLast {
+            if isLast, showsWrongFrame {
                 context.stroke(Path(roundedRect: r.insetBy(dx: inset, dy: inset), cornerRadius: cellSide * 0.12),
                                with: .color(Theme.coralText), style: StrokeStyle(lineWidth: 3, lineCap: .round))
             }
@@ -305,17 +357,23 @@ struct CatPuzzleBoardCanvas: View {
     @ViewBuilder
     private func roomLabel(room: Int, rooms: [CatPuzzleHouse.Room]) -> some View {
         let name = rooms[room % rooms.count].name
-        if let layout = Self.roomLabelLayout(room: room, name: name, puzzle: puzzle, cellSide: cellSide) {
+        let hasKey = room == keyRoom
+        if let layout = Self.roomLabelLayout(room: room, name: name, hasKey: hasKey, puzzle: puzzle, cellSide: cellSide) {
             ZStack(alignment: .topLeading) {
                 RoundedRectangle(cornerRadius: layout.chipSize.height / 2, style: .continuous)
                     .fill(Color.white.opacity(0.9))
-                Text(name)
-                    .font(.system(size: layout.fontSize, weight: .bold, design: .rounded)) // fixed-size: 盤のマスの寸法に比例させる札の文字（図形のジオメトリに従う）
-                    .foregroundColor(Theme.Fixed.ink)
-                    .lineLimit(1)
-                    .fixedSize()
-                    .padding(.leading, layout.padding.width)
-                    .padding(.top, layout.padding.height)
+                HStack(spacing: Self.keyIconGap) {
+                    if hasKey {
+                        CatPuzzleKeyLabelIcon(size: layout.fontSize * 0.9, opening: keyOpening)
+                    }
+                    Text(name)
+                        .font(.system(size: layout.fontSize, weight: .bold, design: .rounded)) // fixed-size: 盤のマスの寸法に比例させる札の文字（図形のジオメトリに従う）
+                        .foregroundColor(Theme.Fixed.ink)
+                        .lineLimit(1)
+                        .fixedSize()
+                }
+                .padding(.leading, layout.padding.width)
+                .padding(.top, layout.padding.height)
             }
             .frame(width: layout.chipSize.width, height: layout.chipSize.height, alignment: .topLeading)
             .position(x: layout.origin.x + layout.chipSize.width / 2, y: layout.origin.y + layout.chipSize.height / 2)
@@ -330,18 +388,29 @@ struct CatPuzzleBoardCanvas: View {
         let fontSize: CGFloat
     }
 
-    private static func roomLabelLayout(room: Int, name: String, puzzle: CatPuzzle, cellSide: CGFloat) -> RoomLabelLayout? {
+    /// 鍵のアイコンと名前の間（pt）。
+    private static let keyIconGap: CGFloat = 2
+
+    /// 札の文字の幅（鍵の部屋は鍵のアイコンぶんを足す）。
+    private static func labelWidth(_ name: String, fontSize: CGFloat, hasKey: Bool) -> CGSize {
+        var size = measureLabel(name, fontSize: fontSize)
+        if hasKey { size.width += ceil(fontSize * 0.9) + keyIconGap }
+        return size
+    }
+
+    private static func roomLabelLayout(room: Int, name: String, hasKey: Bool, puzzle: CatPuzzle, cellSide: CGFloat) -> RoomLabelLayout? {
         let baseFont = max(8, cellSide * 0.22)
         let margin = max(cellSide * 0.06, CatPuzzleHouse.wallWidth / 2 + 1)
         let padding = CGSize(width: cellSide * 0.1, height: cellSide * 0.04)
-        var measured = measureLabel(name, fontSize: baseFont)
+        var measured = labelWidth(name, fontSize: baseFont, hasKey: hasKey)
         let wide = measured.width + padding.width * 2 > cellSide - margin * 2
         guard let placement = labelPlacement(room: room, in: puzzle, wide: wide) else { return nil }
         let available = (placement.spansRight ? cellSide * 2 : cellSide) - margin * 2
         var fontSize = baseFont
         if measured.width + padding.width * 2 > available {
-            fontSize = max(6, baseFont * (available - padding.width * 2) / measured.width)
-            measured = measureLabel(name, fontSize: fontSize)
+            // 鍵の札は鍵のアイコンぶん広いので、1 マスに収まるよう下限を低くする。
+            fontSize = max(hasKey ? 4 : 6, baseFont * (available - padding.width * 2) / measured.width)
+            measured = labelWidth(name, fontSize: fontSize, hasKey: hasKey)
         }
         let origin = rect(of: placement.cell, side: puzzle.side, cellSide: cellSide).origin
             .applying(.init(translationX: margin, y: margin))
@@ -540,6 +609,8 @@ enum CatPuzzleMotion {
     static let shakePhases: [CGFloat] = [0, -1, 1, -0.6, 0.6, 0]
     /// 揺れの 1 コマ。
     static let shakeStep: Animation = .linear(duration: 0.05)
+    /// 赤い × が付いてから、そのマスの赤い枠を残しておく間。
+    static let wrongFrameHold: Duration = .milliseconds(900)
 
     /// 猫の出入り。Reduce Motion のときは透明度だけ（アニメーションは周囲のトランザクションに従う＝即時）。
     static func catTransition(reduceMotion: Bool) -> AnyTransition {

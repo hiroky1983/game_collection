@@ -1,9 +1,10 @@
 import Foundation
 import CoreEngine
 
-/// 数独の難易度。盤から取り除くマスの数だけが違う。
+/// 数独の難易度。盤から取り除くマスの数が違う。`expert` はそれに加えて、解くのに基本の消去法
+/// （`SudokuEngine.isSolvableBySingles`）だけでは足りない盤だけを出す（#3099）。
 public enum SudokuDifficulty: String, CaseIterable, Codable, Sendable {
-    case easy, normal, hard
+    case easy, normal, hard, expert
 
     /// 画面に出す難易度名（表示言語に従う）。記録の区分名には `recordLabel` を使う。
     public var label: String {
@@ -11,6 +12,7 @@ public enum SudokuDifficulty: String, CaseIterable, Codable, Sendable {
         case .easy:   return tr("かんたん")
         case .normal: return tr("ふつう")
         case .hard:   return tr("むずかしい")
+        case .expert: return tr("上級")
         }
     }
 
@@ -28,6 +30,7 @@ public enum SudokuDifficulty: String, CaseIterable, Codable, Sendable {
         case .easy:   return 30...35
         case .normal: return 40...45
         case .hard:   return 46...50
+        case .expert: return 52...56
         }
     }
 }
@@ -74,7 +77,44 @@ public enum SudokuEngine {
         var solution = [Int](repeating: 0, count: cellCount)
         _ = fill(&solution, from: 0, using: &rng)
 
-        let removeCount = Int.random(in: difficulty.removalRange, using: &rng)
+        if difficulty == .expert {
+            return generateExpert(solution: solution, using: &rng)
+        }
+        let board = carve(solution, count: Int.random(in: difficulty.removalRange, using: &rng), using: &rng)
+        return Puzzle(board: board, solution: solution)
+    }
+
+    /// 上級の盤を作る。空きが範囲の下限に届き、かつ基本の消去法だけでは解けない盤が出るまで、
+    /// 同じ完成グリッドから削り直す（数十回試せばほぼ必ず当たる。実測は PR 本文）。
+    /// 試行の上限に達したら、その中で最も条件に近い盤（手筋の条件 → 空きの多さの順）を返す。
+    private static func generateExpert<G: RandomNumberGenerator>(
+        solution: [Int],
+        using rng: inout G
+    ) -> Puzzle {
+        let range = SudokuDifficulty.expert.removalRange
+        var best: (board: [Int], score: Int)?
+        for _ in 0..<expertAttemptLimit {
+            let board = carve(solution, count: Int.random(in: range, using: &rng), using: &rng)
+            let blanks = board.filter { $0 == 0 }.count
+            let needsMore = !isSolvableBySingles(board)
+            if needsMore && blanks >= range.lowerBound { return Puzzle(board: board, solution: solution) }
+            // 手筋の条件を空きの多さより優先して比べる（空きは 81 未満なので 100 を掛けて足せばよい）。
+            let score = (needsMore ? 100 : 0) + blanks
+            if let current = best, current.score >= score { continue }
+            best = (board, score)
+        }
+        return Puzzle(board: best?.board ?? solution, solution: solution)
+    }
+
+    /// 上級の削り直しの上限。
+    private static let expertAttemptLimit = 40
+
+    /// 完成グリッドからマスを `count` 個を目安に削る。**唯一解を保てないマスは戻す**ので、届かないことがある。
+    private static func carve<G: RandomNumberGenerator>(
+        _ solution: [Int],
+        count removeCount: Int,
+        using rng: inout G
+    ) -> [Int] {
         var board = solution
         var removed = 0
         for index in (0..<cellCount).shuffled(using: &rng) {
@@ -88,7 +128,55 @@ public enum SudokuEngine {
                 board[index] = backup
             }
         }
-        return Puzzle(board: board, solution: solution)
+        return board
+    }
+
+    /// 基本の消去法だけで最後まで解けるか。
+    ///
+    /// 使う手筋は 2 つだけ（上級の「手筋の下限」の判定に使う・#3099）:
+    /// - 単独候補: そのマスに入る数字が、行・列・ブロックの消去の結果 1 つしか残らない
+    /// - 隠れた単独: 行・列・ブロックのどこかで、その数字を置けるマスが 1 つしか残らない
+    /// これで詰まる盤（ペア・ポインティング・仮置きなどが要る盤）は `false`。
+    /// 唯一解の盤を渡す前提で、矛盾（候補が尽きたマス）に当たったときも `false` を返す。
+    public static func isSolvableBySingles(_ grid: [Int]) -> Bool {
+        var values = grid
+        var candidates = [Int](repeating: 0, count: cellCount)   // 下位 9 ビットが数字 1〜9
+        let all = (1 << size) - 1
+        for index in 0..<cellCount where values[index] == 0 {
+            var mask = all
+            for peer in peers(of: index) where values[peer] != 0 { mask &= ~(1 << (values[peer] - 1)) }
+            candidates[index] = mask
+        }
+        func place(_ digit: Int, at index: Int) {
+            values[index] = digit
+            candidates[index] = 0
+            for peer in peers(of: index) { candidates[peer] &= ~(1 << (digit - 1)) }
+        }
+        var progressed = true
+        while progressed {
+            progressed = false
+            for index in 0..<cellCount where values[index] == 0 {
+                let mask = candidates[index]
+                if mask == 0 { return false }
+                if mask & (mask - 1) == 0 {
+                    place(mask.trailingZeroBitCount + 1, at: index)
+                    progressed = true
+                }
+            }
+            for unit in 0..<unitCount {
+                let cells = self.cells(ofUnit: unit)
+                for digit in 1...size {
+                    let bit = 1 << (digit - 1)
+                    if cells.contains(where: { values[$0] == digit }) { continue }
+                    let spots = cells.filter { candidates[$0] & bit != 0 }
+                    if spots.count == 1 {
+                        place(digit, at: spots[0])
+                        progressed = true
+                    }
+                }
+            }
+        }
+        return !values.contains(0)
     }
 
     /// 解の個数。`limit` に達した時点で数えるのをやめる（唯一解の判定は `limit: 2` で足りる）。
@@ -173,13 +261,48 @@ public enum SudokuEngine {
         return false
     }
 
+    /// 行・列・ブロックごとに「入っている数字」をビットで持ち、**候補がいちばん少ない空きマス**から
+    /// 試す探索（#3099）。上級は空きが 52 以上で、先頭の空きマスから順に試す素朴な探索では
+    /// 唯一解の判定が重すぎるため。数える結果は素朴な探索と同じ。
     private static func count(_ grid: inout [Int], limit: Int) -> Int {
-        guard let position = grid.firstIndex(of: 0) else { return 1 }
+        var rows = [Int](repeating: 0, count: size)
+        var cols = [Int](repeating: 0, count: size)
+        var boxes = [Int](repeating: 0, count: size)
+        for index in 0..<cellCount where grid[index] != 0 {
+            let bit = 1 << (grid[index] - 1)
+            rows[index / size] |= bit
+            cols[index % size] |= bit
+            boxes[(index / size / 3) * 3 + index % size / 3] |= bit
+        }
+        return search(&grid, &rows, &cols, &boxes, limit: limit)
+    }
+
+    private static func search(
+        _ grid: inout [Int], _ rows: inout [Int], _ cols: inout [Int], _ boxes: inout [Int], limit: Int
+    ) -> Int {
+        let all = (1 << size) - 1
+        var best = -1, bestMask = 0, bestCount = size + 1
+        for index in 0..<cellCount where grid[index] == 0 {
+            let row = index / size, col = index % size, box = (row / 3) * 3 + col / 3
+            let mask = all & ~(rows[row] | cols[col] | boxes[box])
+            let n = mask.nonzeroBitCount
+            if n < bestCount {
+                best = index; bestMask = mask; bestCount = n
+                if n <= 1 { break }
+            }
+        }
+        guard best >= 0 else { return 1 }
+        let row = best / size, col = best % size, box = (row / 3) * 3 + col / 3
         var found = 0
-        for digit in 1...size where isValid(grid, at: position, digit: digit) {
-            grid[position] = digit
-            found += count(&grid, limit: limit)
-            grid[position] = 0
+        var remaining = bestMask
+        while remaining != 0 {
+            let bit = remaining & -remaining
+            remaining &= remaining - 1
+            grid[best] = bit.trailingZeroBitCount + 1
+            rows[row] |= bit; cols[col] |= bit; boxes[box] |= bit
+            found += search(&grid, &rows, &cols, &boxes, limit: limit)
+            rows[row] &= ~bit; cols[col] &= ~bit; boxes[box] &= ~bit
+            grid[best] = 0
             if found >= limit { break }
         }
         return found

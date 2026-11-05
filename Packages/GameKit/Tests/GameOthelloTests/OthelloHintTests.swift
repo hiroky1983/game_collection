@@ -307,4 +307,28 @@ struct OthelloHintTests {
         #expect(hint.policy.isExact)
         #expect(hard.timeLimit == 1.5, "対局 CPU の むずかしい は変えない")
     }
+
+    @Test("ヒントの読み中は待ったできない（古い局面のヒントを適用しない・#3179）")
+    func undoIsRefusedWhileHintThinking() async throws {
+        let (model, _) = makeModel()
+        let move = try #require(model.board.validMoves(for: model.humanSide).first)
+        model.tap(row: move.0, col: move.1)
+        await model.performAIMoveIfNeeded()
+        try #require(!model.isAITurn && !model.mustPass, "前提: CPU が応手して人間の手番に戻っている")
+        try #require(model.canUndo)
+        let board = model.board
+
+        let reading = Task { @MainActor in await model.requestHint() }
+        await Task.yield()
+        try #require(model.isHintThinking, "前提: 読みの最中を捉えている")
+        #expect(!model.canUndo, "ヒントの読み中に待ったできてしまう")
+        model.undoLastExchange()
+        #expect(model.board == board, "読み中の待ったが盤を戻している")
+        #expect(!model.undoLastExchange(forTurn: model.aiTurnKey), "読み中に広告の待ったが通っている")
+        await reading.value
+
+        #expect(model.hintsRemaining == BoardHintBudget.total - 1, "待った無しならヒントは 1 回だけ消費される")
+        #expect(model.hintPoint != nil)
+        #expect(model.canUndo, "読み終えたら待ったできる")
+    }
 }

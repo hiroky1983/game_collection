@@ -18,6 +18,21 @@ public struct OldMaidModule: GameModule {
 
     public init() {}
 
+    /// あなたが一度も引いていない局（2 ゲーム目以降で CPU が先に引いただけ）は「続き」ではない（#3000）。
+    public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
+        snapshots.load(OldMaidSnapshot.self, for: id)?.game.humanHasDrawn ?? false
+    }
+
+    public func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool {
+        snapshots.load(OldMaidSnapshot.self, for: id).map { !$0.game.humanHasDrawn } ?? false
+    }
+
+    /// 復元した盤の区分（#3225）。手つかずの開き直しの `game_start` / `game_end` に載せる。
+    public func untouchedSnapshotPlayClass(in snapshots: SnapshotStore) -> PlayClass {
+        guard let snap = snapshots.load(OldMaidSnapshot.self, for: id) else { return PlayClass() }
+        return PlayClass(level: CPUStrength.analyticsLevel(forLevel: snap.game.aiLevel))
+    }
+
     @MainActor public func makeView(services: GameServices) -> AnyView {
         AnyView(OldMaidView(services: services))
     }

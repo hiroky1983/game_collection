@@ -27,7 +27,8 @@ private final class StubAdService: AdService, @unchecked Sendable {
 struct FifteenHintSolverTests {
 
     /// 示された升を 1 手ずつ動かし続けると必ず揃う（上限手数の内で）。
-    @Test("ヒントの通りに動かし続けると、どの盤も揃う", arguments: 0..<12)
+    /// 1 盤で 400 手ぶん解き直し、Debug では 1 盤 20 秒超。CI は代表 1 盤、夜間は 12 盤（#2952）。
+    @Test("ヒントの通りに動かし続けると、どの盤も揃う", arguments: NightlyScale.range(ci: 0..<1, nightly: 0..<12))
     func followingHintsSolvesTheBoard(seed: Int) throws {
         var generator = SplitMix64(seed: UInt64(seed))
         var tiles = FifteenLogic.shuffled(using: &generator)

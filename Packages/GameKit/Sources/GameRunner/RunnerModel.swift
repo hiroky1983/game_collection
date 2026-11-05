@@ -311,6 +311,16 @@ public final class RunnerModel {
         field.endHold()
     }
 
+    /// 「はじめから」で捨ててしまう走りがあるか。走り出していて（距離が出ている）、まだ終わっていないとき。
+    public var hasProgressToLose: Bool {
+        guard distanceMeters > 0 else { return false }
+        switch phase {
+        case .running: return true
+        case .paused: return phaseBeforePause == .running
+        default: return false
+        }
+    }
+
     /// 一時停止。走っている / 走り出す前だけ効く（アクセシビリティ要件）。
     public func pause() {
         guard phase == .ready || phase == .running else { return }
@@ -622,7 +632,7 @@ public final class RunnerModel {
             )
         }
         switch event {
-        case .landed, .passedCheckpoint, .collectedSpeedItem, .collectedInvincibleItem, .boarCharging:
+        case .landed, .passedCheckpoint, .collectedSpeedItem, .collectedInvincibleItem, .boarCharging, .rockfallRumbling:
             break
         case .fell, .crashed:
             // 即座に `.failed` にはせず、短い演出（`RunnerScene`）を挟んでから移る（会長QA）。

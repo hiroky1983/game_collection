@@ -157,7 +157,7 @@ public struct SolitaireView: View {
                 SolitaireAccessibility.hintLabel(move: move, board: model.board)
             ).post()
         }
-        .overlay {
+        .overlayAboveBanner {
             if model.showsRescuePrompt {
                 SolitaireRescueOverlay(
                     model: model,
@@ -218,7 +218,7 @@ public struct SolitaireView: View {
         // （#375・#1734・#1382。止め方・動かし方は `GameStopwatch` / `gameTimerLifecycle` に共通化・#1857）。
         .gameTimerLifecycle(
             rescues: [jokerRescue, undoRescue, hintRescue],
-            isHeld: showSetup,
+            isHeld: showSetup || showUndoRefillPrompt,
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )
@@ -256,12 +256,12 @@ public struct SolitaireView: View {
                 if model.rules.drawMode != .one {
                     Text(model.rules.drawMode.label)
                         .themeCaption(11, maxScale: 1.3)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                         .lineLimit(1)
                 }
             }
         } trailing: {
-            GameClockLabel(RecordFormat.time(model.elapsedSeconds))
+            GameClockLabel(RecordFormat.time(model.elapsedSeconds), elapsedSeconds: model.elapsedSeconds)
         }
         // 3 つの数字が別々に読まれると意味が取りにくいので 1 要素にまとめる。
         .accessibilityElement(children: .ignore)

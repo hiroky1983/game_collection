@@ -1,4 +1,5 @@
 import Core
+import CoreOjisanPixel
 import SpriteKit
 import SwiftUI
 
@@ -122,7 +123,9 @@ public struct RunnerView: View {
         // 外にあるので物理的には押せてしまい、始まり → 操作ガイド → 開始シートの順番
         // （決裁の受け入れ条件 A）が崩れる。飛ばしたい人はタップか「スキップ」で抜けられる。
         .gameChrome(title: tr("チャリンコおじさん"), review: services.review,
-                    newGame: GameChromeNewGame(.restart, isDisabled: presentedStory != nil) {
+                    newGame: GameChromeNewGame(.restart, isDisabled: presentedStory != nil,
+                                               hasProgressToLose: model.hasProgressToLose,
+                                               onAskConfirm: { if model.phase == .running { model.pause() } }) {
                         if model.phase == .running { model.pause() }
                         openStartSheet(mode: model.mode, stage: 1)
                     })
@@ -190,7 +193,7 @@ public struct RunnerView: View {
             // 設定画面で切り替えられていたら取り込む（書き手は設定画面とポーズ画面の 2 か所）。
             model.syncSlowModeFromPreference()
             #if DEBUG
-            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|chasing|showcase|bird|bird:N|platform|floor|invincible|wall|wall-double|wall:N|stage:N|stage:N@距離|map:N|story-intro|story-world1〜story-world6|endless|endless-running|endless-far|endless-far-failed|endless-autopilot|endless-failed>`（#494・#675・#797・#1086・#1009・#1091・#1092）。
+            // 撮影・動作確認用: `-simulateRunner <running|paused|failed|cleared|chasing|showcase|bird|bird:N|platform|floor|invincible|wall|wall-double|wall:N|chasm:N|footbridge:N|rockfall:N|rockfall-cue:N|stage:N|stage:N@距離|map:N|story-intro|story-world1〜story-world10|endless|endless-running|endless-far|endless-far-failed|endless-autopilot|endless-failed>`（#494・#675・#797・#1086・#1009・#1091・#1092・#2729）。
             let args = ProcessInfo.processInfo.arguments
             if let i = args.firstIndex(of: "-simulateRunner"), i + 1 < args.count {
                 // ストーリーの始まり（#1092）だけは走行と無関係な View の状態なので、
@@ -202,9 +205,11 @@ public struct RunnerView: View {
                     model.applyDebugScenario(args[i + 1])
                 }
             }
-            // 撮影用: 開始シート（ワールドマップ #798）を開いた状態にする（`-showRunnerStartSheet`）。
+            // 撮影用: 開始シート（ステージセレクト #798 → #2730）を開いた状態にする（`-showRunnerStartSheet`）。
+            // 選んでいる面は到達点（`-simulateRunner map:N` で作る）——ふつうに開いたときと同じく
+            // 「今いる面」の世界の帯が出る画になる。
             if args.contains("-showRunnerStartSheet") {
-                openStartSheet(mode: model.mode, stage: 1)
+                openStartSheet(mode: model.mode, stage: model.reachedStage)
             }
             #endif
             // 自動表示の判断は**起動引数を適用したあと**（#1063）。先に判断すると、その時点では
@@ -752,16 +757,26 @@ public struct RunnerView: View {
             case .scaffold: return tr("足場にぶつかった")
             case .strawStack: return tr("わら積みにぶつかった")
             case .crateStack: return tr("木箱にぶつかった")
+            case .snowBlocks: return tr("雪のブロックにぶつかった")
+            case .stoneStack: return tr("石積みにぶつかった")
             }
         case .crumblingPlatformFace:
             switch dressing.crumblingPlatform {
             case .suspensionBridge: return tr("吊り橋にぶつかった")
             case .woodenPier: return tr("桟橋にぶつかった")
+            case .iceBridge: return tr("薄氷の橋にぶつかった")
+            case .oldFootbridge: return tr("古い歩道橋にぶつかった")
             }
+        case .highPlatformFace:
+            // 高い台座（#2729）は東京の歩道橋だけ（着せ替えの枠を持たない）。
+            return tr("歩道橋にぶつかった")
         case .hazard(let kind):
             switch kind {
-            case .pit: return missCauseText(.pit)
+            // 裂け目（#2729）に落ちるのも「穴に落ちた」（死因も穴と同じ）。
+            case .pit, .chasm: return missCauseText(.pit)
             case .bird: return missCauseText(.bird)
+            // 落石（#2729）は着せ替えの枠を持たない（富士山にだけ置く）。死因は岩と同じ `rock`。
+            case .rockfall: return tr("落石にぶつかった")
             case .lowBlock: return blockText(dressing.lowBlock)
             case .tallBlock: return blockText(dressing.tallBlock)
             case .dog:
@@ -770,22 +785,32 @@ public struct RunnerView: View {
                 case .cat: return tr("猫にぶつかった")
                 case .deer: return tr("鹿にぶつかった")
                 case .monkey: return tr("サルにぶつかった")
+                case .fox: return tr("キツネにぶつかった")
+                case .serow: return tr("カモシカにぶつかった")
                 }
             case .boar:
                 switch dressing.boar {
                 case .boar: return tr("イノシシにぶつかった")
                 case .forklift: return tr("フォークリフトにぶつかった")
+                case .taxi: return tr("タクシーにぶつかった")
+                case .bulldozer: return tr("ブルドーザーにぶつかった")
                 }
             case .shoot, .geyser:
                 switch dressing.shoot {
                 case .bambooShoot: return tr("竹の子にぶつかった")
                 case .seaSpray: return tr("波しぶきにぶつかった")
                 case .steamColumn: return tr("湯柱にぶつかった")
+                case .snowSpout: return tr("雪柱にぶつかった")
+                case .manholeSteam: return tr("蒸気にぶつかった")
+                case .dustSpout: return tr("砂煙にぶつかった")
                 }
             case .wall:
                 switch dressing.wall {
                 case .stoneWall: return tr("石垣にぶつかった")
                 case .containerStack: return tr("コンテナにぶつかった")
+                case .snowBank: return tr("雪山にぶつかった")
+                case .signboardStack: return tr("看板にぶつかった")
+                case .lavaWall: return tr("溶岩の石垣にぶつかった")
                 }
             }
         }
@@ -798,6 +823,10 @@ public struct RunnerView: View {
         case .ropeCoil: return tr("ロープにぶつかった")
         case .drum: return tr("ドラム缶にぶつかった")
         case .yuoke: return tr("湯桶にぶつかった")
+        case .snowman: return tr("雪だるまにぶつかった")
+        case .trafficCone: return tr("カラーコーンにぶつかった")
+        case .vendingMachine: return tr("自動販売機にぶつかった")
+        case .signpost: return tr("道標にぶつかった")
         }
     }
 

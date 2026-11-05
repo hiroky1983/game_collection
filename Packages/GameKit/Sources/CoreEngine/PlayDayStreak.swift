@@ -48,8 +48,41 @@ public enum PlayDayStreak {
         return count
     }
 
+    /// 保存している日の中で最も長かった連続日数（#2886）。途切れた過去の連続も含む。
+    ///
+    /// - `today` より未来の日は無視する（`current` と同じ）。
+    /// - 保存は直近 `maxStoredDays` 日ぶんだけなので、それより古い連続は数えられない。
+    public static func longest(days: [Int], today: Int) -> Int {
+        let sorted = Set(days.filter { $0 <= today }).sorted()
+        var best = 0
+        var run = 0
+        var previous: Int?
+        for day in sorted {
+            run = (previous == day - 1) ? run + 1 : 1
+            best = max(best, run)
+            previous = day
+        }
+        return best
+    }
+
+    /// きろく画面の「最長 N 日」を添えるか。今の連続が最長に並んでいるときと、最長が 1 日以下のときは出さない。
+    public static func showsLongest(current: Int, longest: Int) -> Bool {
+        longest > current && longest >= hubMinimumDays
+    }
+
     /// ハブの 1 行。連続日数が `hubMinimumDays` 未満なら nil（出さない）。
     public static func hubText(streak: Int) -> String? {
         streak >= hubMinimumDays ? tr("連続 %@ 日あそび中", RecordFormat.number(streak)) : nil
+    }
+
+    /// ハブの 1 行（#3060）。今日遊んだかで 3 状態に分ける。
+    /// - 今日遊んだ: `hubText(streak:)` と同じ（2 日以上のときだけ）。
+    /// - 昨日まで続いていて今日はまだ: 「あと 1 局で連続 N+1 日」（N=1 でも出す）。
+    /// - それ以外（昨日も今日も遊んでいない）: nil。
+    public static func hubText(days: [Int], today: Int) -> String? {
+        let streak = current(days: days, today: today)
+        if days.contains(today) { return hubText(streak: streak) }
+        guard streak > 0 else { return nil }
+        return tr("あと 1 局で連続 %@ 日", RecordFormat.number(streak + 1))
     }
 }

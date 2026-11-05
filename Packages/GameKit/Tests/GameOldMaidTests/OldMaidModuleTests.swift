@@ -48,7 +48,8 @@ struct OldMaidModuleTests {
         #expect(code.contains("HowToPlayHint(.oldMaid"))
         #expect(code.contains(".howToPlay(HowToPlayGuide.oldMaid.illustrated(OldMaidHowToFigures.items)"))  // 後ろに .onboarding(...)（#2824）が続く
         #expect(code.contains("GameSetupSheet(") && code.contains("CPUStrengthPicker("))
-        #expect(!code.contains("Rescue.request(") && !code.contains("showRewardedAd("), "リワード広告の入口は持たない")
+        // リワード広告の入口は「見破る」「引き直し」の 2 つだけ（#3251）。どちらも共通部品（`RewardedRescue`）を通す。
+        #expect(code.components(separatedBy: "Rescue.request(").count - 1 == 2 && !code.contains("showRewardedAd("))
         #expect(!code.contains("withAnimation("), "アニメーションは gameAnimation 経由")
         #expect(!code.contains("Image(\"") && !code.contains("UIImage("), "絵はコード描画と共通部品だけ（外部の画像を使わない）")
         #expect(code.contains("PlayingCardFace(") && code.contains("PlayingCardBack("), "札はトランプ共通基盤で描く")

@@ -44,6 +44,9 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     public private(set) var gameSerial: Int = 0
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに1行出す。
     public private(set) var recordResult: RecordResult?
+    /// 直近の決着が、達人（#2698）への**初めての勝ち**か（#2991）。結果カードの専用の見出しを出す。
+    /// 保存はしない（再起動後に見返した結果カードは通常の勝ちの見た目に戻る）。
+    public private(set) var isMasterFirstWin = false
 
     private let services: GameServices?
     /// 同じモジュールの View も参照する（`reward_ad` の送信に要る・#500）。
@@ -102,9 +105,18 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // 手数の範囲に収める（切り詰めが起きた手順や壊れた値でも添字が範囲外にならないように）。
         self.reviewPly = min(max(snap?.reviewPly ?? moveList.count, 0), moveList.count)
         // 既定は CPU 対戦（人間=先手 / CPU=後手）。
-        self.sente = snap?.sente ?? .human
-        self.gote = snap?.gote ?? .ai
-        self.aiLevel = snap?.aiLevel ?? 1
+        // 中断データが無いときの初期値は最後に選んだ条件（#3151）。初回は人間=先手・入門・平手。
+        let last = snap == nil ? services?.playLog?.lastStart(ShogiStartChoice.self, gameID: "shogi") : nil
+        let lastHuman = last.flatMap { Side(rawValue: $0.humanSide) } ?? .black
+        self.sente = snap?.sente ?? (lastHuman == .black ? .human : .ai)
+        self.gote = snap?.gote ?? (lastHuman == .black ? .ai : .human)
+        // 保存値が今の段に無い（旧版の値など）ときは入門に倒す。達人（#2698）は共通の段の外にある。
+        let supportedLevels = Set(CPUStrength.allCases.map(\.rawValue) + [ShogiMasterEngine.level])
+        self.aiLevel = snap?.aiLevel ?? last.flatMap { supportedLevels.contains($0.aiLevel) ? $0.aiLevel : nil } ?? 1
+        self.lastStartSetting = last.map {
+            ShogiMatchSetting(handicap: ShogiHandicap(rawValue: $0.handicap) ?? .even,
+                              dropper: ShogiHandicapDropper(rawValue: $0.dropper) ?? .player)
+        }
         self.startedAt = snap?.startedAt ?? Date()
         self.undoUsed = snap?.undoUsed ?? false
         self.resigned = snap?.resigned ?? false
@@ -137,7 +149,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // 再起動でその画面に戻ったとき記録行が消えないよう、保存済みの記録から作り直す。
         // **記録し直さない**（`gameDidFinish` を呼ばない）ので二重計上にはならず、
         // 「自己ベスト更新！」も出さない（更新の瞬間はもう過ぎているため）。
-        if gameOver, let record = services?.playLog?.record(gameID: gameID, variant: matchSetting.recordVariant) {
+        if gameOver, let record = services?.playLog?.record(gameID: gameID, variant: recordVariant) {
             self.recordResult = RecordResult(record: record, update: RecordUpdate())
         }
         // 見返しとして復元した局は決着済み。中断データは残っていても続きは無いので、
@@ -394,6 +406,11 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             attemptMove(to: sq)
             return
         }
+        if sq == selectedSquare {
+            // 選んだ駒をもう一度叩いたら選択を取り消す（拒否ではないので触覚は鳴らさない）。
+            clearSelection()
+            return
+        }
         if let p = position.squares[sq], p.color == position.sideToMove {
             selectedSquare = sq
             selectedHand = nil
@@ -411,6 +428,10 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         guard phase == .playing, !gameOver, pendingPromotion == nil, !isAITurn else { return }
         guard color == position.sideToMove,
               position.hands[color.rawValue][type.rawValue] > 0 else { return }
+        if selectedHand == type {
+            clearSelection()
+            return
+        }
         selectedHand = type
         selectedSquare = nil
         services?.feedback.impact(.selection)
@@ -456,7 +477,8 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         moves.append(move)
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
         startPlayIfPending()
-        services?.gameDidProgress(gameID: gameID)
+        // CPU の着手では数えない。人間が未着手のまま離れたら離脱ではない（#3042）。
+        if mover == humanSide { services?.gameDidProgress(gameID: gameID) }
         clearSelection()
         // 盤が動いたらヒントの印は用済み（#1118）。示した手を指したかどうかは問わない。
         hintMove = nil; hintIsMate = false
@@ -467,7 +489,6 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             let loser = position.sideToMove
             resultKey = Self.checkmateResultText(loser: loser)
             phase = .review
-            services?.feedback.notify(loser == humanSide ? .error : .success)
             startPlayIfPending()
             recordResult = services?.gameDidFinish(
                 gameID: gameID,
@@ -476,6 +497,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
                 // 評価リクエストの見せ場は「ふつう」以上の CPU に勝ったとき（#1471）。
                 isReviewHighlight: beatsWorthyCPU
             )
+            notifyFinish(isWin: loser != humanSide, isLoss: loser == humanSide)
         } else if Self.isFourfoldRepetition(initialSFEN: initialSFEN, moves: moves, current: position) {
             // 千日手（#375）。同一局面が 4 回現れたら終局する。これが無いと、
             // 閉塞局面や相入玉で合法手は在り続けるのに勝敗が付かず、出口が投了（負け記録）
@@ -484,13 +506,17 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             gameOver = true
             resultKey = Self.repetitionResultText(perpetualCheckLoser: loser)
             phase = .review
-            services?.feedback.notify(loser == nil ? .warning : (loser == humanSide ? .error : .success))
             startPlayIfPending()
             recordResult = services?.gameDidFinish(
                 gameID: gameID,
                 outcome: loser.map { $0 == humanSide ? .loss : .win } ?? .draw,
                 score: recordScore
             )
+            if let loser {
+                notifyFinish(isWin: loser != humanSide, isLoss: loser == humanSide)
+            } else {
+                services?.feedback.notify(.warning)
+            }
         } else if position.isKingInCheck(position.sideToMove) {
             // 王手（#377）。された側・した側のどちらの手番でも同じ合図を出す
             // （初心者が「なぜ動かせないのか」で詰まるのは前者だが、掛けた側にも手応えが要る）。
@@ -503,6 +529,46 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             services?.feedback.impact(.board(isCapture ? .shogiCapture : .shogiPiece))
         }
         persist()
+    }
+
+    /// 決着の触覚。達人への初勝利（#2991）だけ、通常の勝ちより強い合図（`milestone`）にして実績を解除する。
+    /// 記録（`gameDidFinish`）の**後**に呼ぶ: 初めてかどうかは更新後の勝ち数で決まるため。
+    private func notifyFinish(isWin: Bool, isLoss: Bool) {
+        isMasterFirstWin = isWin && isFirstMasterWin()
+        if isMasterFirstWin {
+            services?.feedback.notify(.milestone)
+            services?.feedback.impact(.rigid)
+            services?.gameCenter?.reportUnlocked([GameCenterAchievements.shogiMaster])
+        } else {
+            services?.feedback.notify(isLoss ? .error : .success)
+        }
+    }
+
+    /// 達人（平手・駒落ちのどの手合いも含む）の勝ち数が、いま付けた 1 勝だけか。
+    private func isFirstMasterWin() -> Bool {
+        guard aiLevel == ShogiMasterEngine.level, sente == .ai || gote == .ai else { return false }
+        return masterWinCount() == 1
+    }
+
+    /// 端末の記録にある、達人（平手・駒落ちのどの手合いも含む）の勝ち数。
+    private func masterWinCount() -> Int {
+        guard let log = services?.playLog else { return 0 }
+        return log.records(gameID: gameID)
+            .filter { record in
+                guard let key = record.recordKey else { return false }
+                return key == "\(gameID)#master" || key.hasPrefix("\(gameID)#master-")
+            }
+            .reduce(0) { $0 + $1.wins }
+    }
+
+    /// 達人に勝った記録があるのに Game Center で未解除なら、実績を送り直す（#3219）。
+    /// 初勝利の瞬間に未サインイン・オフラインだと実績は送られず、`wins == 1` の判定では二度と送られないため、
+    /// 将棋を開くたびに呼ぶ。未サインイン・読めなかったとき（オフライン等）は何もしない。
+    public func syncMasterAchievement() async {
+        guard masterWinCount() >= 1, let reporter = services?.gameCenter,
+              let remote = await reporter.fetchUnlockedAchievementIDs(),
+              !remote.contains(GameCenterAchievements.shogiMaster) else { return }
+        reporter.reportUnlocked([GameCenterAchievements.shogiMaster])
     }
 
     public func clearSelection() {
@@ -534,6 +600,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         hints.reset()
         hintMove = nil; hintIsMate = false; showsHintHopeless = false
         recordResult = nil
+        isMasterFirstWin = false
         // 通し番号（`checkEventID`）は 0 に戻さない。View は「値が変わったこと」で
         // 文字を出すため、対局をまたいで単調に増やしておかないと巻き戻しが合図として拾われる。
         lastCheckedSide = nil
@@ -542,6 +609,11 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         self.sente = humanSide == .black ? .human : .ai
         self.gote = humanSide == .black ? .ai : .human
         self.aiLevel = aiLevel
+        lastStartSetting = nil
+        services?.playLog?.saveLastStart(
+            ShogiStartChoice(humanSide: humanSide.rawValue, aiLevel: aiLevel,
+                             handicap: handicap.rawValue, dropper: dropper.rawValue),
+            gameID: gameID)
         startedAt = startedAtFallback()
         gameSerial += 1
         bookSeed = UInt64.random(in: .min ... .max)
@@ -554,7 +626,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         persist()
         pendingInitialStart = false
         services?.gameDidRestart(
-            gameID: gameID, level: CPUStrength.analyticsLevel(forLevel: aiLevel), mode: matchSetting.analyticsMode)
+            gameID: gameID, level: ShogiMasterEngine.analyticsLevel(forLevel: aiLevel), mode: matchSetting.analyticsMode)
     }
 
     /// この局の手合いと落とす側（#2179）。開始局面と人間の座る側から毎回導く（状態として持たない）ので、
@@ -568,10 +640,15 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     /// 決着に渡す成績。手合いごとに記録を分ける（平手は従来の保存先のまま）。
     private var recordScore: GameScore {
         var score = hints.winLossScore
-        score.variant = matchSetting.recordVariant
-        score.variantLabel = matchSetting.recordVariantLabel
+        score.variant = recordVariant
+        score.variantLabel = recordVariant.map { RecordVariantLabels.stored(gameID: "shogi", variant: $0) }
         return score
     }
+
+    /// 開始シートの初期の手合い（#3151）。中断データが無い最初の局だけ最後に選んだ手合いで、
+    /// 対局を始めたら（`newGame`）nil に戻り、以後は進行中の局の `matchSetting` を見る。
+    private var lastStartSetting: ShogiMatchSetting?
+    public var startSheetSetting: ShogiMatchSetting { lastStartSetting ?? matchSetting }
 
     /// 人間が指している側（CPU 戦の表示用）。
     public var humanSide: Side { sente == .human ? .black : .white }
@@ -585,6 +662,8 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     /// テストはここで思考を止めることで、「探索の完了待ちで停止中」という状態を
     /// 探索の所要時間に依存せず決定論的に作れる（#172）。
     @ObservationIgnored var thinkingGate: (@MainActor () async -> Void)?
+    /// ヒントの考える時間にかける倍率（テスト用。広告の回数の検査で探索を実時間で待たない・#2952）。出荷は 1。
+    @ObservationIgnored var hintThinkingScaleForTesting: Double = 1
 
     /// View の `.task(id:)` に渡す CPU 起動トリガー。
     /// 手数だけだと「0 手のまま後手で新規対局を始めた」ときに値が変わらず、
@@ -602,7 +681,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             let sfen = position.toSFEN()
             await thinkingGate?()
             return await Task.detached(priority: .userInitiated) {
-                await SimpleMinimaxEngine(level: level, seed: seed).bestMove(sfen: sfen)
+                await ShogiMasterEngine.engine(level: level, seed: seed).bestMove(sfen: sfen)
             }.value
         } commit: { usi in
             // 計算中に状況が変わっていないか確認してから着手。
@@ -660,11 +739,12 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         guard canUseHint else { return }
         await withAITurnGuard(key: \.aiTurnKey, thinking: \.isHintThinking) {
             let sfen = position.toSFEN()
+            let scale = hintThinkingScaleForTesting
             await thinkingGate?()
             return await Task.detached(priority: .userInitiated) {
                 // ヒントは対局中の CPU の強さに関わらず常に最強で読む（`BoardHintBudget.engineLevel`）。
                 // 先に詰みを探し、詰ます手・詰みを避ける手を選ぶ（#2779）。
-                SimpleMinimaxEngine.hint().hintAnswer(sfen: sfen)
+                SimpleMinimaxEngine.hint(thinkingScale: scale).hintAnswer(sfen: sfen)
             }.value
         } commit: { answer in
             // `canUseHint` は読みの旗が立ったままなのでここでは使えない。前提を個別に確かめ直す。
@@ -699,8 +779,9 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         guard canUseHint, needsAdForHint else { return .unavailable }
         // 受けが無い局面では広告を流さない（#2779）。詰み探索は短いので、広告の前に確かめる。
         let sfenBeforeAd = position.toSFEN()
+        let scale = hintThinkingScaleForTesting
         if await Task.detached(priority: .userInitiated, operation: {
-            SimpleMinimaxEngine.hint().hasNoDefense(sfen: sfenBeforeAd)
+            SimpleMinimaxEngine.hint(thinkingScale: scale).hasNoDefense(sfen: sfenBeforeAd)
         }).value {
             guard canUseHint, position.toSFEN() == sfenBeforeAd else { return .unavailable }
             showsHintHopeless = true
@@ -716,9 +797,10 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         var outcome: RewardedModelOutcome = .unavailable
         await withAITurnGuard(key: \.aiTurnKey, thinking: \.isHintThinking) {
             let sfen = position.toSFEN()
+            let scale = hintThinkingScaleForTesting
             await thinkingGate?()
             return await Task.detached(priority: .userInitiated) {
-                SimpleMinimaxEngine.hint().hintAnswer(sfen: sfen)
+                SimpleMinimaxEngine.hint(thinkingScale: scale).hintAnswer(sfen: sfen)
             }.value
         } commit: { answer in
             guard phase == .playing, !gameOver, !isAITurn, pendingPromotion == nil,
@@ -816,6 +898,14 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         reviewPly = moves.count
         undoUsed = true
         clearSelection()
+        // 人間がまだ指していない局（開始局面）まで戻したら、離脱の印を戻す。手が 0 手なら中断データも残さない（#3200）。
+        if !(0..<moves.count).contains(where: { mover(at: $0) == humanSide }) {
+            services?.gameDidUndoToStart(gameID: gameID)
+        }
+        if moves.isEmpty {
+            services?.snapshots.clear(for: gameID)
+            return
+        }
         persist()
     }
 
@@ -864,4 +954,55 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
 
     // Date.now を init 前に使えないため分離。
     private func startedAtFallback() -> Date { Date() }
+}
+
+// MARK: - 達人（#2698）
+
+extension ShogiGameModel {
+    /// 記録の区分キー。手合いの区分に、達人のときだけ `master` を前に付ける（既存の段の記録と混ぜない）。
+    var recordVariant: String? {
+        ShogiMasterEngine.recordVariant(level: aiLevel, handicapVariant: matchSetting.recordVariant)
+    }
+}
+
+extension ShogiMasterEngine {
+    /// 達人は `CPUStrength` の並びの外（読み替えると「ふつう」に倒れる）。呼び名・記録区分・解析の段は
+    /// この 1 か所から引く（#3147）。呼び名は言語切替に追従させるため都度作る。
+    public static var extraLevel: CPUExtraLevel {
+        CPUExtraLevel(level: level, label: tr("達人"), recordVariantKey: "master",
+                      analyticsLevel: .expert)
+    }
+
+    /// 生の `aiLevel` が指す段（共通の段か達人）。
+    public static func cpuLevel(forLevel level: Int) -> CPULevel {
+        CPULevel(levelOrStandard: level, extras: [extraLevel])
+    }
+
+    /// 開始シートに出す呼び名。
+    public static var label: String { extraLevel.label }
+
+    /// 生の `aiLevel` から強さの呼び名。
+    public static func strengthLabel(forLevel level: Int) -> String {
+        cpuLevel(forLevel: level).label
+    }
+
+    /// 記録の区分キー。達人は既存の段（平手は区分なし＝通算の保存先）と混ざらないよう別の保存先にする。
+    /// 駒落ちは手合いのキーの前に付ける（`master-rook-player` など）。達人以外は手合いの区分のまま。
+    public static func recordVariant(level: Int, handicapVariant: String?) -> String? {
+        guard level == Self.level else { return handicapVariant }
+        return extraLevel.recordVariant(handicapVariant: handicapVariant)
+    }
+
+    /// 解析の段。達人は既存 4 段（novice/beginner/normal/hard）と分けるため最上級（`expert`）で送る。
+    public static func analyticsLevel(forLevel level: Int) -> AnalyticsLevel {
+        cpuLevel(forLevel: level).analyticsLevel
+    }
+}
+
+/// 最後に選んだ開始条件（#3151）。中断データとは別に残り、終局しても消えない。
+struct ShogiStartChoice: Codable {
+    var humanSide: Int
+    var aiLevel: Int
+    var handicap: String
+    var dropper: String
 }

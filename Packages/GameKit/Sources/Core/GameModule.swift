@@ -31,6 +31,12 @@ public protocol GameModule {
     /// その区別が要るのは、手つかずの盤を開き直したときに `game_start` を数え直すため。
     /// 既定は false（開いた時点で必ず Model が `game_start` を数えるゲームか、開始の契機が別にあるゲーム）。
     func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool
+    /// 手つかずの中断データを開き直した回の `game_start` / `game_end` に載せる `level` / `mode`（#3225）。
+    ///
+    /// 復元した盤が持つ難易度・遊び方を返す。ハブが `gameScreenDidAppear` に渡すので、Model 側で個別に
+    /// `gameDidStart` を呼ばなくても区分が落ちない。`level` も `mode` も持たないゲームは既定（両方 nil）のまま。
+    /// `hasUntouchedSnapshot` が false のときは使われない。
+    func untouchedSnapshotPlayClass(in snapshots: SnapshotStore) -> PlayClass
     /// 「続きから」の中断データの進み具合を 1 行で（例: 「32手目」「残り45マス」「3/10回目」）。ハブのタイルに出す（#2870）。
     ///
     /// `hasResumableSnapshot` が true のときだけ呼ばれる。既定は nil（出さない）。単発戦のように
@@ -47,5 +53,18 @@ public extension GameModule {
 
     func hasUntouchedSnapshot(in snapshots: SnapshotStore) -> Bool { false }
 
+    func untouchedSnapshotPlayClass(in snapshots: SnapshotStore) -> PlayClass { PlayClass() }
+
     func resumeProgress(in snapshots: SnapshotStore) -> String? { nil }
+}
+
+/// プレイの区分（`game_start` / `game_end` の `level` / `mode`）。持たないものは nil（鍵ごと送らない）。
+public struct PlayClass: Equatable, Sendable {
+    public var level: AnalyticsLevel?
+    public var mode: AnalyticsMode?
+
+    public init(level: AnalyticsLevel? = nil, mode: AnalyticsMode? = nil) {
+        self.level = level
+        self.mode = mode
+    }
 }

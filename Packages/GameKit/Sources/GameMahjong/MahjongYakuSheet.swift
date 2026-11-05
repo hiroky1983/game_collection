@@ -24,6 +24,7 @@ public struct MahjongYakuSheet: View {
                     }
                 }
             }
+            MahjongPointsGuideView()
         }
     }
 
@@ -60,7 +61,7 @@ public struct MahjongYakuSheet: View {
                 if let reading = Self.readingText(yaku) {
                     Text(reading)
                         .scaledFont(11, weight: .medium, design: .rounded)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                 }
                 Spacer(minLength: 6)
                 Text(yaku.hanText)
@@ -70,7 +71,7 @@ public struct MahjongYakuSheet: View {
             }
             Text(yaku.requirement)
                 .scaledFont(12, design: .rounded)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 .fixedSize(horizontal: false, vertical: true)
             exampleTiles(yaku)
         }

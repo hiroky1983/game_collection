@@ -129,7 +129,7 @@ public struct AnzanView: View {
     private var header: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(tr("難易度")).themeCaption(11).foregroundStyle(Theme.inkSub)
+                Text(tr("難易度")).themeCaption(11).foregroundStyle(Theme.inkSubText)
                 Text(model.settings.variantLabel)
                     .themeBody(15)
                     .foregroundStyle(Theme.ink)
@@ -148,7 +148,7 @@ public struct AnzanView: View {
 
     private func stat(_ title: String, value: String) -> some View {
         VStack(spacing: 2) {
-            Text(title).themeCaption(11).foregroundStyle(Theme.inkSub)
+            Text(title).themeCaption(11).foregroundStyle(Theme.inkSubText)
             Text(verbatim: value)
                 .scaledFont(22, weight: .heavy, design: .rounded).monospacedDigit()
                 .foregroundStyle(Theme.ink)
@@ -244,11 +244,8 @@ public struct AnzanView: View {
         } label: {
             Label(tr("もう一度見る（広告）"), systemImage: "play.rectangle.fill")
                 .themeBody(13)
-                .foregroundStyle(Theme.onAccent)
-                .padding(.horizontal, 12).padding(.vertical, 7)
-                .background(Capsule().fill(replayRescue.isWatching ? Theme.inkSub.opacity(0.5) : Theme.Fill.yellow))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(GameButtonStyle(role: .ad))
         .disabled(replayRescue.isWatching)
     }
 
@@ -303,7 +300,7 @@ public struct AnzanView: View {
             case .flashing:
                 Text(tr("出た数をぜんぶ足そう"))
                     .themeBody(15)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
             case .answering:
                 EmptyView()
             case .result:
@@ -355,7 +352,7 @@ public struct AnzanView: View {
             )
             .opacity(enabled ? 1 : 0.5)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pop)
         .disabled(!enabled)
         .accessibilityLabel(AnzanAccessibility.keyLabel(key))
     }
@@ -385,7 +382,7 @@ public struct AnzanView: View {
                     Text(tr("まちがえた問題を見る（%lld）", model.misses.count))
                         .themeBody(14).frame(maxWidth: .infinity, minHeight: 44)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.pop)
                 .foregroundStyle(Theme.coralText)
             }
         }
@@ -409,7 +406,7 @@ struct AnzanMissesSheet: View {
                             .themeBody(15).foregroundStyle(Theme.ink)
                         HStack(spacing: 16) {
                             Text(verbatim: tr("あなたの答え %lld", miss.answer))
-                                .foregroundStyle(Theme.inkSub)
+                                .foregroundStyle(Theme.inkSubText)
                             Text(verbatim: tr("正解 %lld", miss.correct))
                                 .foregroundStyle(Theme.coralText)
                         }

@@ -1,4 +1,5 @@
 import Core
+import CoreMiniCard
 import SwiftUI
 
 /// 図入りの遊び方（#2044）の大富豪の図。文言は `HowToPlayGuide.daifugo.items`（Core）と同じ順。

@@ -1,5 +1,6 @@
 import Core
 import Foundation
+import GameKitTestSupport
 import Testing
 @testable import GameRunner
 import CoreTestSupport
@@ -76,7 +77,8 @@ struct RunnerEndlessCourseTests {
     @Test(
         "1,000 種すべてのコースが 70,000 単位先までステージ制と同じ成立条件を満たす（継ぎ目も含む）",
         .timeLimit(.minutes(10)),
-        arguments: 0..<10
+        // 100 種で 1 組。CI は先頭の 1 組（100 種）、夜間は 10 組（1,000 種）（#2952）
+        arguments: NightlyScale.range(ci: 0..<1, nightly: 0..<10)
     )
     func everySeedSatisfiesLayoutRules(chunk: Int) {
         let first = UInt64(chunk) * 100 + 1
@@ -416,6 +418,12 @@ struct RunnerEndlessCourseTests {
             case .wall:
                 // 高い塀（#1091）も同じ理由で生成器に教えていない。
                 check(false, "種 \(seed): エンドレスに高い塀が出た（\(hazard.start)）")
+            case .chasm:
+                // 裂け目（#2729）も同じ理由で生成器に教えていない。
+                check(false, "種 \(seed): エンドレスに裂け目が出た（\(hazard.start)）")
+            case .rockfall:
+                // 落石（#2729）も同じ理由で生成器に教えていない。
+                check(false, "種 \(seed): エンドレスに落石が出た（\(hazard.start)）")
             case .lowBlock, .tallBlock, .bird, .dog, .boar:
                 let overlap = (encounter.length + halfWidth * 2) / speed
                 check(
@@ -745,7 +753,9 @@ struct RunnerEndlessPlaythroughTests {
     /// - 前 160 単位は生成済み
     /// - 取ったアイテムは枠を回しても取ったまま、取っていないアイテムは消えない、通り過ぎたアイテムは必ず取っている
     /// 種 675 は撮影・長時間の実測（`-simulateRunner endless-*`）が使う種。
-    @Test("自動操縦が 20 種すべて（と撮影用の種）で 70,000 単位をミスせず走り続ける", .timeLimit(.minutes(10)), arguments: Array(1...20) + [675])
+    @Test("自動操縦が 20 種すべて（と撮影用の種）で 70,000 単位をミスせず走り続ける", .timeLimit(.minutes(10)),
+          // 1 種 3〜4 秒（Debug）。CI は 2 種、夜間は 20 種と撮影用の種（#2952）
+          arguments: NightlyScale.value(ci: [1, 675], nightly: Array(1...20) + [675]))
     func autoPilotRuns70000Units(seed: Int) {
         let goal = 70_000.0
         var field = RunnerField(endlessSeed: UInt64(seed))
@@ -1180,7 +1190,7 @@ struct RunnerEndlessModelTests {
         let model = RunnerModel(services: services, startingAt: 1, preference: makePreference("endless-analytics-end"))
         func ends() -> [(result: AnalyticsResult, mode: AnalyticsMode?, cause: AnalyticsEndCause?)] {
             spy.events.compactMap { event in
-                if case let .gameEnd(_, result, _, mode, cause, _, _, _, _) = event { return (result, mode, cause) } else { return nil }
+                if case let .gameEnd(_, result, _, mode, cause, _, _, _, _, _, _) = event { return (result, mode, cause) } else { return nil }
             }
         }
         model.newEndlessGame(seed: 1)

@@ -59,7 +59,7 @@ public struct AkariKeshiView: View {
         }
         // 画面を離れたら・背面に回ったら計時を止め、戻ったら再開する（#375・#1734・#1857）。
         .gameTimerLifecycle(
-            isHeld: showNewGame,
+            isHeld: showNewGame || showConfirmNewGame,
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )
@@ -83,13 +83,13 @@ public struct AkariKeshiView: View {
                 } else {
                     Text(tr("難易度を選んで始めましょう"))
                         .themeBody(14)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                 }
             }
             .lineLimit(1)
             .minimumScaleFactor(0.7)
         } trailing: {
-            GameClockLabel(RecordFormat.time(model.elapsedSeconds))
+            GameClockLabel(RecordFormat.time(model.elapsedSeconds), elapsedSeconds: model.elapsedSeconds)
                 .fixedSize(horizontal: true, vertical: false)
         }
     }

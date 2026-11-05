@@ -44,9 +44,11 @@ public struct GameCenterBoard: Equatable, Sendable {
     public let end: Date?
     /// 先週の自分の順位（先週参加していない・取れなかったときは nil）。
     public let lastWeekRank: Int?
+    /// 先週の回の始まり（#3256。「前回の回」が本当に直前の回かを確かめるため。取れなければ nil）。
+    public let lastWeekStart: Date?
 
     public init(rows: [GameCenterBoardRow], myRank: Int?, myScore: Int?, participants: Int,
-                start: Date?, end: Date?, lastWeekRank: Int?) {
+                start: Date?, end: Date?, lastWeekRank: Int?, lastWeekStart: Date? = nil) {
         self.rows = rows
         self.myRank = myRank
         self.myScore = myScore
@@ -54,6 +56,7 @@ public struct GameCenterBoard: Equatable, Sendable {
         self.start = start
         self.end = end
         self.lastWeekRank = lastWeekRank
+        self.lastWeekStart = lastWeekStart
     }
 }
 
@@ -100,6 +103,10 @@ public protocol GameCenterService {
     /// - Parameter topCount: 上位から何行読むか。
     /// - Parameter includesLastWeek: 先週の自分の順位も読むか（余分に 1 往復かかる）。
     @MainActor func loadBoard(leaderboardID: String, topCount: Int, includesLastWeek: Bool) async -> GameCenterBoard?
+
+    /// 定期リーダーボードのいまの回の、友だちの順位表（#3236。自分も含む。並びは順位順）。友だちの情報を使う許可が無い・
+    /// 友だちがいない・読めなかったときは空。
+    @MainActor func loadFriendRows(leaderboardID: String, topCount: Int) async -> [GameCenterBoardRow]
 }
 
 extension GameCenterService {
@@ -107,6 +114,7 @@ extension GameCenterService {
     @MainActor public func unlockedAchievementIDs() async -> Set<String>? { nil }
     @MainActor public func submitAndWait(_ score: GameCenterScore) async -> Bool { false }
     @MainActor public func loadBoard(leaderboardID: String, topCount: Int, includesLastWeek: Bool) async -> GameCenterBoard? { nil }
+    @MainActor public func loadFriendRows(leaderboardID: String, topCount: Int) async -> [GameCenterBoardRow] { [] }
 }
 
 /// 何もしない実装。テスト・プレビュー・撮影モード用。
@@ -164,6 +172,11 @@ public enum GameCenterLeaderboard {
     /// 送信もランキングページへの遷移もしなくなる（未作成の環境向けの逃げ道として Optional のまま残す）。
     /// 常設の表と違い決着の対応表（`score(gameID:outcome:score:)`）を通らないため、`allIDs` には入れない。
     public static let homerunWeekly: String? = "asobiba.homerun.weekly"
+    /// ねこさがしのデイリーランキング（#3204・#3221。2026-11-09〜12-09）。ステージのクリアでその日（JST）に貯めた
+    /// 合計 pt（High to Low）を送る。ASC の繰り返しのリーダーボード（期間 1 日・2026-11-09 00:00 JST 開始）。
+    /// 決着の対応表（`score(gameID:outcome:score:)`）を通らず別経路で送るため、`allIDs` には入れない。
+    /// App Store Connect での作成は社長（ID は想定。決まったらここを合わせる）。
+    public static let catPuzzleEvent = "asobiba.catpuzzle.daily"
     /// 週間ランキングで月まで飛んだ打球 1 本を数える距離（m）。384,400 km。
     public static let homerunWeeklyMoonMeters = 384_400_000
     /// 週間ランキングに送る総飛距離の上限（m）。月 2 回（月が割れた時点で挑戦は終わる）＋ 180 m × 8 球。これを超える値は送らない。
@@ -321,6 +334,7 @@ public enum GameCenterLeaderboard {
             case "easy":   return sudokuEasy
             case "normal": return sudokuNormal
             case "hard":   return sudokuHard
+            // 上級（"expert"）の順位表は作らない（#3099）。default の nil で何も送らない。
             default:       return nil
             }
         default:
@@ -348,6 +362,10 @@ public enum GameCenterAchievements {
 
     /// 登録が必要な実績 ID の全量。
     public static let allIDs = [firstWin, wins10, wins50, playAll]
+
+    /// 将棋の達人（#2698）に初めて勝った（#2991）。ゲーム別の実績なので `allIDs`（ハブの「記録」画面の道しるべ）には入れない。
+    /// App Store Connect への登録は社長が API で行う。
+    public static let shogiMaster = "asobiba.shogi.achievement.master"
 
     /// 柵越えおじさん（#1794）の実績 ID の全量。ゲームのフォルダはここを参照できない（`Core` が上流）ので文字列で持ち、
     /// `HomerunAchievement.gameCenterID` との一致は `GameHomerunTests` が縛る。ゲーム別の実績なので、ハブの
@@ -400,6 +418,21 @@ public enum GameCenterAchievements {
         add(wins50, totalWins, target: 50)
         add(playAll, playedGameCount, target: registeredGameCount)
         return result
+    }
+
+    /// 前後の進捗を比べて、**この決着で初めて 100% になった**実績があるか（#3097・評価のお願いの見せ場）。
+    /// 純粋関数。既に 100% だった実績が再び 100% でも数えない。
+    public static func unlocksAny(
+        totalWinsBefore: Int, totalWinsAfter: Int,
+        playedGameCountBefore: Int, playedGameCountAfter: Int,
+        registeredGameCount: Int
+    ) -> Bool {
+        func completed(_ wins: Int, _ played: Int) -> Set<String> {
+            Set(progress(totalWins: wins, playedGameCount: played, registeredGameCount: registeredGameCount)
+                .filter { $0.percentComplete >= 100 }.map(\.achievementID))
+        }
+        return !completed(totalWinsAfter, playedGameCountAfter)
+            .subtracting(completed(totalWinsBefore, playedGameCountBefore)).isEmpty
     }
 }
 
@@ -461,6 +494,33 @@ public final class GameCenterReporter {
                                 includesLastWeek: Bool = false) async -> GameCenterBoard? {
         guard allowedGameIDs.contains(gameID), isAvailable() else { return nil }
         return await service.loadBoard(leaderboardID: leaderboardID, topCount: topCount, includesLastWeek: includesLastWeek)
+    }
+
+    /// 定期リーダーボードのいまの回の友だちの順位（#3236）。未サインイン・対象外のゲーム・読めなかったときは空。
+    public func loadFriendRows(gameID: String, leaderboardID: String, topCount: Int = 20) async -> [GameCenterBoardRow] {
+        guard allowedGameIDs.contains(gameID), isAvailable() else { return [] }
+        return await service.loadFriendRows(leaderboardID: leaderboardID, topCount: topCount)
+    }
+
+    /// この決着で実績を新たに解除する見込みか（#3097）。`gameDidFinish` が送るものと同じ条件
+    /// （登録済みのゲーム・サインイン済み）に揃え、`PlayLog` が**まだ更新される前**（勝利数・遊んだゲームを
+    /// 足す前）の値を渡す。更新後の値はこの中で足して作る。
+    public func wouldUnlockAchievement(
+        gameID: String,
+        outcome: GameOutcome,
+        totalWins: Int,
+        playedGameIDs: Set<String>
+    ) -> Bool {
+        guard allowedGameIDs.contains(gameID), isAvailable() else { return false }
+        let playedBefore = playedGameIDs.intersection(allowedGameIDs).count
+        let playedAfter = playedGameIDs.union([gameID]).intersection(allowedGameIDs).count
+        return GameCenterAchievements.unlocksAny(
+            totalWinsBefore: totalWins,
+            totalWinsAfter: totalWins + (outcome == .win ? 1 : 0),
+            playedGameCountBefore: playedBefore,
+            playedGameCountAfter: playedAfter,
+            registeredGameCount: allowedGameIDs.count
+        )
     }
 
     /// 決着したときに `GameServices.gameDidFinish` から呼ぶ唯一の入口。

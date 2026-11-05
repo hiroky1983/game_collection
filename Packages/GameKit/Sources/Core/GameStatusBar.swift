@@ -23,6 +23,7 @@ public struct GameStatusBar<Leading: View, Trailing: View>: View {
     private let trailing: Trailing
     private let verticalPadding: CGFloat
     private let minHeight: CGFloat
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// `verticalPadding` は、44pt のトグルボタンが帯の高さを決めるゲーム（一人用の拡大・旗）が
     /// 盤の高さを食わないよう詰めるための口（#1420）。既定は対戦ゲームと同じ 6。
@@ -37,10 +38,20 @@ public struct GameStatusBar<Leading: View, Trailing: View>: View {
     }
 
     public var body: some View {
-        HStack(spacing: 8) {
-            leading
-            Spacer(minLength: 8)
-            trailing
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                // 文字サイズが「アクセシビリティ」の段では横一列に収まらないので縦に積む（#3180）。
+                VStack(alignment: .leading, spacing: 4) {
+                    leading
+                    trailing
+                }
+            } else {
+                HStack(spacing: 8) {
+                    leading
+                    Spacer(minLength: 8)
+                    trailing
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, GameStatusBarStyle.horizontalPadding)

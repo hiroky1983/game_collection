@@ -26,6 +26,12 @@ public struct ConcentrationModule: GameModule {
         return Self.isUntouched(snap)
     }
 
+    /// 復元した盤の区分（#3225）。手つかずの開き直しの `game_start` / `game_end` に載せる。
+    public func untouchedSnapshotPlayClass(in snapshots: SnapshotStore) -> PlayClass {
+        guard let snap = snapshots.load(ConcentrationSnapshot.self, for: id) else { return PlayClass() }
+        return PlayClass(level: .aiStrength(snap.cpuLevel))
+    }
+
     private static func isUntouched(_ snap: ConcentrationSnapshot) -> Bool {
         !(snap.isFaceUp.contains(true) || snap.isMatched.contains(true)
             || snap.playerScore > 0 || snap.cpuScore > 0 || snap.mattaUsed)

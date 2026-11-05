@@ -182,9 +182,11 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         } else {
             board        = GomokuBoard()
             currentStone = .black
-            humanSide    = .black
-            aiLevel      = 1
-            forbiddenMoves = false
+            // 開始シートの初期値は最後に選んだ条件（#3151）。初回は先手・入門・禁じ手なし。
+            let last = services?.playLog?.lastStart(GomokuStartChoice.self, gameID: "gomoku")
+            humanSide    = last.flatMap { GomokuStone(rawValue: $0.humanSide) } ?? .black
+            aiLevel      = CPUStrength.strength(for: last?.aiLevel ?? 1).rawValue
+            forbiddenMoves = last?.forbiddenMoves ?? false
             startedAt    = Date()
             moveCount    = 0
             moves        = []
@@ -312,7 +314,8 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         moveCount += 1
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。
         startPlayIfPending()
-        services?.gameDidProgress(gameID: gameID)
+        // CPU の着手では数えない。人間が未着手のまま離れたら離脱ではない（#3042）。
+        if mover == humanSide { services?.gameDidProgress(gameID: gameID) }
         if let line = board.winningLine(row: row, col: col) {
             winningLine = line
             winner = currentStone
@@ -415,6 +418,8 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public private(set) var isHintThinking: Bool = false
     /// ヒントの読みの待ち合わせ点（テスト専用。本番では nil のまま。将棋の `thinkingGate` と同じ）。
     @ObservationIgnored var hintThinkingGate: (@MainActor () async -> Void)?
+    /// ヒントの考える時間にかける倍率（テスト用。広告の回数の検査で探索を実時間で待たない・#2952）。出荷は 1。
+    @ObservationIgnored var hintThinkingScaleForTesting: Double = 1
 
     /// 残り回数（`BoardControlBarHint` が読む）。
     public var hintsRemaining: Int { hints.remaining }
@@ -438,11 +443,12 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             let b = board
             let stone = currentStone
             let renju = forbiddenMovesEnabled
+            let scale = hintThinkingScaleForTesting
             await hintThinkingGate?()
             return await Task.detached(priority: .userInitiated) {
                 // ヒントは対局中の CPU の強さに関わらず常に最強で読む（`BoardHintBudget.engineLevel`）。
                 // 五目並べの level 0（弱）は探索せず確率で見逃すので、合わせると最善手にならない（#665）。
-                await SimpleGomokuEngine.hint(forbiddenMoves: renju)
+                await SimpleGomokuEngine.hint(forbiddenMoves: renju, thinkingScale: scale)
                     .bestMove(board: b, stone: stone)
             }.value
         } commit: { move in
@@ -477,9 +483,10 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             let b = board
             let stone = currentStone
             let renju = forbiddenMovesEnabled
+            let scale = hintThinkingScaleForTesting
             await hintThinkingGate?()
             return await Task.detached(priority: .userInitiated) {
-                await SimpleGomokuEngine.hint(forbiddenMoves: renju)
+                await SimpleGomokuEngine.hint(forbiddenMoves: renju, thinkingScale: scale)
                     .bestMove(board: b, stone: stone)
             }.value
         } commit: { move in
@@ -502,6 +509,8 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
         self.humanSide = humanSide
         self.aiLevel   = aiLevel
         forbiddenMovesEnabled = forbiddenMoves
+        services?.playLog?.saveLastStart(
+            GomokuStartChoice(humanSide: humanSide.rawValue, aiLevel: aiLevel, forbiddenMoves: forbiddenMoves), gameID: gameID)
         lastRejection  = nil
         winningLine    = nil
         winner         = nil
@@ -584,6 +593,16 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             lastMove     = nil
             currentStone = .black
         }
+        // 人間がまだ指していない局（開始局面）まで戻したら、離脱の印を戻す。手が 0 手なら中断データも残さない（#3200）。
+        // 手順を持たない旧形式から復元した局は、復元前の石が baseBoard に残る。それは開始局面ではない。
+        let fromEmptyBoard = baseBoard.moveCount == 0
+        if fromEmptyBoard, !(0..<moves.count).contains(where: { mover(at: $0) == humanSide }) {
+            services?.gameDidUndoToStart(gameID: gameID)
+        }
+        if fromEmptyBoard, moves.isEmpty {
+            services?.snapshots.clear(for: gameID)
+            return
+        }
         persist()
     }
 
@@ -640,4 +659,11 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public func clearSnapshot() {
         services?.snapshots.clear(for: gameID)
     }
+}
+
+/// 最後に選んだ開始条件（#3151）。中断データとは別に残り、終局しても消えない。
+struct GomokuStartChoice: Codable {
+    var humanSide: Int
+    var aiLevel: Int
+    var forbiddenMoves: Bool
 }

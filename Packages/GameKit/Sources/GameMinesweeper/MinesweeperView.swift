@@ -105,7 +105,7 @@ public struct MinesweeperView: View {
         )
         .gameTimerLifecycle(
             rescues: [continueRescue, hintRescue],
-            isHeld: showNewGame,
+            isHeld: showNewGame || showConfirmNewGame || showGiveUpConfirm,
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )
@@ -294,6 +294,8 @@ public struct MinesweeperView: View {
                 showContinue = false
             }
         }
+        // iPad の全画面でボタンが画面幅いっぱいに伸びないようにする（#3136）。
+        .frame(maxWidth: RewardedPanelLayout.maxContentWidth)
         // 他の失敗パネル（2048・ブロックならべ・ナンプレ・フルーツ）と同じ余白（#1520）。
         .padding(RewardedPanelLayout.contentPadding)
     }
@@ -374,6 +376,7 @@ public struct MinesweeperView: View {
                         .scaledFont(16, weight: .bold, design: .monospaced)
                         .fixedSize(horizontal: true, vertical: false)
                         .foregroundStyle(Theme.coralText)
+                        .accessibilityLabel(tr("残り地雷 %lld", max(0, model.remainingMines)))
                 }
             }
             .lineLimit(1)
@@ -389,7 +392,7 @@ public struct MinesweeperView: View {
                     .accessibilityHidden(true)
             }
         } trailing: {
-            GameClockLabel(String(format: "%03d", min(model.elapsedSeconds, 999)))
+            GameClockLabel(String(format: "%03d", min(model.elapsedSeconds, 999)), elapsedSeconds: model.elapsedSeconds)
                 .fixedSize(horizontal: true, vertical: false)
         }
     }

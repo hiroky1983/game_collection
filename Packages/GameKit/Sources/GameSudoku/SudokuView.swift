@@ -13,6 +13,8 @@ public struct SudokuView: View {
     @State private var hintRescue = RewardedRescue()
     /// 「色なしで区別」の設定。ON のとき、間違いのマスに色以外の印（×・内枠）を足す（#2405）。
     @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+    /// 広い画面（iPad）で数字パッドを盤に釣り合う大きさにする倍率（#3185）。iPhone では恒等。
+    @Environment(\.adaptiveLayout) private var layout
     /// コンティニューのリワード広告の段取り（同上）。
     @State private var continueRescue = RewardedRescue()
     /// 「戻す」を使い切ったときの補充の提案と、そのリワード広告の段取り（#1855）。
@@ -144,7 +146,7 @@ public struct SudokuView: View {
         // （#375・#1734・#1382。止め方・動かし方は `GameStopwatch` / `gameTimerLifecycle` に共通化・#1857）。
         .gameTimerLifecycle(
             rescues: [hintRescue, continueRescue, undoRescue],
-            isHeld: showNewGame,
+            isHeld: showNewGame || showConfirmNewGame || showGiveUpConfirm || showUndoRefillPrompt,
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )
@@ -270,17 +272,18 @@ public struct SudokuView: View {
                         .themeBody(15, weight: .bold, maxScale: 1.5)
                         .minimumScaleFactor(0.7)
                         .foregroundStyle(Theme.coralText)
+                        .accessibilityLabel(tr("残り%lldマス", model.remainingCount))
                     // ミスの残量。上限に近づくほど目に入るよう、2回目からは色を変える。
                     Label(tr("ミス %1$lld/%2$lld", model.mistakes, SudokuModel.maxMistakes), systemImage: "xmark.circle")
                         .themeBody(15, weight: .bold, maxScale: 1.5)
                         .minimumScaleFactor(0.7)
-                        .foregroundStyle(model.mistakes >= SudokuModel.maxMistakes - 1 ? Theme.coralText : Theme.inkSub)
+                        .foregroundStyle(model.mistakes >= SudokuModel.maxMistakes - 1 ? Theme.coralText : Theme.inkSubText)
                 } else {
                     // まだ出題が無い（#354）。存在しない問題の「残り81」「ミス 0/3」を出さない。
                     Text(tr("難易度を選んでください"))
                         .themeBody(15)
                         .minimumScaleFactor(0.7)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                 }
             }
             .lineLimit(1)
@@ -293,7 +296,7 @@ public struct SudokuView: View {
                 .fixedSize(horizontal: true, vertical: false)
                 .opacity(model.hasPuzzle ? 1 : 0)
         } trailing: {
-            GameClockLabel(RecordFormat.time(model.elapsedSeconds), size: min(timerFontSize, 14 * 1.5))
+            GameClockLabel(RecordFormat.time(model.elapsedSeconds), elapsedSeconds: model.elapsedSeconds, size: min(timerFontSize, 14 * 1.5))
                 // 出題前の「0:00」も存在しない問題の数字なので、難易度カプセルと同じく隠す（#354）。
                 .opacity(model.hasPuzzle ? 1 : 0)
                 .fixedSize(horizontal: true, vertical: false)
@@ -307,6 +310,7 @@ public struct SudokuView: View {
         case .easy:   return Theme.Fill.teal
         case .normal: return Theme.Fill.yellow
         case .hard:   return Theme.Fill.coral
+        case .expert: return Theme.Fill.purple
         }
     }
 
@@ -483,7 +487,7 @@ public struct SudokuView: View {
                         let digit = r * 3 + c + 1
                         Text(noteDigits.contains(digit) ? "\(digit)" : " ")
                             .font(.system(size: side * 0.22, weight: .semibold, design: .rounded)) // fixed-size: 盤・駒・牌・タイルの寸法に比例させる文字（図形のジオメトリに従う）
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
@@ -506,7 +510,7 @@ public struct SudokuView: View {
         if isGiven { return Theme.ink }
         // 諦めて表示した答えは自力で入れた数字と同じ色にしない
         // （同じ teal だと「自分で解いた盤」と見分けが付かない）。
-        if model.state == .givenUp { return Theme.inkSub }
+        if model.state == .givenUp { return Theme.inkSubText }
         if isHinted { return Theme.purple }
         return Theme.tealText
     }
@@ -598,11 +602,11 @@ public struct SudokuView: View {
             model.enter(digit: digit)
         } label: {
             Text("\(digit)")
-                .scaledFont(20, weight: .bold, design: .rounded)
+                .scaledFont(layout.scaled(20), weight: .bold, design: .rounded)
                 // 使い切った数字は文字だけを薄くする（#666）。ボタンの面は残し、並びの位置は変えない。
                 .opacity(exhausted ? SudokuMetrics.exhaustedDigitOpacity : 1)
                 .frame(maxWidth: .infinity)
-                .frame(minHeight: SudokuMetrics.padButtonMinSide)
+                .frame(minHeight: layout.scaled(SudokuMetrics.padButtonMinSide))
                 .background(
                     RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
                         .fill(model.noteMode ? Theme.purple.opacity(0.18) : Theme.surface)
@@ -611,13 +615,13 @@ public struct SudokuView: View {
                     // 残り個数（#2802）。使い切った数字は薄くするだけで数は出さない。
                     if !exhausted {
                         Text(verbatim: "\(remaining)")
-                            .scaledFont(10, weight: .semibold, design: .rounded)
-                            .foregroundStyle(Theme.inkSub)
+                            .scaledFont(layout.scaled(10), weight: .semibold, design: .rounded)
+                            .foregroundStyle(Theme.inkSubText)
                             .padding(.top, 3)
                             .padding(.trailing, 5)
                     }
                 }
-                .foregroundStyle(exhausted ? Theme.inkSub : Theme.ink)
+                .foregroundStyle(exhausted ? Theme.inkSubText : Theme.ink)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.pop)
@@ -631,14 +635,14 @@ public struct SudokuView: View {
             model.erase()
         } label: {
             Image(systemName: "delete.left")
-                .scaledFont(17, weight: .bold)
+                .scaledFont(layout.scaled(17), weight: .bold)
                 .frame(maxWidth: .infinity)
-                .frame(minHeight: SudokuMetrics.padButtonMinSide)
+                .frame(minHeight: layout.scaled(SudokuMetrics.padButtonMinSide))
                 .background(
                     RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
                         .fill(Theme.surface)
                 )
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.pop)
@@ -858,13 +862,16 @@ struct SudokuNewGameSheet: View {
                     difficultyTile(.easy,   subtitle: tr("空き 約30〜35"), accent: DifficultyTile.accent(step: 0, of: 3))
                     difficultyTile(.normal, subtitle: tr("空き 約40〜45"), accent: DifficultyTile.accent(step: 1, of: 3))
                     difficultyTile(.hard,   subtitle: tr("空き 約46〜50"), accent: DifficultyTile.accent(step: 2, of: 3))
+                    difficultyTile(.expert, subtitle: tr("空き 約52〜56"), accent: Theme.Fill.purple)
                 }
             }
         }
     }
 
     private func difficultyTile(_ value: SudokuDifficulty, subtitle: String, accent: Color) -> some View {
-        GameSetupChooser(title: value.label, subtitle: subtitle,
+        // 4 枚並ぶと副題が 2 行になる。「約30〜」「35」と数字の途中で折れないよう、波ダッシュ（U+301C）の前後に
+        // 語結合子（U+2060）を入れて、折れるのを「空き」と「約…」の間だけにする（#3099）。
+        GameSetupChooser(title: value.label, subtitle: subtitle.replacingOccurrences(of: "\u{301C}", with: "\u{2060}\u{301C}\u{2060}"),
                          selected: difficulty == value, accent: accent,
                          metrics: DifficultyTile.metrics) {
             difficulty = value

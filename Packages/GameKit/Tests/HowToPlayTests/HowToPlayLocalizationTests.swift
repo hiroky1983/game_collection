@@ -8,7 +8,7 @@ import Testing
 struct HowToPlayLocalizationTests {
     /// `all` に入らない出し分け用の版（五目並べの禁じ手・ポーカーのボーナスルール・荷物運びパズルのパズルモード・麻雀の一局戦・チャリンコおじさんのエンドレス・カードしりとりのとことん）も含めた全部。
     static var guides: [HowToPlayGuide] {
-        HowToPlayGuide.all + [.gomokuRenju, .ojisanPuzzlePuzzle, .mahjongSingleHand, .runnerEndless, .shiritoriEndless]
+        HowToPlayGuide.all + [.gomokuRenju, .ojisanPuzzlePuzzle, .mahjongSingleHand, .mahjongHanchan, .runnerEndless, .shiritoriEndless]
     }
 
     @Test("全部の遊び方の題名・本文・ミニガイド・項目・補足に英語の訳がある")

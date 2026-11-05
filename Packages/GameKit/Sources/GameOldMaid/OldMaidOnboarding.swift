@@ -1,4 +1,5 @@
 import Core
+import CoreMiniCard
 import SwiftUI
 
 /// 図で見る「はじめての遊び方」（#2824）のババ抜き。
@@ -92,7 +93,7 @@ public enum OldMaidOnboarding {
                     }
                     .padding(.top, 4)
                     RuleFigureLabel(index == 0 ? tr("右端に入る") : tr("シャッフルで混ぜる"),
-                                    color: index == 0 ? Theme.inkSub : Theme.coralText)
+                                    color: index == 0 ? Theme.inkSubText : Theme.coralText)
                 }
             }
         }

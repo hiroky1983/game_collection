@@ -1,5 +1,6 @@
 import SwiftUI
 import Core
+import CoreOjisan
 import HomerunCore
 
 // MARK: - 操作の説明（#1763）
@@ -46,7 +47,9 @@ struct HomerunTutorialCards: View {
         let figureHeight = min(figureWidth / HomerunTutorialFigure.aspect, large ? min(room, 120) : room)
         let shownWidth = figureHeight * HomerunTutorialFigure.aspect
         ZStack {
-            Rectangle().fill(.black.opacity(0.6)).ignoresSafeArea()
+            // 上端のバナー（`BannerSlot`）は覆わない（#3247）。
+            Rectangle().fill(.black.opacity(0.6)).ignoresSafeArea(edges: [.horizontal, .bottom])
+                .padding(.top, BannerSlot.height)
                 .contentShape(Rectangle())
                 .onTapGesture {}  // 下の帯に触れないよう受ける
                 .accessibilityHidden(true)
@@ -56,7 +59,7 @@ struct HomerunTutorialCards: View {
                         .accessibilityAddTraits(.isHeader)
                     Spacer()
                     Button(tr("とばす")) { onFinish() }
-                        .themeCaption(13).foregroundStyle(Theme.inkSub)
+                        .themeCaption(13).foregroundStyle(Theme.inkSubText)
                         .buttonStyle(.pop)
                 }
                 if large {

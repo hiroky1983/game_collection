@@ -185,7 +185,7 @@ struct NewGamesWiringTests {
     func gridPinsNewGames() throws {
         let source = try SourceScan.appSources()
         #expect(
-            source.range(of: #"NewGames\.pinned\(visibleIDs: visible\.map\(\\\.id\)\)"#, options: .regularExpression) != nil,
+            source.range(of: #"NewGames\.pinned\(visibleIDs: visible\.map\(\\\.id\), eventIDs: HubEventBadge\.activeIDs\(\)\)"#, options: .regularExpression) != nil,
             "ハブの並びが NewGames.pinned を通っていない"
         )
         #expect(
@@ -239,9 +239,19 @@ struct NewGamesPinnedTests {
         #expect(NewGames.pinned(visibleIDs: ["x", "y"], newIDs: []) == ["x", "y"])
     }
 
-    @Test("この版の新着は おじさんちのねこさがし・スピード・ババ抜き・ハーツ")
-    func currentVersionIDs() {
-        #expect(NewGames.currentVersionIDs == ["catpuzzle", "speed", "oldmaid", "hearts"])
+    @Test("v1.1.15 は新着なし（#3112）: NEW 印・先頭固定・感想カードの対象が空")
+    func currentVersionIDsIsEmpty() {
+        #expect(NewGames.currentVersionIDs.isEmpty)
+        let order = ["catpuzzle", "2048", "speed", "oldmaid", "hearts"]
+        #expect(NewGames.pinned(visibleIDs: order) == order, "登録順のまま")
+        #expect(!ReviewRequestPolicy.shouldAskAboutNewGame(state: .init(), gameID: "catpuzzle"))
+        #expect(NewGames.notice(count: NewGames.currentVersionIDs.count) == nil)
+    }
+
+    @Test("新着の記録が無い・全ゲームが既知でも、空集合で全ゲームを新着扱いしない")
+    func emptyCurrentDoesNotFlagEverything() {
+        #expect(NewGames.ids(registeredIDs: ["a", "b"], knownIDs: ["a", "b"], hasPlayHistory: true).isEmpty)
+        #expect(NewGames.ids(registeredIDs: ["a", "b"], knownIDs: nil, hasPlayHistory: false).isEmpty)
     }
 }
 
@@ -292,5 +302,146 @@ struct NewGamesMoveToTopTests {
                 == "「X」を先頭に移しました")
         #expect(NewGames.moveToTopAnnouncement(title: "X", id: "y", orderedIDs: ["a", "y"], hiddenIDs: ["a"], newIDs: ["a"])
                 == "「X」を先頭に移しました")
+    }
+}
+
+/// 更新タグ（#2790）。一覧に入ったゲームだけにタグが出る。
+@Suite("更新タグ")
+struct UpdatedGamesTests {
+    @Test("一覧に入ったゲームだけにタグが出る。v1.1.15 は runner・麻雀・ナンプレ・ねこさがしの 4 本")
+    func onlyListedGames() {
+        #expect(UpdatedGames.tag(for: "runner") == .newStage)
+        #expect(UpdatedGames.tag(for: "mahjong4") == .hanchan)
+        #expect(UpdatedGames.tag(for: "sudoku") == .expertLevel)
+        #expect(UpdatedGames.tag(for: "catpuzzle") == .stagesAdded)
+        #expect(UpdatedGames.tag(for: "2048") == nil)
+        #expect(UpdatedGames.currentVersion.count == 4)
+    }
+
+    @Test("ブロック崩し（blocks）は一覧に 1 行足すだけでタグが出る。いまは付けない")
+    func blocksReadyButOff() {
+        #expect(UpdatedGames.tag(for: "blocks") == nil)
+        #expect(UpdatedGames.tag(for: "blocks", in: ["blocks": .newStage]) == .newStage)
+        #expect(UpdatedGames.tag(for: "runner", in: [:]) == nil)
+    }
+
+    @Test("タグの文言は種類ごとに持ち、英訳が xcstrings にある")
+    func labelsAreLocalized() throws {
+        let catalog = try SourceScan.packageSource("Sources/CoreEngine/Resources/Localization/Localizable.xcstrings")
+        for tag in UpdateTag.allCases {
+            let key = ["newStage": "新ステージ追加", "hanchan": "半荘戦", "expertLevel": "上級追加",
+                       "stagesAdded": "ステージ追加"][tag.rawValue] ?? ""
+            #expect(catalog.contains("\"\(key)\" : {"), "\(tag.rawValue) の英訳が無い")
+        }
+    }
+
+    @Test("タイルは NEW ＞ イベント ＞ 更新 ＞ 続きから の順で 1 つだけ出し、読み上げにも載せる")
+    func badgePriorityWiring() throws {
+        let source = try SourceScan.appSources()
+        #expect(source.contains("updateTag: UpdatedGames.tag(for: module.id)"))
+        let start = try #require(source.range(of: "private var badge: some View {"))
+        let end = try #require(source.range(of: "\n    }\n", range: start.upperBound..<source.endIndex))
+        let badge = String(source[start.lowerBound..<end.upperBound])
+        let new = try #require(badge.range(of: #"badgeCapsule("NEW")"#))
+        let event = try #require(badge.range(of: #"badgeCapsule(tr("イベント開催中"))"#))
+        let update = try #require(badge.range(of: "badgeCapsule(updateTag.label)"))
+        let resume = try #require(badge.range(of: #"badgeCapsule(tr("続きから"))"#))
+        #expect(new.lowerBound < event.lowerBound && event.lowerBound < update.lowerBound && update.lowerBound < resume.lowerBound)
+        #expect(source.contains("if let updateTag { parts.append(updateTag.label) }"), "読み上げに無い")
+    }
+}
+
+@Suite("開催中のイベントのゲームの先頭固定（#3321）")
+struct NewGamesEventPinTests {
+    private static let order = ["a", "b", "cat", "x", "y"]
+
+    @Test("イベント中のゲームは利用者の並びの途中にあっても先頭に出る")
+    func eventGameIsFirst() {
+        #expect(NewGames.pinned(visibleIDs: Self.order, newIDs: [], eventIDs: ["cat"]) == ["cat", "a", "b", "x", "y"])
+    }
+
+    @Test("期間外（イベントのゲームが空）なら保存した並びのまま")
+    func outsidePeriodKeepsSavedOrder() {
+        #expect(NewGames.pinned(visibleIDs: Self.order, newIDs: [], eventIDs: []) == Self.order)
+    }
+
+    @Test("新着とイベントが重なるときはイベントを先に、新着は次に")
+    func eventBeforeNew() {
+        #expect(NewGames.pinned(visibleIDs: Self.order, newIDs: ["b", "y"], eventIDs: ["cat"]) == ["cat", "b", "y", "a", "x"])
+    }
+
+    @Test("同じゲームが新着でもイベントでも二重に並ばない")
+    func sameGameIsNotDuplicated() {
+        #expect(NewGames.pinned(visibleIDs: Self.order, newIDs: ["cat"], eventIDs: ["cat"]) == ["cat", "a", "b", "x", "y"])
+    }
+
+    @Test("非表示のゲームは並びに入っていないのでイベント中でも出ない")
+    func hiddenEventGameStaysHidden() {
+        #expect(NewGames.pinned(visibleIDs: ["a", "x"], newIDs: [], eventIDs: ["cat"]) == ["a", "x"])
+    }
+
+    @Test("並べ替えの保存（入力の並び）は書き換えない")
+    func inputIsUntouched() {
+        let input = Self.order
+        _ = NewGames.pinned(visibleIDs: input, newIDs: [], eventIDs: ["cat"])
+        #expect(input == ["a", "b", "cat", "x", "y"])
+    }
+
+    @Test("「いちばん上に置く」はイベント中のゲームの直後なら無効・案内はイベントの次と言う")
+    func moveToTopWithEvent() {
+        #expect(NewGames.isAlreadyAtTop(id: "a", orderedIDs: ["cat", "a", "b"], hiddenIDs: [], newIDs: [], eventIDs: ["cat"]))
+        #expect(!NewGames.isAlreadyAtTop(id: "b", orderedIDs: ["cat", "a", "b"], hiddenIDs: [], newIDs: [], eventIDs: ["cat"]))
+        #expect(NewGames.moveToTopAnnouncement(title: "B", id: "b", orderedIDs: ["cat", "a", "b"], hiddenIDs: [], newIDs: [], eventIDs: ["cat"])
+                == "「B」をイベント開催中のゲームの次に移しました")
+    }
+}
+
+
+@Suite("ねこさがしは常に先頭（#3339）")
+struct NewGamesAlwaysFirstTests {
+    @Test("常に先頭の対象はねこさがし")
+    func alwaysFirstIsCatPuzzle() {
+        #expect(NewGames.alwaysFirstIDs == ["catpuzzle"])
+    }
+
+    @Test("保存した並びで後ろにあっても、期間外でも先頭")
+    func pinsFirstOutsideEventPeriod() {
+        let order = NewGames.pinned(visibleIDs: ["2048", "shogi", "catpuzzle", "speed"])
+        #expect(order == ["catpuzzle", "2048", "shogi", "speed"])
+    }
+
+    @Test("イベント中の別のゲームは、ねこさがしの次")
+    func otherEventGameComesAfter() {
+        let order = NewGames.pinned(visibleIDs: ["2048", "shogi", "catpuzzle"], eventIDs: ["shogi"])
+        #expect(order == ["catpuzzle", "shogi", "2048"])
+    }
+
+    @Test("ねこさがしがイベント中でも先頭は1つだけ")
+    func catPuzzleAsEventGameIsNotDuplicated() {
+        let order = NewGames.pinned(visibleIDs: ["2048", "catpuzzle"], eventIDs: ["catpuzzle"])
+        #expect(order == ["catpuzzle", "2048"])
+    }
+
+    @Test("非表示にしたら出てこない")
+    func hiddenStaysHidden() {
+        #expect(NewGames.pinned(visibleIDs: ["2048", "shogi"]) == ["2048", "shogi"])
+    }
+
+    @Test("「いちばん上に置く」: 先頭の直後なら済み、ねこさがし自身は先頭なら済み")
+    func moveToTopTreatsCatPuzzleAsPinned() {
+        let ordered = ["catpuzzle", "2048", "shogi"]
+        #expect(NewGames.isAlreadyAtTop(id: "2048", orderedIDs: ordered, hiddenIDs: []))
+        #expect(!NewGames.isAlreadyAtTop(id: "shogi", orderedIDs: ordered, hiddenIDs: []))
+        #expect(NewGames.isAlreadyAtTop(id: "catpuzzle", orderedIDs: ordered, hiddenIDs: []))
+        #expect(!NewGames.isAlreadyAtTop(id: "catpuzzle", orderedIDs: ["2048", "catpuzzle"], hiddenIDs: []))
+    }
+
+    @Test("登録順の先頭がねこさがし")
+    func registryStartsWithCatPuzzle() throws {
+        let source = try SourceScan.appSources()
+        #expect(
+            source.range(of: #"static let registry = GameRegistry\(\[[^\[]*?CatPuzzleModule\(\),\s*(//[^\n]*\s*)*HomerunModule\(\)"#, options: .regularExpression) != nil,
+            "登録順の先頭がねこさがしでない"
+        )
     }
 }

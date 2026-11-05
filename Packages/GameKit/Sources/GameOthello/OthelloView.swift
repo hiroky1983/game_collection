@@ -5,7 +5,11 @@ public struct OthelloView: View {
     @State private var model: OthelloModel
     private let services: GameServices
     @State private var showNewGame = false
+    /// 「？」（遊び方）を開いているあいだ CPU の手番を止める（#3218）。
+    @State private var isHowToPlayOpen = false
     @State private var showConfirmNewGame = false
+    /// 打てる場所の印を盤に出すか（既定オン）。新規対局シートで切り替える。
+    @AppStorage(OthelloLegalMoveHint.key) private var showsLegalMoves = true
     /// 出ている「パス」の札（#2797）。モデルの `passEventID` をそのまま入れ、一定時間後に nil へ戻す。
     @State private var passBannerID: Int?
     /// 結果カードを閉じたか（#2797）。新しい対局が始まる（`gameOver` が偽に戻る）とリセットする。
@@ -66,9 +70,11 @@ public struct OthelloView: View {
                     condition: GameChromeCondition([CPUStrength.strength(for: model.aiLevel).label,
                                                     model.humanSide == .black ? tr("先手") : tr("後手")]),
                     newGame: GameChromeNewGame(.match) { requestNewGame() })
-        .howToPlay(HowToPlayGuide.othello.illustrated(OthelloHowToFigures.items).onboarding(OthelloOnboarding.guide))
+        .howToPlay(HowToPlayGuide.othello.illustrated(OthelloHowToFigures.items).onboarding(OthelloOnboarding.guide), onPresent: { isHowToPlayOpen = true }, onDismiss: { isHowToPlayOpen = false })
         .sheet(isPresented: $showNewGame) {
-            OthelloNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel) { side, level in
+            OthelloNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel,
+                                showsLegalMoves: showsLegalMoves) { side, level, shows in
+                showsLegalMoves = shows
                 model.newGame(humanSide: side, aiLevel: level)
                 showNewGame = false
             } onCancel: { showNewGame = false }
@@ -88,9 +94,12 @@ public struct OthelloView: View {
         // CPU 側のパスは `performAIMoveIfNeeded` が自分で確定する。
         .onChange(of: model.mustPass, initial: true) { _, newValue in
             guard newValue, !model.isAITurn else { return }
-            // 札は文字の合図なので、VoiceOver には同じ内容を読み上げで伝える。
-            AccessibilityNotification.Announcement(tr("打てるマスがありません。パスします。")).post()
             model.confirmPass()
+        }
+        // 札は文字の合図なので、VoiceOver には同じ内容を読み上げで伝える。
+        // 確定は上の `onChange` か Model の保険経路（#3104）のどちらでもよいので、成立の番号で読む。
+        .onChange(of: model.humanPassEventID) { _, _ in
+            AccessibilityNotification.Announcement(tr("打てるマスがありません。パスします。")).post()
         }
         // パスした瞬間だけ札を出し、少し置いて引っ込める（囲碁 #664 と同じ機構）。
         // 引っ込めるのは自分が出した札がまだ出ているときだけ（続けて相手もパスしたとき、
@@ -106,7 +115,9 @@ public struct OthelloView: View {
         .onChange(of: model.passBannerDismissID) { _, _ in
             passBannerID = nil
         }
-        .task(id: model.aiTurnKey) {
+        .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen || showNewGame)) {
+            guard !isHowToPlayOpen, !showNewGame else { return }
+            guard await PausableTurn.waitWhileThinking({ model.isThinking }) else { return }
             await model.performAIMoveIfNeeded()
         }
         // CPU の着手・パスを読み上げる（#2280）。
@@ -136,7 +147,7 @@ public struct OthelloView: View {
                 TurnBadge(isYourTurn: !model.isAITurn)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
-                    Text(tr("CPU思考中…")).themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text(tr("CPU思考中…")).themeBody(13).foregroundStyle(Theme.inkSubText)
                 }
             }
         } trailing: {
@@ -150,7 +161,7 @@ public struct OthelloView: View {
                     .foregroundStyle(Theme.ink)
                 Text("–")
                     .themeCaption(13, weight: .semibold, maxScale: 1.5)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 Text("\(model.whiteScore)")
                     .themeBody(15, weight: .black, maxScale: 1.5)
                     .foregroundStyle(Theme.ink)
@@ -195,7 +206,7 @@ public struct OthelloView: View {
 
                 OthelloBoardCanvas(
                     board: model.board,
-                    validSet: validSet,
+                    validSet: showsLegalMoves ? validSet : [],
                     lastMove: model.lastMove,
                     flippedCells: model.flippedCells,
                     placementCount: model.placementCount,
@@ -315,10 +326,10 @@ public struct OthelloView: View {
                     } else {
                         Image(systemName: "equal.circle.fill")
                             .scaledFont(40, maxScale: 1.2)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                         Text(tr("引き分け"))
                             .themeBody(24, weight: .bold)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                     }
                     HStack(spacing: 10) {
                         Circle()
@@ -329,7 +340,7 @@ public struct OthelloView: View {
                             .foregroundStyle(Theme.ink)
                         Text("–")
                             .themeBody(22, weight: .semibold)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                         Text("\(shownScore.white)")
                             .themeBody(30, weight: .black)
                             .foregroundStyle(Theme.ink)
@@ -619,13 +630,21 @@ private struct OthelloBoardCanvas: View, Animatable {
                 let r = c * OthelloBoardStyle.stoneRadiusRatio
                 // 上面の中心（側面ぶん上にずれている）へ合わせる。
                 let faceCY = cy - r * OthelloBoardStyle.stoneRimHeightRatio / 2
-                let mr = r * 0.3
+                // 輪（#3093）: 影フィルタは石の 2 パス描画の drawLayer 内だけに掛かっているので、
+                // ここ（ctx 直下）に描けば輪に落ち影は付かない。
+                let ringR = r + OthelloBoardStyle.lastMoveRingGap
+                ctx.stroke(Path(ellipseIn: CGRect(x: cx-ringR, y: faceCY-ringR,
+                                                  width: ringR*2, height: ringR*2)),
+                           with: .color(Theme.coral.opacity(progress)),
+                           lineWidth: OthelloBoardStyle.lastMoveRingLineWidth)
+                let mr = r * OthelloBoardStyle.lastMoveDotRadiusRatio
                 let mRect = CGRect(x: cx-mr, y: faceCY-mr, width: mr*2, height: mr*2)
-                ctx.fill(Path(ellipseIn: mRect),
-                         with: .color((stone == .black
-                                       ? Color.white.opacity(0.5)
-                                       : Color(hex: OthelloBoardStyle.boardGreen).opacity(0.5))
-                                          .opacity(progress)))
+                let dot = stone == .black
+                    ? Color(hex: OthelloBoardStyle.lastMoveDotOnBlack)
+                        .opacity(OthelloBoardStyle.lastMoveDotOnBlackOpacity)
+                    : Color(hex: OthelloBoardStyle.lastMoveDotOnWhite)
+                        .opacity(OthelloBoardStyle.lastMoveDotOnWhiteOpacity)
+                ctx.fill(Path(ellipseIn: mRect), with: .color(dot.opacity(progress)))
             }
         }
     }
@@ -633,17 +652,24 @@ private struct OthelloBoardCanvas: View, Animatable {
 
 // MARK: - New Game Sheet
 
+/// 打てる場所の印の表示設定（`UserDefaults` に Bool 1 つだけ保存する）。
+enum OthelloLegalMoveHint {
+    static let key = "othelloShowLegalMoves"
+}
+
 struct OthelloNewGameSheet: View {
     @State private var side: OthelloStone
     @State private var level: Int
-    let onStart: (OthelloStone, Int) -> Void
+    @State private var showsLegalMoves: Bool
+    let onStart: (OthelloStone, Int, Bool) -> Void
     let onCancel: () -> Void
 
-    init(humanSide: OthelloStone, aiLevel: Int,
-         onStart: @escaping (OthelloStone, Int) -> Void,
+    init(humanSide: OthelloStone, aiLevel: Int, showsLegalMoves: Bool,
+         onStart: @escaping (OthelloStone, Int, Bool) -> Void,
          onCancel: @escaping () -> Void) {
         _side  = State(initialValue: humanSide)
         _level = State(initialValue: aiLevel)
+        _showsLegalMoves = State(initialValue: showsLegalMoves)
         self.onStart  = onStart
         self.onCancel = onCancel
     }
@@ -652,7 +678,7 @@ struct OthelloNewGameSheet: View {
         GameSetupSheet(
             kind: .versus,
             onboarding: OthelloOnboarding.guide,
-            onStart: { onStart(side, level) }, onCancel: onCancel
+            onStart: { onStart(side, level, showsLegalMoves) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("あなたの石")) {
                 HStack(spacing: 12) {
@@ -669,6 +695,15 @@ struct OthelloNewGameSheet: View {
                 CPUStrengthPicker(level: $level, details: [
                     tr("1手先だけ読む"), tr("3手先まで読む"), tr("5手先まで読む"), tr("終盤は最後まで読む"),
                 ])
+            }
+            GameSetupSection(tr("打てる場所の表示")) {
+                Toggle(isOn: $showsLegalMoves) {
+                    Text(tr("置ける升に白い点を出す")).themeBody(16, weight: .bold).foregroundStyle(Theme.ink)
+                }
+                .tint(Theme.fillStrong)
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .frame(minHeight: 44)
+                .background(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous).fill(Theme.fillMuted.opacity(0.12)))
             }
         }
     }

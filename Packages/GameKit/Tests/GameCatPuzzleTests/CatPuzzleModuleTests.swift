@@ -53,15 +53,17 @@ struct CatPuzzleModuleTests {
         // 後ろに .onboarding(...)（#2826）が続くので、閉じ括弧の手前までで見る。
         #expect(code.contains(".howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items)"))
         #expect(code.contains("RecordLabel("))
-        #expect(code.contains(".gameClearCard(isPresented:"))
+        // クリアのカードは共通の `GameClearCard` を画面全体に重ねる（盤に重ねると SE でスクロールになる・#3048）。
+        #expect(code.contains("GameClearCard(") && code.contains(".boardGameResultCardAboveBanner(isPresented: model.showsClearCard"))
         // ヒントの広告は他のゲームと同じ部品（`RewardedRescue`）で、局ガード・失敗アラート・視聴中の計時停止まで揃える。
         #expect(code.contains("var hintRescue = RewardedRescue()"))
         #expect(code.contains("hintRescue.request(") && code.contains("purpose: .hint") && code.contains("guardedBy: .checkedByGrant"))
         #expect(code.contains(".rewardedRescueAlerts(\n            hintRescue,"))
-        #expect(code.contains("rescues: [hintRescue, continueRescue]"), "広告の視聴中は計時を止める")
+        #expect(code.contains("rescues: [hintRescue, teachRescue, continueRescue]"), "広告の視聴中は計時を止める")
+        #expect(code.contains("teachRescue.request(") && code.contains("purpose: .teach"), "猫を教えるの広告も同じ部品・局ガードつき（#3203）")
         // 3 回目のミスで出すのは負けの結果カード 1 枚だけで、その中でコンティニューかあきらめるかを選ぶ（#2904）。
         // 広告は押したときだけ（局ガードつき）出し、提案の計測も揃える（#2780）。
-        #expect(code.contains(".boardGameResultCard(isPresented: Self.showsFailCard(model, closed: failCardClosed))"))
+        #expect(code.contains(".boardGameResultCardAboveBanner(isPresented: Self.showsFailCard(model, closed: failCardClosed))"))
         #expect(!code.contains("RewardedContinueOverlay("), "ミス 3 回のダイアログを 2 枚にしない")
         #expect(code.contains("continueRescue.request(") && code.contains("purpose: .continue"))
         #expect(code.contains(".rewardOffer(continueRescue, for: .continue, isPresented: model.isOfferingContinue"))
@@ -70,7 +72,8 @@ struct CatPuzzleModuleTests {
         #expect(!code.contains("showRewardedAd("), "広告は RewardedRescue 経由だけで出す")
         #expect(!code.contains("withAnimation("), "アニメーションは gameAnimation 経由")
         #expect(!code.contains("UIImage("), "macOS でもビルドできるよう画像は ImageIO で読む")
-        #expect(code.contains("level: size.analyticsLevel"), "盤の大きさを game_start の level に載せる")
+        #expect(code.contains("level: analyticsLevel"), "盤の大きさ（ステージは面の番号）を game_start の level に載せる")
+        #expect(code.contains("stage.map { .stage($0) } ?? size.analyticsLevel"), "ステージはチャリンコおじさんと同じ stage-N")
         #expect(code.contains("gameDidStart(") && code.contains("gameDidRestart(")
                 && code.contains("gameDidProgress(") && code.contains("gameDidFinish(") && code.contains("gameDidUseHint("))
     }
@@ -92,10 +95,10 @@ struct CatPuzzleModuleTests {
         #expect(CatPuzzleArt.aspect(.sleep) > 1, "寝ている姿は横長")
     }
 
-    @Test("家の部屋は 8 つあり、名前が重ならず、8×8 まで足りる")
+    @Test("家の部屋は 12 あり、名前が重ならず、12×12 まで足りる")
     func houseRooms() {
         let rooms = CatPuzzleHouse.rooms
-        #expect(rooms.count >= CatPuzzleSize.hard.side)
+        #expect(rooms.count >= CatPuzzleSize.size12.side)
         #expect(Set(rooms.map(\.name)).count == rooms.count)
         #expect(CatPuzzleHouse.room(0).name == "居間")
         #expect(CatPuzzleHouse.room(rooms.count).name == rooms[0].name, "表より大きい番号は折り返す")
@@ -123,6 +126,8 @@ struct CatPuzzleModuleTests {
         #expect(RecordVariantLabels.label(recordKey: "catpuzzle#normal", language: .english) == "Normal")
         #expect(RecordVariantLabels.label(recordKey: "catpuzzle#hard", language: .english) == "Hard")
         #expect(RecordVariantLabels.label(recordKey: "catpuzzle#9x9", language: .english) == nil)
+        #expect(RecordVariantLabels.label(recordKey: "catpuzzle#stage", language: .japanese) == "ステージ")
+        #expect(RecordVariantLabels.label(recordKey: "catpuzzle#stage", language: .english) == "Stages")
         for size in CatPuzzleSize.allCases {
             #expect(size.recordVariantLabel == size.label)
         }

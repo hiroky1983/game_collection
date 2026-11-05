@@ -124,7 +124,7 @@ public struct FreeCellView: View {
                 message: tr("広告を見ているあいだに盤が変わったか、画面を離れたため、ヒントを出せませんでした。")
             )
         )
-        .overlay {
+        .overlayAboveBanner {
             if model.showsDeadEndPrompt { deadEndOverlay }
         }
         // 示した手を VoiceOver にも一言で伝える（印は目で見る手がかりなので）。
@@ -171,6 +171,7 @@ public struct FreeCellView: View {
         // （#375・#1734・#1382。止め方・動かし方は `GameStopwatch` / `gameTimerLifecycle` に共通化・#1857）。
         .gameTimerLifecycle(
             rescues: [undoRescue, hintRescue],
+            isHeld: showConfirmNewGame || showUndoRefillPrompt,
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )
@@ -225,9 +226,9 @@ public struct FreeCellView: View {
             // （実測: 配札 #1,126）。番号なので区切ってはいけない。文字列にしてから渡す。
             Text(verbatim: tr("配札 #%@", String(model.dealNumber)))
                 .scaledFont(10, weight: .bold, design: .monospaced)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
 
-            GameClockLabel(RecordFormat.time(model.elapsedSeconds))
+            GameClockLabel(RecordFormat.time(model.elapsedSeconds), elapsedSeconds: model.elapsedSeconds)
         }
         // 数字が別々に読まれると意味が取りにくいので 1 要素にまとめる。
         .accessibilityElement(children: .ignore)

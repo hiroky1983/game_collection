@@ -37,6 +37,8 @@ public enum RunnerFeedbackCue: Equatable, Sendable {
                                   return .impact(.light)
         // イノシシの予告「ドドド」（#801）。着地（light / medium）より硬く、決着（notice）ではない。
         case .boarCharging:       return .impact(.rigid)
+        // 落石の予告「ゴロゴロ」（#2729）もイノシシと同じ硬い手応え（4 音の表を増やさない）。
+        case .rockfallRumbling:   return .impact(.rigid)
         case .fell, .crashed:     return .notice(.error)
         case .reachedGoal:        return .notice(.milestone)
         }

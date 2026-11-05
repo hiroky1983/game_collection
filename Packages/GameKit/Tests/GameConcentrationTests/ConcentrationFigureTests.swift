@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import Core
+import CoreObjectArt
 @testable import GameConcentration
 
 /// 絵柄の定義（#601 → #1244）。抽象図形を具体物カード（`ObjectCardKind`）に替えたことと、

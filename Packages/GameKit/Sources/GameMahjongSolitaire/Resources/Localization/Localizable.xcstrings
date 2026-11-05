@@ -947,6 +947,29 @@
           }
         }
       }
+    },
+    "残り%lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld tile left"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld tiles left"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

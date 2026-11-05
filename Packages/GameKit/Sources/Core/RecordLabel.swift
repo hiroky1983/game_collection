@@ -19,7 +19,7 @@ public struct RecordLabel: View {
     ///   - textColor: 記録本文の色。暗いオーバーレイの上に直接置く画面（2048 など）は
     ///     `.white` を渡す。既定は明るい背景向けの補助文字色（オセロのように暗幕の上でも
     ///     明るいカードに乗る画面はこちらでよい）。
-    public init(_ result: RecordResult?, accent: Color = Theme.Fill.coral, textColor: Color = Theme.inkSub) {
+    public init(_ result: RecordResult?, accent: Color = Theme.Fill.coral, textColor: Color = Theme.inkSubText) {
         self.result = result
         self.accent = accent
         self.textColor = textColor
@@ -110,7 +110,7 @@ struct RecordShareButton: View {
                 .frame(width: Self.tapTarget, height: Self.tapTarget)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pop)
         // ShareLink は押したことを知らせる口を持たないので、同時に効くタップで拾う（共有シートの表示は妨げない）。
         .simultaneousGesture(TapGesture().onEnded { context.didTap() })
         .padding(.vertical, -(Self.tapTarget - Self.symbolSide) / 2)

@@ -23,6 +23,8 @@ public struct GameReplayBar<Leading: View>: View {
     private let onChangeSettings: () -> Void
     private let leading: Leading
     private let hasLeading: Bool
+    /// 広い画面（iPad）では文字を拡大する（#3183）。
+    @Environment(\.adaptiveLayout) private var layout
     private let verticalPadding: CGFloat
     /// 記録の行の高さの拡大率。`RecordBadge` の文字は `.caption` 基準で最大 1.3 倍まで大きくなるので、行もそれに合わせて確保する
     /// （標準の文字サイズでは 1.0 のまま。放っておくと大きい文字のときだけ自己ベストの決着でカードが 2〜3pt 伸びる）。
@@ -69,7 +71,7 @@ public struct GameReplayBar<Leading: View>: View {
                 }
             }
         }
-        .themeBody(14)
+        .themeBody(layout.scaled(14))
         .padding(.horizontal, 16).padding(.vertical, verticalPadding)
         .popCard(corner: Theme.cornerSmall)
     }

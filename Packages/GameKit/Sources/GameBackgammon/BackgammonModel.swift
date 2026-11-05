@@ -29,6 +29,9 @@ struct BackgammonSnapshot: Codable {
     let turnStartOff: [Int]?
     /// この局で使ったヒントの回数（#2302）。鍵を持たない旧形式の中断データでは nil = 未使用。
     var hintsUsed: Int? = nil
+    /// 人間がこの局で一度でも駒を動かしたか（#2934）。CPU が先手の局は CPU の 1 手目で保存されるが、
+    /// 人間は何もしていないので「続き」ではない。**鍵を持たない旧形式は nil = 動いた**として読む。
+    var humanMoved: Bool? = nil
 }
 
 /// 巻き戻しの単位（盤 + 振った目）。手番の持ち主は常に人間。
@@ -90,6 +93,8 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel, BoardHintMode
     private var startedAt: Date
     /// この局で 1 手でも動いたか（`gameDidProgress` の冪等化と「配っただけ」の判定）。
     private var hasProgressed: Bool
+    /// この局で人間が 1 手でも動かしたか（CPU の先手だけの局を「続きから」にしない判定・#2934）。
+    private var humanHasMoved: Bool
     private var undoHistory: [BackgammonTurnState] = []
     /// この局のヒントの残り（#2302）。回数と順位表の扱いは Core の `BoardHintBudget` が持つ（将棋・チェス・オセロ等と共通）。
     public private(set) var hints = BoardHintBudget()
@@ -129,7 +134,8 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel, BoardHintMode
     /// 「待った」が押せるのは**自分の手番の頭（まだ目を使っていない）**だけ。手番の途中は「やり直し」の領分で、
     /// ここでも押せると無料枠や広告を「やり直し」と同じ結果に使わせてしまう（verifier 指摘・PR #1344）。
     public var canUndo: Bool {
-        !gameOver && !isAITurn && !isThinking && !mustPass && !undoHistory.isEmpty
+        // ヒントの読み中は戻さない（古い局面のヒントを適用しない・#2236 / #3179）。
+        !gameOver && !isAITurn && !isThinking && !isHintThinking && !mustPass && !undoHistory.isEmpty
             && remainingDice.count == dice.count
     }
     public var humanPips: Int { board.pipCount(humanSide) }
@@ -157,6 +163,7 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel, BoardHintMode
             undoUsed      = snap.undoUsed ?? false
             mustPass      = snap.mustPass ?? false
             hasProgressed = snap.hasProgressed ?? true
+            humanHasMoved = snap.humanMoved ?? true
             hints         = BoardHintBudget(used: snap.hintsUsed ?? 0)
             if let h = snap.openingHuman, let c = snap.openingCPU { openingRoll = (h, c) }
             if let p = snap.undoPoints, let b = snap.undoBar, let o = snap.undoOff, let d = snap.undoDice,
@@ -178,6 +185,7 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel, BoardHintMode
             undoUsed      = false
             mustPass      = false
             hasProgressed = false
+            humanHasMoved = false
             isFreshStart  = true
         }
         if isFreshStart {
@@ -250,6 +258,15 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel, BoardHintMode
         mustPass = false
         undoUsed = true
         turnID += 1
+        // 開始局面（初期配置）まで戻したら手つかずの局に戻す。残すと開始直後と同じ盤が「続きから」になり、
+        // 離れたときに途中離脱に数えられる。
+        if board == BackgammonBoard() {
+            hasProgressed = false
+            humanHasMoved = false
+            services?.gameDidUndoToStart(gameID: gameID)
+            services?.snapshots.clear(for: gameID)
+            return
+        }
         persist()
     }
 
@@ -316,6 +333,7 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel, BoardHintMode
         turnStart = nil
         recordResult = nil
         hasProgressed = false
+        humanHasMoved = false
         startedAt = Date()
         turnID = 0
         gameSerial += 1
@@ -440,8 +458,11 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel, BoardHintMode
         if !hasProgressed {
             hasProgressed = true
         }
-        // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。冪等。
-        services?.gameDidProgress(gameID: gameID)
+        // 人間が動かした = 捨てたら途中離脱として数える盤面（#500）。冪等。CPU が先手で動いただけでは数えない（#2934）。
+        if mover == humanSide {
+            humanHasMoved = true
+            services?.gameDidProgress(gameID: gameID)
+        }
         board = BackgammonRules.apply(move, to: board, side: mover)
         hintMove = nil
         if let i = remainingDice.firstIndex(of: move.die) { remainingDice.remove(at: i) }
@@ -494,7 +515,7 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel, BoardHintMode
             undoPoints: undoHistory.last?.board.points, undoBar: undoHistory.last?.board.bar,
             undoOff: undoHistory.last?.board.off, undoDice: undoHistory.last?.dice,
             turnStartPoints: turnStart?.points, turnStartBar: turnStart?.bar, turnStartOff: turnStart?.off,
-            hintsUsed: hints.used
+            hintsUsed: hints.used, humanMoved: humanHasMoved
         )
         try? services?.snapshots.save(snap, for: gameID)
     }

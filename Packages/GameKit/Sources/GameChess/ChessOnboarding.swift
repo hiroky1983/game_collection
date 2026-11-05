@@ -1,4 +1,5 @@
 import Core
+import CoreMiniBoard
 import SwiftUI
 
 /// 図で見る「はじめての遊び方」（#2827）のチェス。

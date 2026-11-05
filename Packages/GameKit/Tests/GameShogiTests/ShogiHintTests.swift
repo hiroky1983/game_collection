@@ -275,7 +275,10 @@ struct ShogiAdHintTests {
     ) -> (ShogiGameModel, StubAdService) {
         let ads = StubAdService(rewardEarned: rewardEarned)
         let services = GameServices(snapshots: store, ads: ads, screenGeneration: screenGeneration)
-        return (ShogiGameModel(services: services), ads)
+        let model = ShogiGameModel(services: services)
+        // 回数・広告の流れを見る検査なので、手の質は問わない。8 回ぶんの探索を実時間で待たない（#2952）
+        model.hintThinkingScaleForTesting = 0.05
+        return (model, ads)
     }
 
     @Test("無料枠が残っているうちは広告を要求しない")
@@ -387,26 +390,47 @@ struct ShogiAdHintTests {
 
         let restoredServices = GameServices(snapshots: store, ads: NoopAdService())
         let restored = ShogiGameModel(services: restoredServices)
+        restored.hintThinkingScaleForTesting = 0.05
         #expect(restored.hintsRemaining == BoardHintBudget.total - (BoardHintBudget.perGame + 1))
         #expect(restored.needsAdForHint, "無料枠を使い切った状態のまま再開している")
     }
 }
 
-/// ヒントの考える時間は「むずかしい」+0.5 秒（#1739）。深さ・確率・定跡は「むずかしい」のまま。
-@Suite("将棋 ヒントの考える時間（#1739）")
+/// ヒントの最善手は達人（`ShogiMasterEngine`）の 2.5 秒 ＋ ヒントの上乗せ 0.5 秒 ＝ 全体で 3.0 秒以内（#3253）。
+@Suite("将棋 ヒントの考える時間（#1739・#3253）")
 struct ShogiHintThinkingTimeTests {
-    @Test("ヒントは むずかしい より 0.5 秒長く考える")
-    func hintThinksHalfSecondLongerThanHard() {
-        let hard = SimpleMinimaxEngine(level: CPUStrength.hard.rawValue, seed: nil)
+    @Test("ヒントの考える時間は 達人の 2.5 秒 + 0.5 秒")
+    func hintThinksMasterTimePlusHalfSecond() {
         let hint = SimpleMinimaxEngine.hint()
         #expect(BoardHintBudget.extraThinkingTime == 0.5)
-        #expect(hint.timeLimit == hard.timeLimit + 0.5)
-        #expect(hint.depth == hard.depth)
-        #expect(hint.policy.isExact)
+        #expect(hint.timeLimit == ShogiMasterEngine.shippedTimeLimit + 0.5)
+        #expect(hint.timeLimit <= 3.0)
+        #expect(abs(SimpleMinimaxEngine.hint(thinkingScale: 0.1).timeLimit - 0.3) < 1e-9)
     }
 
     @Test("対局 CPU の むずかしい の考える時間は変えない")
     func hardCPUKeepsItsTime() {
         #expect(SimpleMinimaxEngine(level: CPUStrength.hard.rawValue, seed: nil).timeLimit == 2.0)
+    }
+
+    @Test("詰みの無い局面の最善手は達人が読み、時間を超えない")
+    func hintUsesMasterWithinTimeLimit() throws {
+        let scale = 0.2
+        let hint = SimpleMinimaxEngine.hint(thinkingScale: scale)
+        let started = Date()
+        let answer = try #require(hint.hintAnswer(sfen: Position.startSFEN))
+        #expect(Date().timeIntervalSince(started) < hint.timeLimit + 0.3)
+        let move = try #require(answer.move)
+        // 同じ時間で達人を直接動かした手と同じ合法手の集合に入る（達人が読んでいる確認は下の制限つきテスト）。
+        #expect(try #require(Position.fromSFEN(Position.startSFEN)).legalMoves().contains(move))
+    }
+
+    @Test("達人の根の手は絞った候補の中から選ぶ")
+    func masterRestrictsRootMoves() throws {
+        let pos = try #require(Position.fromSFEN(Position.startSFEN))
+        let allowed = Set(pos.legalMoves().prefix(3).map(\.usi))
+        let engine = ShogiMasterEngine(timeLimit: 0.2)
+        let usi = try #require(engine.analyze(sfen: Position.startSFEN, restrictTo: allowed)?.usi)
+        #expect(allowed.contains(usi))
     }
 }

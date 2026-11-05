@@ -1,4 +1,5 @@
 import Core
+import CoreMiniBoard
 import SwiftUI
 
 /// 図入りの遊び方（#2044）のチェスの図。文言は `HowToPlayGuide.chess.items`（Core）と同じ順。
@@ -30,7 +31,7 @@ enum ChessHowToFigures {
                         }
                     }
                     RuleFigureLabel(index == 0 ? tr("駒をタップ → 光るマス") : tr("タップで移動"),
-                                    color: index == 0 ? Theme.coralText : Theme.inkSub)
+                                    color: index == 0 ? Theme.coralText : Theme.inkSubText)
                 }
             }
         }

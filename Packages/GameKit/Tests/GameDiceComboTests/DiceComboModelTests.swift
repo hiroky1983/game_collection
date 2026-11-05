@@ -2,6 +2,7 @@ import Testing
 import Foundation
 import Core
 import CoreTestSupport
+import GameKitTestSupport
 @testable import GameDiceCombo
 
 @MainActor
@@ -26,6 +27,7 @@ private func makeLog(_ name: String) -> PlayLog {
 }
 
 /// 12 ターンを「1 回振って、空いている役の先頭に入れる」で最後まで進める。
+/// 0 点の役が残るとコンティニューの提案で止まる（#3257）ので、断って決着を確定させる。
 @MainActor
 private func playThrough(_ model: DiceComboModel) {
     while !model.isFinished {
@@ -33,6 +35,7 @@ private func playThrough(_ model: DiceComboModel) {
         let open = DiceComboCategory.allCases.first { model.canChoose($0) }!
         model.choose(open)
     }
+    model.declineContinue()
 }
 
 @MainActor
@@ -54,7 +57,7 @@ struct DiceComboModelTests {
         #expect(!model.hasProgressToLose)
     }
 
-    @Test("1 ターンに振れるのは 3 回まで。3 回振ったらキープは切り替えられない")
+    @Test("1 ターンに振れるのは 3 回まで。3 回振り切ったあとも、広告で振れるあいだはキープできる")
     func threeRollsPerTurn() {
         let feedback = SpyFeedbackService()
         let model = DiceComboModel(services: makeServices(feedback: feedback), seed: 2)
@@ -65,13 +68,13 @@ struct DiceComboModelTests {
         #expect(model.canHold)
         model.roll()
         model.roll()
-        #expect(model.rollsUsed == 3 && !model.canRoll && !model.canHold)
+        #expect(model.rollsUsed == 3 && !model.canRoll && model.canHold, "広告の振り直しが残るあいだはキープできる")
         let dice = model.dice
         model.roll()
         #expect(model.rollsUsed == 3 && model.dice == dice, "4 回目は振れない")
         #expect(feedback.notices(of: .warning) == 1)
         model.toggleHold(0)
-        #expect(model.held[0] == false)
+        #expect(model.held[0] == true)
     }
 
     @Test("キープした目は振り直しても変わらない")
@@ -267,5 +270,325 @@ struct DiceComboModelTests {
             }
         }
         #expect(big && small, "両方の出目が探索範囲に出る")
+    }
+
+    // MARK: - 広告で振り直す（#3257）
+
+    private func rollThrice(_ model: DiceComboModel) {
+        for _ in 0..<DiceComboLogic.maxRolls {
+            model.roll()
+            model.settleRoll()
+        }
+    }
+
+    @Test("広告の振り直しは通常の 3 回を振り切ったあとにだけ出る。1 ターンに 1 回で、合わせて 4 回振れる")
+    func adRerollOnlyAfterRegularRolls() {
+        let model = DiceComboModel(services: makeServices(), seed: 21)
+        let game = model.gameSerial, turn = model.turnSerial
+        #expect(!model.canAdReroll)
+        #expect(!model.grantReroll(forGame: game, turn: turn), "1 回も振っていない")
+        model.roll()
+        model.settleRoll()
+        #expect(!model.canAdReroll && !model.grantReroll(forGame: game, turn: turn), "通常の回数が残っている")
+        model.roll(); model.settleRoll(); model.roll(); model.settleRoll()
+        #expect(model.rollsUsed == DiceComboLogic.maxRolls && !model.canRoll)
+        #expect(model.canAdReroll && model.adRerollsRemaining == DiceComboModel.maxAdRerolls)
+        for n in 1...DiceComboModel.maxAdRerolls {
+            #expect(model.grantReroll(forGame: game, turn: turn))
+            model.settleRoll()
+            #expect(model.adRollsUsed == n && model.rollsUsed == DiceComboLogic.maxRolls)
+        }
+        #expect(!model.canAdReroll && model.adRerollsRemaining == 0)
+        #expect(!model.grantReroll(forGame: game, turn: turn), "同じターンの 2 回目は振れない")
+        #expect(model.canChoose(.choice), "振り終えたら役を選べる")
+    }
+
+    @Test("広告の振り直しでもキープが効く。最後の 1 回を振ったあとはキープを切り替えられない")
+    func adRerollHonorsHold() {
+        let model = DiceComboModel(services: makeServices(), seed: 22)
+        rollThrice(model)
+        #expect(model.canHold, "広告で振れるうちはキープできる")
+        model.toggleHold(0); model.toggleHold(2)
+        let keep = [model.dice[0], model.dice[2]]
+        #expect(model.grantReroll(forGame: model.gameSerial, turn: model.turnSerial))
+        model.settleRoll()
+        #expect([model.dice[0], model.dice[2]] == keep)
+        #expect(!model.canHold, "1 ターン 1 回なので、広告で振ったあとはもう振れない")
+    }
+
+    @Test("役を選ぶと広告の振り直しは 1 に戻る。広告のロード中にターンや局が変わったら乗せない")
+    func adRerollResetsPerTurnAndIgnoresStale() {
+        let model = DiceComboModel(services: makeServices(), seed: 23)
+        let game = model.gameSerial, turn = model.turnSerial
+        rollThrice(model)
+        #expect(model.grantReroll(forGame: game, turn: turn))
+        model.settleRoll()
+        #expect(model.adRollsUsed == 1)
+        model.choose(.choice)
+        #expect(model.adRollsUsed == 0 && model.turnSerial != turn)
+        rollThrice(model)
+        #expect(model.adRerollsRemaining == DiceComboModel.maxAdRerolls)
+        #expect(!model.grantReroll(forGame: game, turn: turn), "前のターンの広告は乗せない")
+        let turn2 = model.turnSerial
+        model.newGame()
+        rollThrice(model)
+        #expect(!model.grantReroll(forGame: game, turn: turn2), "前の局の広告は乗せない")
+    }
+
+    /// 1 ターンぶん（通常 3 回 + 広告で振れるだけ）を振って、`category` に入れる。広告で振れた回数を返す。
+    private func playTurnUsingAds(_ model: DiceComboModel, into category: DiceComboCategory) -> Int {
+        rollThrice(model)
+        var ads = 0
+        while model.grantReroll(forGame: model.gameSerial, turn: model.turnSerial) {
+            model.settleRoll()
+            ads += 1
+        }
+        model.choose(category)
+        return ads
+    }
+
+    @Test("広告の振り直しは 1 ターン 1 回・1 局 5 回まで。5 回目のあとは「この局はここまで」になる（#3345）")
+    func adRerollIsCappedPerGame() {
+        let model = DiceComboModel(services: makeServices(), seed: 31)
+        let categories = DiceComboCategory.allCases
+        #expect(DiceComboModel.maxAdRerolls == 1 && DiceComboModel.maxAdRerollsPerGame == 5)
+        for n in 0..<4 {
+            #expect(playTurnUsingAds(model, into: categories[n]) == 1, "1 ターンに広告で振れるのは 1 回だけ")
+        }
+        #expect(model.gameAdRollsUsed == 4 && !model.isAdRerollCapReached && model.gameAdRerollsRemaining == 1)
+        // 5 ターン目の 1 回で局の上限に届く。
+        rollThrice(model)
+        #expect(model.canAdReroll && !model.isAdRerollTurnUsed)
+        #expect(model.grantReroll(forGame: model.gameSerial, turn: model.turnSerial))
+        model.settleRoll()
+        #expect(model.isAdRerollCapReached && !model.canAdReroll && model.gameAdRerollsRemaining == 0)
+        #expect(!model.grantReroll(forGame: model.gameSerial, turn: model.turnSerial), "6 回目は振れない")
+        #expect(!model.canHold, "もう振れないのでキープも切り替えられない")
+        model.choose(categories[4])
+        // 次のターンも通常の 3 回は振れるが、広告では振れない。
+        rollThrice(model)
+        #expect(!model.canAdReroll && model.isAdRerollCapReached)
+        #expect(!model.grantReroll(forGame: model.gameSerial, turn: model.turnSerial))
+        #expect(model.canChoose(categories[5]))
+    }
+
+    @Test("そのターンの広告を使うと、局の残りがあっても押せず、局の残りの数は減ったまま（#3345）")
+    func adRerollTurnUsedKeepsGameRemaining() {
+        let model = DiceComboModel(services: makeServices(), seed: 36)
+        rollThrice(model)
+        #expect(model.gameAdRerollsRemaining == 5 && !model.isAdRerollTurnUsed)
+        #expect(model.grantReroll(forGame: model.gameSerial, turn: model.turnSerial))
+        model.settleRoll()
+        #expect(model.isAdRerollTurnUsed && !model.isAdRerollCapReached)
+        #expect(!model.canAdReroll && model.gameAdRerollsRemaining == 4)
+        model.choose(.choice)
+        #expect(!model.isAdRerollTurnUsed && model.gameAdRerollsRemaining == 4, "役を選ぶとターンの使用済みは戻り、局の残りは戻らない")
+        rollThrice(model)
+        #expect(model.canAdReroll)
+    }
+
+    @Test("1 局の広告回数は中断→再開で保たれ、新しいゲームで 0 に戻る。旧データは手番の回数まで使った扱い（#3341）")
+    func gameAdRollsSurviveResumeAndResetOnNewGame() throws {
+        let store = MemorySnapshotStore()
+        let model = DiceComboModel(services: makeServices(store: store), seed: 32)
+        let categories = DiceComboCategory.allCases
+        _ = playTurnUsingAds(model, into: categories[0])
+        _ = playTurnUsingAds(model, into: categories[1])
+        #expect(model.gameAdRollsUsed == 2)
+        let resumed = DiceComboModel(services: makeServices(store: store), seed: 32)
+        #expect(resumed.gameAdRollsUsed == 2, "役を選んだ直後の中断でも保たれる")
+        for n in 2..<5 { _ = playTurnUsingAds(resumed, into: categories[n]) }
+        #expect(resumed.gameAdRollsUsed == 5 && resumed.isAdRerollCapReached)
+        let again = DiceComboModel(services: makeServices(store: store), seed: 32)
+        #expect(again.isAdRerollCapReached, "上限に達したあとの再開でも広告で振れるようにならない")
+        again.newGame()
+        #expect(again.gameAdRollsUsed == 0 && !again.isAdRerollCapReached)
+
+        let dice = [1, 2, 3, 4, 5], held = Array(repeating: false, count: 5)
+        let old = DiceComboSnapshot(dice: dice, held: held, rollsUsed: 3, scores: [:], adRollsUsed: 2)
+        #expect(DiceComboModel.restore(old)?.adRollsUsed == DiceComboModel.maxAdRerolls, "旧データのターンの回数は新しい上限に丸める")
+        #expect(DiceComboModel.restore(old)?.gameAdRollsUsed == DiceComboModel.maxAdRerolls)
+        let tooMany = DiceComboSnapshot(dice: dice, held: held, rollsUsed: 3, scores: [:],
+                                        adRollsUsed: 1, gameAdRollsUsed: 99)
+        #expect(DiceComboModel.restore(tooMany)?.gameAdRollsUsed == DiceComboModel.maxAdRerollsPerGame)
+        let corrupt = #"{"dice":[],"held":[],"rollsUsed":0,"scores":{},"gameAdRollsUsed":"x"}"#
+        let snap = try JSONDecoder().decode(DiceComboSnapshot.self, from: Data(corrupt.utf8))
+        #expect(snap.gameAdRollsUsed == nil && DiceComboModel.restore(snap)?.gameAdRollsUsed == 0)
+    }
+
+    @Test("広告で振った回数は中断から復元される。旧データ（戻す用の鍵つき）は読み捨てて読める")
+    func adRollsSurviveResumeAndOldKeysAreDropped() throws {
+        let store = MemorySnapshotStore()
+        let model = DiceComboModel(services: makeServices(store: store), seed: 24)
+        rollThrice(model)
+        _ = model.grantReroll(forGame: model.gameSerial, turn: model.turnSerial)
+        model.settleRoll()
+        let resumed = DiceComboModel(services: makeServices(store: store), seed: 24)
+        #expect(resumed.adRollsUsed == 1 && resumed.isAdRerollTurnUsed && !resumed.canAdReroll)
+        #expect(resumed.dice == model.dice)
+
+        let json = #"{"dice":[],"held":[],"rollsUsed":0,"scores":{"choice":20},"undosRemaining":2,"lastChoice":{"category":"ones","dice":[1,2,3,4,5],"held":[false,false,false,false,false],"rollsUsed":1}}"#
+        let snap = try JSONDecoder().decode(DiceComboSnapshot.self, from: Data(json.utf8))
+        let restored = DiceComboModel.restore(snap)
+        #expect(restored?.scores == [.choice: 20] && restored?.adRollsUsed == 0 && restored?.continueUsed == false)
+
+        let corrupt = #"{"dice":[],"held":[],"rollsUsed":0,"scores":{"choice":20},"adRollsUsed":"x","continueUsed":3}"#
+        let snap2 = try JSONDecoder().decode(DiceComboSnapshot.self, from: Data(corrupt.utf8))
+        #expect(snap2.adRollsUsed == nil && snap2.continueUsed == nil)
+        let outOfRange = DiceComboSnapshot(dice: [1, 2, 3, 4, 5], held: Array(repeating: false, count: 5),
+                                           rollsUsed: 3, scores: [:], adRollsUsed: 99)
+        #expect(DiceComboModel.restore(outOfRange)?.adRollsUsed == DiceComboModel.maxAdRerolls)
+        let early = DiceComboSnapshot(dice: [1, 2, 3, 4, 5], held: Array(repeating: false, count: 5),
+                                      rollsUsed: 1, scores: [:], adRollsUsed: 2)
+        #expect(DiceComboModel.restore(early)?.adRollsUsed == 0, "通常の回数が残っているなら広告の回数は無い")
+    }
+
+    @Test("役選びを戻す機能は無い")
+    func noUndoSurface() throws {
+        let code = try SourceScan.moduleSources("GameDiceCombo")
+        #expect(!code.contains("undoChoice") && !code.contains("grantUndos") && !code.contains("DiceComboUndoBudget"))
+    }
+
+    // MARK: - コンティニュー（#3257）
+
+    /// 0 点でない、入りうる点（上段は目 1 個ぶん）。
+    private static func nonZero(_ category: DiceComboCategory) -> Int {
+        switch category {
+        case .choice, .fourDice, .fullHouse: return 20
+        case .smallStraight: return 15
+        case .bigStraight: return 30
+        case .fiveDice: return 50
+        default: return category.face ?? 1
+        }
+    }
+
+    /// 11 役が埋まっていて、`open` だけが空いた局。`zero` の役は 0 点で埋めてある。
+    private func nearlyDoneStore(open: DiceComboCategory, zero: [DiceComboCategory]) -> MemorySnapshotStore {
+        var scores: [String: Int] = [:]
+        for category in DiceComboCategory.allCases where category != open {
+            scores[category.rawValue] = zero.contains(category) ? 0 : Self.nonZero(category)
+        }
+        let store = MemorySnapshotStore()
+        try? store.save(DiceComboSnapshot(dice: [], held: [], rollsUsed: 0, scores: scores), for: DiceComboModel.gameID)
+        return store
+    }
+
+    private func finishLastTurn(_ model: DiceComboModel, _ category: DiceComboCategory) {
+        model.roll()
+        model.settleRoll()
+        model.choose(category)
+    }
+
+    @Test("0 点の役があって 12 役が埋まったら、記録を確定せずコンティニューを提案する")
+    func finishWithZeroOffersContinue() {
+        let log = makeLog("offer")
+        let spy = SpyAnalyticsService()
+        let model = DiceComboModel(services: makeServices(store: nearlyDoneStore(open: .choice, zero: [.fourDice, .fiveDice]),
+                                                          log: log, analytics: spy), seed: 31)
+        finishLastTurn(model, .choice)
+        #expect(model.isFinished && model.isOfferingContinue)
+        #expect(model.continueCandidates == [.fourDice, .fiveDice])
+        #expect(model.recordResult == nil)
+        #expect(log.record(gameID: DiceComboModel.gameID) == nil, "提案中は記録しない")
+        #expect(!spy.events.contains { $0.name == "game_end" })
+        #expect(!model.canRoll && !model.canAdReroll)
+    }
+
+    @Test("断ると、その場で記録を 1 回だけ確定する")
+    func declineCommitsOnce() {
+        let log = makeLog("decline")
+        let store = nearlyDoneStore(open: .choice, zero: [.fourDice])
+        let model = DiceComboModel(services: makeServices(store: store, log: log), seed: 32)
+        finishLastTurn(model, .choice)
+        model.declineContinue()
+        #expect(!model.isOfferingContinue && model.isFinished && model.recordResult != nil)
+        #expect(log.record(gameID: DiceComboModel.gameID)?.plays == 1)
+        model.declineContinue()
+        #expect(log.record(gameID: DiceComboModel.gameID)?.plays == 1, "二重に数えない")
+        #expect(store.load(DiceComboSnapshot.self, for: DiceComboModel.gameID) == nil)
+    }
+
+    @Test("0 点の役が無ければ提案せず、そのまま確定する")
+    func noZeroNoOffer() {
+        let log = makeLog("nozero")
+        let model = DiceComboModel(services: makeServices(store: nearlyDoneStore(open: .choice, zero: []), log: log), seed: 33)
+        finishLastTurn(model, .choice)
+        #expect(model.isFinished && !model.isOfferingContinue && model.recordResult != nil)
+        #expect(log.record(gameID: DiceComboModel.gameID)?.plays == 1)
+    }
+
+    @Test("やり直すと、その役だけが開いた 3 回振れる番に戻り、合計を出し直す。広告の振り直しも使え、2 回目の提案は無い")
+    func continueRedoesOneCategory() {
+        let log = makeLog("redo")
+        let model = DiceComboModel(services: makeServices(store: nearlyDoneStore(open: .choice, zero: [.fourDice, .fiveDice]), log: log),
+                                   seed: 34)
+        let game = model.gameSerial
+        finishLastTurn(model, .choice)
+        let before = model.total
+        #expect(!model.grantContinue(forGame: game, category: .ones), "0 点でない役はやり直せない")
+        #expect(!model.grantContinue(forGame: game + 1, category: .fourDice), "前の局の広告は乗せない")
+        #expect(model.grantContinue(forGame: game, category: .fourDice))
+        #expect(!model.isFinished && !model.isOfferingContinue && model.continueUsed)
+        #expect(model.scores[.fourDice] == nil && model.scores[.fiveDice] == 0)
+        #expect(model.rollsUsed == 0 && model.adRollsUsed == 0 && model.total <= before)
+        rollThrice(model)
+        #expect(model.grantReroll(forGame: game, turn: model.turnSerial), "やり直しの番でも広告の振り直しは使える")
+        model.settleRoll()
+        #expect(model.canChoose(.fourDice) && !model.canChoose(.fiveDice) && !model.canChoose(.ones))
+        #expect(!model.grantReroll(forGame: game, turn: model.turnSerial), "やり直しの番も 1 ターン 1 回まで")
+        model.choose(.fourDice)
+        #expect(model.isFinished && !model.isOfferingContinue, "1 局 1 回まで。fiveDice が 0 でも再提案しない")
+        #expect(model.recordResult != nil)
+        #expect(log.record(gameID: DiceComboModel.gameID)?.plays == 1)
+        #expect(!model.grantContinue(forGame: game, category: .fiveDice))
+    }
+
+    @Test("やり直しの番でも、局の広告の上限を使い切っていれば広告では振れない（#3345）")
+    func continueTurnHonorsGameAdCap() {
+        let store = nearlyDoneStore(open: .choice, zero: [.fourDice])
+        var snap = store.load(DiceComboSnapshot.self, for: DiceComboModel.gameID)!
+        snap.gameAdRollsUsed = DiceComboModel.maxAdRerollsPerGame
+        try? store.save(snap, for: DiceComboModel.gameID)
+        let model = DiceComboModel(services: makeServices(store: store), seed: 37)
+        let game = model.gameSerial
+        finishLastTurn(model, .choice)
+        #expect(model.grantContinue(forGame: game, category: .fourDice))
+        rollThrice(model)
+        #expect(!model.canAdReroll && model.isAdRerollCapReached)
+        #expect(!model.grantReroll(forGame: game, turn: model.turnSerial))
+    }
+
+    @Test("提案中に新しいゲームを始めると、断ったのと同じに確定してから始まる。使用済みは新しい局で戻る")
+    func newGameDuringOfferCommits() {
+        let log = makeLog("newgame")
+        let model = DiceComboModel(services: makeServices(store: nearlyDoneStore(open: .choice, zero: [.fourDice]), log: log), seed: 35)
+        let game = model.gameSerial
+        finishLastTurn(model, .choice)
+        model.newGame()
+        #expect(log.record(gameID: DiceComboModel.gameID)?.plays == 1)
+        #expect(!model.isFinished && !model.isOfferingContinue && !model.continueUsed && model.scores.isEmpty)
+        #expect(!model.grantContinue(forGame: game, category: .fourDice))
+    }
+
+    @Test("提案中に中断しても、再開すると提案から続く。やり直しの番も使用済みのまま復元される")
+    func offerAndRedoSurviveResume() {
+        let store = nearlyDoneStore(open: .choice, zero: [.fourDice])
+        let model = DiceComboModel(services: makeServices(store: store), seed: 36)
+        finishLastTurn(model, .choice)
+        let resumed = DiceComboModel(services: makeServices(store: store), seed: 36)
+        #expect(resumed.isFinished && resumed.isOfferingContinue && resumed.continueCandidates == [.fourDice])
+        #expect(resumed.grantContinue(forGame: resumed.gameSerial, category: .fourDice))
+        let again = DiceComboModel(services: makeServices(store: store), seed: 36)
+        #expect(!again.isFinished && again.continueUsed && again.scores[.fourDice] == nil)
+    }
+
+    @Test("埋まりきった中断データは、提案できる局（0 点あり・未使用）以外は読まない")
+    func completeSnapshotRestoreRules() {
+        var scores: [String: Int] = [:]
+        for category in DiceComboCategory.allCases { scores[category.rawValue] = Self.nonZero(category) }
+        #expect(DiceComboModel.restore(DiceComboSnapshot(dice: [], held: [], rollsUsed: 0, scores: scores)) == nil, "0 点が無い")
+        scores["fourDice"] = 0
+        #expect(DiceComboModel.restore(DiceComboSnapshot(dice: [], held: [], rollsUsed: 0, scores: scores)) != nil, "0 点あり・未使用")
+        #expect(DiceComboModel.restore(DiceComboSnapshot(dice: [], held: [], rollsUsed: 0, scores: scores, continueUsed: true)) == nil)
     }
 }

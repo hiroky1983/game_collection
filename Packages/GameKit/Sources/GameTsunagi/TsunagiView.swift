@@ -20,7 +20,15 @@ public struct TsunagiView: View {
         VStack(spacing: 14) {
             header
             // 盤は残りの高さを Spacer と山分けしない（下の段が増えた分だけ盤が縮むのを防ぐ）。
-            boardView.layoutPriority(1)
+            boardView
+                // 「盤を見る」で閉じてつないだ絵柄を見返せる（#3059）。
+                .gameClearCard(isPresented: model.isSolved,
+                               details: [tr("%lld手でつなぎました", model.moves)],
+                               record: model.recordResult,
+                               primaryAction: .init(title: tr("もう一回"), hint: tr("新しいパズルを始めます")) {
+                                   withGameAnimation { model.newGame() }
+                               })
+                .layoutPriority(1)
             statusLine
             // 初回だけ出す 1 行（以降は `?` ボタンからいつでも読める）。
             HowToPlayHint(.tsunagi, playLog: services.playLog)
@@ -58,7 +66,7 @@ public struct TsunagiView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(tr("手数"))
                     .scaledFont(12, weight: .bold, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                 Text("\(model.moves)")
                     .scaledFont(30, weight: .heavy, design: .rounded, maxScale: 1.2).monospacedDigit()
                     .foregroundStyle(Theme.ink)
@@ -99,7 +107,7 @@ public struct TsunagiView: View {
                 connected: model.connectedCount, pairs: model.puzzle.pairCount,
                 filled: model.filledCount, cells: model.puzzle.cellCount))
             .scaledFont(13, weight: .bold, design: .rounded)
-            .foregroundStyle(model.isConnectedButNotFilled ? Theme.coralText : Theme.inkSub)
+            .foregroundStyle(model.isConnectedButNotFilled ? Theme.coralText : Theme.inkSubText)
             .multilineTextAlignment(.center)
     }
 
@@ -121,9 +129,6 @@ public struct TsunagiView: View {
             }
             .contentShape(Rectangle())
             .gesture(dragGesture(cellSide: cellSide, inset: inset))
-            .overlay {
-                if model.isSolved { solvedOverlay }
-            }
         }
         .aspectRatio(1, contentMode: .fit)
     }
@@ -174,23 +179,6 @@ public struct TsunagiView: View {
                 ))
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { withGameAnimation { model.activate(cell: index) } }
-        }
-    }
-
-    private var solvedOverlay: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: Theme.corner, style: .continuous).fill(.black.opacity(0.55))
-            VStack(spacing: 12) {
-                Text(tr("クリア！")).font(.title2.bold()).foregroundStyle(.white)
-                Text(tr("%lld手でつなぎました", model.moves))
-                    .font(.subheadline).foregroundStyle(.white.opacity(0.85))
-                RecordLabel(model.recordResult, textColor: .white.opacity(0.85))
-                Button { withGameAnimation { model.newGame() } } label: {
-                    Text(tr("もう一回")).foregroundStyle(Theme.onAccent)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(Theme.Fill.coral)
-            }
         }
     }
 }

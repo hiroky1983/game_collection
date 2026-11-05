@@ -904,6 +904,29 @@
           }
         }
       }
+    },
+    "残り地雷 %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld mine left"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld mines left"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

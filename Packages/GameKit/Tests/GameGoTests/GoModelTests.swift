@@ -562,3 +562,18 @@ extension GoModel {
         apply(.pass)
     }
 }
+
+@MainActor
+@Suite("盤が縮む新規でも View の読み出しが落ちない（#3141）")
+struct GoStaleIndexTests {
+    @Test("13路→9路の新規のあと、旧盤面の交点は nil を返す")
+    func staleIntersectionReturnsNil() {
+        let model = GoModel(services: makeServices())
+        model.newGame(boardSize: .thirteen)
+        model.newGame(boardSize: .nine)
+        #expect(model.board.size == 9)
+        #expect(model.board.stone(row: 12, col: 12) == nil)
+        #expect(model.board.stone(row: -1, col: 0) == nil)
+        #expect(model.board.stone(row: 0, col: 9) == nil)
+    }
+}

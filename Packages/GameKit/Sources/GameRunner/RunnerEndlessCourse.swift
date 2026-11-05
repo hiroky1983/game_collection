@@ -232,7 +232,8 @@ public enum RunnerEndlessCourse {
             let range = speed * RunnerRules.jumpAirTime
             let needed = RunnerAutoPilot.lead(for: hazard, speed: speed) + hazard.length
             return range > needed + RunnerRules.tileWidth
-        case .lowBlock, .tallBlock, .bird, .dog, .boar, .shoot, .geyser:
+        case .lowBlock, .tallBlock, .bird, .dog, .boar, .shoot, .geyser, .rockfall:
+            // 落石（#2729）もエンドレスの生成器には置かない（`parts` に居ない。式は向かって来る高い岩と同じ）。
             // 間欠泉（#1938）も生成器には置かない。突き上げ（#1010）はエンドレスの生成器には置かない（決裁「生成器に教えるのは別の版」。
             // `parts` に居ないので実際には来ないが、式は高い岩と同じなので網羅の分岐に混ぜてある）。
             let window = RunnerRules.airTime(above: encounter.height + RunnerAutoPilot.clearance)
@@ -244,6 +245,11 @@ public enum RunnerEndlessCourse {
             let window = RunnerRules.doubleJumpAirTime(above: encounter.height + RunnerAutoPilot.clearance)
             let overlap = (encounter.length + RunnerField.Metrics.playerWidth) / speed
             return window > overlap && encounter.height < RunnerRules.doubleJumpApex
+        case .chasm:
+            // 裂け目（#2729）も生成器には置かない。式は穴と同じ形で、飛距離だけが二段ぶん。
+            let range = RunnerRules.doubleJumpRange(at: speed)
+            let needed = RunnerAutoPilot.lead(for: hazard, speed: speed) + hazard.length
+            return range > needed + RunnerRules.tileWidth
         }
     }
 

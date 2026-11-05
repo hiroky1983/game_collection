@@ -27,7 +27,24 @@ struct RunnerPixelArtTests {
             ("積まれたコンテナ", RunnerPixelArt.wallArt(for: .containerStack)),
             // 毎面のゴール（#1092）。色は世界によらない 1 枚。
             ("宝くじ", RunnerPixelArt.lotteryTicket()),
-        ] + RunnerWorld.allCases.flatMap { world in
+            // 雪国（#2729）。雪だるま・雪柱・雪が舞い上がる予告・除雪の雪山。色は世界によらない。
+            ("雪だるま", RunnerPixelArt.snowman()),
+            ("雪柱", RunnerPixelArt.shootArt(for: .snowSpout)),
+            ("雪の舞い上がり", RunnerPixelArt.shootCueArt(for: .snowSpout)),
+            ("除雪の雪山", RunnerPixelArt.wallArt(for: .snowBank)),
+            // 東京（#2729）。カラーコーン・自動販売機・マンホールの蒸気とその蓋・積まれた看板。色は世界によらない。
+            ("カラーコーン", RunnerPixelArt.trafficCone()),
+            ("自動販売機", RunnerPixelArt.vendingMachine()),
+            ("マンホールの蒸気", RunnerPixelArt.shootArt(for: .manholeSteam)),
+            ("マンホールの蓋", RunnerPixelArt.shootCueArt(for: .manholeSteam)),
+            ("積まれた看板", RunnerPixelArt.wallArt(for: .signboardStack)),
+            // 富士山（#2729）。道標・砂煙とその予告・溶岩の石垣。色は世界によらない。落石は世界の岩の色（下で全世界ぶん）。
+            ("道標", RunnerPixelArt.signpost()),
+            ("砂煙", RunnerPixelArt.shootArt(for: .dustSpout)),
+            ("砂煙の予告", RunnerPixelArt.shootCueArt(for: .dustSpout)),
+            ("溶岩の石垣", RunnerPixelArt.wallArt(for: .lavaWall)),
+        ] + RunnerWorld.allCases.map { world in ("落石（\(world)）", RunnerPixelArt.fallingRock(world: world)) }
+        + RunnerWorld.allCases.flatMap { world in
             RunnerPixelArt.WalkFrame.allCases.flatMap { frame in
                 [
                     ("犬 \(frame)（\(world)）", RunnerPixelArt.dog(frame, colors: world.creatures)),
@@ -123,6 +140,9 @@ struct RunnerPixelArtTests {
         ("イノシシ walk0", RunnerPixelArt.boarWalk0Rows), ("イノシシ walk1", RunnerPixelArt.boarWalk1Rows),
         ("猫 walk0", RunnerPixelArt.catWalk0Rows), ("猫 walk1", RunnerPixelArt.catWalk1Rows),
         ("フォークリフト walk0", RunnerPixelArt.forkliftDrive0Rows), ("フォークリフト walk1", RunnerPixelArt.forkliftDrive1Rows),
+        ("キツネ walk0", RunnerPixelArt.foxWalk0Rows), ("キツネ walk1", RunnerPixelArt.foxWalk1Rows),
+        ("タクシー walk0", RunnerPixelArt.taxiDrive0Rows), ("タクシー walk1", RunnerPixelArt.taxiDrive1Rows),
+        ("カモシカ walk0", RunnerPixelArt.serowWalk0Rows), ("カモシカ walk1", RunnerPixelArt.serowWalk1Rows),
     ])
     func animalLegsAreShort(name: String, rows: [String]) {
         let legs = Self.legHeight(of: rows)
@@ -157,6 +177,9 @@ struct RunnerPixelArtTests {
             ("イノシシ", RunnerPixelArt.boarWalk0Rows, RunnerPixelArt.boarWalk1Rows),
             ("猫", RunnerPixelArt.catWalk0Rows, RunnerPixelArt.catWalk1Rows),
             ("フォークリフト", RunnerPixelArt.forkliftDrive0Rows, RunnerPixelArt.forkliftDrive1Rows),
+            ("キツネ", RunnerPixelArt.foxWalk0Rows, RunnerPixelArt.foxWalk1Rows),
+            ("タクシー", RunnerPixelArt.taxiDrive0Rows, RunnerPixelArt.taxiDrive1Rows),
+            ("カモシカ", RunnerPixelArt.serowWalk0Rows, RunnerPixelArt.serowWalk1Rows),
         ] {
             #expect(walk0.count == walk1.count && walk0[0].count == walk1[0].count, "\(name): 寸法が違う")
             let legs = max(Self.legHeight(of: walk0), Self.legHeight(of: walk1))
@@ -257,6 +280,50 @@ struct RunnerPixelArtTests {
         #expect(RunnerPixelArt.walkerRows(world: .harbor) == RunnerPixelArt.catWalk0Rows)
         #expect(RunnerPixelArt.chargerRows(world: .harbor) == RunnerPixelArt.forkliftDrive0Rows)
         #expect(RunnerPixelArt.chargerRearFootX(world: .harbor) == RunnerPixelArt.forkliftRearWheelX)
+        // 雪国（#2729）の犬の枠はキツネ（犬と同じ 30×21 の格子・頭は左・白い胸と尾の先）、イノシシは色違いのイノシシ。
+        for frame in RunnerPixelArt.WalkFrame.allCases {
+            let fox = RunnerPixelArt.walker(frame, world: .snow)
+            #expect(fox == RunnerPixelArt.fox(frame, colors: RunnerWorld.snow.creatures))
+            let dog = RunnerPixelArt.dog(frame, colors: RunnerWorld.snow.creatures)
+            #expect(fox.width == dog.width && fox.height == dog.height, "キツネ \(frame): \(fox.width)×\(fox.height)")
+            let rows = fox.rows.map(Array.init)
+            // 鼻先（黒い `o`）が左端の列にあり、尾の先（白 `W`）が右端の列にある。
+            #expect(rows.contains { $0[0] == "K" && $0[1] == "o" }, "キツネ \(frame): 左端に黒い鼻が無い")
+            #expect(rows.contains { $0[fox.width - 1] == "K" && $0[fox.width - 2] == "W" }, "キツネ \(frame): 右端に白い尾の先が無い")
+            #expect(!fox.rows.joined().contains("R"), "キツネ \(frame): 首輪がある（野生）")
+            #expect(RunnerPixelArt.charger(frame, world: .snow) == RunnerPixelArt.boar(frame, colors: RunnerWorld.snow.creatures))
+        }
+        #expect(RunnerPixelArt.walkerRows(world: .snow) == RunnerPixelArt.foxWalk0Rows)
+        // 東京（#2729）の犬の枠は犬（秋田犬の色。絵は犬のまま）、イノシシの枠はタクシー（フォークリフトと同じ 33×23 の格子）。
+        for frame in RunnerPixelArt.WalkFrame.allCases {
+            #expect(RunnerPixelArt.walker(frame, world: .tokyo) == RunnerPixelArt.dog(frame, colors: RunnerWorld.tokyo.creatures))
+            let taxi = RunnerPixelArt.charger(frame, world: .tokyo)
+            #expect(taxi == RunnerPixelArt.taxi(frame, colors: RunnerWorld.tokyo.creatures))
+            let boar = RunnerPixelArt.boar(frame, colors: RunnerWorld.tokyo.creatures)
+            #expect(taxi.width == boar.width && taxi.height == boar.height, "タクシー \(frame): \(taxi.width)×\(taxi.height)")
+            let rows = taxi.rows.map(Array.init)
+            // ヘッドライト（`T`）が左端の列にあり（進行方向が左）、屋根の行灯（`Y`）がいちばん上の行の近くにある。
+            #expect(rows.filter { $0[0] == "K" && $0[1] == "T" }.count >= 2, "タクシー \(frame): 左端にヘッドライトが無い")
+            #expect(rows.prefix(3).contains { $0.contains("Y") }, "タクシー \(frame): 屋根の行灯が無い")
+            #expect(taxi.rows.joined().contains("B") && taxi.rows.joined().contains("S"), "タクシー \(frame): 車体と窓の色が無い")
+        }
+        #expect(RunnerPixelArt.walkerRows(world: .tokyo) == RunnerPixelArt.dogWalk0Rows)
+        #expect(RunnerPixelArt.chargerRows(world: .tokyo) == RunnerPixelArt.taxiDrive0Rows)
+        #expect(RunnerPixelArt.chargerRearFootX(world: .tokyo) == RunnerPixelArt.taxiRearWheelX)
+        // 富士山（#2729）の犬の枠はカモシカ（犬と同じ 30×21）、イノシシの枠はブルドーザー（フォークリフトと同じ 33×23）。
+        for frame in RunnerPixelArt.WalkFrame.allCases {
+            let serow = RunnerPixelArt.walker(frame, world: .fuji)
+            #expect(serow == RunnerPixelArt.serow(frame, colors: RunnerWorld.fuji.creatures))
+            let dog = RunnerPixelArt.dog(frame, colors: RunnerWorld.fuji.creatures)
+            #expect(serow.width == dog.width && serow.height == dog.height, "カモシカ \(frame): \(serow.width)×\(serow.height)")
+            let dozer = RunnerPixelArt.charger(frame, world: .fuji)
+            #expect(dozer == RunnerPixelArt.bulldozer(frame, colors: RunnerWorld.fuji.creatures))
+            let boar = RunnerPixelArt.boar(frame, colors: RunnerWorld.fuji.creatures)
+            #expect(dozer.width == boar.width && dozer.height == boar.height, "ブルドーザー \(frame): \(dozer.width)×\(dozer.height)")
+        }
+        #expect(RunnerPixelArt.walkerRows(world: .fuji) == RunnerPixelArt.serowWalk0Rows)
+        #expect(RunnerPixelArt.chargerRows(world: .fuji) == RunnerPixelArt.bulldozerDrive0Rows)
+        #expect(RunnerPixelArt.chargerRearFootX(world: .fuji) == RunnerPixelArt.bulldozerRearWheelX)
         // 里山の田舎の犬は朝の柴と色で見分けが付く（絵は同じ）。
         #expect(RunnerWorld.satoyama.creatures.dogBody != RunnerWorld.morning.creatures.dogBody)
     }
@@ -318,7 +385,10 @@ struct RunnerPixelArtTests {
         let low = RunnerHazardKind.lowBlock, tall = RunnerHazardKind.tallBlock
         for (name, sprite, kind) in [
             ("切り株", RunnerPixelArt.stump(), low), ("ロープの束", RunnerPixelArt.ropeCoil(), low),
-            ("ドラム缶", RunnerPixelArt.drum(), tall),
+            ("ドラム缶", RunnerPixelArt.drum(), tall), ("湯桶", RunnerPixelArt.yuoke(), low),
+            ("雪だるま", RunnerPixelArt.snowman(), low),
+            ("カラーコーン", RunnerPixelArt.trafficCone(), low), ("自動販売機", RunnerPixelArt.vendingMachine(), tall),
+            ("道標", RunnerPixelArt.signpost(), tall),
         ] {
             let width = RunnerRules.tileWidth, height = kind.height
             #expect(Double(sprite.width) * height == Double(sprite.height) * width, "\(name): \(sprite.width)×\(sprite.height) は \(width)×\(height) の比でない")
@@ -339,6 +409,10 @@ struct RunnerPixelArtTests {
         for (name, sprite) in [
             ("竹の子", RunnerPixelArt.shoot(world: .satoyama)),
             ("波しぶき", RunnerPixelArt.shoot(world: .harbor)),
+            ("湯柱", RunnerPixelArt.shoot(world: .onsen)),
+            ("雪柱", RunnerPixelArt.shoot(world: .snow)),
+            ("マンホールの蒸気", RunnerPixelArt.shoot(world: .tokyo)),
+            ("砂煙", RunnerPixelArt.shoot(world: .fuji)),
         ] {
             #expect(
                 Double(sprite.width) * height == Double(sprite.height) * RunnerRules.tileWidth,
@@ -351,7 +425,13 @@ struct RunnerPixelArtTests {
         let body = RunnerPixelArt.shoot(world: .satoyama)
         let mound = RunnerPixelArt.shootCue(world: .satoyama)
         let foam = RunnerPixelArt.shootCue(world: .harbor)
+        let puff = RunnerPixelArt.shootCue(world: .snow)
+        let lid = RunnerPixelArt.shootCue(world: .tokyo)
+        let dust = RunnerPixelArt.shootCue(world: .fuji)
+        #expect(mound.width == dust.width && mound.height == dust.height, "富士山の予告（砂煙の舞い上がり）の格子が違う")
         #expect(mound.width == foam.width && mound.height == foam.height, "予告の格子が世界で違う")
+        #expect(mound.width == puff.width && mound.height == puff.height, "雪国の予告の格子が違う")
+        #expect(mound.width == lid.width && mound.height == lid.height, "東京の予告（マンホールの蓋）の格子が違う")
         // 予告は当たり判定の `shootCueVisualScale` 倍の幅で貼る（`RunnerScene.addShoot`）。
         // 格子の幅がその倍率どおりなら、1 ドットの大きさが本体と揃う（引き伸ばされない）。
         #expect(
@@ -442,6 +522,9 @@ struct RunnerPixelArtTests {
         for (name, sprite) in [
             ("石垣", RunnerPixelArt.wallArt(for: .stoneWall)),
             ("積まれたコンテナ", RunnerPixelArt.wallArt(for: .containerStack)),
+            ("除雪の雪山", RunnerPixelArt.wallArt(for: .snowBank)),
+            ("積まれた看板", RunnerPixelArt.wallArt(for: .signboardStack)),
+            ("溶岩の石垣", RunnerPixelArt.wallArt(for: .lavaWall)),
         ] {
             #expect(
                 Double(sprite.width) * height == Double(sprite.height) * RunnerRules.tileWidth,

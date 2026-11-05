@@ -202,15 +202,44 @@ extension RunnerRules {
         return ascent + (jumpVelocity + fall) / gravity
     }
 
-    /// その障害を越えるジャンプの滞空時間。**高い塀（#1091）だけが二段ぶん**で、ほかは一段。
+    /// その障害を越えるジャンプの滞空時間。**高い塀（#1091）と裂け目（#2729）だけが二段ぶん**で、ほかは一段。
     ///
     /// 「前の障害を跳んで着地してから次の踏み切りに入れるか」（`RunnerStageTests.hazardsAreFarEnoughApart` /
     /// `RunnerEndlessCourse.hasLandingGap`）は、前の障害を跳んだ滞空で進む距離を土台にしている。
     /// 塀を二段で越えると滞空が 0.75 → 1.28 秒に伸びる（進む距離は約 1.7 倍）ので、
-    /// **ここを一段で見積もると塀の次の障害が近すぎても緑になる**。
+    /// **ここを一段で見積もると塀の次の障害が近すぎても緑になる**。裂け目も同じ理由で二段ぶん。
     public static func airTime(clearing kind: RunnerHazardKind) -> Double {
-        kind == .wall ? doubleJumpAirTime : jumpAirTime
+        kind == .wall || kind == .chasm ? doubleJumpAirTime : jumpAirTime
     }
+
+    // MARK: 二段ジャンプでしか渡れない広い裂け目（#2729・会長決裁 2026-10-23。雪国＝割れた氷の湖）
+
+    /// 裂け目の幅（タイル数）。**1 段では絶対に届かず、二段ジャンプなら十分余る**値。
+    ///
+    /// 高い塀（`RunnerHazardKind.wallTop`）の「高さ」の考え方を「幅」に写したもの。置くのは速さが上限
+    /// （`endlessMaxSpeed` = 60）に達した雪国（43 面以降）だけなので、数字は 60 で決める:
+    ///
+    /// | | 距離 | 52 との差 |
+    /// |---|---|---|
+    /// | 跳べる最大幅の穴（`3`・16） | 16 | 3.25 倍（一目で別物と分かる幅） |
+    /// | 1 段で進む距離（60 × `jumpAirTime`）− 踏み切りの余裕（`RunnerAutoPilot.baseLead` = 6） | 39 | **13 足りない**（中心が向こう岸へ届かない） |
+    /// | 二段で進む距離（`doubleJumpRange(at: 60)`）− 同じ余裕 | 70.8 | **18.8 余る** |
+    ///
+    /// - **下側**: 穴は中心の x で判定する（`RunnerField.isPit`）ので、縁ぎりぎり（左端ちょうど）で
+    ///   踏み切っても 1 段の着地は左端から 45——幅 52 の向こう岸には 7 足りない。踏み切る位置を
+    ///   どこへ動かしても、1 段の飛距離は速さ × 滞空（押しっぱなしで最大）で頭打ちなので届かない
+    ///   （`RunnerSnowGimmickTests.singleJumpNeverCrossesTheChasm` が踏み切り位置を振って実走で確かめる）
+    /// - **上側**: 二段目の押し始めの猶予（塀と同じ「0.2 秒以上」）。幅が広いほど二段目を早く踏まねば
+    ///   ならず猶予が細るが、52 なら一段目の 0.13 秒（タップの猶予 `jumpCutGraceTime` と同じ）あたりから
+    ///   着地まで、どこで踏んでも渡れる（`RunnerSnowGimmickTests.doubleJumpWindowIsGenerous`）
+    ///
+    /// 区画（16 タイル）の中では穴と同じ `hazardTileOffset`（6 タイル目）から始まるので、右端は次の
+    /// 区画へ 3 タイル食い込む。着地点（二段で降りるまで）は塀と同じ `wallLandingSegments`（2 区画）で、
+    /// その内側に穴・突き上げ・沈む床・動物・鳥・崩れる足場を置かない（`chasmsLeaveSafeLandingGround`）。
+    public static let chasmTiles = 13
+
+    /// 裂け目の幅（ワールド単位）。
+    public static var chasmWidth: Double { Double(chasmTiles) * tileWidth }
 
     /// 高い塀の着地点（塀の右端から、二段ジャンプで降りてくるまで）に何も置かない距離。
     ///
@@ -319,6 +348,39 @@ extension RunnerRules {
     public static let boarChargeDistance: Double = 18 * tileWidth
     /// イノシシの速さ（走者 1 に対して）。走者と同じなので相対速度は 2 倍。
     public static let boarAdvance: Double = 1
+
+    // MARK: 落石（#2729 富士山・会長決裁 2026-10-23「上から転がってくる。決まった間合いで来る」）
+
+    /// 落石の予告（ゴロゴロの手応え・右上の小石）から出会いまでの間合い（走者の前端から出会いの地点まで）。
+    /// **イノシシの予告と同じ 18 タイル**（72）——「予告から一拍で来る」の拍を、すでに覚えてもらっている
+    /// イノシシと揃える。
+    ///
+    /// 予告の瞬間、岩は前端から `(1 + rockfallAdvance) × 72` = 108 先（画面の先読み 70 の外＝斜面の上）にいる。
+    /// 画面の右端に入るのは前端が 25.3 進んだとき（間合い 46.7）、路面に着くのは 48 進んだとき（間合い
+    /// `rockfallLandingGap` = 24）。予告から踏み切りの地点（`RunnerAutoPilot.lead`・速さ 60 で間合い 11.7）までは
+    /// 走者の進みで 60.3——**基準速 60 で 1.0 秒、ペダルが上限まで乗った 1.55 倍（93/秒）でも 0.65 秒**で、
+    /// 突き上げ（#1010）の「予告から踏み切りまで最悪 0.66 秒」と同じ物差しに収まる
+    /// （`RunnerFujiGimmickTests.cueLeavesTimeToRead`）。
+    public static let rockfallCueDistance: Double = 18 * tileWidth
+    /// 落石の転がる速さ（走者 1 に対して）。走者に向かって左へ進むので相対速度は `1 + rockfallAdvance` = 1.5。
+    ///
+    /// 犬（0.35）より速く、イノシシ（1）より遅い。0.5 なら予告の瞬間の岩（前端から 108 先）が画面の外にあり、
+    /// 岩の左端は斜面を下りる道のり（区画の左端から 60 → 36）も路面を転がる道のり（36 → 24）も**自分の区画の中**——
+    /// 右端が次の区画にかかるのは斜面の上の高さ 50 以上のときだけなので、隣の区画の岩・台座と交わらず、
+    /// イノシシの `stopAt` のような決まりが要らない（`RunnerFujiGimmickTests.rockfallFollowsTheRunnersDistance`）。
+    public static let rockfallAdvance: Double = 0.5
+    /// 落石が路面に着く間合い（走者の前端から出会いの地点まで）。そこから先は路面を転がる。
+    ///
+    /// 着く地点は前端から `1.5 × 24` = 36 先（画面の先読みのほぼ真ん中）で、踏み切りの地点（間合い 11.7）より
+    /// 12 以上手前——**踏み切るときには必ず路面にいて、高さは高い岩と同じ**（斜面の途中の岩に向かって跳ぶ場面は無い。
+    /// `RunnerFujiGimmickTests.rockfallLandsBeforeTheTakeOffPoint`）。
+    public static let rockfallLandingGap: Double = 6 * tileWidth
+    /// 予告の瞬間の落石の帯の下端の高さ（斜面の上）。路面に着くまで一定の傾きで下りる。
+    ///
+    /// 画面の右端に入るとき（間合い 46.7）は 28.3——走者の頭（11）よりずっと上から斜めに下りてくるのが見え、
+    /// 「上から転がってくる」と読める。頭より上にいるあいだは自動操縦の跳ぶ相手にもならない
+    /// （`RunnerField.nextHazard` が頭より上の帯を外す）。
+    public static let rockfallDropHeight: Double = 15 * tileWidth
 
     // MARK: 突き上げ（#1010 竹の子・波しぶき・会長決裁 2026-09-17〜18）
 

@@ -151,6 +151,15 @@ public struct OldMaidGame: Codable, Sendable, Equatable {
         }
     }
 
+    /// あなたが 1 度でも引いたか（#3000）。2 ゲーム目以降は CPU が先に引くので、手札や手番では見分けられない。
+    /// 「引いた」動き（`lastActions`）はその人が引いたときだけ書き換わるので、あなたの欄が配り直後のままなら未着手。
+    public var humanHasDrawn: Bool {
+        switch lastActions[Self.humanIndex] {
+        case .drewPair, .drewKept: true
+        case .none, .dealtPairs: false
+        }
+    }
+
     /// 手札から同じ数字の 2 枚を順に抜き出す。3 枚ある数字は 1 枚残る。ジョーカーはペアにならない。
     /// 残す札の並びは元のまま。
     public static func removingPairs(from hand: [OldMaidCard]) -> (kept: [OldMaidCard], pairs: [[OldMaidCard]]) {

@@ -7,11 +7,16 @@ struct SettingsView: View {
     let settings: GameSettings
     /// プレイ記録。注入されないとき（プレビュー等）は消去の導線を出さない。
     var playLog: PlayLog?
+    /// 消去の完了を伝える触覚（#2936）。注入されないとき（プレビュー等）は何もしない。
+    var feedback: FeedbackService = NoopFeedbackService()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
     @State private var legalURL: IdentifiableURL?
     @State private var showClearPlayLogConfirm = false
+    @State private var showResetOrderConfirm = false
+    /// 中断データが残っているときのゆっくりモード切り替えの確認待ち（#3107）。切り替え後の値を持つ。
+    @State private var pendingSlowMode: Bool?
     /// 通知の許諾状態（#1603）。開いたとき・設定アプリから戻ったときに読む。未確認の間は表示を変えない。
     @State private var notificationAuthorization: ReminderAuthorization?
 
@@ -55,6 +60,27 @@ struct SettingsView: View {
                         }
                     }
                     .onMove { settings.move(from: $0, to: $1) }
+                    Button {
+                        showResetOrderConfirm = true
+                    } label: {
+                        Label(tr("ハブの並びを初期に戻す"), systemImage: "arrow.counterclockwise")
+                    }
+                    .foregroundStyle(Theme.ink)
+                    .dialogs { anchor in
+                        anchor.confirmationDialog(
+                            tr("ハブの並びを初期に戻しますか？"),
+                            isPresented: $showResetOrderConfirm,
+                            titleVisibility: .visible
+                        ) {
+                            Button(tr("初期に戻す"), role: .destructive) {
+                                settings.resetToDefault()
+                                AccessibilityNotification.Announcement(tr("ハブの並びを初期に戻しました")).post()
+                            }
+                            Button(tr("キャンセル"), role: .cancel) {}
+                        } message: {
+                            Text(tr("並べ替えた順番を、アプリ初期の並びに戻します。非表示にしたあそびもすべて表示に戻ります。"))
+                        }
+                    }
                 } header: {
                     Text(tr("あそび"))
                 } footer: {
@@ -80,6 +106,21 @@ struct SettingsView: View {
                             .foregroundStyle(Theme.ink)
                     }
                     .tint(Theme.coral) // accent-text-ok: トグルのトラック（面）
+
+                    if settings.soundEnabled {
+                        Picker(selection: Binding(
+                            get: { settings.soundVolume },
+                            set: { settings.soundVolume = $0 }
+                        )) {
+                            Text(tr("小")).tag(SoundVolume.small)
+                            Text(tr("中")).tag(SoundVolume.medium)
+                            Text(tr("大")).tag(SoundVolume.large)
+                        } label: {
+                            Label(tr("効果音の音量"), systemImage: "speaker.wave.3")
+                                .foregroundStyle(Theme.ink)
+                        }
+                        .pickerStyle(.segmented)
+                    }
                 } header: {
                     Text(tr("フィードバック"))
                 } footer: {
@@ -106,12 +147,38 @@ struct SettingsView: View {
                 Section {
                     Toggle(isOn: Binding(
                         get: { settings.slowModeEnabled },
-                        set: { settings.slowModeEnabled = $0 }
+                        set: { newValue in
+                            // 切り替えると中断データが消えるので、残っているときだけ確認する（#3107）。
+                            // キャンセルしてもトグルは settings の値を読むので元のまま残る。
+                            if newValue != settings.slowModeEnabled, settings.slowModeToggleDiscardsSnapshots {
+                                pendingSlowMode = newValue
+                            } else {
+                                settings.slowModeEnabled = newValue
+                            }
+                        }
                     )) {
                         Label(tr("ゆっくりモード"), systemImage: "tortoise")
                             .foregroundStyle(Theme.ink)
                     }
                     .tint(Theme.coral) // accent-text-ok: トグルのトラック（面）
+                    .dialogs { anchor in
+                        anchor.confirmationDialog(
+                            tr("ゆっくりモードを切り替えますか？"),
+                            isPresented: Binding(
+                                get: { pendingSlowMode != nil },
+                                set: { if !$0 { pendingSlowMode = nil } }
+                            ),
+                            titleVisibility: .visible
+                        ) {
+                            Button(tr("切り替える"), role: .destructive) {
+                                if let value = pendingSlowMode { settings.slowModeEnabled = value }
+                                pendingSlowMode = nil
+                            }
+                            Button(tr("キャンセル"), role: .cancel) { pendingSlowMode = nil }
+                        } message: {
+                            Text(tr("ブロック崩しとチャリンコおじさんの進行中のデータが消えます。元に戻せません。"))
+                        }
+                    }
                 } header: {
                     Text(tr("あそびやすさ"))
                 } footer: {
@@ -141,7 +208,7 @@ struct SettingsView: View {
                 } header: {
                     Text(tr("通知"))
                 } footer: {
-                    Text(tr("途中でやめたあそびがあるとき、1日ほどたってから「続きから遊べます」とお知らせします。1つのあそびにつき1件・同時に3件までです。\nまた、よく遊んでいたのに7日以上開いていないあそびがあるとき、最終プレイから7日・30日・60日後に「久しぶりに遊んでみませんか？」とお知らせします。複数のあそびで同時に進むことがあります（新しく始まるのは3日に1回まで）。そのあそびを開くと、そのあそびの分だけ止まります。60日後のお知らせにも触れないままだと、以降すべて届かなくなります。\nまた、柵越えおじさんの挑戦回数が戻ったときにも、1回お知らせします。\nオフにすると、3種類すべての予約済みのお知らせを取り消します。"))
+                    Text(tr("途中でやめたあそびがあるとき、1日ほどたってから「続きから遊べます」とお知らせします。1つのあそびにつき1件・同時に3件までです。\nまた、よく遊んでいるあそびについて、最終プレイから7日・30日・60日後に「久しぶりに遊んでみませんか？」とお知らせします。複数のあそびで同時に進むことがあります（新しく始まるのは3日に1回まで）。そのあそびを開くと、そのあそびの分だけ止まります。60日後のお知らせにも触れないままだと、以降すべて届かなくなります。\nまた、柵越えおじさんの挑戦回数が戻ったときにも、1回お知らせします。\nオフにすると、3種類すべての予約済みのお知らせを取り消します。"))
                 }
 
                 // MARK: 解析
@@ -179,6 +246,9 @@ struct SettingsView: View {
                                     // 久しぶり通知（#1193）はプレイ記録の最終プレイ日時を基準に予約するため、
                                     // 記録を消したのにスレッドや予約だけ残らないよう合わせて取り消す（#1269）。
                                     AppEnvironment.reengagement.cancelAll()
+                                    // 結果を表示する場所が無いので、完了を VoiceOver と触覚で伝える（#2936）。
+                                    feedback.notify(.success)
+                                    AccessibilityNotification.Announcement(tr("プレイ記録を消去しました")).post()
                                 }
                                 Button(tr("キャンセル"), role: .cancel) {}
                             } message: {
@@ -288,9 +358,22 @@ struct SettingsView: View {
                             .foregroundStyle(Theme.onAccent)
                     }
                     .accessibilityHidden(true)
-                Text(module.title)
-                    .themeBody(16)
-                    .foregroundStyle(isVisible ? Theme.ink : Theme.inkSub)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(module.title)
+                        .themeBody(16)
+                        .foregroundStyle(isVisible ? Theme.ink : Theme.inkSubText)
+                    // 開催中は並びに関係なくハブの先頭に出る（#3321）。動かしても期間中は先頭のままと分かるようにする。
+                    if isVisible, NewGames.alwaysFirstIDs.contains(id) {
+                        // ねこさがしは期間に関係なく常に先頭（#3339）。
+                        Text(tr("常に先頭に表示"))
+                            .scaledFont(12)
+                            .foregroundStyle(Theme.inkSubText)
+                    } else if isVisible, HubEventBadge.isShown(gameID: id) {
+                        Text(tr("イベント中は先頭に表示"))
+                            .scaledFont(12)
+                            .foregroundStyle(Theme.inkSubText)
+                    }
+                }
             }
         }
         .tint(Theme.coral) // accent-text-ok: トグルのトラック（面）

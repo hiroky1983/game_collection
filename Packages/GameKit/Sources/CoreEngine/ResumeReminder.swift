@@ -85,8 +85,11 @@ public enum ResumeReminderPolicy {
     }
 
     /// 通知の文言。汎用の「遊びに来てね」は送らず、戻る理由（途中の局）だけを書く。
-    public static func content(gameTitle: String) -> (title: String, body: String) {
-        (tr("「%@」が途中のままです", gameTitle), tr("続きから、そのまま遊べます。"))
+    /// `progress`（ハブのタイルと同じ進み具合・#3075）があれば本文に添える。通知が届くのは予約の約 1 日後で
+    /// 数字が古くなっていてよいよう、「中断時は」と時点を言い切る。
+    public static func content(gameTitle: String, progress: String? = nil) -> (title: String, body: String) {
+        let body = progress.map { tr("中断時は%@。続きから、そのまま遊べます。", $0) } ?? tr("続きから、そのまま遊べます。")
+        return (tr("「%@」が途中のままです", gameTitle), body)
     }
 }
 
@@ -111,6 +114,7 @@ public final class ResumeReminderService {
     @ObservationIgnored private let isEnabled: @MainActor () -> Bool
     @ObservationIgnored private let isSuppressed: Bool
     @ObservationIgnored private let reminderTitle: @MainActor (String) -> String?
+    @ObservationIgnored private let progress: @MainActor (String) -> String?
     @ObservationIgnored private let now: @MainActor () -> Date
     @ObservationIgnored private let calendar: Calendar
 
@@ -130,11 +134,13 @@ public final class ResumeReminderService {
     ///   - isSuppressed: 撮影モード・DEBUG ビルド。true なら予約も許諾の要求もしない。
     ///   - reminderTitle: 通知に出すゲーム名。対象外のゲーム（登録外・設定で非表示・中断データから局を
     ///     復元しない `GameModule.resumesFromSnapshot == false`）は nil を返す。
+    ///   - progress: 中断データの進み具合（「32手目」等・#3075）。出さないゲームは nil。予約の時点で読む。
     public init(
         scheduler: ResumeReminderScheduler,
         isEnabled: @escaping @MainActor () -> Bool,
         isSuppressed: Bool,
         reminderTitle: @escaping @MainActor (String) -> String?,
+        progress: @escaping @MainActor (String) -> String? = { _ in nil },
         now: @escaping @MainActor () -> Date = { Date() },
         calendar: Calendar = .current
     ) {
@@ -142,6 +148,7 @@ public final class ResumeReminderService {
         self.isEnabled = isEnabled
         self.isSuppressed = isSuppressed
         self.reminderTitle = reminderTitle
+        self.progress = progress
         self.now = now
         self.calendar = calendar
     }
@@ -165,11 +172,12 @@ public final class ResumeReminderService {
         let token = epochs[gameID, default: 0]
         let global = globalEpoch
         let leftAt = now()
+        let progressText = progress(gameID)
         let previous = pendingWork
         pendingWork = Task { [weak self] in
             await previous?.value
             await self?.schedule(
-                gameID: gameID, title: title, leftAt: leftAt, token: token, global: global,
+                gameID: gameID, title: title, progress: progressText, leftAt: leftAt, token: token, global: global,
                 requestsAuthorization: requestsAuthorization
             )
         }
@@ -226,7 +234,7 @@ public final class ResumeReminderService {
     }
 
     private func schedule(
-        gameID: String, title: String, leftAt: Date, token: Int, global: Int,
+        gameID: String, title: String, progress: String?, leftAt: Date, token: Int, global: Int,
         requestsAuthorization: Bool
     ) async {
         var status = await scheduler.authorization()
@@ -242,7 +250,7 @@ public final class ResumeReminderService {
         if !evicted.isEmpty {
             scheduler.cancel(gameIDs: evicted)
         }
-        let content = ResumeReminderPolicy.content(gameTitle: title)
+        let content = ResumeReminderPolicy.content(gameTitle: title, progress: progress)
         await scheduler.schedule(
             ResumeReminder(
                 gameID: gameID,

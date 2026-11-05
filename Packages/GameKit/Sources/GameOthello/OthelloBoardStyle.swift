@@ -72,6 +72,22 @@ enum OthelloBoardStyle {
     /// 半分未満に留めているので、ドットが「小さい白石」に見えることはない。
     static let legalMoveDotRadiusRatio: CGFloat = 0.20
 
+    // MARK: - 直前手マーカー（#3093）
+
+    /// 直前手の点の色と不透明度（石の色別）。白石の上は盤の緑ではなく濃い茶で打つ
+    /// （従来の緑 50% は白石の面に対して約 1.8:1 しかなく、石を何枚も返された後に見失った）。
+    static let lastMoveDotOnBlack: UInt32 = 0xFFFFFF
+    static let lastMoveDotOnBlackOpacity: Double = 0.9
+    static let lastMoveDotOnWhite: UInt32 = 0x2A1600
+    static let lastMoveDotOnWhiteOpacity: Double = 0.75
+
+    /// 直前手の点の半径（石の半径に対する比）。
+    static let lastMoveDotRadiusRatio: CGFloat = 0.34
+
+    /// 直前手の輪（`Theme.coral`）の線幅と、石の縁からの隙間（pt）。五目並べ（#202）と同じ。
+    static let lastMoveRingLineWidth: CGFloat = 2.4
+    static let lastMoveRingGap: CGFloat = 2
+
     /// 石の半径（マスの一辺に対する比）。合法手ドットと取り違えないための基準値でもある。
     static let stoneRadiusRatio: CGFloat = 0.43
 

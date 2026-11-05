@@ -53,12 +53,52 @@ public struct GameChromeNewGame {
 
     let kind: Kind
     let isDisabled: Bool
+    let hasProgressToLose: Bool
+    let onAskConfirm: (() -> Void)?
     let action: () -> Void
 
-    public init(_ kind: Kind, isDisabled: Bool = false, action: @escaping () -> Void) {
+    /// - Parameter hasProgressToLose: 押すと捨ててしまう進行があるとき true（#3148）。true の間は、共通の確認
+    ///   （「終了して新しく始めますか？」）を出し、了承されたときだけ `action` を呼ぶ。各画面が確認を手書きして
+    ///   書き漏らす（確認なしで盤を捨てる）のを防ぐ。**自前で確認や「終了して…」の開始シートを持つ画面は渡さない**
+    ///   （確認が二重になる）。
+    /// - Parameter onAskConfirm: 確認を出す直前に呼ぶ。リアルタイムのゲームが確認を読んでいる間に止めるのに使う。
+    public init(_ kind: Kind, isDisabled: Bool = false, hasProgressToLose: Bool = false,
+                onAskConfirm: (() -> Void)? = nil, action: @escaping () -> Void) {
         self.kind = kind
         self.isDisabled = isDisabled
+        self.hasProgressToLose = hasProgressToLose
+        self.onAskConfirm = onAskConfirm
         self.action = action
+    }
+
+    /// ボタンが押されたとき。進行を捨てるなら確認を出し（`askConfirm`）、そうでなければそのまま `action`。
+    func tapped(askConfirm: () -> Void) {
+        if hasProgressToLose {
+            onAskConfirm?()
+            askConfirm()
+        } else {
+            action()
+        }
+    }
+}
+
+/// 「新規」ボタンの共通の確認ダイアログ（#3148）。`GameChromeNewGame.hasProgressToLose` が true のときだけ使われる。
+struct GameChromeNewGameConfirmation: ViewModifier {
+    let newGame: GameChromeNewGame?
+    @Binding var isPresented: Bool
+
+    func body(content: Content) -> some View {
+        content.dialogs { anchor in
+            anchor.confirmationDialog(tr("今の進行を終了して始めますか？"), isPresented: $isPresented,
+                                      titleVisibility: .visible) {
+                if let newGame {
+                    Button(tr("終了して始める"), role: .destructive) { newGame.action() }
+                }
+                Button(tr("キャンセル"), role: .cancel) {}
+            } message: {
+                Text(tr("今の盤面は失われます。"))
+            }
+        }
     }
 }
 
@@ -250,11 +290,12 @@ private struct GameChromeToolbar<Actions: ToolbarContent>: ViewModifier {
     let hidesBackButton: Bool
     let hidesHowToPlay: Bool
     let actions: Actions?
+    @State private var confirmsNewGame = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.howToPlayTrigger) private var howToPlay
 
     func body(content: Content) -> some View {
-        content.toolbar {
+        content.modifier(GameChromeNewGameConfirmation(newGame: newGame, isPresented: $confirmsNewGame)).toolbar {
             gameChromeBarItems(title: title, condition: condition, dismiss: dismiss, showsBack: !hidesBackButton)
             // 並びはここで固定する: 役の早見表 → ？ → 新規 → その他。
             if let reference {
@@ -275,7 +316,7 @@ private struct GameChromeToolbar<Actions: ToolbarContent>: ViewModifier {
             }
             if let newGame {
                 ToolbarItem(placement: .primaryAction) {
-                    Button(action: newGame.action) {
+                    Button { newGame.tapped { confirmsNewGame = true } } label: {
                         Image(systemName: newGame.kind.systemImage)
                     }
                     .accessibilityLabel(newGame.kind.accessibilityLabel)

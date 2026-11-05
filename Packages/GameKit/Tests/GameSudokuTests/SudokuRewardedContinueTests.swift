@@ -1,5 +1,8 @@
 import Testing
 import Foundation
+import Core
+import CoreEngine
+import CoreTestSupport
 import GameKitTestSupport
 @testable import GameSudoku
 
@@ -52,6 +55,55 @@ struct SudokuRewardedContinueTests {
         let secondaryCall = try #require(overlay[secondary.lowerBound...].range(of: ") {"))
         #expect(overlay[secondary.lowerBound..<secondaryCall.lowerBound].contains(disabledWhileWatching),
                 "広告のロード〜視聴中に「諦めて答えを見る」が押せる")
+    }
+
+    // MARK: - ミス上限での負けの記録（#3144）
+
+    private func makeLog(_ name: String) -> PlayLog {
+        let suite = "asobiba.sudoku.tests.\(name)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        return PlayLog(defaults: defaults)
+    }
+
+    private func failedModel(log: PlayLog) async -> SudokuModel {
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), playLog: log)
+        let model = SudokuModel(services: services, seed: 2026)
+        await model.newGame(difficulty: .easy)
+        for _ in 0..<SudokuModel.maxMistakes { enterWrongDigit(model) }
+        return model
+    }
+
+    @Test("ミス上限に達した局を新規で捨てても負けが 1 つ付く")
+    func abandoningFailedGameRecordsLoss() async {
+        let log = makeLog("abandon")
+        let model = await failedModel(log: log)
+        #expect(model.state == .failed)
+        await model.newGame(difficulty: .easy)
+        let record = log.record(gameID: "sudoku", variant: SudokuDifficulty.easy.rawValue)
+        #expect(record?.losses == 1)
+        #expect(record?.plays == 1)
+    }
+
+    @Test("コンティニューすると、ミス上限で付けた負けは取り消される")
+    func continueCancelsLoss() async {
+        let log = makeLog("continue")
+        let model = await failedModel(log: log)
+        #expect(model.continueAfterAd())
+        let record = log.record(gameID: "sudoku", variant: SudokuDifficulty.easy.rawValue)
+        #expect((record?.losses ?? 0) == 0)
+        #expect((record?.plays ?? 0) == 0)
+        #expect(model.recordResult == nil)
+    }
+
+    @Test("ミス上限から諦めても負けは 1 つだけ")
+    func giveUpFromFailedDoesNotDoubleCount() async {
+        let log = makeLog("giveup")
+        let model = await failedModel(log: log)
+        model.giveUp()
+        let record = log.record(gameID: "sudoku", variant: SudokuDifficulty.easy.rawValue)
+        #expect(record?.losses == 1)
+        #expect(model.recordResult != nil, "リザルトに出す記録は残る")
     }
 
     /// 空きマスを1つ選び、正解ではない数字を入れる。

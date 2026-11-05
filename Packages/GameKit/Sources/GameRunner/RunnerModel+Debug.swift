@@ -430,6 +430,63 @@ extension RunnerModel {
                 })
                 isFrozenForCapture = true
             }
+        case let name where name.hasPrefix("chasm:"):
+            // 本番ステージの裂け目（#2729）を、その面の世界の背景の上で撮る（例 `-simulateRunner chasm:43`）。
+            // 塀の `wall:` と同じく、**踏み切りの余裕より手前**（接地したまま、裂け目の左端まで 16 以内）で止める
+            // ——裂け目の幅 52 と走者が 1 画面に収まり、「1 段では届かない」幅が読める画になる。
+            if let number = Int(name.dropFirst("chasm:".count)),
+               let stage = RunnerStage.stage(number: number),
+               stage.hazards.contains(where: { $0.kind == .chasm }) {
+                stageNumber = number
+                startStage(from: 0, passedCheckpoint: false)
+                press(); release()
+                autoPlayForDebug(until: { model in
+                    let field = model.field
+                    guard let chasm = field.stage.hazards.first(where: { $0.kind == .chasm }) else { return true }
+                    let lead = RunnerAutoPilot.lead(for: chasm, speed: field.stage.speed)
+                    return field.isGrounded && chasm.start - field.distance <= lead + 16
+                })
+                isFrozenForCapture = true
+            }
+        case let name where name.hasPrefix("rockfall:") || name.hasPrefix("rockfall-cue:"):
+            // 本番ステージの落石（#2729・富士山）を、その面の世界の背景の上で撮る（例 `-simulateRunner rockfall:55`）。
+            // `rockfall:N` は**斜面を下りている最中**（間合い 36・帯の下端 15）で止め、「上から転がってくる」岩と走者が
+            // 1 画面に収まる画にする。`rockfall-cue:N` は**予告の直後**（岩はまだ画面の外）で止め、右上の小石を撮る。
+            let cue = name.hasPrefix("rockfall-cue:")
+            let prefix = cue ? "rockfall-cue:" : "rockfall:"
+            if let number = Int(name.dropFirst(prefix.count)),
+               let stage = RunnerStage.stage(number: number),
+               stage.hazards.contains(where: { $0.kind == .rockfall }) {
+                stageNumber = number
+                startStage(from: 0, passedCheckpoint: false)
+                press(); release()
+                autoPlayForDebug(until: { model in
+                    let field = model.field
+                    guard let rock = field.stage.hazards.first(where: { $0.kind == .rockfall }) else { return true }
+                    let gap = rock.rockfallGap(atRunnerDistance: field.distance)
+                    return cue ? gap <= RunnerRules.rockfallCueDistance - 8 : gap <= 36
+                })
+                isFrozenForCapture = true
+            }
+        case let name where name.hasPrefix("footbridge:"):
+            // 本番ステージの高い台座（#2729・東京の歩道橋）を、その面の世界の背景の上で撮る（例 `-simulateRunner footbridge:49`）。
+            // 塀の `wall:` と同じく、**踏み切りの余裕より手前**（接地したまま、歩道橋の左端まで 16 以内）で止める
+            // ——高さ 16 の歩道橋と走者が 1 画面に収まり、「1 段では乗れない」高さが読める画になる。
+            if let number = Int(name.dropFirst("footbridge:".count)),
+               let stage = RunnerStage.stage(number: number),
+               stage.platforms.contains(where: \.isHigh) {
+                stageNumber = number
+                startStage(from: 0, passedCheckpoint: false)
+                press(); release()
+                autoPlayForDebug(until: { model in
+                    let field = model.field
+                    guard let bridge = field.stage.platforms.first(where: \.isHigh) else { return true }
+                    let rise = RunnerRules.doubleJumpRiseTime(to: bridge.top + RunnerAutoPilot.clearance)
+                    let lead = RunnerAutoPilot.baseLead + field.stage.speed * rise
+                    return field.isGrounded && bridge.start - field.distance <= lead + 16
+                })
+                isFrozenForCapture = true
+            }
         case let name where name.hasPrefix("stage:"):
             // QA用: 本番ステージを番号で指定して最初から遊ぶ（例 `-simulateRunner stage:16`）。
             // 後半の面を確かめるのに 1 面目から遊び直す手間を省く（会長QA 2026-09-12）。

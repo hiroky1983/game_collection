@@ -6,6 +6,8 @@ public struct GomokuView: View {
     @State private var model: GomokuModel
     private let services: GameServices
     @State private var showNewGame: Bool
+    /// 「？」（遊び方）を開いているあいだ CPU の手番を止める（#3218）。
+    @State private var isHowToPlayOpen = false
     @State private var showConfirmNewGame = false
     /// 「待った」のリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var undoRescue = RewardedRescue()
@@ -52,7 +54,7 @@ public struct GomokuView: View {
                     condition: GameChromeCondition(conditionParts),
                     newGame: GameChromeNewGame(.match) { requestNewGame() })
         .howToPlay(GomokuHowToFigures.guide(forbiddenMoves: model.forbiddenMovesEnabled)
-            .onboarding(GomokuOnboarding.guide(forbiddenMoves: model.forbiddenMovesEnabled)))
+            .onboarding(GomokuOnboarding.guide(forbiddenMoves: model.forbiddenMovesEnabled)), onPresent: { isHowToPlayOpen = true }, onDismiss: { isHowToPlayOpen = false })
         .sheet(isPresented: $showNewGame, onDismiss: { model.startPlayIfPending() }) {
             GomokuNewGameSheet(humanSide: model.humanSide, aiLevel: model.aiLevel,
                                forbiddenMoves: model.forbiddenMovesEnabled) { side, level, renju in
@@ -68,7 +70,9 @@ public struct GomokuView: View {
                 Text(tr("途中で終了すると対局データが失われます。"))
             }
         }
-        .task(id: model.aiTurnKey) {
+        .task(id: PausableTurn(key: model.aiTurnKey, paused: isHowToPlayOpen || showNewGame)) {
+            guard !isHowToPlayOpen, !showNewGame else { return }
+            guard await PausableTurn.waitWhileThinking({ model.isThinking }) else { return }
             await model.performAIMoveIfNeeded()
         }
         // CPU の着手を読み上げる（#2280）。
@@ -273,7 +277,7 @@ public struct GomokuView: View {
                         .foregroundStyle(Theme.coralText)
                         .padding(.horizontal, 12)
                         .frame(minHeight: 44)
-                        .background(Capsule().fill(Color.white))
+                        .background(Capsule().fill(Theme.surface))
                 }
             }
             .padding(.leading, 14).padding(.trailing, 4)
@@ -430,10 +434,10 @@ public struct GomokuView: View {
                 .frame(width: 18, height: 18)
             Text(isYou ? tr("あなた") : "CPU")
                 .themeCaption(13, weight: .bold, maxScale: 1.5)
-                .foregroundStyle(isYou ? Theme.tealText : Theme.inkSub)
+                .foregroundStyle(isYou ? Theme.tealText : Theme.inkSubText)
             Text(stone == .black ? tr("黒・先手") : tr("白・後手"))
                 .themeCaption(13, weight: .regular, maxScale: 1.5)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
         }
         .lineLimit(1)
         .minimumScaleFactor(0.8)
@@ -467,13 +471,13 @@ public struct GomokuView: View {
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else if model.isDraw {
                 Label(BoardGameResultCard.Verdict.draw.title, systemImage: BoardGameResultCard.Verdict.draw.bandSymbol)
-                    .themeBody(16).foregroundStyle(Theme.inkSub)
+                    .themeBody(16).foregroundStyle(Theme.inkSubText)
                     .lineLimit(1).minimumScaleFactor(0.7)
             } else {
                 TurnBadge(isYourTurn: model.currentStone == model.humanSide)
                 if model.isThinking {
                     ProgressView().controlSize(.small)
-                    Text(tr("CPU思考中…")).themeBody(13).foregroundStyle(Theme.inkSub)
+                    Text(tr("CPU思考中…")).themeBody(13).foregroundStyle(Theme.inkSubText)
                 }
             }
         } trailing: {
@@ -484,7 +488,7 @@ public struct GomokuView: View {
                 RecordLabel(model.recordResult)
                     .lineLimit(1).minimumScaleFactor(0.7)
             }
-            Text(tr("%lld手", model.moveCount)).themeBody(13).foregroundStyle(Theme.inkSub)
+            Text(tr("%lld手", model.moveCount)).themeBody(13).foregroundStyle(Theme.inkSubText)
         }
     }
 

@@ -44,10 +44,11 @@ private func makeLog(suite: String) -> (PlayLog, UserDefaults, String) {
 private func makeServices(
     suite: String,
     now: @escaping () -> Date = { Date(timeIntervalSince1970: 1_800_000_000) },
-    delay: Duration = .zero
+    delay: Duration = .zero,
+    newGameIDs: Set<String> = NewGames.currentVersionIDs
 ) -> (GameServices, ReviewRequestService) {
     let (log, _, _) = makeLog(suite: suite)
-    let service = ReviewRequestService(log: log, appVersion: appVersion, now: now, delay: delay)
+    let service = ReviewRequestService(log: log, appVersion: appVersion, now: now, delay: delay, newGameIDs: newGameIDs)
     let services = GameServices(
         snapshots: MemorySnapshotStore(),
         ads: NoopAdService(),
@@ -81,20 +82,20 @@ struct ReviewRequestPolicyTests {
             state: ReviewRequestState(totalWins: 5), currentVersion: appVersion, now: now) == true)
     }
 
-    @Test("条件3: 前回から60日経つまで出ない（#1471 で120日から短縮）")
+    @Test("条件3: 前回から15日経つまで出ない（#1471 で120日→60日、#3061 で15日）")
     func minimumElapsed() {
         func state(_ elapsed: TimeInterval) -> ReviewRequestState {
             .init(totalWins: 100, lastRequestedAt: now.addingTimeInterval(-elapsed),
                   lastRequestedWins: 5, lastRequestedVersion: "1.1.0")
         }
         #expect(ReviewRequestPolicy.shouldRequest(
-            state: state(59 * 24 * 3600), currentVersion: appVersion, now: now) == false)
+            state: state(14 * 24 * 3600), currentVersion: appVersion, now: now) == false)
         #expect(ReviewRequestPolicy.shouldRequest(
-            state: state(60 * 24 * 3600), currentVersion: appVersion, now: now) == true)
-        #expect(ReviewRequestPolicy.minimumElapsed == 60 * 24 * 3600)
+            state: state(15 * 24 * 3600), currentVersion: appVersion, now: now) == true)
+        #expect(ReviewRequestPolicy.minimumElapsed == 15 * 24 * 3600)
     }
 
-    @Test("条件4: 前回から+20勝するまで出ない")
+    @Test("条件4: 前回から+5勝するまで出ない（#3061 で20勝から短縮）")
     func minimumWinsSinceLast() {
         let longAgo = now.addingTimeInterval(-ReviewRequestPolicy.minimumElapsed * 3)
         func state(_ total: Int) -> ReviewRequestState {
@@ -102,9 +103,9 @@ struct ReviewRequestPolicyTests {
                   lastRequestedWins: 5, lastRequestedVersion: "1.1.0")
         }
         #expect(ReviewRequestPolicy.shouldRequest(
-            state: state(24), currentVersion: appVersion, now: now) == false, "+19勝では出ない")
+            state: state(9), currentVersion: appVersion, now: now) == false, "+4勝では出ない")
         #expect(ReviewRequestPolicy.shouldRequest(
-            state: state(25), currentVersion: appVersion, now: now) == true, "+20勝で出る")
+            state: state(10), currentVersion: appVersion, now: now) == true, "+5勝で出る")
     }
 
     @Test("条件5: 同一バージョンでは期間・勝利数を満たしても2回目が出ない")
@@ -178,7 +179,7 @@ struct ReviewRequestServiceTests {
         #expect(service.log.totalWins == 205, "勝利数の記録自体は続く")
     }
 
-    @Test("2回目は60日以上かつ+20勝を満たしたときだけ呼ばれる")
+    @Test("2回目は15日以上かつ+5勝を満たしたときだけ呼ばれる")
     func secondRequestNeedsBothGates() async {
         var clock = Date(timeIntervalSince1970: 1_800_000_000)
         let (log, _, _) = makeLog(suite: "service-second")
@@ -192,22 +193,22 @@ struct ReviewRequestServiceTests {
         await service.performPendingRequest { requested += 1 }
         #expect(requested == 1)
 
-        // 60日経過するが +20勝には届かない（+19勝）。
+        // 15日経過するが +5勝には届かない（+4勝）。
         clock = clock.addingTimeInterval(ReviewRequestPolicy.minimumElapsed)
         version = "1.1.2"
         let afterVersionUp = ReviewRequestService(
             log: log, appVersion: version, now: { clock }, delay: .zero
         )
-        advanceWins(afterVersionUp, count: 19)
+        advanceWins(afterVersionUp, count: 4)
         await afterVersionUp.performPendingRequest { requested += 1 }
-        #expect(requested == 1, "+19勝では出ない")
+        #expect(requested == 1, "+4勝では出ない")
 
-        afterVersionUp.gameDidFinish(outcome: .win) // +20勝目
+        afterVersionUp.gameDidFinish(outcome: .win) // +5勝目
         await afterVersionUp.performPendingRequest { requested += 1 }
-        #expect(requested == 2, "60日 + 20勝の両方を満たして2回目")
+        #expect(requested == 2, "15日 + 5勝の両方を満たして2回目")
     }
 
-    @Test("バージョンが上がっても60日経っていなければ出ない")
+    @Test("バージョンが上がっても15日経っていなければ出ない")
     func versionUpAloneIsNotEnough() async {
         var clock = Date(timeIntervalSince1970: 1_800_000_000)
         let (log, _, _) = makeLog(suite: "service-version-up")
@@ -217,7 +218,7 @@ struct ReviewRequestServiceTests {
         await first.performPendingRequest { requested += 1 }
         #expect(requested == 1)
 
-        clock = clock.addingTimeInterval(30 * 24 * 3600) // 30日後（60日未満）に新バージョン
+        clock = clock.addingTimeInterval(7 * 24 * 3600) // 7日後（15日未満）に新バージョン
         let second = ReviewRequestService(log: log, appVersion: "1.2.0", now: { clock }, delay: .zero)
         advanceWins(second, count: 100)
         await second.performPendingRequest { requested += 1 }
@@ -278,15 +279,98 @@ struct ReviewHighlightTests {
         #expect(service.pendingRequestID != nil, "自己ベスト更新は全ゲーム共通で見せ場")
     }
 
-    @Test("連勝記録の更新だけでは見せ場にならない")
-    func streakAloneIsNotAHighlight() {
-        let (services, service) = makeRecordingServices(suite: "highlight-streak")
-        for _ in 0..<8 {
-            services.gameDidFinish(gameID: "g", outcome: .win, score: GameScore(metric: .winLoss),
-                                   isReviewHighlight: false)
+    @Test("3 連勝は CPU の強さを問わず見せ場。4 連勝目は見せ場でない（#3097）")
+    func threeWinStreakIsAHighlightOnlyOnce() {
+        // 3 連勝に達する回で通算 5 勝になるよう、勝利数を 2 勝ぶん先に積んでおく。
+        let (services, service) = makeRecordingServices(suite: "highlight-streak3")
+        service.log.recordWin(); service.log.recordWin()
+        for _ in 0..<2 {
+            services.gameDidFinish(gameID: "g", outcome: .win, score: GameScore(metric: .winLoss), isReviewHighlight: false)
         }
-        #expect(service.log.totalWins == 8)
+        #expect(service.log.totalWins == 4)
+        #expect(service.pendingRequestID == nil, "2 連勝までは見せ場でない")
+        services.gameDidFinish(gameID: "g", outcome: .win, score: GameScore(metric: .winLoss), isReviewHighlight: false)
+        #expect(service.log.totalWins == 5)
+        #expect(service.pendingRequestID != nil, "ちょうど 3 連勝に達した回は見せ場")
+
+        // 4 連勝目以降は見せ場にしない（3 連勝に達した時点では通算 5 勝に届かない流れで、5 連勝まで確かめる）。
+        let (services2, service2) = makeRecordingServices(suite: "highlight-streak4")
+        for _ in 0..<5 {
+            services2.gameDidFinish(gameID: "g", outcome: .win, score: GameScore(metric: .winLoss), isReviewHighlight: false)
+        }
+        #expect(service2.log.totalWins == 5)
+        #expect(service2.pendingRequestID == nil, "4・5 連勝目は見せ場でない")
+    }
+
+    @Test("連勝が途切れたら数え直し、3 連勝は 3 に戻ったときだけ")
+    func brokenStreakRestarts() {
+        let (services, service) = makeRecordingServices(suite: "highlight-streak-broken")
+        for _ in 0..<5 { service.log.recordWin() }
+        for outcome in [GameOutcome.win, .win, .loss, .win, .win] {
+            services.gameDidFinish(gameID: "g", outcome: outcome, score: GameScore(metric: .winLoss), isReviewHighlight: false)
+        }
+        #expect(service.pendingRequestID == nil, "2 連勝・負け・2 連勝では 3 連勝にならない")
+    }
+
+    // MARK: 実績の新規達成（#3097）
+
+    private func makeAchievementServices(
+        suite: String, signedIn: Bool = true, priorWins: Int
+    ) -> (GameServices, ReviewRequestService) {
+        let (log, _, _) = makeLog(suite: suite)
+        for _ in 0..<priorWins { log.recordWin() }
+        let service = ReviewRequestService(log: log, appVersion: appVersion, delay: .zero)
+        // 2 本登録にして、1 本遊んだだけでは「全ゲーム制覇」（playAll）に届かないようにする。
+        let reporter = GameCenterReporter(service: NoopGameCenterService(), allowedGameIDs: ["g", "h"], isAvailable: { signedIn })
+        let services = GameServices(
+            snapshots: MemorySnapshotStore(), ads: NoopAdService(), review: service, playLog: log, gameCenter: reporter
+        )
+        return (services, service)
+    }
+
+    private struct NoopGameCenterService: GameCenterService {
+        func submit(_ score: GameCenterScore) {}
+        func report(_ achievements: [GameCenterAchievement], completion: @escaping @MainActor (Bool) -> Void) { completion(true) }
+    }
+
+    @Test("実績を新たに解除した決着は見せ場（通算 10 勝目）")
+    func newAchievementIsAHighlight() {
+        let (services, service) = makeAchievementServices(suite: "highlight-ach", priorWins: 9)
+        // 9 勝済みの状態で 10 勝目（wins10 を初めて満たす）。連勝は 1 で、3 連勝でも自己ベストでもない。
+        services.gameDidFinish(gameID: "g", outcome: .win, score: GameScore(metric: .winLoss), isReviewHighlight: false)
+        #expect(service.pendingRequestID != nil)
+    }
+
+    @Test("達成済みの実績の再送は見せ場でない")
+    func alreadyUnlockedAchievementIsNotAHighlight() {
+        let (services, service) = makeAchievementServices(suite: "highlight-ach-already", priorWins: 10)
+        services.gameDidFinish(gameID: "g", outcome: .win, score: GameScore(metric: .winLoss), isReviewHighlight: false)
+        #expect(service.log.totalWins == 11)
         #expect(service.pendingRequestID == nil)
+    }
+
+    @Test("Game Center に未サインインなら、実績の達成は見せ場にしない")
+    func achievementNeedsSignIn() {
+        let (services, service) = makeAchievementServices(suite: "highlight-ach-signedout", signedIn: false, priorWins: 9)
+        services.gameDidFinish(gameID: "g", outcome: .win, score: GameScore(metric: .winLoss), isReviewHighlight: false)
+        #expect(service.pendingRequestID == nil)
+    }
+
+    @Test("実績の新規達成の判定: 勝利でない決着は勝利数の実績を解除しない・既達成は数えない")
+    func unlocksAnyIsPure() {
+        func unlocks(_ before: Int, _ after: Int, played: (Int, Int) = (0, 0), registered: Int = 12) -> Bool {
+            GameCenterAchievements.unlocksAny(
+                totalWinsBefore: before, totalWinsAfter: after,
+                playedGameCountBefore: played.0, playedGameCountAfter: played.1, registeredGameCount: registered)
+        }
+        #expect(unlocks(0, 1), "初勝利")
+        #expect(unlocks(9, 10))
+        #expect(unlocks(49, 50))
+        #expect(unlocks(10, 11) == false)
+        #expect(unlocks(9, 9) == false, "負けは勝利数が増えない")
+        #expect(unlocks(5, 5, played: (11, 12)), "最後の 1 本を初めて遊ぶと playAll")
+        #expect(unlocks(5, 5, played: (12, 12)) == false)
+        #expect(unlocks(5, 5, played: (4, 5)) == false)
     }
 
     @Test("既定（勝てば見せ場）のゲームは従来どおり5勝目で予定される")
@@ -961,4 +1045,390 @@ private func playHanafudaMatch(_ services: GameServices, seed: UInt64 = 4649, ro
         }
     }
     return model
+}
+
+
+// MARK: - 答えた人・新しいゲームの感想カード（#3061）
+
+/// 感想カードのテストで「新着」として扱うゲーム。本番の `NewGames.currentVersionIDs` は新着の無い版では空なので、
+/// 値に依存させず固定して渡す（#3112）。
+private let testNewGame = "catpuzzle"
+private let testNewGameIDs: Set<String> = [testNewGame]
+
+@Suite("評価のお願いの強化（#3061）")
+@MainActor
+struct ReviewPromptEnhancementTests {
+
+    private let now = Date(timeIntervalSince1970: 1_800_000_000)
+    private let newGame = testNewGame
+
+    @Test("答えた人には条件を全部満たしても出ない")
+    func answeredNeverRequested() {
+        let state = ReviewRequestState(totalWins: 1_000, hasAnswered: true)
+        #expect(ReviewRequestPolicy.shouldRequest(state: state, currentVersion: appVersion, now: now) == false)
+        #expect(ReviewRequestPolicy.shouldRequest(
+            state: ReviewRequestState(totalWins: 1_000), currentVersion: appVersion, now: now) == true)
+    }
+
+    @Test("感想カードの判定: 新着のゲームだけ・答えていない人だけ・一度だけ")
+    func cardPolicyBranches() {
+        func ask(_ id: String, _ state: ReviewRequestState = .init()) -> Bool {
+            ReviewRequestPolicy.shouldAskAboutNewGame(state: state, gameID: id, newGameIDs: testNewGameIDs)
+        }
+        #expect(ask(newGame) == true, "勝利数 0 でも条件1〜6 を飛び越える")
+        #expect(ask("shogi") == false, "新着でないゲームでは出ない")
+        #expect(ask(newGame, .init(hasAnswered: true)) == false, "答えた人には出ない")
+        #expect(ask(newGame, .init(hasAskedAboutNewGame: true)) == false, "出し済みなら出ない")
+        #expect(ask("") == false)
+    }
+
+    @Test("新着ゲームの決着（負けでも）でカードの予定が立ち、通常の評価リクエストは立たない")
+    func finishSchedulesCardInsteadOfRequest() {
+        let (_, service) = makeServices(suite: "card-schedule", newGameIDs: testNewGameIDs)
+        advanceWins(service, count: 10) // 通常の条件は満たす
+        #expect(service.pendingRequestID != nil)
+
+        let (_, loss) = makeServices(suite: "card-schedule-loss", newGameIDs: testNewGameIDs)
+        #expect(loss.gameDidFinish(outcome: .loss, gameID: newGame) == true)
+        #expect(loss.pendingNewGameCardID != nil)
+        #expect(loss.pendingRequestID == nil)
+
+        let (_, plain) = makeServices(suite: "card-schedule-plain")
+        #expect(plain.gameDidFinish(outcome: .loss, gameID: "shogi") == false, "新着でない負けは何も立てない")
+        #expect(plain.pendingNewGameCardID == nil)
+    }
+
+    @Test("新着ゲームで 5 勝済みでも、その回はカードが優先され OS ダイアログは立たない")
+    func cardWinsOverRequestOnSameFinish() async {
+        let (_, service) = makeServices(suite: "card-priority", newGameIDs: testNewGameIDs)
+        advanceWins(service, count: 4)
+        service.gameDidFinish(outcome: .win, gameID: newGame) // 5 勝目・新着
+        #expect(service.pendingNewGameCardID != nil)
+        #expect(service.pendingRequestID == nil)
+        var requested = 0
+        await service.performPendingRequest { requested += 1 }
+        #expect(requested == 0)
+    }
+
+    @Test("カードは一人一度きり: 出した後はどの新着ゲームでも予定が立たない")
+    func cardOnlyOnce() async {
+        let (_, service) = makeServices(suite: "card-once", newGameIDs: testNewGameIDs)
+        service.gameDidFinish(outcome: .win, gameID: newGame)
+        await service.presentPendingNewGameCard()
+        #expect(service.isNewGameCardPresented)
+        #expect(service.log.reviewState.hasAskedAboutNewGame)
+
+        service.newGameCardDismissed()
+        #expect(!service.isNewGameCardPresented)
+        for id in testNewGameIDs {
+            service.gameDidFinish(outcome: .win, gameID: id)
+            #expect(service.pendingNewGameCardID == nil, "\(id) でも二度と出ない")
+        }
+        #expect(service.log.reviewState.hasAnswered == false, "「あとで」は答えた人に数えない")
+    }
+
+    @Test("出す前に画面を離れた（キャンセルされた）カードは、出し済みに数えない")
+    func cancelledCardIsNotCounted() async {
+        let (log, _, _) = makeLog(suite: "card-cancel")
+        let service = ReviewRequestService(log: log, appVersion: appVersion, delay: .seconds(60), newGameIDs: testNewGameIDs)
+        service.gameDidFinish(outcome: .win, gameID: newGame)
+        let task = Task { await service.presentPendingNewGameCard() }
+        task.cancel()
+        await task.value
+        #expect(!service.isNewGameCardPresented)
+        #expect(service.log.reviewState.hasAskedAboutNewGame == false)
+        #expect(service.pendingNewGameCardID == nil)
+    }
+
+    @Test("「App Store で感想を書く」で答えた人になり、以後 A・B とも出ない。再起動しても残る")
+    func writeReviewMarksAnswered() async {
+        let name = "asobiba.review.tests.card-answer"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        let log = PlayLog(defaults: defaults)
+        let service = ReviewRequestService(
+            log: log, appVersion: appVersion, now: { Date(timeIntervalSince1970: 1_800_000_000) }, delay: .zero,
+            newGameIDs: testNewGameIDs)
+
+        service.gameDidFinish(outcome: .win, gameID: newGame)
+        await service.presentPendingNewGameCard()
+        service.newGameCardWriteReviewTapped()
+        #expect(!service.isNewGameCardPresented)
+        #expect(log.reviewState.hasAnswered)
+
+        // 通常の条件を満たし続けても、新着の別ゲームを遊んでも出ない。
+        advanceWins(service, count: 100)
+        service.gameDidFinish(outcome: .win, gameID: newGame)
+        #expect(service.pendingRequestID == nil)
+        #expect(service.pendingNewGameCardID == nil)
+
+        let reopened = PlayLog(defaults: defaults)
+        #expect(reopened.reviewState.hasAnswered, "端末内に残る")
+        #expect(reopened.reviewState.hasAskedAboutNewGame)
+
+        reopened.clear()
+        for key in PlayLog.allKeys { #expect(defaults.object(forKey: key) == nil, "\(key) が残っている") }
+        #expect(reopened.reviewState == ReviewRequestState(), "プレイ記録の消去で答えた印も消える")
+        defaults.removePersistentDomain(forName: name)
+    }
+
+    @Test("演出中は予定を伏せ、リザルトに移ってから出る")
+    func cardIsDeferredDuringStory() {
+        let (_, service) = makeServices(suite: "card-defer", newGameIDs: testNewGameIDs)
+        service.gameDidFinish(outcome: .win, gameID: newGame)
+        service.deferUntilResultIsVisible()
+        #expect(service.pendingNewGameCardID == nil)
+        service.resultDidBecomeVisible()
+        #expect(service.pendingNewGameCardID != nil)
+    }
+
+    @Test("解析: カードを出した・どれを押した・OS ダイアログを依頼した")
+    func analyticsSteps() async {
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(service: spy, allowedGameIDs: [newGame])
+        let (log, _, _) = makeLog(suite: "card-analytics")
+        let service = ReviewRequestService(log: log, appVersion: appVersion, delay: .zero, analytics: analytics, newGameIDs: testNewGameIDs)
+
+        service.gameDidFinish(outcome: .win, gameID: newGame)
+        await service.presentPendingNewGameCard()
+        service.newGameCardWriteReviewTapped()
+        #expect(spy.events == [
+            .reviewPrompt(kind: .newGameCard, step: .shown),
+            .reviewPrompt(kind: .newGameCard, step: .writeReview),
+        ])
+
+        let (log2, _, _) = makeLog(suite: "card-analytics-2")
+        let spy2 = SpyAnalyticsService()
+        let later = ReviewRequestService(
+            log: log2, appVersion: appVersion, delay: .zero,
+            analytics: GameAnalytics(service: spy2, allowedGameIDs: [newGame]), newGameIDs: testNewGameIDs)
+        later.gameDidFinish(outcome: .win, gameID: newGame)
+        await later.presentPendingNewGameCard()
+        later.newGameCardDismissed()
+        #expect(spy2.events.map(\.parameters["step"]) == [.string("shown"), .string("later")])
+
+        let (log3, _, _) = makeLog(suite: "card-analytics-3")
+        let spy3 = SpyAnalyticsService()
+        let regular = ReviewRequestService(
+            log: log3, appVersion: appVersion, delay: .zero,
+            analytics: GameAnalytics(service: spy3, allowedGameIDs: ["shogi"]))
+        advanceWins(regular, count: 5)
+        await regular.performPendingRequest {}
+        #expect(spy3.events == [.reviewPrompt(kind: .regular, step: .osRequested)])
+    }
+}
+
+// MARK: - 遊んだ日数の節目（#3078）
+
+/// 進められる時計。日をまたぐ検証で使う。
+@MainActor
+private final class DaysClock {
+    /// 正午（UTC）。どのタイムゾーンでも日付の境目から遠い。
+    var date = Date(timeIntervalSince1970: 1_800_000_000 + 4 * 3600)
+    func advance(days: Int) { date = date.addingTimeInterval(TimeInterval(days) * 86_400) }
+}
+
+@MainActor
+private func makeDaysService(
+    suite: String,
+    clock: DaysClock,
+    analytics: GameAnalytics? = nil
+) -> (PlayLog, ReviewRequestService) {
+    let (log, _, _) = makeLog(suite: suite)
+    let service = ReviewRequestService(
+        log: log, appVersion: appVersion, now: { clock.date }, delay: .zero, analytics: analytics, newGameIDs: testNewGameIDs)
+    return (log, service)
+}
+
+/// n 日目まで 1 日ずつ進めながらアプリを開く（起動のたびに `appDidOpen`）。
+@MainActor
+private func openApp(_ service: ReviewRequestService, clock: DaysClock, days: Int) {
+    for day in 0..<days {
+        if day > 0 { clock.advance(days: 1) }
+        service.appDidOpen()
+    }
+}
+
+@Suite("遊んだ日数の節目の評価のお願い（#3078）")
+@MainActor
+struct DaysMilestoneReviewTests {
+
+    @Test("同じ日に何度開いても 1 日と数える")
+    func sameDayCountsOnce() {
+        let clock = DaysClock()
+        let (log, service) = makeDaysService(suite: "days-same-day", clock: clock)
+        for _ in 0..<5 { service.appDidOpen() }
+        service.hubDidBecomeVisible()
+        #expect(log.reviewState.openDays == 1)
+        clock.advance(days: 1)
+        service.appDidOpen()
+        #expect(log.reviewState.openDays == 2)
+    }
+
+    @Test("端末の時計を戻しても日数は増えない")
+    func clockRewindDoesNotInflate() {
+        let clock = DaysClock()
+        let (log, service) = makeDaysService(suite: "days-rewind", clock: clock)
+        service.appDidOpen()
+        clock.advance(days: 3)
+        service.appDidOpen()
+        clock.advance(days: -2)
+        service.appDidOpen()
+        #expect(log.reviewState.openDays == 2)
+    }
+
+    @Test("7 日目に達した日にハブへ戻ると予定が立ち、実行で OS に依頼して節目を記録する")
+    func sevenDaysSchedulesAtHub() async {
+        let clock = DaysClock()
+        let (log, service) = makeDaysService(suite: "days-7", clock: clock)
+        openApp(service, clock: clock, days: 6)
+        #expect(service.hubDidBecomeVisible() == false, "6 日目までは出さない")
+        clock.advance(days: 1)
+        service.appDidOpen()
+        #expect(service.pendingRequestID == nil, "起動直後（appDidOpen）には予定を立てない")
+        #expect(service.hubDidBecomeVisible() == true)
+        var requested = 0
+        await service.performPendingRequest { requested += 1 }
+        #expect(requested == 1)
+        #expect(log.reviewState.daysMilestoneAsked == 7)
+        #expect(service.hubDidBecomeVisible() == false, "7 日では 1 回まで")
+    }
+
+    @Test("勝敗を問わず、リザルト（敗北）でも節目なら予定が立つ")
+    func resultScreenAlsoSchedules() async {
+        let clock = DaysClock()
+        let (_, service) = makeDaysService(suite: "days-result", clock: clock)
+        openApp(service, clock: clock, days: 7)
+        #expect(service.gameDidFinish(outcome: .loss, gameID: "shogi") == true)
+        var requested = 0
+        await service.performPendingRequest { requested += 1 }
+        #expect(requested == 1)
+    }
+
+    @Test("30 日目にもう一度出る。15 日以内なら出さず、明けた最初の区切りで出す")
+    func thirtyDaysAfterInterval() async {
+        let clock = DaysClock()
+        let (log, service) = makeDaysService(suite: "days-30", clock: clock)
+        openApp(service, clock: clock, days: 7)
+        service.hubDidBecomeVisible()
+        await service.performPendingRequest {}
+        #expect(log.reviewState.daysMilestoneAsked == 7)
+        // 7 日目から 23 日後に 30 日目（前回から 15 日以上空いている）。
+        for _ in 0..<23 { clock.advance(days: 1); service.appDidOpen() }
+        #expect(log.reviewState.openDays == 30)
+        #expect(service.hubDidBecomeVisible() == true)
+        var requested = 0
+        await service.performPendingRequest { requested += 1 }
+        #expect(requested == 1)
+        #expect(log.reviewState.daysMilestoneAsked == 30)
+        #expect(service.hubDidBecomeVisible() == false)
+    }
+
+    @Test("A: 前回のお願いから 15 日以内なら出さず、間隔が明けた最初の区切りで出す")
+    func intervalHoldsThenReleases() async {
+        let clock = DaysClock()
+        let (log, service) = makeDaysService(suite: "days-interval", clock: clock)
+        log.markReviewRequested(at: clock.date, version: "0.9")
+        // 前回のお願いの 15 日後より前に 7 日に達する。
+        openApp(service, clock: clock, days: 7)
+        #expect(service.hubDidBecomeVisible() == false, "前回から 6 日")
+        for _ in 0..<8 { clock.advance(days: 1); service.appDidOpen() }
+        #expect(service.hubDidBecomeVisible() == false, "前回から 14 日")
+        clock.advance(days: 1)
+        #expect(service.hubDidBecomeVisible() == true, "前回から 15 日")
+    }
+
+    @Test("C: 答えた人には出さない")
+    func answeredNeverAsked() {
+        let clock = DaysClock()
+        let (log, service) = makeDaysService(suite: "days-answered", clock: clock)
+        log.markReviewAnswered()
+        openApp(service, clock: clock, days: 30)
+        #expect(service.hubDidBecomeVisible() == false)
+        #expect(service.gameDidFinish(outcome: .loss, gameID: "shogi") == false)
+    }
+
+    @Test("感想カードの予定があるときはカードを優先し、節目は次の区切りに回す")
+    func newGameCardTakesPriority() async {
+        let clock = DaysClock()
+        let (log, service) = makeDaysService(suite: "days-card", clock: clock)
+        openApp(service, clock: clock, days: 7)
+        let newGame = testNewGame
+        service.gameDidFinish(outcome: .win, gameID: newGame)
+        #expect(service.pendingNewGameCardID != nil)
+        #expect(service.hubDidBecomeVisible() == false)
+        #expect(service.pendingRequestID == nil, "カードの間は OS の依頼を立てない")
+        await service.presentPendingNewGameCard()
+        service.newGameCardDismissed()
+        // カードを出したのは「前回のお願い」ではないので、次の区切りでそのまま出る。
+        #expect(log.reviewState.daysMilestoneAsked == 0)
+        #expect(service.hubDidBecomeVisible() == true)
+        #expect(service.pendingRequestID != nil)
+    }
+
+    @Test("プレイ中・待っている間に画面を離れたら取り消し、節目は消費しない")
+    func cancelledWhenLeftBeforeDelay() async {
+        let clock = DaysClock()
+        let (log, _, _) = makeLog(suite: "days-cancel")
+        let service = ReviewRequestService(
+            log: log, appVersion: appVersion, now: { clock.date }, delay: .seconds(30))
+        openApp(service, clock: clock, days: 7)
+        #expect(service.hubDidBecomeVisible() == true)
+        var requested = 0
+        let task = Task { await service.performPendingRequest { requested += 1 } }
+        task.cancel()
+        await task.value
+        #expect(requested == 0)
+        #expect(service.pendingRequestID == nil)
+        #expect(log.reviewState.daysMilestoneAsked == 0)
+        #expect(log.reviewState.lastRequestedAt == nil)
+        // 次の区切りでもう一度立つ。
+        #expect(service.hubDidBecomeVisible() == true)
+    }
+
+    @Test("7 日と 30 日が両方未消化なら、1 回で両方を済ませる")
+    func bothDueAskedOnce() async {
+        let clock = DaysClock()
+        let (log, service) = makeDaysService(suite: "days-both", clock: clock)
+        log.markReviewRequested(at: clock.date, version: "0.9")
+        openApp(service, clock: clock, days: 30)
+        #expect(service.hubDidBecomeVisible() == true)
+        await service.performPendingRequest {}
+        #expect(log.reviewState.daysMilestoneAsked == 30)
+        clock.advance(days: 20)
+        service.appDidOpen()
+        #expect(service.hubDidBecomeVisible() == false)
+    }
+
+    @Test("解析: trigger に days_7 / days_30 が載り、勝ちの見せ場には載らない")
+    func analyticsTrigger() async {
+        let clock = DaysClock()
+        let spy = SpyAnalyticsService()
+        let (_, service) = makeDaysService(
+            suite: "days-analytics", clock: clock,
+            analytics: GameAnalytics(service: spy, allowedGameIDs: ["shogi"]))
+        openApp(service, clock: clock, days: 7)
+        service.hubDidBecomeVisible()
+        await service.performPendingRequest {}
+        #expect(spy.events == [.reviewPrompt(kind: .regular, step: .osRequested, trigger: .days7)])
+        #expect(spy.events.first?.parameters["trigger"] == .string("days_7"))
+        #expect(ReviewPromptTrigger(milestone: 30)?.rawValue == "days_30")
+        #expect(AnalyticsEvent.reviewPrompt(kind: .regular, step: .osRequested).parameters["trigger"] == nil)
+    }
+
+    @Test("キーは PlayLog.allKeys に入り、プレイ記録の消去で消える")
+    func clearedWithPlayLog() {
+        let clock = DaysClock()
+        let (log, defaults, _) = makeLog(suite: "days-clear")
+        log.recordAppOpenDay(at: clock.date)
+        log.markDaysMilestoneAsked(7)
+        for key in [PlayLog.openDaysKey, PlayLog.lastOpenDayKey, PlayLog.daysMilestoneAskedKey] {
+            #expect(PlayLog.allKeys.contains(key))
+            #expect(defaults.object(forKey: key) != nil)
+        }
+        log.clear()
+        for key in PlayLog.allKeys { #expect(defaults.object(forKey: key) == nil) }
+        #expect(log.reviewState.openDays == 0)
+        #expect(log.reviewState.daysMilestoneAsked == 0)
+    }
 }

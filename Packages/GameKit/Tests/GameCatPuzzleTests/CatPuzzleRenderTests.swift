@@ -1,4 +1,5 @@
 import Testing
+import GameKitTestSupport
 import Foundation
 import SwiftUI
 import Core
@@ -196,6 +197,27 @@ struct CatPuzzleRenderTests {
         #expect(image?.width == 40 * model.puzzle.side)
     }
 
+    @Test("間違えたマスの背景は部屋の色のまま（赤い × を付けても、マスの隅の色が変わらない・#3246）")
+    func wrongCellKeepsRoomBackground() throws {
+        let model = Self.wrongCrossModel()
+        let wrong = try #require(model.lastWrongCell)
+        let side: CGFloat = 40
+        func corner(wrongCrosses: Set<Int>) throws -> [UInt8] {
+            let renderer = ImageRenderer(content: CatPuzzleBoardCanvas(
+                puzzle: model.puzzle, marks: Array(repeating: CatPuzzleModel.Mark.empty, count: model.puzzle.side * model.puzzle.side),
+                wrongCrosses: wrongCrosses, lastWrongCell: wrong, cellSide: side
+            ))
+            renderer.scale = 1
+            let image = try #require(renderer.cgImage)
+            let n = model.puzzle.side
+            let x = Int(side) * (wrong % n) + 7, y = Int(side) * (wrong / n) + 7
+            let data = try #require(image.dataProvider?.data as Data?)
+            let o = y * image.bytesPerRow + x * (image.bitsPerPixel / 8)
+            return Array(data[o..<o + 3])
+        }
+        #expect(try corner(wrongCrosses: model.wrongCrosses) == corner(wrongCrosses: []))
+    }
+
     @Test("猫の矩形: 途中はマスの内側、クリア後はマスより大きく盤の中に収まる")
     func catRectFits() {
         let n = 7
@@ -213,7 +235,11 @@ struct CatPuzzleRenderTests {
     func labelAvoidsAnswerCells() {
         var checkedRooms = 0
         // 問題作りはデバッグビルドだと 1 問 1 秒ほどかかるので、大きい盤は種を絞る。
-        for (size, seeds) in [(CatPuzzleSize.easy, UInt64(1)...30), (.normal, 1...30), (.hard, 1...6)] {
+        let plan = NightlyScale.value(
+            ci: [(CatPuzzleSize.easy, UInt64(1)...6), (.normal, 1...6), (.hard, 1...2)],
+            nightly: [(CatPuzzleSize.easy, UInt64(1)...30), (.normal, 1...30), (.hard, 1...6)]
+        )
+        for (size, seeds) in plan {
             for seed in seeds {
                 let puzzle = CatPuzzleModel(services: Self.services(), size: size, seed: seed).puzzle
                 let n = puzzle.side
@@ -243,7 +269,7 @@ struct CatPuzzleRenderTests {
                 }
             }
         }
-        #expect(checkedRooms == 30 * 6 + 30 * 7 + 6 * 8)
+        #expect(checkedRooms == plan.reduce(0) { $0 + $1.1.count * $1.0.side })
     }
 
     /// iPhone SE の遊び方のカードで図に使える幅（画面幅 375 − シートの余白 16×2 − カードの内側 14×2）。
@@ -274,11 +300,13 @@ struct CatPuzzleRenderTests {
         try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         let scenes: [(name: String, make: () -> CatPuzzleModel)] = [
             ("1-playing", { Self.playingModel() }),
-            // 6×6 と 8×8 の途中とクリア（どの大きさでも札・壁・マスの区切りが崩れないことを目で見る。とくに SE の 8×8）。
+            // 6×6・8×8・9×9 の途中とクリア（どの大きさでも札・壁・マスの区切りが崩れないことを目で見る。とくに SE の 9×9）。
             ("1-playing-easy", { Self.playingModel(size: .easy) }),
             ("1-playing-hard", { Self.playingModel(size: .hard) }),
             ("4c-clear-easy", { Self.clearModel(size: .easy) }),
             ("4c-clear-hard", { Self.clearModel(size: .hard) }),
+            ("1-playing-expert", { Self.playingModel(size: .expert) }),
+            ("4c-clear-expert", { Self.clearModel(size: .expert) }),
             ("2-wrong-cross", Self.wrongCrossModel),
             ("3a-hint-line", Self.hintLineModel),
             ("3b-hint-room", Self.hintRoomModel),
@@ -317,8 +345,11 @@ struct CatPuzzleRenderTests {
                 let suffix = scheme.scheme == .light ? "" : "-dark"
                 // `ImageRenderer` は ScrollView の中身を描かないので、節を本来の位置（題名の行の下）に重ねて描く。
                 let sheet = ZStack(alignment: .top) {
-                    CatPuzzleNewGameSheet(initial: .normal, onStart: { _ in }, onCancel: {})
-                    CatPuzzleNewGameSheet.sizeSection(selection: .constant(.normal))
+                    CatPuzzleNewGameSheet(initialMode: .free, initial: .normal, nextStage: 12, onStart: { _, _ in }, onCancel: {})
+                    VStack(alignment: .leading, spacing: Theme.pad) {
+                        CatPuzzleNewGameSheet.modeSection(selection: .constant(.free), nextStage: 12)
+                        CatPuzzleNewGameSheet.sizeSection(selection: .constant(.expert))
+                    }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(Theme.pad)
                         .padding(.top, 78)

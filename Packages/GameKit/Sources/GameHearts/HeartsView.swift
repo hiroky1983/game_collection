@@ -9,15 +9,23 @@ public struct HeartsView: View {
     @State private var showReference = false
     /// 遊び方（図で見る遊び方を含む）を開いているか。開いているあいだ CPU の手番を止める（#2827）。
     @State private var isHowToPlayOpen = false
-    /// 操作の後に CPU の手番を回すタスク。画面を離れたらキャンセルする（いろリレー・CodeRabbit 指摘 PR #1339 と同じ）。
-    /// ボタンから起こした非構造化タスクは View のライフサイクルで止まらないので、離れたら自分で止める。
-    @State private var cpuTask: Task<Void, Never>?
+    /// 渡す場面のヒントの広告（無料 3 回を使い切ったあと 1 本につき 1 回・#3003）。
+    @State private var hintRescue = RewardedRescue()
     /// 画面の広さ（#458）。広い画面（iPad）では札の拡大に上限を掛けるのに読む。
     @Environment(\.adaptiveLayout) private var layout
 
     public init(services: GameServices) {
         self.services = services
         _model = State(initialValue: HeartsModel(services: services))
+    }
+
+    /// 勝ちが続いたら一段上の強さを勧める（#722・#3152）。並びは開始シートの「CPUの強さ」と同じ。
+    private var ladder: DifficultyLadderPrompt? {
+        DifficultyLadderPrompt(result: model.recordResult,
+                               currentLevel: CPUStrength.ladderIndex(forLevel: model.aiLevel),
+                               levelLabels: CPUStrength.labels) { index in
+            model.startMatch(aiLevel: CPUStrength.level(atLadderIndex: index))
+        }
     }
 
     public var body: some View {
@@ -42,7 +50,7 @@ public struct HeartsView: View {
                 }
                 HowToPlayHint(.hearts, playLog: services.playLog)
                 actionArea
-                RecommendationSlot(services: services, isFinished: model.phase == .result)
+                RecommendationSlot(services: services, isFinished: model.phase == .result, ladder: ladder)
             }
             // 局面 → 点の一覧の差し替えは、残り続ける親に置かないと `transition` が効かない（#195）。
             .gameAnimation(.easeInOut(duration: 0.2), value: model.phase)
@@ -58,9 +66,10 @@ public struct HeartsView: View {
             statusChips
         }
         .howToPlay(HowToPlayGuide.hearts.illustrated(HeartsHowToFigures.items).onboarding(HeartsOnboarding.guide),
-                   onPresent: { isHowToPlayOpen = true; cpuTask?.cancel() },
-                   onDismiss: { isHowToPlayOpen = false; runCPU() }) { HeartsRuleSheet() }
+                   onPresent: { isHowToPlayOpen = true },
+                   onDismiss: { isHowToPlayOpen = false }) { HeartsRuleSheet() }
         // 早見表を開いているあいだは CPU の手番を止め、閉じたら続きを回す（読んでいるあいだに場が進まないように）。
+        // 止める・続けるは下の `.task(id:)` が `isCPUPaused` の変化で受ける。
         .sheet(isPresented: $showReference) {
             NavigationStack {
                 HeartsReferenceSheet()
@@ -71,21 +80,28 @@ public struct HeartsView: View {
                     }
             }
         }
-        .onChange(of: showReference) { _, isOpen in
-            if isOpen { cpuTask?.cancel() } else { runCPU() }
-        }
         // 新規対局シートにも図で見る遊び方の入口があるので、開いているあいだは手番を止める（#2827）。
-        .onChange(of: showNewGame) { _, isOpen in
-            if isOpen { cpuTask?.cancel() } else { runCPU() }
-        }
         .sheet(isPresented: $showNewGame) {
             HeartsNewGameSheet(aiLevel: model.aiLevel) { level in
-                cpuTask?.cancel()
                 model.startMatch(aiLevel: level)
                 showNewGame = false
             } onCancel: { showNewGame = false }
         }
-        .onDisappear { cpuTask?.cancel() }
+        .rewardedRescueAlerts(
+            hintRescue,
+            notEarned: tr("ヒントを使えませんでした"),
+            unavailable: RewardUnavailableAlert(
+                title: tr("ヒントを出せませんでした"),
+                message: tr("広告を見ているあいだに次の手が始まったため、ヒントを出せませんでした。\nヒントの残り回数は減っていません。")
+            )
+        )
+        // CPU の手番はここ 1 か所で動かす（麻雀と同じ作り・#3146）。手番キーが変わる（人間の操作・CPU の着手・新しい手）か、
+        // 止める画面（遊び方・早見表・新規対局）の開閉が変わると作り直され、画面を離れれば止まる。
+        // 操作のたびに手で起こす形だと、新しい操作を足したとき 1 か所呼び忘れて CPU 番のまま止まる。
+        .task(id: CPUDriveKey(turn: model.cpuTurnKey, isPaused: isCPUPaused)) {
+            guard !isCPUPaused else { return }
+            await model.runCPUTurnsIfNeeded()
+        }
         .task {
             // 開幕のモーダルは置かず、卓を見せたまま配り始める（#192）。強さは「新規対局」から選び直せる。
             // 中断から戻ったときは init が局面まで復元しているので配り直さない。
@@ -99,16 +115,16 @@ public struct HeartsView: View {
             // 撮影用（#2788）: 早見表だけを開く。
             if args.contains("-heartsReference") { showReference = true }
             #endif
-            // 中断から戻ったときに CPU の手番が止まったままにならないようにする。
-            // 早見表で止められるよう、操作の後と同じ cpuTask で回す（#2788）。
-            runCPU()
         }
     }
 
-    /// 人間の操作の後に CPU の手番を回す。前のタスクは止めてから起こす（走者は `withAITurnRunner` が 1 本に保つ）。
-    private func runCPU() {
-        cpuTask?.cancel()
-        cpuTask = Task { await model.runCPUTurnsIfNeeded() }
+    /// CPU の手番を止めておく画面（遊び方・早見表・新規対局）を開いているか（#2788・#2827）。
+    private var isCPUPaused: Bool { isHowToPlayOpen || showReference || showNewGame }
+
+    /// `.task(id:)` の識別子。手番の進行と、止める画面の開閉のどちらが変わっても CPU のタスクを作り直す。
+    private struct CPUDriveKey: Hashable {
+        let turn: Int
+        let isPaused: Bool
     }
 
     // MARK: - ステータス（ヘッダーの行の札）
@@ -416,9 +432,12 @@ public struct HeartsView: View {
         case .idle:
             EmptyView()
         case .passing:
-            actionButton(tr("CPU1へ3枚渡す"), role: .primary, disabled: !model.canConfirmPass) {
-                model.confirmPass()
-                runCPU()
+            HStack(spacing: 8) {
+                passHintButton
+                    .frame(maxWidth: 150)
+                actionButton(tr("CPU1へ3枚渡す"), role: .primary, disabled: !model.canConfirmPass || hintRescue.isWatching) {
+                    model.confirmPass()
+                }
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
@@ -426,7 +445,6 @@ public struct HeartsView: View {
             actionButton(model.selectedID == nil ? tr("札を選ぶ") : tr("出す"), role: .primary,
                          disabled: !model.canPlaySelection) {
                 model.playSelected()
-                runCPU()
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
             .popCard(corner: Theme.cornerSmall)
@@ -445,6 +463,50 @@ public struct HeartsView: View {
         }
     }
 
+    // MARK: - 渡す場面のヒント（#3003）
+
+    /// 「ヒント」ボタン。押すと渡すとよい 3 枚を光らせる（選ぶのはあなた）。
+    /// 2 行目は他のゲームと同じ `GameActionBadge.hint`（無料の残り回数 / 0 回 ▶ 広告を見て +1）。
+    private var passHintButton: some View {
+        let badge = GameActionBadge.hint(totalRemaining: model.passHints.remaining, needsAd: model.needsAdForHint)
+        return Button { requestPassHint() } label: {
+            VStack(spacing: 0) {
+                Label(tr("ヒント"), systemImage: "lightbulb.fill")
+                    .themeBody(14)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                if let text = badge.text {
+                    Text(badge.countText.map { "\($0) ▶ \(text)" } ?? text)
+                        .scaledFont(10, weight: .bold, design: .rounded)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                }
+            }
+        }
+        .buttonStyle(GameButtonStyle(role: .hint, shape: .block))
+        .disabled(!model.canUseHint || hintRescue.isWatching)
+        .accessibilityLabel(HeartsAccessibility.passHintLabel(
+            remaining: model.passHints.freeRemaining, needsAd: model.needsAdForHint))
+        .accessibilityHint(tr("渡すのにおすすめの3枚を光らせます。渡す札はあなたが選びます"))
+    }
+
+    /// 無料が残っていればそのまま示し、使い切っていれば広告を見たあとに示す（広告は押下起点・自動再生しない）。
+    private func requestPassHint() {
+        guard !hintRescue.isWatching, model.canUseHint else { return }
+        guard model.needsAdForHint else {
+            withGameAnimation { model.requestHint() }
+            return
+        }
+        // どの手に対する広告かを出す前に控え、ロード中に始まった新しい手へは乗せない（15パズル・ナンプレのヒントと同じ）。
+        let turn = model.turnSerial
+        hintRescue.request(
+            services, gameID: model.gameID, purpose: .hint,
+            guardedBy: .checkedByGrant
+        ) {
+            withGameAnimation { model.grantAdHint(forTurn: turn) }
+        }
+    }
+
     // MARK: - 点の一覧（手の終わり・決着）
 
     private var scoreCard: some View {
@@ -455,6 +517,7 @@ public struct HeartsView: View {
                 Image(systemName: isFinal ? (model.playerPlace == 0 ? "crown.fill" : "flag.checkered") : "suit.heart.fill")
                     .scaledFont(20)
                     .foregroundStyle(isFinal && model.playerPlace == 0 ? Theme.yellowText : PlayingCardInk.red)
+                    .accessibilityHidden(true)
                 Text(scoreHeadline)
                     .scaledFont(17, weight: .black, design: .rounded)
                     .foregroundStyle(isFinal && model.playerPlace == 0 ? Theme.tealText : Theme.ink)
@@ -468,7 +531,7 @@ public struct HeartsView: View {
                     .frame(width: 64, alignment: .trailing)
             }
             .scaledFont(11, weight: .semibold, design: .rounded)
-            .foregroundStyle(Theme.inkSub)
+            .foregroundStyle(Theme.inkSubText)
             .accessibilityHidden(true)
             VStack(spacing: 6) {
                 ForEach(order, id: \.self) { player in
@@ -483,7 +546,7 @@ public struct HeartsView: View {
             } else {
                 Text(tr("だれかが%lld点に届いたら終了。合計の少ない人が勝ちです", HeartsRules.targetScore))
                     .scaledFont(11, weight: .semibold, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -515,7 +578,7 @@ public struct HeartsView: View {
             Spacer()
             Text(tr("%lld点", model.takenPoints[player]))
                 .scaledFont(13, weight: .bold, design: .rounded)
-                .foregroundStyle(model.takenPoints[player] > 0 ? Theme.coralText : Theme.inkSub)
+                .foregroundStyle(model.takenPoints[player] > 0 ? Theme.coralText : Theme.inkSubText)
                 .frame(width: 64, alignment: .trailing)
             Text(tr("%lld点", model.totals[player]))
                 .scaledFont(13, weight: .black, design: .rounded)
@@ -686,11 +749,13 @@ struct HeartsCardView: View {
     private var borderColor: Color {
         if selected { return Theme.coral }
         if hint == .playable { return Theme.teal }
+        if hint == .recommendedPass { return BoardGameHintColor.color }
         return Color.gray.opacity(0.2)
     }
 
     private var borderWidth: CGFloat {
         if selected { return 2.5 }
+        if hint == .recommendedPass { return 3 }
         return hint == .playable ? 2 : 0.5
     }
 
@@ -712,6 +777,15 @@ struct HeartsCardView: View {
                     .padding(.horizontal, 3).padding(.vertical, 1)
                     .background(Capsule().fill(Theme.Fill.coral))
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .padding(2)
+                    .accessibilityHidden(true)
+            }
+            if hint == .recommendedPass {
+                // 色だけに頼らず、電球の印も添える。
+                Image(systemName: "lightbulb.fill")
+                    .scaledFont(10, weight: .bold, maxScale: 1.1)
+                    .foregroundStyle(BoardGameHintColor.color)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .padding(2)
                     .accessibilityHidden(true)
             }

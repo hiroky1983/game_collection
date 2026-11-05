@@ -10,6 +10,7 @@ struct GoRewardedUndoTests {
     @Test("広告のあいだに新規対局を始めたら、前の対局の待ったは新しい対局に乗らない")
     func undoForReplacedGameIsRejected() throws {
         let model = GoModel(services: nil)
+        model.hintLevelForTesting = .easy   // 待ったの検査なので手の質は問わない（#2952）
         model.newGame(humanSide: .black, level: .easy)
         let turn = model.aiTurnKey
         model.newGame(humanSide: .black, level: .easy)
@@ -27,6 +28,7 @@ struct GoRewardedUndoTests {
     @Test("広告のあいだに同じ対局で 1 往復進めたら、広告を出したときとは別の 1 往復を戻さない")
     func undoForAdvancedPositionIsRejected() throws {
         let model = GoModel(services: nil)
+        model.hintLevelForTesting = .easy   // 待ったの検査なので手の質は問わない（#2952）
         model.newGame(humanSide: .black, level: .easy)
         model.applyMoveForTesting(.play(row: 4, col: 4))   // 黒（人間）
         model.applyMoveForTesting(.play(row: 2, col: 2))   // 白（CPU）
@@ -42,6 +44,7 @@ struct GoRewardedUndoTests {
     @Test("広告ヒントの読み中も待ったできない（古い局面のヒントを適用しない・#2287）")
     func undoIsRefusedWhileAdHintThinking() async throws {
         let model = GoModel(services: nil)
+        model.hintLevelForTesting = .easy   // 待ったの検査なので手の質は問わない（#2952）
         model.newGame(humanSide: .black, level: .easy)
         model.applyMoveForTesting(.play(row: 4, col: 4))   // 黒（人間）
         model.applyMoveForTesting(.play(row: 2, col: 2))   // 白（CPU）

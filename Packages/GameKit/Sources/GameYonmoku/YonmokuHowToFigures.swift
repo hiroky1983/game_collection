@@ -1,4 +1,5 @@
 import Core
+import CoreMiniBoard
 import SwiftUI
 
 /// 図入りの遊び方（#2044）の四目並べの図。文言は `HowToPlayGuide.yonmoku.items`（Core）と同じ順。
@@ -61,7 +62,7 @@ enum YonmokuHowToFigures {
                         }, mark: { col, row in index == 0 && col == 1 && row == 1 })
                     }
                     RuleFigureLabel(index == 0 ? tr("列をタップ") : tr("一番下の空きに入る"),
-                                    color: index == 0 ? Theme.coralText : Theme.inkSub)
+                                    color: index == 0 ? Theme.coralText : Theme.inkSubText)
                 }
             }
         }
@@ -103,7 +104,7 @@ enum YonmokuHowToFigures {
                         return nil
                     }, mark: { col, row in index == 0 && col == 4 && row == 0 })
                     RuleFigureLabel(index == 0 ? tr("白が 3 つ！ ここで 4 つ") : tr("黒で先にふさいだ"),
-                                    color: index == 0 ? Theme.coralText : Theme.inkSub)
+                                    color: index == 0 ? Theme.coralText : Theme.inkSubText)
                 }
             }
         }

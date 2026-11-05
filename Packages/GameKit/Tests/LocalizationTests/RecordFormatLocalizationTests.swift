@@ -89,7 +89,12 @@ struct RecordFormatLocalizationTests {
         #expect(hub([PlayRecord(metric: .winLoss, plays: 3, draws: 3)]) == "0W 0L 3D")
         #expect(hub([PlayRecord(metric: .points, plays: 1, bestPoints: 3)], gameID: "runner") == "Reached 1-4")
         #expect(RecordFormat.runnerStageLine(clearedStage: 17, language: .english) == "Reached 3-6")
-        #expect(RecordFormat.runnerStageLine(clearedStage: 42, language: .english) == "All 42 stages cleared")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 47, language: .english) == "Reached 8-6")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 48, language: .english) == "Reached 9-1")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 53, language: .english) == "Reached 9-6")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 54, language: .english) == "Reached 10-1")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 59, language: .english) == "Reached 10-6")
+        #expect(RecordFormat.runnerStageLine(clearedStage: 60, language: .english) == "All 60 stages cleared")
     }
 
     @Test("リザルトの 1 行（英語・単数と複数）")
@@ -289,7 +294,8 @@ private enum LegacyJapaneseRecordFormat {
 
     static func runnerStageLine(clearedStage: Int) -> String {
         let cleared = max(0, clearedStage)
-        guard cleared < 42 else { return "全 42 面クリア" }
+        // 雪国・東京・富士山（#2729）で 42 → 48 → 54 → 60 面。
+        guard cleared < 60 else { return "全 60 面クリア" }
         let reached = cleared + 1
         let world = (reached - 1) / 6 + 1
         let index = (reached - 1) % 6 + 1

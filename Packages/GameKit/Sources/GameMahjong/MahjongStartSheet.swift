@@ -29,7 +29,7 @@ struct MahjongStartSheet: View {
                 }
                 Text(length.summary)
                     .scaledFont(12, weight: .medium, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
@@ -59,16 +59,14 @@ struct MahjongStartSheet: View {
                     Text(tr("ルールと役を見る"))
                         .scaledFont(15, weight: .semibold, design: .rounded)
                     Spacer()
-                    Image(systemName: "chevron.right")
-                        .scaledFont(13, weight: .semibold)
-                        .foregroundStyle(Theme.inkSub)
+                    DisclosureChevron(size: 13, weight: .semibold)
                 }
                 .foregroundStyle(Theme.coralText)
                 .padding(16)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Theme.surface)
                     .shadow(color: .black.opacity(0.06), radius: 6, y: 3))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pop)
         }
         .sheet(isPresented: $showRules) {
             NavigationStack {
@@ -92,9 +90,7 @@ struct MahjongStartSheet: View {
                     .themeBody(15)
                     .lineLimit(1).minimumScaleFactor(0.8)
                 Spacer(minLength: 8)
-                Image(systemName: "chevron.down")
-                    .scaledFont(13, weight: .bold)
-                    .foregroundStyle(Theme.inkSub)
+                DisclosureChevron("chevron.down")
                     .rotationEffect(.degrees(showsDetails ? 180 : 0))
             }
             .padding(12)
@@ -102,7 +98,7 @@ struct MahjongStartSheet: View {
             .popCard(corner: Theme.cornerSmall)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.pop)
         .foregroundStyle(Theme.ink)
         .accessibilityValue(showsDetails ? tr("開いている") : tr("閉じている"))
     }
@@ -123,7 +119,8 @@ struct MahjongRuleSheet: View {
         (tr("流局"), tr("山が尽きたら流局。聴牌していた人が3000点を分け合い、ノーテンの人が払います")),
         (tr("東風戦"), tr("東1局から東4局までの4局。親が和了または聴牌で流局すると連荘します。流局のときは親が流れても本場が増えます")),
         (tr("一局戦"), tr("東1局だけを打って順位を決める短い対局です。親が和了っても連荘はせず、その局で終わります。成績は東風戦とは別に数えます")),
-        (tr("採用していないルール"), tr("半荘戦・立直したあとのカン・食い替えの禁止・流し満貫は採用していません")),
+        (tr("半荘戦"), tr("東1局から南4局までの8局。連荘・流局の本場・トビ・アガリやめは東風戦と同じ決まりで南場まで続けます。西入はしません。成績は東風戦とは別に数えます")),
+        (tr("採用していないルール"), tr("西入・立直したあとのカン・食い替えの禁止・流し満貫は採用していません")),
     ] }
 
     var body: some View {

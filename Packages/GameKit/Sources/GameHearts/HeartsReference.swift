@@ -1,4 +1,5 @@
 import Core
+import CoreMiniCard
 import SwiftUI
 
 /// 対局中に開ける早見表（#2788）の中身のうち、**ルールの値から作るもの**。
@@ -98,7 +99,7 @@ struct HeartsReferenceSheet: View {
         } icon: {
             Image(systemName: "circle.fill")
                 .scaledFont(5, maxScale: 1.15)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
         }
     }
 }

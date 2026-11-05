@@ -60,5 +60,51 @@ public struct BannerSlot: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: Self.height)
+        .anchorPreference(key: BannerFrameKey.self, value: .bounds) { $0 }
+    }
+}
+
+/// 画面の中の `BannerSlot` の枠。幕を重ねる側（`overlayAboveBanner`）がバナーを避けるために読む（#3247）。
+struct BannerFrameKey: PreferenceKey {
+    static var defaultValue: Anchor<CGRect>? { nil }
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) {
+        value = value ?? nextValue()
+    }
+}
+
+/// 幕を置いてよい縦の範囲の決め方（View から切り離してテストできるようにする）。
+public enum BannerAvoidance {
+    /// 幕を置く縦の範囲（上端と高さ）。バナーが上半分にあれば（打席の上端）その下から、下半分にあれば
+    /// （ほぼ全ゲーム）その上端まで。バナーが無ければ全体。
+    public static func region(containerHeight: CGFloat, banner: CGRect?) -> (top: CGFloat, height: CGFloat) {
+        guard let banner else { return (0, containerHeight) }
+        if banner.midY < containerHeight / 2 {
+            let top = min(max(0, banner.maxY), containerHeight)
+            return (top, containerHeight - top)
+        }
+        return (0, min(max(0, banner.minY), containerHeight))
+    }
+}
+
+public extension View {
+    /// 暗幕・結果カードなど画面いっぱいの重ねを、中の `BannerSlot` を**覆わない範囲**にだけ重ねる（#3247）。
+    ///
+    /// バナーが幕の裏に回ると、表示されているのに見えていない扱い（ビューアブルでない）になり、広告の単価が下がる
+    /// うえ、AdMob のポリシー（Content obscuring）にも当たる。バナーは常に見えて押せる状態のまま残す。
+    /// 幕が出ているあいだ、バナーが画面に無ければ（`BannerSlot` が無い）全体に重ねる。
+    ///
+    /// この修飾子は `BannerSlot` を含む View の**外側**に付ける（プリファレンスは子から親へ流れる）。
+    /// 全画面の枠（`gameChrome(fullScreen:ads:)`）のバナーは枠の中にあるので、枠より後ろに付けてもよい。
+    func overlayAboveBanner<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        let overlay = content()
+        return overlayPreferenceValue(BannerFrameKey.self) { anchor in
+            GeometryReader { proxy in
+                let region = BannerAvoidance.region(containerHeight: proxy.size.height,
+                                                    banner: anchor.map { proxy[$0] })
+                overlay
+                    .frame(width: proxy.size.width, height: region.height)
+                    .offset(y: region.top)
+            }
+        }
     }
 }

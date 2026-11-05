@@ -220,14 +220,14 @@ public struct MahjongSolitaireView: View {
                 message: tr("広告を見ているあいだに新しい盤面が配られたか、光らせられる組が無くなりました。組が無いときは「並べ替え」で残りを配置し直してください。")
             )
         )
-        .overlay {
+        .overlayAboveBanner {
             if model.isDeadlocked { deadlockOverlay }
         }
         // 画面を離れたら・背面に回ったら・広告の視聴中は計時を止め、戻ったら再開する
         // （#375・#1734・#1382。止め方・動かし方は `GameStopwatch` / `gameTimerLifecycle` に共通化・#1857）。
         .gameTimerLifecycle(
             rescues: [shuffleRescue, hintRescue, undoRescue],
-            isHeld: showSetup || isWatchingRewardAd,
+            isHeld: showSetup || isWatchingRewardAd || showShuffleConfirm || showHintConfirm || showUndoRefillPrompt,
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )
@@ -317,11 +317,12 @@ public struct MahjongSolitaireView: View {
                         Label("\(model.remainingCount)", systemImage: "square.stack.3d.up.fill")
                             .scaledFont(16, weight: .bold, design: .monospaced)
                             .foregroundStyle(Theme.coralText)
+                            .accessibilityLabel(tr("残り%lld枚", model.remainingCount))
                         // 今取れる組の数（#2812）。0 になれば手詰まりパネルが出る。
                         if model.phase == .playing {
                             Text(tr("取れる組 %lld", model.availablePairCount))
                                 .scaledFont(14, weight: .bold)
-                                .foregroundStyle(Theme.inkSub)
+                                .foregroundStyle(Theme.inkSubText)
                         }
                     }
                 }
@@ -329,7 +330,7 @@ public struct MahjongSolitaireView: View {
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
         } trailing: {
-            GameClockLabel(timeText)
+            GameClockLabel(timeText, elapsedSeconds: model.elapsedSeconds)
         }
     }
 

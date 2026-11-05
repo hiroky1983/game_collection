@@ -39,6 +39,12 @@ public struct BlocksModule: GameModule {
         return Self.isUntouched(snap)
     }
 
+    /// 復元した盤の区分（#3225）。手つかずの開き直しの `game_start` / `game_end` に載せる。
+    public func untouchedSnapshotPlayClass(in snapshots: SnapshotStore) -> PlayClass {
+        guard let snap = snapshots.load(BlocksSnapshot.self, for: id) else { return PlayClass() }
+        return PlayClass(level: .stage(min(max(1, snap.stage), BlocksRules.stageCount)))
+    }
+
     private static func isUntouched(_ snap: BlocksSnapshot) -> Bool {
         snap.stage <= 1 && snap.score == 0
             && snap.lives >= BlocksRules.initialLives && !snap.continueUsed

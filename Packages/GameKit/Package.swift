@@ -70,35 +70,59 @@ let package = Package(
                 // トランプの効果音 4 種（CC0・出所は docs/design/card-sfx/assets-license.md・#2697）と、
                 // 盤ゲームの着手音 5 種（CC0・出所は docs/design/board-sfx/assets-license.md・#2767）。
                 resources: [.copy("Resources/Localization"), .copy("Resources/Sounds")]),
-        .target(name: "Core",               dependencies: ["CoreEngine"],
+        // 具体物カードのドット絵（#1243・#1244）。神経衰弱とカードしりとりだけが使うので、Core から切り出して
+        // 絵を描き足しても他のゲームのテストを走らせない（#2953）。
+        .target(name: "CoreObjectArt",      dependencies: ["Core"],
+                resources: [.copy("Resources/Localization")]),
+        // 盤ゲームの遊び方の図（#2044）で共通に使う小さな盤。将棋・五目並べ・囲碁・チェス・オセロ・バックギャモン・四目並べだけが使うので
+        // Core から切り出し、盤を直しても他のゲームのテストを走らせない（#2953）。
+        .target(name: "CoreMiniBoard",      dependencies: ["Core"],
+                resources: [.copy("Resources/Localization")]),
+        // 遊び方の図（#2044）でトランプ系ゲームが共通で使う小さな札・列・置き場。
+        // 11 本のゲームだけが使うので Core から切り出し、札を直しても他のゲームのテストを走らせない（#2953）。
+        .target(name: "CoreMiniCard",       dependencies: ["Core"],
+                resources: [.copy("Resources/Localization")]),
+        // ソリティア・フリーセル・スパイダーの遊び方の図（#2044）。3 本だけが使うので Core から切り出し、
+        // 図を直しても他のゲームのテストを走らせない（#2953）。
+        .target(name: "CoreSolitaireFigures", dependencies: ["Core", "CoreMiniCard"],
+                resources: [.copy("Resources/Localization")]),
+        // チャリンコおじさんのドット絵（走者のコマ・正面顔。#1092）。ランナー・ねこパズル・盆栽縁側だけが使うので
+        // Core から切り出し、絵を直しても他のゲームのテストを走らせない（#2953）。
+        .target(name: "CoreOjisanPixel",    dependencies: ["Core"],
                 // おじさんの正面顔 3 表情（#2064。Codex 製 64×60・出所は docs/design/ojisan-pixel-pipeline）。
                 resources: [.copy("Resources/Localization"),
                             .copy("Resources/OjisanFace_smile.png"),
                             .copy("Resources/OjisanFace_cheer.png"),
                             .copy("Resources/OjisanFace_frown.png")]),
+        // 共通キャラクター「おじさん」のベクター版の図案（#700）。柵越えおじさん・盆栽縁側だけが使うので
+        // Core から切り出し、図案を直しても他のゲームのテストを走らせない（#2953）。
+        .target(name: "CoreOjisan",         dependencies: ["Core"],
+                resources: [.copy("Resources/Localization")]),
+        .target(name: "Core",               dependencies: ["CoreEngine"],
+                resources: [.copy("Resources/Localization")]),
         .target(name: "Game2048",           dependencies: ["Core"],
                 resources: [.copy("Resources/Localization")]),
-        .target(name: "GameShogi",          dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameShogi",          dependencies: ["Core", "CoreEngine", "CoreMiniBoard"],
                 resources: [.copy("Resources/Localization")]),
-        .target(name: "GameGomoku",         dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameGomoku",         dependencies: ["Core", "CoreEngine", "CoreMiniBoard"],
                 resources: [.copy("Resources/Localization")]),
         // 囲碁（#398）。ルール・終局計算・MCTS はすべて純粋ロジックなので Core だけに依存する。
-        .target(name: "GameGo",             dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameGo",             dependencies: ["Core", "CoreEngine", "CoreMiniBoard"],
                 resources: [.copy("Resources/Localization")]),
         // チェス（#462）。ルール・探索は純粋ロジックなので Core だけに依存する。
-        .target(name: "GameChess",          dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameChess",          dependencies: ["Core", "CoreEngine", "CoreMiniBoard"],
                 resources: [.copy("Resources/Localization")]),
         .target(name: "GameMinesweeper",    dependencies: ["Core"],
                 resources: [.copy("Resources/Localization")]),
-        .target(name: "GameOthello",        dependencies: ["Core"],
+        .target(name: "GameOthello",        dependencies: ["Core", "CoreMiniBoard"],
                 resources: [.copy("Resources/Localization")]),
-        .target(name: "GamePoker",          dependencies: ["Core"],
+        .target(name: "GamePoker",          dependencies: ["Core", "CoreMiniCard"],
                 resources: [.copy("Resources/Localization")]),
-        .target(name: "GameConcentration",  dependencies: ["Core"],
+        .target(name: "GameConcentration",  dependencies: ["Core", "CoreObjectArt", "CoreMiniCard"],
                 resources: [.copy("Resources/Localization")]),
-        .target(name: "GameBlackjack",      dependencies: ["Core"],
+        .target(name: "GameBlackjack",      dependencies: ["Core", "CoreMiniCard"],
                 resources: [.copy("Resources/Localization")]),
-        .target(name: "GameDaifugo",        dependencies: ["Core"],
+        .target(name: "GameDaifugo",        dependencies: ["Core", "CoreMiniCard"],
                 resources: [.copy("Resources/Localization")]),
         // 数独（#262・元 #5）。生成アルゴリズムは純粋ロジックなので Core だけに依存する。
         // 乱数（`SplitMix64`）・探索の待ち行列（`BestFirstQueue`）は純ロジックのファイルから CoreEngine を
@@ -106,7 +130,7 @@ let package = Package(
         .target(name: "GameSudoku",         dependencies: ["Core", "CoreEngine"],
                 resources: [.copy("Resources/Localization")]),
         // ソリティア（クロンダイク・#397）。ルール・ソルバー・配札生成は純粋ロジックなので Core だけに依存する。
-        .target(name: "GameSolitaire",      dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameSolitaire",      dependencies: ["Core", "CoreEngine", "CoreSolitaireFigures", "CoreMiniCard"],
                 resources: [.copy("Resources/Localization")]),
         // ブロック崩し（#463）。アクション枠の 1 本目で、**唯一 SpriteKit に依存するターゲット**。
         // ルール・当たり判定・得点は SpriteKit 非依存の純粋ロジックに分けてあるため、
@@ -114,21 +138,21 @@ let package = Package(
         .target(name: "GameBlocks",         dependencies: ["Core"],
                 resources: [.copy("Resources/Localization")]),
         // フリーセル（#492）。ルール・ソルバー・配札生成は純粋ロジックなので Core だけに依存する。
-        .target(name: "GameFreeCell",       dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameFreeCell",       dependencies: ["Core", "CoreEngine", "CoreSolitaireFigures", "CoreMiniCard"],
                 resources: [.copy("Resources/Localization")]),
         // スパイダーソリティア（#717）。盤・配札・ソルバーは Core すら import しない純粋ロジックで、
         // 種の事前計算は `swiftc -O` で単体バイナリにして回す（`SpiderDealerTests` に手順）。
-        .target(name: "GameSpider",         dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameSpider",         dependencies: ["Core", "CoreEngine", "CoreSolitaireFigures", "CoreMiniCard"],
                 resources: [.copy("Resources/Localization")]),
-        // カードしりとり（#1243）。読みの判定・CPU の手は純粋ロジックで、絵は Core の `ObjectCardArt`
-        // （神経衰弱 #1244 と共有するドット絵）を使うので Core だけに依存する。
-        .target(name: "GameShiritori",      dependencies: ["Core"],
+        // カードしりとり（#1243）。読みの判定・CPU の手は純粋ロジックで、絵は `CoreObjectArt` の
+        // `ObjectCardArt`（神経衰弱 #1244 と共有するドット絵）を使う。
+        .target(name: "GameShiritori",      dependencies: ["Core", "CoreObjectArt"],
                 resources: [.copy("Resources/Localization")]),
         .target(name: "GameFifteen",        dependencies: ["Core"],
                 resources: [.copy("Resources/Localization")]),
         // おじさんの盆栽（#2361。もとは くっつきフルーツ #1319・企画倉庫）。落下・衝突・合体は SpriteKit に依存しない
         // 純粋ロジックで、落とす盆栽の抽選に CoreEngine の `SplitMix64` を使う。描画だけ SpriteKit（アクション枠の基盤規約）。
-        .target(name: "GameFruits",         dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameFruits",         dependencies: ["Core", "CoreEngine", "CoreOjisanPixel"],
                 resources: [.copy("Resources/Localization"),
                             // 盆栽 11 段の絵（会長提供・ChatGPT 生成。出どころは docs/design/bonsai/assets-license.md）。
                             .copy("Resources/Bonsai"),
@@ -136,7 +160,7 @@ let package = Package(
                             .copy("Resources/BonsaiOjisan_hold.png")]),
         // いろリレー（#1320・企画倉庫）。色合わせのカードゲーム。出せるかの判定・CPU は純粋ロジックで、
         // 配りの乱数に CoreEngine の `SplitMix64` を使う。CPU の手番は大富豪と同じ `AITurnGuarded` の定石。
-        .target(name: "GameColorRelay",     dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameColorRelay",     dependencies: ["Core", "CoreEngine", "CoreMiniCard"],
                 resources: [.copy("Resources/Localization")]),
         // ぱっと暗算（#1321・企画倉庫）。出題・表示の並び・合計は純粋ロジックで、出題の乱数に CoreEngine の
         // `SplitMix64` を使う。表示の進行は Model が待ち時間を返すだけで、時間は View の `.task` が待つ。
@@ -144,7 +168,7 @@ let package = Package(
                 resources: [.copy("Resources/Localization")]),
         // バックギャモン（#1322・企画倉庫）。移動・叩き・ベアオフの判定と CPU の手順選びは純粋ロジックで、
         // サイコロの乱数に CoreEngine の `SplitMix64` を使う。CPU の手番はオセロと同じ `AITurnGuarded` の定石。
-        .target(name: "GameBackgammon",     dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameBackgammon",     dependencies: ["Core", "CoreEngine", "CoreMiniBoard"],
                 resources: [.copy("Resources/Localization")]),
         // マンカラ（#1626・企画倉庫）。種まき・取り・終局の回収と CPU の αβ 探索は純粋ロジックで、
         // 入門の無作為選択に CoreEngine の `SplitMix64` を使う。CPU の手番はオセロと同じ `AITurnGuarded` の定石。
@@ -153,12 +177,12 @@ let package = Package(
         // スピード（#1323・企画倉庫）。手番の無い同時進行のトランプ。出せるかの判定と CPU の選択は純粋ロジックで、
         // 配りと反応の揺らぎに CoreEngine の `SplitMix64` を使う。CPU は `AITurnGuarded` ではなく、Model が
         // 「次に待つ時間」を返して View の `.task` が待つ形（ぱっと暗算と同じ）。
-        .target(name: "GameSpeed",          dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameSpeed",          dependencies: ["Core", "CoreEngine", "CoreMiniCard"],
                 resources: [.copy("Resources/Localization")]),
         // ババ抜き（#1577・企画倉庫）。配り・引き方・終局判定・CPU の選び方・顔の出方は `OldMaidGame`（純粋な値）で、
         // 乱数に CoreEngine の `SplitMix64` を使う。札の絵はトランプ共通基盤（#397・ジョーカー含む）。
         // CPU の手番はいろリレーと同じ `AITurnGuarded` の定石。
-        .target(name: "GameOldMaid",        dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameOldMaid",        dependencies: ["Core", "CoreEngine", "CoreMiniCard"],
                 resources: [.copy("Resources/Localization")]),
         // 明かり消しパズル（#1883・企画倉庫）。押したマスと上下左右が入れ替わる 5×5 の盤。盤の規則・問題の逆生成・
         // 解の数え上げは純粋ロジックで、出題の乱数に CoreEngine の `SplitMix64` を使う。
@@ -177,7 +201,7 @@ let package = Package(
         // 時間は Model が「次に起こしてほしい時刻」を返し、View の `.task` が待つだけ（スピード・ぱっと暗算と同じ）。
         // 広告での回数回復・解析・Game Center への送信も入っている。
         // 打者おじさんの 3D モデル（Meshy 製・右打ちスイング 1 本入り USDZ）を同梱する。
-        .target(name: "GameHomerun",        dependencies: ["Core", "HomerunCore"],
+        .target(name: "GameHomerun",        dependencies: ["Core", "CoreOjisan", "HomerunCore"],
                 resources: [.copy("Resources/Localization"),
                             .copy("Resources/HomerunBatter.usdz"),
                             // ハブの特別枠の絵（#1761。会長提供・ロゴ入り横長 1206×804）。
@@ -190,7 +214,7 @@ let package = Package(
                             .copy("Resources/Finale")]),
         // チャリンコおじさん（#494）。アクション枠の2本目。地形・ジャンプ・当たり判定は
         // SpriteKit に依存しない純粋ロジックなので Core だけに依存する。
-        .target(name: "GameRunner",         dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameRunner",         dependencies: ["Core", "CoreEngine", "CoreOjisanPixel"],
                 resources: [.copy("Resources/Localization")]),
         // 花札こいこい（#495）。札の絵柄・役の判定・CPU はすべて純粋ロジックなので
         // Core だけに依存する。麻雀牌のような共有描画基盤は持たない（花札は他ゲームと札を共有しない）。
@@ -217,7 +241,7 @@ let package = Package(
                             .copy("Resources/OjisanLuggage_5_beercase.png")]),
         // ハーツ（#1884・企画倉庫）。出せる札・巡の決着・CPU の選択は純粋ロジックで、配りの乱数に CoreEngine の
         // `SplitMix64` を使う。札の絵は Core のトランプ共通描画（#397）。CPU の手番は大富豪と同じ `AITurnGuarded` の定石。
-        .target(name: "GameHearts",         dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameHearts",         dependencies: ["Core", "CoreEngine", "CoreMiniCard"],
                 resources: [.copy("Resources/Localization")]),
         // 線つなぎ（#2235・企画倉庫）。問題の生成（解が 1 つに絞れたものだけ採る）・解の数え上げ・線の判定は
         // 純粋ロジックで、生成の乱数に CoreEngine の `SplitMix64` を使う。絵はコード描画だけ（画像を持たない）。
@@ -228,11 +252,11 @@ let package = Package(
                 resources: [.copy("Resources/Localization")]),
         // 四目並べ（#1738・企画倉庫）。落下・勝ちの判定と CPU の αβ 探索（ビットボード）は純粋ロジックで、
         // 弱い段の外しの乱数に CoreEngine の `SplitMix64` を使う。CPU の手番は五目並べと同じ `AITurnGuarded` の定石。
-        .target(name: "GameYonmoku",        dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameYonmoku",        dependencies: ["Core", "CoreEngine", "CoreMiniBoard"],
                 resources: [.copy("Resources/Localization")]),
         // おじさんちのねこさがし（#2250・v1.1.14 でハブに公開）。問題の生成（解が 1 つに絞れたものだけ採る）・解の数え上げ・
         // 矛盾の判定は純粋ロジックで、生成の乱数に CoreEngine の `SplitMix64` を使う。
-        .target(name: "GameCatPuzzle",      dependencies: ["Core", "CoreEngine"],
+        .target(name: "GameCatPuzzle",      dependencies: ["Core", "CoreEngine", "CoreOjisanPixel"],
                 // 会長の猫（ハチワレ・赤い首輪に金の鈴）の絵 9 枚（出所は docs/design/cat-puzzle-2250/README.md）。
                 resources: [.copy("Resources/Localization"),
                             .copy("Resources/Cats")]),
@@ -261,7 +285,7 @@ let package = Package(
         // 書式の食い違い・同梱漏れ）。表は JSON をそのまま読むので、英語の表示もシミュレータ無しで確かめられる。
         .testTarget(name: "LocalizationTests", dependencies: ["Core", "CoreEngine", "GameKitTestSupport"]),
         .testTarget(name: "ThemeTests",       dependencies: ["Core", "GameKitTestSupport"]),
-        .testTarget(name: "PixelArtTests",    dependencies: ["Core"]),
+        .testTarget(name: "PixelArtTests",    dependencies: ["Core", "CoreOjisanPixel"]),
         // 広告枠（バナー）の生成判断。実際の GADBannerView は端末側なので、判断だけを純粋関数で検証する。
         .testTarget(name: "AdsTests",         dependencies: ["Core", "GameKitTestSupport"]),
         // 画面の広さに応じた適応レイヤ（#458 の iPad 対応）。判定と数値を Core に集約しているため、
@@ -288,7 +312,7 @@ let package = Package(
         // 性質そのものなので、各ゲームではなく Core 単体で検証する。
         .testTarget(name: "BoardGameChromeTests", dependencies: ["Core", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameChromeTests",   dependencies: ["Core", "GameKitTestSupport", "CoreTestSupport"]),
-        .testTarget(name: "OjisanTests",       dependencies: ["Core"]),
+        .testTarget(name: "OjisanTests",       dependencies: ["Core", "CoreOjisan"]),
         .testTarget(name: "Game2048Tests",    dependencies: ["Game2048", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameShogiTests",   dependencies: ["GameShogi", "CoreEngine", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameGomokuTests",  dependencies: ["GameGomoku", "CoreEngine", "GameKitTestSupport", "CoreTestSupport"]),
@@ -296,18 +320,18 @@ let package = Package(
         .testTarget(name: "GameChessTests",   dependencies: ["GameChess", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameMinesweeperTests", dependencies: ["GameMinesweeper", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameOthelloTests", dependencies: ["GameOthello", "CoreEngine", "GameKitTestSupport", "CoreTestSupport"]),
-        .testTarget(name: "GamePokerTests",          dependencies: ["GamePoker", "GameKitTestSupport", "CoreTestSupport"]),
-        .testTarget(name: "GameConcentrationTests",  dependencies: ["GameConcentration", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GamePokerTests",          dependencies: ["GamePoker", "GameKitTestSupport", "CoreTestSupport", "CoreMiniCard"]),
+        .testTarget(name: "GameConcentrationTests",  dependencies: ["GameConcentration", "CoreObjectArt", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameBlackjackTests",       dependencies: ["GameBlackjack", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameDaifugoTests",         dependencies: ["GameDaifugo", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameSudokuTests",          dependencies: ["GameSudoku", "GameKitTestSupport", "CoreTestSupport"]),
-        .testTarget(name: "GameSolitaireTests",       dependencies: ["GameSolitaire", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameSolitaireTests",       dependencies: ["GameSolitaire", "CoreSolitaireFigures", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameBlocksTests",         dependencies: ["GameBlocks", "CoreTestSupport"]),
-        .testTarget(name: "GameFreeCellTests",       dependencies: ["GameFreeCell", "GameKitTestSupport", "CoreTestSupport"]),
-        .testTarget(name: "GameSpiderTests",         dependencies: ["GameSpider", "GameKitTestSupport", "CoreTestSupport"]),
-        .testTarget(name: "GameShiritoriTests",      dependencies: ["GameShiritori", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameFreeCellTests",       dependencies: ["GameFreeCell", "CoreSolitaireFigures", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameSpiderTests",         dependencies: ["GameSpider", "CoreSolitaireFigures", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameShiritoriTests",      dependencies: ["GameShiritori", "CoreObjectArt", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameFifteenTests",        dependencies: ["GameFifteen", "GameKitTestSupport", "CoreTestSupport"]),
-        .testTarget(name: "GameFruitsTests",         dependencies: ["GameFruits", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameFruitsTests",         dependencies: ["GameFruits", "CoreOjisanPixel", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameColorRelayTests",     dependencies: ["GameColorRelay", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameAnzanTests",          dependencies: ["GameAnzan", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameBackgammonTests",     dependencies: ["GameBackgammon", "GameKitTestSupport", "CoreTestSupport"]),
@@ -318,14 +342,14 @@ let package = Package(
         .testTarget(name: "GameDiceComboTests",      dependencies: ["GameDiceCombo", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "HomerunCoreTests",        dependencies: ["HomerunCore"]),
         .testTarget(name: "GameHomerunTests",        dependencies: ["GameHomerun", "HomerunCore", "GameKitTestSupport", "CoreTestSupport"]),
-        .testTarget(name: "GameRunnerTests",         dependencies: ["GameRunner", "GameRunnerTestSupport", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameRunnerTests",         dependencies: ["GameRunner", "CoreOjisanPixel", "GameRunnerTestSupport", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameHanafudaTests",       dependencies: ["GameHanafuda", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameOjisanPuzzleTests",   dependencies: ["GameOjisanPuzzle", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameHeartsTests",         dependencies: ["GameHearts", "CoreEngine", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameTsunagiTests",        dependencies: ["GameTsunagi", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameHanoiTests",          dependencies: ["GameHanoi", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameYonmokuTests",        dependencies: ["GameYonmoku", "GameKitTestSupport", "CoreTestSupport"]),
-        .testTarget(name: "GameCatPuzzleTests",      dependencies: ["GameCatPuzzle", "GameKitTestSupport", "CoreTestSupport"]),
+        .testTarget(name: "GameCatPuzzleTests",      dependencies: ["GameCatPuzzle", "GameKitTestSupport", "CoreTestSupport", "CoreEngine"]),
         .testTarget(name: "GameMahjongSolitaireTests", dependencies: ["GameMahjongSolitaire", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "GameMahjongTests",           dependencies: ["GameMahjong", "GameKitTestSupport", "CoreTestSupport"]),
         .testTarget(name: "MahjongTilesTests",          dependencies: ["MahjongTiles"]),

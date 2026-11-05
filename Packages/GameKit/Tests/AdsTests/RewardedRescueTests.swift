@@ -322,7 +322,7 @@ struct RewardGuardCallSiteTests {
         // 盤ゲーム 5 本の「待った」は Core の `BoardUndoButton` 1 か所に寄せた（#828）ので、ここには数えない。
         // 2048・ブロックならべ・ナンプレの広告コンティニューの幕も Core の `RewardedContinueOverlay` に寄せた（#829）。
         // おじさんちのねこさがしのミス 3 回目のコンティニューは、幕を結果カード 1 枚にまとめたので直接呼ぶ（#2904）。
-        #expect(requests == 27, "救済の入口は27面（おじさんちのねこさがしのヒント #2250・コンティニュー #2904・`requestHandledByModel` の3面と、Core に寄せた待った・コンティニューの幕を除く。いろリレーの引き札免除 #1320・ぱっと暗算の見直し #1321・スピードのタイム #1323・柵越えおじさんの挑戦回数 #1348・しりとりの時間延長 #1717・麻雀ソリティアとナンプレの戻す #1855・2048 の戻す #2023・マインスイーパーのヒント #2024・15パズルのヒント #1975・おじさんの荷物運びパズルの続ける救済 #2013 を含む）")
+        #expect(requests == 33, "救済の入口は33面（サイコロ役づくりの「広告で振る」と終局後のやり直し #3257（「戻す」の補充をやめた分は引き済み）・ババ抜きの「見破る」「引き直し」#3251・ねこさがしのステージの「猫を教える」#3203・ハーツの渡す場面のヒント #3003・おじさんちのねこさがしのヒント #2250・コンティニュー #2904・`requestHandledByModel` の3面と、Core に寄せた待った・コンティニューの幕を除く。いろリレーの引き札免除 #1320・ぱっと暗算の見直し #1321・スピードのタイム #1323・柵越えおじさんの挑戦回数 #1348・しりとりの時間延長 #1717・麻雀ソリティアとナンプレの戻す #1855・2048 の戻す #2023・サイコロ役づくりの役選びの戻す #2940・マインスイーパーのヒント #2024・15パズルのヒント #1975・おじさんの荷物運びパズルの続ける救済 #2013 を含む）")
         #expect(requests == guards,
                 "`RewardedRescue.request` の呼び出しと `guardedBy` の数が合わない（\(requests) 対 \(guards)）")
     }
@@ -398,17 +398,23 @@ struct RewardGuardCallSiteTests {
         // 対価だけ払って何も起きない状態は広告の契約違反なので、ファイル単位で数を突き合わせる。
         // モデルが結果を返す形（`requestHandledByModel(withOutcome:)`・#727）も `.unavailable` で
         // `showsUnavailable` を立てるので、同じく照合する側として数える。
+        // `CatPuzzleView+Controls.swift` のように extension へ分けた View は、本体と合わせて 1 つの面として数える（#3309）。
         let mismatched = try Self.gameSources()
             .map { (
-                path: $0.path,
+                path: $0.path.replacingOccurrences(of: #"\+\w+\.swift$"#, with: ".swift", options: .regularExpression),
                 checked: Self.occurrences(of: "guardedBy: .checkedByGrant", in: $0.text)
                     + Self.occurrences(of: "requestHandledByModel(withOutcome:", in: $0.text)
                     // Core の幕（#829）は中で `checkedByGrant` を宣言しているので、呼び出しを 1 件と数える。
                     + Self.occurrences(of: "RewardedContinueOverlay(", in: $0.text),
                 alerts: Self.occurrences(of: "unavailable: RewardUnavailableAlert(", in: $0.text)
             ) }
-            .filter { $0.checked != $0.alerts }
-            .map { "\($0.path): 照合する宣言 \($0.checked) 件に対しアラート \($0.alerts) 件" }
+            .reduce(into: [String: (checked: Int, alerts: Int)]()) {
+                let total = $0[$1.path] ?? (0, 0)
+                $0[$1.path] = (total.checked + $1.checked, total.alerts + $1.alerts)
+            }
+            .filter { $0.value.checked != $0.value.alerts }
+            .sorted { $0.key < $1.key }
+            .map { "\($0.key): 照合する宣言 \($0.value.checked) 件に対しアラート \($0.value.alerts) 件" }
         #expect(mismatched.isEmpty, "\(mismatched)")
     }
 

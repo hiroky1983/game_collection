@@ -127,7 +127,7 @@ public struct SpiderView: View {
                 message: tr("広告を見ているあいだに盤が変わったか、画面を離れたため、ヒントを出せませんでした。")
             )
         )
-        .overlay {
+        .overlayAboveBanner {
             if model.showsDeadEndPrompt { deadEndOverlay }
         }
         // 示した手を VoiceOver にも一言で伝える（印は目で見る手がかりなので）。
@@ -169,7 +169,7 @@ public struct SpiderView: View {
         // （#375・#1734・#1382。止め方・動かし方は `GameStopwatch` / `gameTimerLifecycle` に共通化・#1857）。
         .gameTimerLifecycle(
             rescues: [undoRescue, hintRescue],
-            isHeld: showSetup,
+            isHeld: showSetup || showUndoRefillPrompt,
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )
@@ -218,9 +218,9 @@ public struct SpiderView: View {
             // 数値の桁区切りを避けるため文字列にしてから渡す（フリーセル #492 の実測）。
             Text(verbatim: model.rules.suitCount.label + " #" + String(model.dealNumber))
                 .scaledFont(10, weight: .bold, design: .monospaced)
-                .foregroundStyle(Theme.inkSub)
+                .foregroundStyle(Theme.inkSubText)
 
-            GameClockLabel(RecordFormat.time(model.elapsedSeconds))
+            GameClockLabel(RecordFormat.time(model.elapsedSeconds), elapsedSeconds: model.elapsedSeconds)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(SpiderAccessibility.statusLabel(
@@ -787,7 +787,7 @@ struct SpiderSetupSheet: View {
                 }
                 Text(Self.footer(for: draft.suitCount))
                     .scaledFont(12, weight: .semibold, design: .rounded)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
             }
             if discardsProgress {
                 Label(tr("途中で終了すると今の盤面が失われ、この配札は「クリアできなかった」として記録されます。"),

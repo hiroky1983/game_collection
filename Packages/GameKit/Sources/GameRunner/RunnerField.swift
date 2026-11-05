@@ -292,9 +292,9 @@ public struct RunnerField: Equatable, Sendable {
     /// ここを「接地面からの高さ」に変えると台座の有無で意味が変わる値になってしまう。
     public var altitude: Double { footY - Metrics.groundY }
 
-    /// `x` に穴が開いているか（点で見る）。
+    /// `x` に穴が開いているか（点で見る）。裂け目（#2729）も幅の広い穴そのもの。
     public func isPit(at x: Double) -> Bool {
-        firstHazard { $0.kind == .pit && $0.start <= x && x < $0.end } != nil
+        firstHazard { ($0.kind == .pit || $0.kind == .chasm) && $0.start <= x && x < $0.end } != nil
     }
 
     /// その x で**足が乗る高さ**（#674）。台座の範囲内なら台座の上面、外は地面。
@@ -303,10 +303,9 @@ public struct RunnerField: Equatable, Sendable {
     /// 一本化したもの。`Metrics.groundY` を直に見ている接地まわりの箇所はすべてここを通す
     /// ——そうしておかないと「地面では接地するが台座では素通りする」という食い違いが生まれる。
     ///
-    /// 覆っている台座が複数あれば**最も高い上面**を採る。**第 1 弾ではこの `max` に到達しない**
-    /// ——台座の高さは 1 種類（`RunnerRules.platformHeight`）で、連続する `P` は 1 基に
-    /// まとまるため、ある x を覆う台座は常に高々 1 つ。高さ違いの台座を足して段を重ねる日
-    /// （次弾）に効く受け口として残してある。
+    /// 覆っている台座が複数あれば**最も高い上面**を採る。今の並びではこの `max` に到達しない
+    /// ——連続する同じ台座は 1 基にまとまり、高い台座（`H`・#2729）も台座の隣に置くだけで重ねはしない
+    /// （`PH` は左右に並んだ 2 基）ので、ある x を覆う台座は常に高々 1 つ。段を重ねる日に効く受け口として残してある。
     public func surfaceY(at x: Double) -> Double {
         var surface = Metrics.groundY
         forEachPlatform { _, platform in
@@ -374,7 +373,7 @@ public struct RunnerField: Equatable, Sendable {
         var best: (hazard: RunnerHazard, start: Double)?
         forEachHazard { hazard in
             guard let frame = hazard.frame(atRunnerDistance: distance), frame.end > x else { return }
-            guard hazard.kind == .pit || frame.bottom < Metrics.playerHeight else { return }
+            guard hazard.kind == .pit || hazard.kind == .chasm || frame.bottom < Metrics.playerHeight else { return }
             if best == nil || frame.start < best!.start { best = (hazard, frame.start) }
         }
         return best?.hazard
@@ -624,7 +623,9 @@ public struct RunnerField: Equatable, Sendable {
             }
             if let face = hittingPlatformFace {
                 lastMissCause = .rock
-                lastMissObject = face.kind == .crumbling ? .crumblingPlatformFace : .platformFace
+                // 高い台座（#2729）は絵も文言も別（歩道橋）。崩れる足場は高さが 1 種類なので先に見てよい。
+                lastMissObject = face.kind == .crumbling ? .crumblingPlatformFace
+                    : face.isHigh ? .highPlatformFace : .platformFace
                 events.append(.crashed)
                 return
             }
@@ -794,8 +795,9 @@ public struct RunnerField: Equatable, Sendable {
         // 高い塀（#1091）も横に動かない相手なので岩と同じ扱い。二段ジャンプは滞空が長く、
         // 高さ 18 を落ちるあいだに体 6 つぶん以上進むので、窓（`justLandingWindow` = 8）に
         // 入ることは岩より更に無い（判断を 1 か所に閉じるために対象からは外さない）。
-        case .pit, .lowBlock, .tallBlock, .shoot, .geyser, .wall: return true
-        case .bird, .dog, .boar:                         return false
+        case .pit, .chasm, .lowBlock, .tallBlock, .shoot, .geyser, .wall: return true
+        // 落石（#2729）も向かって来て体の中を通り抜けるので対象外。
+        case .bird, .dog, .boar, .rockfall:              return false
         }
     }
 
@@ -809,7 +811,7 @@ public struct RunnerField: Equatable, Sendable {
     /// 抜けるので、同じ式のまま自然に当たらなくなる。
     private var hittingHazard: RunnerHazard? {
         firstHazard { hazard in
-            guard hazard.kind != .pit,
+            guard hazard.kind != .pit, hazard.kind != .chasm,
                   let frame = hazard.frame(atRunnerDistance: distance) else { return false }
             guard frame.start < playerMaxX, playerMinX < frame.end else { return false }
             return footY < Metrics.groundY + frame.top

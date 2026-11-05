@@ -23,6 +23,28 @@
         }
       }
     },
+    "%1$@、%2$@、%3$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$@, %3$@"
+          }
+        }
+      }
+    },
+    "最長 %@ 日" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best: %@ days"
+          }
+        }
+      }
+    },
     "%@を開きます" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -529,6 +551,50 @@
         }
       }
     },
+    "プレイ記録を消去しました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play records cleared"
+          }
+        }
+      }
+    },
+    "ゆっくりモードを切り替えますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch Slow Mode?"
+          }
+        }
+      }
+    },
+    "切り替える" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch"
+          }
+        }
+      }
+    },
+    "ブロック崩しとチャリンコおじさんの進行中のデータが消えます。元に戻せません。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved progress in Block Breaker and Charinko Ojisan will be erased. This can't be undone."
+          }
+        }
+      }
+    },
     "プレイ記録を消去しますか？" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -613,6 +679,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Done"
+          }
+        }
+      }
+    },
+    "イベント中は先頭に表示" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shown first during the event"
+          }
+        }
+      }
+    },
+    "常に先頭に表示" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Always shown first"
           }
         }
       }
@@ -760,13 +848,13 @@
         }
       }
     },
-    "途中でやめたあそびがあるとき、1日ほどたってから「続きから遊べます」とお知らせします。1つのあそびにつき1件・同時に3件までです。\nまた、よく遊んでいたのに7日以上開いていないあそびがあるとき、最終プレイから7日・30日・60日後に「久しぶりに遊んでみませんか？」とお知らせします。複数のあそびで同時に進むことがあります（新しく始まるのは3日に1回まで）。そのあそびを開くと、そのあそびの分だけ止まります。60日後のお知らせにも触れないままだと、以降すべて届かなくなります。\nまた、柵越えおじさんの挑戦回数が戻ったときにも、1回お知らせします。\nオフにすると、3種類すべての予約済みのお知らせを取り消します。" : {
+    "途中でやめたあそびがあるとき、1日ほどたってから「続きから遊べます」とお知らせします。1つのあそびにつき1件・同時に3件までです。\nまた、よく遊んでいるあそびについて、最終プレイから7日・30日・60日後に「久しぶりに遊んでみませんか？」とお知らせします。複数のあそびで同時に進むことがあります（新しく始まるのは3日に1回まで）。そのあそびを開くと、そのあそびの分だけ止まります。60日後のお知らせにも触れないままだと、以降すべて届かなくなります。\nまた、柵越えおじさんの挑戦回数が戻ったときにも、1回お知らせします。\nオフにすると、3種類すべての予約済みのお知らせを取り消します。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "If you leave a game unfinished, we'll remind you about a day later that you can pick up where you left off. One reminder per game, up to 3 at a time.\nIf a game you used to play often hasn't been opened for 7 days or more, we'll suggest playing it again 7, 30, and 60 days after you last played. This can happen for several games at once (a new one starts at most once every 3 days). Opening that game stops its reminders. If the 60-day reminder goes unanswered, no further reminders are sent.\nWe'll also let you know once when your Sakugoe Ojisan attempts are back.\nTurning this off cancels all scheduled reminders of all three kinds."
+            "value" : "If you leave a game unfinished, we'll remind you about a day later that you can pick up where you left off. One reminder per game, up to 3 at a time.\nFor a game you play often, we'll suggest playing it again 7, 30, and 60 days after you last played. This can happen for several games at once (a new one starts at most once every 3 days). Opening that game stops its reminders. If the 60-day reminder goes unanswered, no further reminders are sent.\nWe'll also let you know once when your Sakugoe Ojisan attempts are back.\nTurning this off cancels all scheduled reminders of all three kinds."
           }
         }
       }
@@ -877,6 +965,105 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Days Played"
+          }
+        }
+      }
+    },
+    "ハブの並びを初期に戻す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset hub order to default"
+          }
+        }
+      }
+    },
+    "ハブの並びを初期に戻しますか？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset the hub order to default?"
+          }
+        }
+      }
+    },
+    "初期に戻す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset"
+          }
+        }
+      }
+    },
+    "ハブの並びを初期に戻しました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hub order reset to default"
+          }
+        }
+      }
+    },
+    "並べ替えた順番を、アプリ初期の並びに戻します。非表示にしたあそびもすべて表示に戻ります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This restores the original order of games. Any games you hid will also be shown again."
+          }
+        }
+      }
+    },
+    "効果音の音量" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sound Effects Volume"
+          }
+        }
+      }
+    },
+    "小" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Low"
+          }
+        }
+      }
+    },
+    "中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Medium"
+          }
+        }
+      }
+    },
+    "大" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "High"
           }
         }
       }

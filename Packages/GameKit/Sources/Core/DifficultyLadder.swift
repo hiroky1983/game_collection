@@ -131,7 +131,7 @@ struct DifficultyLadderCard: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(offer.caption)
                             .themeCaption(RecommendationCard.captionSize, weight: .semibold)
-                            .foregroundStyle(Theme.inkSub)
+                            .foregroundStyle(Theme.inkSubText)
                             .lineLimit(1)
                         Text(offer.title)
                             .themeBody(16)
@@ -148,7 +148,7 @@ struct DifficultyLadderCard: View {
                         .background(Capsule().fill(Theme.Fill.yellow))
                 }
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pop)
             .accessibilityLabel(tr("%1$@%2$@", offer.caption, offer.title))
             .accessibilityHint(tr("「%@」で新しく始めます", offer.nextLevelLabel))
 

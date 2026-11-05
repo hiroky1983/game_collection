@@ -36,7 +36,7 @@ struct DiceComboModuleTests {
         }
     }
 
-    @Test("画面は共通の枠・レコメンド枠・図入りの遊び方を使い、広告の面を足していない")
+    @Test("画面は共通の枠・レコメンド枠・図入りの遊び方を使い、広告は「広告で振る」と「0 点の役のやり直し」（#3257）だけに置く")
     func viewUsesSharedParts() throws {
         let code = SourceScan.strippingComments(try SourceScan.moduleSources("GameDiceCombo"))
         #expect(code.components(separatedBy: ".gameChrome(title:").count - 1 == 1)
@@ -44,8 +44,13 @@ struct DiceComboModuleTests {
         #expect(code.contains("BannerSlot("))
         #expect(code.contains("HowToPlayHint(.diceCombo"))
         #expect(code.contains(".howToPlay(HowToPlayGuide.diceCombo.illustrated(DiceComboHowToFigures.items)"))  // 後ろに .onboarding(...)（#2826）が続く
-        #expect(!code.contains("showRewardedAd("), "リワード広告は使わない")
-        #expect(!code.contains("RewardedRescue("), "救済の広告面は持たない（#1752 は広告を足さない）")
+        // #1752 は広告なしで導入し、#2940 の「役選びを戻す」の補充は #3257 で「広告で振る」（.reroll）と
+        // 終局後の 0 点の役のやり直し（.continue）に置き換えた。
+        #expect(!code.contains("showRewardedAd("), "広告は RewardedRescue 経由（押したときだけ・自動再生しない）")
+        #expect(code.components(separatedBy: "RewardedRescue()").count - 1 == 2, "救済の広告面は「広告で振る」と「やり直し」の 2 つだけ")
+        #expect(code.contains("purpose: .reroll") && code.contains("purpose: .continue") && !code.contains("purpose: .undo"),
+                "リワードは振り直しとやり直しだけ（「戻す」は無い）")
+        #expect(code.contains(".rewardOffer(continueRescue, for: .continue"), "やり直しは確認を出してから広告（押した瞬間に流さない）")
         #expect(!code.contains("withAnimation("), "アニメーションは gameAnimation 経由")
         #expect(!code.contains("Image(\""), "絵はコードで描く（外部の画像を使わない）")
         #expect(code.contains("gameDidStart(") && code.contains("gameDidRestart(")

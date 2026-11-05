@@ -18,6 +18,7 @@ struct RecordsView: View {
     /// （シートを出したまま Game Center のオーバーレイやサインイン画面を重ねない）。
     var onOpenGameCenter: () -> Void
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     /// 並びは設定シートと同じ（非表示のゲームも記録は残っているので載せる）。
     private var summary: RecordsSummary {
@@ -91,25 +92,42 @@ struct RecordsView: View {
             .accessibilityLabel(summary.progressText)
 
             // 6 枚を 3 枚ずつ 2 段に折る（タイルの数は固定。SE でも 1 枚あたり幅が足りる）。
+            // 最大サイズでは見出しが切れるので 2 枚ずつ 3 段にする（#2935）。
+            let tiles = statTiles(summary)
+            let columns = dynamicTypeSize.isAccessibilitySize ? 2 : 3
             VStack(spacing: 8) {
-                HStack(spacing: 8) {
-                    statTile(title: tr("遊んだ種類"), value: "\(summary.playedCount)/\(summary.gameCount)")
-                    statTile(title: tr("通算勝利"), value: RecordFormat.number(summary.totalWins))
-                    statTile(title: tr("最高連勝"), value: RecordFormat.number(summary.bestStreak))
-                }
-                HStack(spacing: 8) {
-                    statTile(title: tr("総プレイ回数"), value: tr("%@回", RecordFormat.number(playLog?.totalFinishes ?? 0)))
-                    // `playDays` は直近 366 日ぶんだけ保存している（上限を超えた古い日は数えない）。
-                    statTile(title: tr("遊んだ日数"), value: tr("%@日", RecordFormat.number(playLog?.playDays.count ?? 0)))
-                    // 日をまたぐ連続（#1625）。勝敗の連勝とは別物。0 日のときも 0 で出す（タイルの数は固定）。
-                    statTile(title: tr("連続日数"), value: tr("%@日", RecordFormat.number(playLog?.playStreak() ?? 0)))
+                ForEach(0..<(tiles.count / columns), id: \.self) { row in
+                    HStack(spacing: 8) {
+                        ForEach(0..<columns, id: \.self) { column in
+                            let tile = tiles[row * columns + column]
+                            statTile(title: tile.title, value: tile.value, note: tile.note)
+                        }
+                    }
                 }
             }
         }
         .padding(.vertical, 4)
     }
 
-    private func statTile(title: String, value: String) -> some View {
+    private func statTiles(_ summary: RecordsSummary) -> [(title: String, value: String, note: String?)] {
+        let streak = playLog?.playStreak() ?? 0
+        let longest = playLog?.longestPlayStreak() ?? 0
+        return [
+            (tr("遊んだ種類"), "\(summary.playedCount)/\(summary.gameCount)", nil),
+            (tr("通算勝利"), RecordFormat.number(summary.totalWins), nil),
+            (tr("最高連勝"), RecordFormat.number(summary.bestStreak), nil),
+            (tr("総プレイ回数"), tr("%@回", RecordFormat.number(playLog?.totalFinishes ?? 0)), nil),
+            // `playDays` は直近 366 日ぶんだけ保存している（上限を超えた古い日は数えない）。
+            (tr("遊んだ日数"), tr("%@日", RecordFormat.number(playLog?.playDays.count ?? 0)), nil),
+            // 日をまたぐ連続（#1625）。勝敗の連勝とは別物。0 日のときも 0 で出す（タイルの数は固定）。
+            // 途切れても最長が残るよう「最長 N 日」を添える（#2886）。
+            (tr("連続日数"), tr("%@日", RecordFormat.number(streak)),
+             PlayDayStreak.showsLongest(current: streak, longest: longest)
+                ? tr("最長 %@ 日", RecordFormat.number(longest)) : nil),
+        ]
+    }
+
+    private func statTile(title: String, value: String, note: String?) -> some View {
         VStack(spacing: 2) {
             // 数値は整形済みの文字列で渡す（`Text` の補間に Int を渡すと桁区切りが勝手に入る）。
             Text(verbatim: value)
@@ -119,32 +137,39 @@ struct RecordsView: View {
                 .minimumScaleFactor(0.6)
             Text(title)
                 .themeCaption(11)
-                .foregroundStyle(Theme.inkSub)
-                .lineLimit(1)
+                .foregroundStyle(Theme.inkSubText)
+                .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                 .minimumScaleFactor(0.7)
+            if let note {
+                Text(verbatim: note)
+                    .themeCaption(11)
+                    .foregroundStyle(Theme.inkSubText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous)
                 .fill(Theme.coral.opacity(0.1))
         )
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(tr("%1$@、%2$@", title, value))
+        .accessibilityLabel(note.map { tr("%1$@、%2$@、%3$@", title, value, $0) } ?? tr("%1$@、%2$@", title, value))
     }
 
     private func milestoneRow(_ milestone: RecordsSummary.Milestone) -> some View {
         HStack(spacing: 12) {
             Image(systemName: milestone.isAchieved ? "checkmark.seal.fill" : "seal")
                 .scaledFont(20, weight: .semibold)
-                .foregroundStyle(milestone.isAchieved ? Theme.coralText : Theme.inkSub)
+                .foregroundStyle(milestone.isAchieved ? Theme.coralText : Theme.inkSubText)
             Text(milestone.title)
                 .themeBody(16)
                 .foregroundStyle(Theme.ink)
             Spacer(minLength: 8)
             Text(verbatim: milestone.isAchieved ? tr("達成") : milestone.progressText)
                 .themeCaption(13)
-                .foregroundStyle(milestone.isAchieved ? Theme.coralText : Theme.inkSub)
+                .foregroundStyle(milestone.isAchieved ? Theme.coralText : Theme.inkSubText)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(milestone.accessibilityLabel)
@@ -177,17 +202,17 @@ struct RecordsView: View {
                 Text(row.title)
                     .themeBody(16)
                     .foregroundStyle(Theme.ink)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                     .minimumScaleFactor(0.7)
                 Text(verbatim: row.detailText)
                     .themeCaption(12)
-                    .foregroundStyle(Theme.inkSub)
-                    .lineLimit(1)
+                    .foregroundStyle(Theme.inkSubText)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
                     .minimumScaleFactor(0.7)
                 if let lastPlayedText {
                     Text(verbatim: lastPlayedText)
                         .themeCaption(12)
-                        .foregroundStyle(Theme.inkSub)
+                        .foregroundStyle(Theme.inkSubText)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                 }
@@ -210,7 +235,7 @@ struct RecordsView: View {
             if let plays = row.playsText {
                 Text(verbatim: plays)
                     .themeCaption(13)
-                    .foregroundStyle(Theme.inkSub)
+                    .foregroundStyle(Theme.inkSubText)
             } else {
                 // まだ遊んでいない行は「あそぶ」を出して、押せると分かるようにする（#1974）。
                 Text(tr("あそぶ"))
@@ -220,7 +245,7 @@ struct RecordsView: View {
             }
             Image(systemName: "chevron.right")
                 .scaledFont(12, weight: .semibold)
-                .foregroundStyle(Theme.inkSub.opacity(0.6))
+                .foregroundStyle(Theme.inkSubText.opacity(0.6))
                 .accessibilityHidden(true)
         }
         .contentShape(Rectangle())
