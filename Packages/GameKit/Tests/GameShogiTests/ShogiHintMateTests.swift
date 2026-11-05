@@ -74,7 +74,9 @@ struct ShogiHintMateTests {
     func mateInThree() throws {
         let pos = try position(Self.mateIn3)
         #expect(!mates(pos, plies: 1))
-        let answer = try #require(engine().hintAnswer(sfen: Self.mateIn3))
+        // Debug ビルドの 3 手詰の探索は 0.45 秒（出荷の詰み確認の上限・#3350）を超えうるので、5 手詰と同じく時間を十分に取る。
+        let relaxed = SimpleMinimaxEngine(level: BoardHintBudget.engineLevel, seed: nil, timeLimit: 60)
+        let answer = try #require(relaxed.hintAnswer(sfen: Self.mateIn3))
         guard case let .mate(move) = answer else { Issue.record("詰ます手になっていない: \(answer)"); return }
         var after = pos
         after.make(move)
@@ -97,8 +99,10 @@ struct ShogiHintMateTests {
 
     @Test("詰みがあれば考える時間をまるまる使わずに答える")
     func mateAnswersQuickly() throws {
+        // 詰み探索が 0.45 秒（#3350）で時間切れになって達人の探索へ移らないよう、mateInThree と同じく時間を十分に取る。
+        let relaxed = SimpleMinimaxEngine(level: BoardHintBudget.engineLevel, seed: nil, timeLimit: 60)
         let started = Date()
-        _ = engine().hintAnswer(sfen: Self.mateIn3)
+        _ = relaxed.hintAnswer(sfen: Self.mateIn3)
         #expect(Date().timeIntervalSince(started) < 1.0)
     }
 
