@@ -5,7 +5,8 @@ import Observation
 /// サイコロ役づくり（#1752）のゲーム状態。1 人用で、12 役ぜんぶに点を入れたら 1 局の決着。
 ///
 /// 1 ターン = 最大 3 回振る → 役を 1 つ選んで点を入れる。キープした目は振り直さない。
-/// 3 回振り切ったあと、広告 1 本につき 1 回ずつ、1 ターンに最大 `maxAdRerolls` 回まで振り直せる（#3257）。
+/// 3 回振り切ったあと（ターンの終わり）に、広告 1 本で 1 ターンに 1 回（`maxAdRerolls`）、1 局に 5 回（`maxAdRerollsPerGame`）まで
+/// もう 1 回振れる（#3257・#3345 で会長決裁 2026-11-05 により作り直し）。
 /// 12 役を埋めたとき 0 点の役があれば、広告 1 本でそのうち 1 役を 1 局に 1 回だけやり直せる（#3257）。
 ///
 /// **Game Center のリーダーボード・実績にはサイコロ役づくりを載せない**（広告で多く振った局と
@@ -17,11 +18,11 @@ import Observation
 public final class DiceComboModel {
     public static let gameID = "dicecombo"
 
-    /// 1 ターンに広告で振り直せる回数の上限（通常の `DiceComboLogic.maxRolls` 回に加えて・#3257）。
-    public static let maxAdRerolls = 3
-    /// 1 局に広告で振り直せる回数の上限（ターンごとの `maxAdRerolls` に重ねる・#3341）。
+    /// 1 ターンに広告で振り直せる回数の上限（通常の `DiceComboLogic.maxRolls` 回に加えて・#3257、1 回に変更・#3345）。
+    public static let maxAdRerolls = 1
+    /// 1 局に広告で振り直せる回数の上限（ターンごとの `maxAdRerolls` に重ねる・#3341、5 回に変更・#3345）。
     /// 短時間に広告を続けて頼んで在庫切れ・無効トラフィックの判定になるのを抑える。コンティニューは別枠。
-    public static let maxAdRerollsPerGame = 10
+    public static let maxAdRerollsPerGame = 5
 
     /// 大きな役として祝う点（#2804）。ファイブダイス（50）・ビッグストレート（30）・スモールストレート（25）。
     /// 通常の役（フルハウスの合計・チョイスなど）では超えにくい線に置く。
@@ -110,13 +111,19 @@ public final class DiceComboModel {
         !isFinished && !isRolling && rollsUsed == DiceComboLogic.maxRolls && adRerollsRemaining > 0
     }
 
-    /// 広告で振り直せる残り。このターンの残りと、この局の残り（#3341）の少ない方。
+    /// 広告で振り直せる残り。このターンの残りと、この局の残り（#3341）の少ない方（押せるかの判定に使う）。
     public var adRerollsRemaining: Int {
         min(Self.maxAdRerolls - adRollsUsed, Self.maxAdRerollsPerGame - gameAdRollsUsed)
     }
 
+    /// この局で広告で振れる残り（0〜`maxAdRerollsPerGame`）。ターンの使用済みとは関係なく、画面の「この局 あと n 回」に出す（#3345）。
+    public var gameAdRerollsRemaining: Int { max(0, Self.maxAdRerollsPerGame - gameAdRollsUsed) }
+
     /// この局の広告での振り直しを使い切ったか（#3341）。View は広告のボタンを「この局はここまで」にする。
     public var isAdRerollCapReached: Bool { gameAdRollsUsed >= Self.maxAdRerollsPerGame }
+
+    /// このターンの広告での振り直しを使い切ったか（#3345）。局の残りがあっても押せず、View は「このターンは使用済み」と出す。
+    public var isAdRerollTurnUsed: Bool { adRollsUsed >= Self.maxAdRerolls }
 
     /// キープを切り替えられるか（振ったあとで止まっていて、通常か広告でまだ振り直せるとき）。
     public var canHold: Bool {

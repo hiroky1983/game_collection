@@ -321,14 +321,16 @@ public struct DiceComboView: View {
                 isEnabled: model.canAdReroll && !isWatchingAd,
                 accessibilityLabel: rerollRescue.isWatching
                     ? tr("広告を読み込み中")
-                    : tr("広告を見てもう1回振る、広告で振れるのはあと%lld回", model.adRerollsRemaining),
+                    : tr("広告を見てもう1回振る、1局5回まで、この局であと%lld回", model.gameAdRerollsRemaining),
                 accessibilityHint: rerollRescue.isWatching
                     ? ""
                     : model.canAdReroll
                         ? tr("広告を最後まで見ると、もう1回振れます。キープも使えます")
                         : model.isAdRerollCapReached
                             ? tr("この局で広告で振れる回数は上限に達しました")
-                            : tr("通常の3回を振り切ると使えます")
+                            : model.isAdRerollTurnUsed
+                                ? tr("このターンは広告で振り直し済みです")
+                                : tr("通常の3回を振り切ると使えます")
             ) { requestReroll() },
         ], verticalPadding: 0)
         .lineLimit(1)
@@ -337,11 +339,13 @@ public struct DiceComboView: View {
 
     private static let rerollControlWidth: CGFloat = 124
 
-    /// 2 行目。広告の読み込み中は押せない理由が分かるようにし（#3341）、局の上限に達したら残り回数ではなくそう伝える。
+    /// 2 行目。押せない理由が分かる順に出す（#3345）: 読み込み中 ＞ この局はここまで ＞ このターンは使用済み ＞ 局の残り。
+    /// 「1局5回まで」の全文は幅（124pt）に入らないので読み上げ・ヒントで伝え、ここは局の残りだけを出す。
     private var rerollNote: String {
         if rerollRescue.isWatching { return tr("広告を読み込み中") }
         if model.isAdRerollCapReached { return tr("この局はここまで") }
-        return tr("広告で あと%lld回", model.adRerollsRemaining)
+        if model.isAdRerollTurnUsed { return tr("このターンは使用済み") }
+        return tr("この局 あと%lld回", model.gameAdRerollsRemaining)
     }
 
     /// リワード広告 → 1 回振る。局とターンを広告を出す前に控え、ロード中に変わっていたら乗せない。
