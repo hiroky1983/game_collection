@@ -95,6 +95,23 @@ struct RewardedAdPreloaderTests {
         #expect(h.loads == 1)
     }
 
+    @Test("止めたあとに始め直した先読みを、古い先読みの後始末が消さない")
+    func restartAfterCancelSurvivesOldChainCleanup() async {
+        let h = Harness(failures: 100)
+        let p = RewardedAdPreloader<String>(
+            retryDelays: [.seconds(5)], loadTimeout: nil,
+            sleep: { _ in try await Task.sleep(for: .seconds(60)) },
+            load: { h.loads += 1; throw LoadFailure() }
+        )
+        p.start()
+        while h.loads == 0 { await Task.yield() }
+        p.cancelRetries()
+        p.start(afterFailure: true)
+        for _ in 0..<50 { await Task.yield() }
+        #expect(p.isPreparing, "新しい先読み（最初の待ち）が生きている")
+        p.cancelRetries()
+    }
+
     @Test("応答が返らない読み込みは打ち切られ、タップの待ちも戻る（押せなくならない）")
     func hungLoadTimesOut() async {
         // SDK が cancel に応えず返ってこない状況。テストの最後まで resume しない。

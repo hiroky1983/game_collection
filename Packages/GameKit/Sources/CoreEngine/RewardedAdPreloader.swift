@@ -24,6 +24,8 @@ public final class RewardedAdPreloader<Ad> {
 
     /// 先読みの全体（読み込み → 失敗なら間を空けて再試行）。二重に始めないためと、止めるため。
     private var chain: Task<Void, Never>?
+    /// `chain` の世代。止めたあとに始め直した新しい先読みを、古い先読みの後始末が消さないための印。
+    private var chainGeneration = 0
     /// 進行中の読み込み 1 回ぶん。タップがその完了に相乗りする。再試行の待ち時間は含まない。
     private var attempt: Task<Void, Never>?
 
@@ -57,10 +59,12 @@ public final class RewardedAdPreloader<Ad> {
     /// - Parameter afterFailure: 直前の読み込みが失敗した直後なら true。最初の間隔だけ待ってから読む。
     public func start(afterFailure: Bool = false) {
         guard chain == nil, !isReady else { return }
+        chainGeneration += 1
+        let generation = chainGeneration
         chain = Task { [weak self] in
             guard let self else { return }
             await self.runChain(skippingFirstAttempt: afterFailure)
-            self.chain = nil
+            if self.chainGeneration == generation { self.chain = nil }
         }
     }
 
@@ -78,6 +82,7 @@ public final class RewardedAdPreloader<Ad> {
     public func cancelRetries() {
         chain?.cancel()
         chain = nil
+        chainGeneration += 1
     }
 
     /// その場で 1 本読み込む（打ち切りあり）。預けずに返す。失敗・打ち切りは nil。
