@@ -773,7 +773,7 @@
         }
       }
     },
-    "広告で あと%lld回" : {
+    "この局 あと%lld回" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -782,13 +782,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Ad: %lld left"
+                  "value" : "Game: %lld left"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Ad: %lld left"
+                  "value" : "Game: %lld left"
                 }
               }
             }
@@ -873,7 +873,7 @@
         }
       }
     },
-    "広告を見てもう1回振る、広告で振れるのはあと%lld回" : {
+    "広告を見てもう1回振る、1局5回まで、この局であと%lld回" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -882,13 +882,13 @@
               "one" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Watch an ad to roll once more, %lld ad roll left"
+                  "value" : "Watch an ad to roll once more. Up to 5 per game, %lld left this game"
                 }
               },
               "other" : {
                 "stringUnit" : {
                   "state" : "translated",
-                  "value" : "Watch an ad to roll once more, %lld ad rolls left"
+                  "value" : "Watch an ad to roll once more. Up to 5 per game, %lld left this game"
                 }
               }
             }
@@ -1080,6 +1080,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Loading ad…"
+          }
+        }
+      }
+    },
+    "このターンは使用済み" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Used this turn"
+          }
+        }
+      }
+    },
+    "このターンは広告で振り直し済みです" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You've already used the ad roll this turn."
           }
         }
       }
