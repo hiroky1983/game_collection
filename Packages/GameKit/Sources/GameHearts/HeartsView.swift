@@ -554,6 +554,11 @@ public struct HeartsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, 14).padding(.vertical, 12)
         .popCard(corner: Theme.cornerSmall)
+        // 手の終わり → 決着は同じ枝のまま中身が替わるので、`id` で作り直して決着でももう一度告げる（#3325）。
+        // 操作欄は同じ階層に残すので `.isModal` は付けない。
+        .accessibilityElement(children: .contain)
+        .announcesResultAppearance(scoreHeadline)
+        .id(isFinal)
     }
 
     private func scoreRow(_ player: Int, isFinal: Bool) -> some View {

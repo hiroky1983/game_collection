@@ -543,6 +543,9 @@ public struct ColorRelayView: View {
                 resultContent
             }
         }
+        // 結果が出たことを VoiceOver に 1 回だけ伝える（#3325）。操作欄は同じ階層に残すので `.isModal` は付けない。
+        .accessibilityElement(children: .contain)
+        .announcesResultAppearance(resultHeadline)
     }
 
     private var resultContent: some View {

@@ -610,13 +610,14 @@ public struct OldMaidView: View {
 
     private var resultCard: some View {
         let won = model.reviewOutcome == .win
+        let headline = won ? tr("あなたの勝ち！") : tr("ジョーカーが残った…あなたの負け")
         return VStack(spacing: 8) {
             HStack(spacing: 8) {
                 Image(systemName: won ? "crown.fill" : "theatermasks.fill")
                     .scaledFont(20)
                     .foregroundStyle(won ? Theme.yellowText : Theme.purple)
                     .accessibilityHidden(true)
-                Text(won ? tr("あなたの勝ち！") : tr("ジョーカーが残った…あなたの負け"))
+                Text(headline)
                     .scaledFont(17, weight: .black, design: .rounded)
                     .foregroundStyle(won ? Theme.tealText : Theme.ink)
                     .lineLimit(1).minimumScaleFactor(0.6)
@@ -663,6 +664,9 @@ public struct OldMaidView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, 14).padding(.vertical, 12)
         .popCard(corner: Theme.cornerSmall)
+        // 結果が出たことを VoiceOver に 1 回だけ伝える（#3325）。操作欄は同じ階層に残すので `.isModal` は付けない。
+        .accessibilityElement(children: .contain)
+        .announcesResultAppearance(headline)
     }
 
     /// 役割（`GameButtonRole`）で色を決める横いっぱいのボタン（#1423）。色・角丸・44pt は `GameButtonStyle` が持つ。
