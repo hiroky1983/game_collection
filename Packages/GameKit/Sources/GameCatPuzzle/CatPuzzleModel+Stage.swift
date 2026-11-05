@@ -107,6 +107,7 @@ extension CatPuzzleModel {
         isOfferingContinue = false
         hints.reset()
         stageAssistsUsed = 0
+        stageTeachesUsed = 0
         gameSerial += 1
         hintCells = []
         hintCrosses = []

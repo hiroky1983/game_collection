@@ -14,6 +14,8 @@ public struct CatPuzzleView: View {
     @State var clearCardClosed = false
     /// ステージのクリアの流れ（ライフが pt に → ランキング → モーダル・#3304）。クリアのたびに頭から。
     @State var clearFlow = CatPuzzleClearFlow()
+    /// クリアのモーダルに載せる今日の順位（ランキングの段で読めたとき。#3329）。
+    @State var clearStanding: (rank: Int, participants: Int)?
     /// 盤を押している指の状態（タップかスライドかの判定。#3116）。
     @State private var boardTouch = BoardTouch()
     /// 盤の拡大と移動（2 本指・#3238）。新しい局・盤の大きさが変わったら等倍に戻す。
@@ -226,6 +228,7 @@ public struct CatPuzzleView: View {
             if !shows {
                 clearCardClosed = false
                 clearFlow = CatPuzzleClearFlow()
+                clearStanding = nil
             }
         }
         // 新しい局が始まったら、答え合わせで出した猫を片付ける。

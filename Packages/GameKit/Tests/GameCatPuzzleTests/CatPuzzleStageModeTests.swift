@@ -164,18 +164,28 @@ struct CatPuzzleStageModeTests {
         #expect(CatPuzzleView.showsFinishedControls(model))
     }
 
-    @Test("クリアのカードの行は 4 行以内（SE の画面に収める）。ステージは次の面の位置を出す（#3240）")
-    func clearDetailsAreCompact() async {
+    @Test("ステージのクリアのモーダルに進み具合・手数・イベント pt の行が無く、クリアタイムと今日の合計がある（#3329）")
+    func clearDetailsForStage() async {
         let services = makeServices()
         let model = CatPuzzleModel(services: services, stageDefaults: makeDefaults("details"))
         await start(model, 1)
         solve(model)
         let view = CatPuzzleView(services: services, model: model)
         #expect(view.clearDetails.count <= 4)
-        #expect(view.clearDetails.contains { $0.contains("次は 6×6：2 / 10 面") && $0.contains("鍵の面まであと 7 面") })
+        #expect(!view.clearDetails.contains { $0.contains("次は") || $0.contains("手数") || $0.contains("イベント") })
+        #expect(view.clearDetails.contains { $0.hasPrefix("クリアタイム ") })
+        #expect(view.clearDetails.contains { $0.hasPrefix("今日の合計 ") })
+        let icons = view.clearStats.map(\.systemImage)
+        #expect(icons == ["heart.fill", "lightbulb.fill", "fork.knife"])
     }
 
-    @Test("ステージは時計を出さず、クリアのカードにタイムが無い。自由に遊ぶは今のまま（#3210）")
+    @Test("今日の合計の行は、順位が読めたときだけ n 位 / m 人を添える（#3329）")
+    func todayLine() {
+        #expect(CatPuzzleClearFlow.todayLine(total: 6, rank: nil, participants: nil) == "今日の合計 6pt")
+        #expect(CatPuzzleClearFlow.todayLine(total: 6, rank: 3, participants: 120) == "今日の合計 6pt・今日 3 位 / 120 人")
+    }
+
+    @Test("ステージは時計を出さず、クリアのモーダルにはクリアタイムだけ（#3329）。自由に遊ぶは今のまま（#3210）")
     func stageHasNoClock() async {
         let services = makeServices()
         let model = CatPuzzleModel(services: services, stageDefaults: makeDefaults("noClock"))
@@ -183,8 +193,8 @@ struct CatPuzzleStageModeTests {
         #expect(!CatPuzzleView.showsClock(model))
         solve(model)
         let view = CatPuzzleView(services: services, model: model)
-        #expect(!view.clearDetails.contains { $0.contains("タイム") })
-        #expect(view.clearDetails.first?.hasPrefix("ライフ 3・ヒント 0回") == true)
+        #expect(!view.clearDetails.contains { $0.hasPrefix("タイム ") }, "プレイ中のタイム表記は出さない")
+        #expect(view.clearStats.first?.text == "ライフ 3")
         #expect(model.recordScore.seconds == nil, "記録に秒数を渡さない")
 
         model.newGame(size: .easy)

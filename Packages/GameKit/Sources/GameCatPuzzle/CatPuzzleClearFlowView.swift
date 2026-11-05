@@ -2,7 +2,8 @@ import SwiftUI
 import Core
 import CoreEngine
 
-/// クリアの流れ（#3304）のうち、モーダルの前の 2 段（ライフが pt になる／ランキングの結果）を見せるカード。
+/// クリアの流れ（#3304）のうち、モーダルの前の 2 段（ライフが pt になる／ランキングの結果）を見せる。
+/// ライフ → pt はカード、ランキングは盤の領域いっぱいの全画面の画面（#3329。バナーは覆わない）。
 /// 段の切り替えは親が持つ `CatPuzzleClearFlow` が決め、このカードは今の段を描いて、時間が来るかタップされたら `onFinish` を呼ぶ。
 struct CatPuzzleClearFlowCard: View {
     let step: CatPuzzleClearFlow.Step
@@ -15,6 +16,8 @@ struct CatPuzzleClearFlowCard: View {
     let loadBoard: @MainActor () async -> GameCenterBoard?
     /// 段の終わり（時間が来た・タップされた）。
     let onFinish: () -> Void
+    /// 順位を読み終えたとき（読めなければ nil）。クリアのモーダルが今日の順位を載せるために受け取る。
+    var onResult: (CatPuzzleClearFlow.RankingResult?) -> Void = { _ in }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// pt に飛んだライフの数。
@@ -26,21 +29,44 @@ struct CatPuzzleClearFlowCard: View {
     private var gained: Int { isKey ? lives * CatPuzzleEvent.keyMultiplier : lives }
 
     var body: some View {
-        // 順位表（行 36pt × 10）は背が高い。最大の文字サイズ・SE で枠より高くなるときは縦にスクロールさせる
-        // （収まるときは素のカードが選ばれ、見た目は変わらない）。
-        ViewThatFits(in: .vertical) {
-            card
-            ScrollView { card }.scrollBounceBehavior(.basedOnSize)
+        Group {
+            if step == .ranking {
+                rankingPage.transition(.opacity)
+            } else {
+                card.transition(.opacity)
+            }
         }
         .task(id: step) { await run() }
+    }
+
+    /// ランキングの全画面（柵越えおじさんの順位表の画面と同じ見せ方）。幕を重ねる側（`overlayAboveBanner`）が
+    /// バナーの上までに収めるので、バナーは覆わない。順位表（行 36pt × 10）は背が高いので、収まらないときは縦にスクロールする。
+    private var rankingPage: some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                rankingBody
+                Text(tr("タップで次へ"))
+                    .scaledFont(12, weight: .semibold, design: .rounded, maxScale: 1.3)
+                    .foregroundStyle(Theme.inkSubText)
+            }
+            .multilineTextAlignment(.center)
+            .padding(Theme.pad)
+            .frame(maxWidth: 480)
+            .frame(maxWidth: .infinity)
+        }
+        .scrollBounceBehavior(.basedOnSize)
+        .background(Theme.background)
+        .contentShape(Rectangle())
+        .onTapGesture { onFinish() }
+        .accessibilityElement(children: .contain)
+        .accessibilityAction(named: tr("次へ進みます")) { onFinish() }
     }
 
     private var card: some View {
         VStack(spacing: 14) {
             switch step {
             case .lives: livesBody
-            case .ranking: rankingBody
-            case .modal: EmptyView()
+            case .ranking, .modal: EmptyView()
             }
             Text(tr("タップで次へ"))
                 .scaledFont(12, weight: .semibold, design: .rounded, maxScale: 1.3)
@@ -184,6 +210,7 @@ struct CatPuzzleClearFlowCard: View {
             guard !Task.isCancelled else { return }
             result = CatPuzzleClearFlow.result(board: board, beforeTotal: total - gained)
             rankSettled = true
+            onResult(result)
             try? await Task.sleep(for: CatPuzzleClearFlow.rankingDuration(motion: result?.motion, reduceMotion: reduceMotion))
         case .modal:
             return

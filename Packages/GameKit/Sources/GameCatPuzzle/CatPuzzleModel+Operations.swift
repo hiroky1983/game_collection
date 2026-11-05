@@ -227,6 +227,7 @@ extension CatPuzzleModel {
         hintCells.insert(cell)
         noteKeyOpened(wasLocked: wasLocked)
         stageAssistsUsed += 1
+        stageTeachesUsed += 1
         lastHint = nil
         lastWrongCell = nil
         moves += 1

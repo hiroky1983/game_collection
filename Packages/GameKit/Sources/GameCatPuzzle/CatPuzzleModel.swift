@@ -72,6 +72,8 @@ public final class CatPuzzleModel {
     public var hintsUsed: Int { stage == nil ? hints.used : stageAssistsUsed }
     /// ステージのこの局で使ったヒント・「猫を教える」の合計（`hintsUsed` の元）。
     var stageAssistsUsed = 0
+    /// そのうち「餌をあげる」の回数（クリアのモーダルでヒントと分けて出す・#3329）。中断データには保存しない（再開後はヒントに数える）。
+    var stageTeachesUsed = 0
     /// ステージ共通のヒントの残り（無料ぶん）。0 のとき次の 1 回に広告が要る。
     public internal(set) var stageHintsLeft = CatPuzzleModel.stageSupplyCount
     /// ステージ共通の「猫を 1 匹教える」の残り（無料ぶん）。
@@ -221,6 +223,7 @@ public final class CatPuzzleModel {
             isOfferingContinue = snap.mistakes >= Self.maxMistakes
             hints = BoardHintBudget(used: snap.hintsUsed, freeLimit: Self.freeHints, adLimit: Self.adHints)
             stageAssistsUsed = snap.stage == nil ? 0 : snap.hintsUsed
+            stageTeachesUsed = 0
             hintCells = Set(snap.hintCells ?? [])
             hintCrosses = Set(snap.hintCrosses ?? [])
             wrongCrosses = Set(snap.wrongCrosses ?? [])
