@@ -56,7 +56,7 @@ public struct SetupStepSelector<Value: Hashable>: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(current.map { $0.title + ($0.detail.isEmpty ? "" : tr("、") + $0.detail) } ?? "")
-        .accessibilityValue(tr("%d / %d", index + 1, options.count))
+        .accessibilityValue(tr("%lld / %lld", index + 1, options.count))
         .accessibilityHint(tr("上下にスワイプして変更します"))
         .accessibilityAdjustableAction { direction in
             switch direction {
@@ -137,7 +137,7 @@ public struct SetupStepSelector<Value: Hashable>: View {
                 }
             }
             .frame(height: 6)
-            Text(tr("%d / %d", index + 1, options.count))
+            Text(tr("%lld / %lld", index + 1, options.count))
                 .themeBody(13)
                 .monospacedDigit()
                 .foregroundStyle(Theme.inkSubText)
