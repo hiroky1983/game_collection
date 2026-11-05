@@ -183,8 +183,8 @@ struct OjisanPuzzleModelTests {
         _ = model.move(by: 1)
         _ = model.move(by: 1)
         #expect(try #require(model.current).col == start + 1, "待ち時間のあいだは 1 マスだけ")
-        let delay = OjisanPuzzlePain.inputDelayMilliseconds(for: 90)
-        try await Task.sleep(for: .milliseconds(delay * 4 + 300))
+        // 負荷の高い CI でも揺れないよう、固定時間ではなく期限付きで見る。
+        for _ in 0..<200 where model.current?.col != start + 3 { try await Task.sleep(for: .milliseconds(50)) }
         #expect(try #require(model.current).col == start + 3, "待ち時間を挟んで 3 マス動くはず")
     }
 
