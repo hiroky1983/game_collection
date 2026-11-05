@@ -82,7 +82,7 @@ struct CatPuzzleKeyOpenEffect: View {
         }
         // 波の先頭に金色の輪（盤の外へはみ出さない。盤の `clipShape` が切る）。
         if !reduceMotion, let p = Self.ringProgress(t: t) {
-            let radius = CGFloat(p * diagonal * Self.waveSpan)
+            let radius = CGFloat(p * diagonal)
             let ring = Path(ellipseIn: CGRect(x: o.x - radius, y: o.y - radius, width: radius * 2, height: radius * 2))
             context.stroke(ring, with: .color(Theme.yellow.opacity(0.8 * (1 - p))), lineWidth: max(2, cellSide * 0.08))
         }

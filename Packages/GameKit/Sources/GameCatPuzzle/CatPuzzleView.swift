@@ -286,11 +286,11 @@ public struct CatPuzzleView: View {
         // 同じきっかけで盤の演出（波紋・錠前・光）を 1 秒だけ出す。再開した盤は keyOpenings が 0 のまま出ない（#3330）。
         .task(id: model.keyOpenings) {
             guard model.keyOpenings > keyOpenPlayed else { return }
+            keyOpenPlayed = model.keyOpenings
             keyOpenPlaying = true
             try? await Task.sleep(for: CatPuzzleKeyOpenEffect.duration)
             guard !Task.isCancelled else { return }
             keyOpenPlaying = false
-            keyOpenPlayed = model.keyOpenings
         }
         // 最後の猫を置いたら 1 拍おいてクリアのダイアログを出す。
         .task(id: model.isSolved) {
@@ -407,7 +407,7 @@ public struct CatPuzzleView: View {
                         ghostCats: Array(model.unfoundCats.prefix(revealedGhosts)),
                         lureCell: model.lureCell,
                         keyRoom: model.keyRoom, keyLocked: model.isKeyLocked,
-                        keyOpening: keyOpenPlaying, keyCat: model.keyCat, cellSide: drawnCell
+                        keyOpening: keyOpenPlaying && !model.isKeyLocked, keyCat: model.keyCat, cellSide: drawnCell
                     )
                     // 鍵の部屋の外を触ったら盤が短く揺れる（Reduce Motion では揺らさない）。
                     .phaseAnimator(CatPuzzleMotion.shakePhases, trigger: model.lockedTouches) { content, phase in
