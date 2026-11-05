@@ -1476,6 +1476,28 @@
         }
       }
     },
+    "入院した" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ended up in the hospital"
+          }
+        }
+      }
+    },
+    "積み上がった" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stacked up too high"
+          }
+        }
+      }
+    },
     "波しぶきにぶつかった" : {
       "extractionState" : "manual",
       "localizations" : {

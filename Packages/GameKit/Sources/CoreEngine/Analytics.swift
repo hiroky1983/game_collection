@@ -111,6 +111,10 @@ public enum AnalyticsEndCause: String, Equatable, Sendable, CaseIterable {
     /// 穴（`pit`）と分けてあるのは、**落ちた理由が違う**から——穴は「跳び越せなかった」、
     /// こちらは「跳び続けられなかった」で、直す先（床の長さか、置いた位置か）も別になる。
     case sink
+    /// 腰痛ゲージが満タンになって入院した（腰痛おじさんパズルの荷運び・#3352）。
+    case hospital
+    /// 荷物が積み上がって出現位置が埋まった・せり上がりで押し出された（同上）。入院（`hospital`）とは直し先が違う。
+    case buried
 }
 
 /// `game_end` の `exit`。**途中離脱（quit）の直前に何が起きていたか**（#2848）。
@@ -120,6 +124,22 @@ public enum AnalyticsEndCause: String, Equatable, Sendable, CaseIterable {
 public enum AnalyticsExit: String, Equatable, Sendable, CaseIterable {
     /// ミスした直後に、走り直さずやめた。
     case afterMiss = "after_miss"
+}
+
+/// `game_end` に載せる、腰痛おじさんパズルの荷運びの 1 プレイのまとめ（#3352）。決着（win / loss）のときだけ載る。
+public struct AnalyticsGaugeSummary: Equatable, Sendable {
+    /// 開始時の腰痛ゲージ（0...100）。広告で続けた局では、続けた時点のゲージ。
+    public let startValue: Int
+    /// そのプレイの最大ゲージ（0...100）。
+    public let peakValue: Int
+    /// そのプレイで消した荷物の数（マス数）。
+    public let clearedCount: Int
+
+    public init(startValue: Int, peakValue: Int, clearedCount: Int) {
+        self.startValue = min(100, max(0, startValue))
+        self.peakValue = min(100, max(startValue, peakValue, 0))
+        self.clearedCount = max(0, clearedCount)
+    }
 }
 
 /// `game_end` に載せる、そのプレイ中のミスのまとめ（#2848）。ミスのたびにはイベントを出さない。
@@ -339,7 +359,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
         gameID: String, result: AnalyticsResult, durationSec: Int,
         mode: AnalyticsMode? = nil, cause: AnalyticsEndCause? = nil, hintsUsed: Int = 0,
         credit: AnalyticsCredit? = nil, level: AnalyticsLevel? = nil, misses: AnalyticsMissSummary? = nil,
-        eventPoints: Int? = nil, teachUsed: Int = 0
+        eventPoints: Int? = nil, teachUsed: Int = 0, gauge: AnalyticsGaugeSummary? = nil
     )
     /// 面をクリアしたあと、次の面へ進まず（もう一度も押さず）画面を離れた（#2848）。パラメータは `game_id` / `level`。
     /// 面を進めるゲーム（`level` が `stage-N`）のクリア（win）の直後に離れたときだけ、離れた 1 回につき 1 回。
@@ -408,7 +428,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
                 if let days = engagement.daysSinceLastPlay { parameters["days_since_last_play"] = .int(days) }
             }
             return parameters
-        case let .gameEnd(gameID, result, durationSec, mode, cause, hintsUsed, credit, level, misses, eventPoints, teachUsed):
+        case let .gameEnd(gameID, result, durationSec, mode, cause, hintsUsed, credit, level, misses, eventPoints, teachUsed, gauge):
             var parameters: [String: AnalyticsValue] = [
                 "game_id": .string(gameID),
                 // `AnalyticsResult` は win / loss / draw / quit の4値に閉じた enum。
@@ -435,6 +455,12 @@ public enum AnalyticsEvent: Equatable, Sendable {
             }
             // イベントのポイントを稼いだクリアだけ（ねこさがしの 1 か月イベント・#3204）。
             if let eventPoints { parameters["event_points"] = .int(eventPoints) }
+            // 腰痛おじさんパズルの荷運びの決着だけ（開始・最大ゲージと消した数。#3352）。
+            if let gauge {
+                parameters["pain_start"] = .int(gauge.startValue)
+                parameters["pain_max"] = .int(gauge.peakValue)
+                parameters["cleared_count"] = .int(gauge.clearedCount)
+            }
             return parameters
         case let .clearExit(gameID, level):
             return ["game_id": .string(gameID), "level": .string(level.parameterValue)]
@@ -615,6 +641,8 @@ public final class GameAnalytics {
     private var missCounts: [String: Int] = [:]
     /// そのプレイのクリアで稼いだイベントのポイント（#3204）。終わりの `game_end` に載せる。
     private var eventPoints: [String: Int] = [:]
+    /// 進行中のプレイのゲージのまとめ（#3352）。終わりの `game_end` に載せる。プレイを始め直すと消える。
+    private var gauges: [String: AnalyticsGaugeSummary] = [:]
     /// 進行中のプレイで「猫を教える」を使った回数（#3232）。終わりの `game_end` に `teach_used` として載せる。
     private var teachCounts: [String: Int] = [:]
     private var missPercents: [String: Int] = [:]
@@ -772,6 +800,15 @@ public final class GameAnalytics {
         missCounts[gameID, default: 0] += 1
         missPercents[gameID] = progressPercent
         unresolvedMisses.insert(gameID)
+    }
+
+    /// 決着の原因（`cause`）とゲージのまとめを覚える（腰痛おじさんパズルの荷運び・#3352）。**イベントは送らない**。
+    /// `finishPlay` より前に呼ぶと、その `game_end` に載る。`recordMissCause` と違い、ミスの回数は数えない
+    /// （入院・積み上がりは「ミス」ではなく決着）。`cause` は負けたときだけ渡す。
+    public func recordEndDetail(gameID: String, cause: AnalyticsEndCause?, gauge: AnalyticsGaugeSummary) {
+        guard case .inFlight = plays[gameID] else { return }
+        causes[gameID] = cause
+        gauges[gameID] = gauge
     }
 
     /// そのプレイのクリアで稼いだイベントのポイントを覚える（#3204）。**イベントは送らない**。
@@ -1035,7 +1072,7 @@ public final class GameAnalytics {
             gameID: gameID, result: result, durationSec: seconds,
             mode: modes[gameID], cause: causes[gameID], hintsUsed: hintsUsed, credit: credits[gameID],
             level: levels[gameID], misses: misses, eventPoints: eventPoints[gameID],
-            teachUsed: teachCounts[gameID] ?? 0
+            teachUsed: teachCounts[gameID] ?? 0, gauge: gauges[gameID]
         ))
     }
 
@@ -1051,6 +1088,7 @@ public final class GameAnalytics {
         causes[gameID] = nil
         missCounts[gameID] = nil
         eventPoints[gameID] = nil
+        gauges[gameID] = nil
         teachCounts[gameID] = nil
         missPercents[gameID] = nil
         unresolvedMisses.remove(gameID)

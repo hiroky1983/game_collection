@@ -292,16 +292,16 @@ struct AnalyticsEventShapeTests {
 
     /// #1089（沈む床）で `sink` を 1 つだけ足した。**足す前の 4 値の並びは変えない**
     /// ——GA4 側の既存の集計は値の集合が増えても壊れないが、既存の値の綴りが変わると壊れる。
-    @Test("cause は pit / rock / bird / animal / sink の5値に閉じている（#796・#1089）")
+    @Test("cause は pit / rock / bird / animal / sink の7値に閉じている（#796・#1089・#3352）")
     func causeIsClosed() {
-        #expect(AnalyticsEndCause.allCases.map(\.rawValue) == ["pit", "rock", "bird", "animal", "sink"])
+        #expect(AnalyticsEndCause.allCases.map(\.rawValue) == ["pit", "rock", "bird", "animal", "sink", "hospital", "buried"])
         let sent = AnalyticsEndCause.allCases.map { cause -> String in
             guard case let .string(text)? = AnalyticsEvent
                 .gameEnd(gameID: "runner", result: .loss, durationSec: 0, cause: cause)
                 .parameters["cause"] else { return "" }
             return text
         }
-        #expect(sent == ["pit", "rock", "bird", "animal", "sink"])
+        #expect(sent == ["pit", "rock", "bird", "animal", "sink", "hospital", "buried"])
     }
 
     @Test("result は win / loss / draw / quit の4値に閉じている（#500）")
@@ -1503,7 +1503,7 @@ struct RunnerQuitTests {
         #expect(spy.ends.isEmpty, "ミスでは終局しない")
         services.gameDidLeave(gameID: RunnerModel.gameID)
         let end = spy.events.last
-        guard case let .gameEnd(_, result, _, _, cause, _, _, _, _, _, _)? = end else { Issue.record("game_end が無い"); return }
+        guard case let .gameEnd(_, result, _, _, cause, _, _, _, _, _, _, _)? = end else { Issue.record("game_end が無い"); return }
         #expect(result == .quit)
         #expect(cause == .pit)
     }
@@ -1513,14 +1513,14 @@ struct RunnerQuitTests {
         let (services, spy) = makeServices()
         let model = RunnerModel(services: services, startingAt: 1)
         autoPlayCurrentStage(model)
-        guard case let .gameEnd(_, result, _, _, cause, _, _, _, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
+        guard case let .gameEnd(_, result, _, _, cause, _, _, _, _, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
         #expect(result == .win)
         #expect(cause == nil)
         // 次のプレイへ持ち越さない: 2 面でミスして離れると、2 面の死因だけが載る。
         model.advanceToNextStage()
         failCurrentStage(model)
         services.gameDidLeave(gameID: RunnerModel.gameID)
-        guard case let .gameEnd(_, result2, _, _, cause2, _, _, _, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
+        guard case let .gameEnd(_, result2, _, _, cause2, _, _, _, _, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
         #expect(result2 == .quit)
         #expect(cause2 == .pit)
     }
@@ -1532,7 +1532,7 @@ struct RunnerQuitTests {
         let model = RunnerModel(services: services)
         failCurrentStage(model)
         services.gameDidLeave(gameID: RunnerModel.gameID)
-        guard case let .gameEnd(_, result, _, _, _, _, _, _, misses, _, _)? = spy.events.last
+        guard case let .gameEnd(_, result, _, _, _, _, _, _, misses, _, _, _)? = spy.events.last
         else { Issue.record("game_end が無い"); return }
         #expect(result == .quit)
         #expect(misses?.count == 1)
@@ -1553,7 +1553,7 @@ struct RunnerQuitTests {
         failCurrentStage(model)
         model.retryStage()
         autoPlayCurrentStage(model)
-        guard case let .gameEnd(_, result, _, _, _, _, _, _, misses, _, _)? = spy.events.last
+        guard case let .gameEnd(_, result, _, _, _, _, _, _, misses, _, _, _)? = spy.events.last
         else { Issue.record("game_end が無い"); return }
         #expect(result == .win)
         #expect(misses?.count == 2)
@@ -1708,7 +1708,7 @@ struct UntouchedSnapshotReopenTests {
     /// 最後の `game_end` の `mode`（#3225）。
     private func lastEndMode(_ spy: SpyAnalyticsService) -> AnalyticsMode? {
         spy.events.reversed().lazy.compactMap { event -> AnalyticsMode?? in
-            if case let .gameEnd(_, _, _, mode, _, _, _, _, _, _, _) = event { return .some(mode) } else { return nil }
+            if case let .gameEnd(_, _, _, mode, _, _, _, _, _, _, _, _) = event { return .some(mode) } else { return nil }
         }.first ?? nil
     }
 
