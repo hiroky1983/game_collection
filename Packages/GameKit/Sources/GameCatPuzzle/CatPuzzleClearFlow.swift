@@ -1,4 +1,6 @@
 import Foundation
+import Core
+import CoreEngine
 
 /// ステージをクリアしたあとの見せ方の順番（#3304）。
 /// 猫全体のアニメーション（既存のくつろぐ演出。`CatPuzzleModel.showsClearCard` が真になった時点で終わっている）→
@@ -67,13 +69,53 @@ struct CatPuzzleClearFlow: Equatable {
         var isTop3: Bool { rank.map { (1...3).contains($0) } ?? false }
     }
 
+    /// 順位の欄に出すもの（#3327）。送った後の順位表と、自分の行が上がる動き。
+    struct RankingResult: Equatable {
+        let board: GameCenterBoard
+        /// 送る前の合計から送った後の順位への動き。記録が伸びていない・送る前の合計が読めないときは nil（静止の表）。
+        let motion: RankingMotion?
+
+        var rank: Int? { board.myRank }
+        /// 抜いた人の数（「3 人抜き！」）。送る前の位置が表の外かもしれないとき（自分が表の最下段から始まり、
+        /// 参加者が表より多い）は、数えきれないので 0 にして出さない。
+        var passedCount: Int {
+            guard let motion else { return 0 }
+            let startsInsideTable = motion.from < motion.entries.count - 1 || board.participants <= board.rows.count
+            return startsInsideTable ? motion.passedCount : 0
+        }
+        /// 表を出せるか。自分が上位の外・まだ載っていないときは false で、今までの 1 行の表示に戻す。
+        var showsTable: Bool { board.rows.contains(where: \.isMe) }
+        var isTop3: Bool { rank.map { (1...3).contains($0) } ?? false }
+    }
+
+    /// 順位表に出す上位の人数。
+    static let tableRows = 10
+
+    /// 読んだ順位表から出すものを作る。`beforeTotal` はこのクリアで pt を足す前の今日の合計。表が読めなければ nil。
+    static func result(board: GameCenterBoard?, beforeTotal: Int) -> RankingResult? {
+        guard let board else { return nil }
+        return RankingResult(board: board, motion: RankingPlan.motion(beforeScore: max(0, beforeTotal), after: board))
+    }
+
+    /// ランキングの段の長さ（読めたあと、モーダルへ進むまで）。入れ替えを流すときはその長さ + 余韻。
+    static func rankingDuration(motion: RankingMotion?, reduceMotion: Bool) -> Duration {
+        guard motion != nil, !reduceMotion else { return hold + .milliseconds(600) }
+        return .seconds(RankingMotion.duration) + hold
+    }
+
     /// 順位を `timeout` まで待って読む。待ちきれない・読めなければ nil を返す（待たせない）。
     @MainActor
     static func loadRank(timeout: Duration = rankTimeout, _ load: @escaping @MainActor () async -> Int?) async -> Int? {
+        await loadWithTimeout(timeout: timeout, load)
+    }
+
+    @MainActor
+    static func loadWithTimeout<Value: Sendable>(timeout: Duration = rankTimeout,
+                                                 _ load: @escaping @MainActor () async -> Value?) async -> Value? {
         var finished = false
-        var rank: Int?
+        var value: Value?
         let loader = Task { @MainActor in
-            rank = await load()
+            value = await load()
             finished = true
         }
         let clock = ContinuousClock()
@@ -82,6 +124,6 @@ struct CatPuzzleClearFlow: Equatable {
             try? await Task.sleep(for: .milliseconds(50))
         }
         loader.cancel()
-        return finished ? rank : nil
+        return finished ? value : nil
     }
 }

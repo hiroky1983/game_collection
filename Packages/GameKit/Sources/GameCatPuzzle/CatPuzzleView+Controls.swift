@@ -303,7 +303,7 @@ extension CatPuzzleView {
                 CatPuzzleClearFlowCard(
                     step: clearFlow.step, lives: model.mistakesRemaining,
                     isKey: model.lastEventWasKey, total: model.eventTotal,
-                    loadRank: { await loadTodayRank() }
+                    loadBoard: { await loadTodayBoard() }
                 ) { withGameAnimation { clearFlow.advance() } }
             } else {
             GameClearCard(
@@ -325,16 +325,18 @@ extension CatPuzzleView {
         .accessibilityAddTraits(.isModal)
     }
 
-    /// 今日の順位（Game Center）。読めなければ nil（未サインイン・失敗）。
-    private func loadTodayRank() async -> Int? {
+    /// 今日の順位表（Game Center・上位 10 人）。読めなければ nil（未サインイン・失敗）。
+    private func loadTodayBoard() async -> GameCenterBoard? {
         // 送った pt が順位に乗ってから読む。友だちの順位は待たず、盤の順位だけを読む。
         await model.awaitEventSubmission()
+        // 送れていないと盤は今日の合計より古い。順位表は出さず、合計だけの表示に戻す。
+        guard model.isEventTotalSent() else { return nil }
         guard let reporter = services.gameCenter, reporter.isSignedIn else { return nil }
         guard let board = await reporter.loadWeeklyBoard(
             gameID: CatPuzzleModel.gameID, leaderboardID: GameCenterLeaderboard.catPuzzleEvent,
-            topCount: CatPuzzleRankingContent.topCount
+            topCount: CatPuzzleClearFlow.tableRows
         ) else { return nil }
-        return CatPuzzleRankingModel.today(board, now: Date()).myRank
+        return CatPuzzleRankingModel.today(board, now: Date())
     }
 
     /// 3 回目のミスで出す、ただ 1 枚のダイアログ（他のゲームの負けと同じ `BoardGameResultCard`・#2904）。
