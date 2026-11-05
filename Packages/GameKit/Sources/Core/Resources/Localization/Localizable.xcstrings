@@ -1,6 +1,28 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "X でポスト" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Post on X"
+          }
+        }
+      }
+    },
+    "ポストしなくても遊べます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can play without posting."
+          }
+        }
+      }
+    },
     "ラスト" : {
       "extractionState" : "manual",
       "localizations" : {

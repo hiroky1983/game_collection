@@ -233,7 +233,17 @@ struct AnalyticsEventShapeTests {
         ])
 
         // `reward_grant`（#3256）は game_id / rank / items の 3 鍵だけ。items の語彙は enum に閉じる。
-        #expect(RewardGrantItems.allCases.map(\.rawValue) == ["hint", "teach", "hint_teach"])
+        #expect(RewardGrantItems.allCases.map(\.rawValue) == ["hint", "teach", "hint_teach", "challenge"])
+        // X でポストした特典（#3359）は rank の代わりに purpose = share を送る。順位の特典は purpose を載せない。
+        #expect(RewardGrantPurpose.allCases.map(\.rawValue) == ["ranking", "share"])
+        #expect(AnalyticsEvent.rewardGrant(gameID: "homerun", rank: 0, items: .challenge, purpose: .share).parameters == [
+            "game_id": .string("homerun"), "items": .string("challenge"), "purpose": .string("share"),
+        ])
+        // `share_tap` の `offer`（#3359）は提案の表示・押下のときだけ。通常の共有は game_id のみ。
+        #expect(ShareOfferStep.allCases.map(\.rawValue) == ["shown", "tap"])
+        #expect(AnalyticsEvent.shareTap(gameID: "homerun", offer: .tap).parameters == [
+            "game_id": .string("homerun"), "offer": .string("tap"),
+        ])
         #expect(AnalyticsEvent.rewardGrant(gameID: "catpuzzle", rank: 1, items: .hintTeach).parameters == [
             "game_id": .string("catpuzzle"), "rank": .int(1), "items": .string("hint_teach"),
         ])
