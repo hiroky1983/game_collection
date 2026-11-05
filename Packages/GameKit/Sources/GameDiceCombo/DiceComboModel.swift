@@ -19,6 +19,9 @@ public final class DiceComboModel {
 
     /// 1 ターンに広告で振り直せる回数の上限（通常の `DiceComboLogic.maxRolls` 回に加えて・#3257）。
     public static let maxAdRerolls = 3
+    /// 1 局に広告で振り直せる回数の上限（ターンごとの `maxAdRerolls` に重ねる・#3341）。
+    /// 短時間に広告を続けて頼んで在庫切れ・無効トラフィックの判定になるのを抑える。コンティニューは別枠。
+    public static let maxAdRerollsPerGame = 10
 
     /// 大きな役として祝う点（#2804）。ファイブダイス（50）・ビッグストレート（30）・スモールストレート（25）。
     /// 通常の役（フルハウスの合計・チョイスなど）では超えにくい線に置く。
@@ -45,6 +48,8 @@ public final class DiceComboModel {
     public private(set) var isRolling = false
     /// このターンに広告で振った回数（0〜`maxAdRerolls`）。通常の 3 回を振り切ったあとにだけ増え、役を選ぶと 0 に戻る。
     public private(set) var adRollsUsed = 0
+    /// この局に広告で振った回数（0〜`maxAdRerollsPerGame`）。役を選んでも戻らず、新しいゲームで 0 に戻る（#3341）。
+    public private(set) var gameAdRollsUsed = 0
     /// 12 役が埋まり、0 点の役があるので、広告で 1 役やり直すかを選ばせている間（#3257）。
     /// この間は `isFinished` だが記録・解析は確定しない。断る（`declineContinue`）・やり直す（`grantContinue`）・
     /// 新しいゲームのどれかで決まる。中断データには残るので、アプリを離れても提案から再開できる。
@@ -78,6 +83,7 @@ public final class DiceComboModel {
             rollsUsed = restored.rollsUsed
             scores = restored.scores
             adRollsUsed = restored.adRollsUsed
+            gameAdRollsUsed = restored.gameAdRollsUsed
             continueUsed = restored.continueUsed
             isOfferingContinue = restored.isOfferingContinue
             isFinished = restored.isOfferingContinue
@@ -101,16 +107,21 @@ public final class DiceComboModel {
 
     /// 通常の 3 回を振り切ったあと、広告で振り直せるか（#3257）。
     public var canAdReroll: Bool {
-        !isFinished && !isRolling && rollsUsed == DiceComboLogic.maxRolls && adRollsUsed < Self.maxAdRerolls
+        !isFinished && !isRolling && rollsUsed == DiceComboLogic.maxRolls && adRerollsRemaining > 0
     }
 
-    /// このターンに広告であと何回振り直せるか。
-    public var adRerollsRemaining: Int { Self.maxAdRerolls - adRollsUsed }
+    /// 広告で振り直せる残り。このターンの残りと、この局の残り（#3341）の少ない方。
+    public var adRerollsRemaining: Int {
+        min(Self.maxAdRerolls - adRollsUsed, Self.maxAdRerollsPerGame - gameAdRollsUsed)
+    }
+
+    /// この局の広告での振り直しを使い切ったか（#3341）。View は広告のボタンを「この局はここまで」にする。
+    public var isAdRerollCapReached: Bool { gameAdRollsUsed >= Self.maxAdRerollsPerGame }
 
     /// キープを切り替えられるか（振ったあとで止まっていて、通常か広告でまだ振り直せるとき）。
     public var canHold: Bool {
         !isFinished && !isRolling && rollsUsed > 0
-            && (rollsUsed < DiceComboLogic.maxRolls || adRollsUsed < Self.maxAdRerolls)
+            && (rollsUsed < DiceComboLogic.maxRolls || adRerollsRemaining > 0)
     }
 
     /// その役にいま点を入れられるか。転がっている最中は止まった目をまだ見せていないので選べない。
@@ -163,6 +174,7 @@ public final class DiceComboModel {
     public func grantReroll(forGame serial: Int, turn: Int) -> Bool {
         guard serial == gameSerial, turn == turnSerial, canAdReroll else { return false }
         adRollsUsed += 1
+        gameAdRollsUsed += 1
         performRoll(viaAd: true)
         return true
     }
@@ -283,6 +295,7 @@ public final class DiceComboModel {
         gameSerial += 1
         turnSerial += 1
         adRollsUsed = 0
+        gameAdRollsUsed = 0
         continueUsed = false
         rollTask?.cancel()
         rollTask = nil
@@ -343,7 +356,8 @@ public final class DiceComboModel {
             rollsUsed: rollsUsed,
             scores: Dictionary(uniqueKeysWithValues: scores.map { ($0.key.rawValue, $0.value) }),
             adRollsUsed: adRollsUsed,
-            continueUsed: continueUsed
+            continueUsed: continueUsed,
+            gameAdRollsUsed: gameAdRollsUsed
         )
         try? services?.snapshots.save(snap, for: Self.gameID)
     }
@@ -352,7 +366,7 @@ public final class DiceComboModel {
     /// 12 役が埋まっていても、コンティニューの提案中（0 点の役があり未使用）なら提案から再開する。
     static func restore(_ snap: DiceComboSnapshot) -> (
         dice: [Int], held: [Bool], rollsUsed: Int, scores: [DiceComboCategory: Int],
-        adRollsUsed: Int, continueUsed: Bool, isOfferingContinue: Bool
+        adRollsUsed: Int, gameAdRollsUsed: Int, continueUsed: Bool, isOfferingContinue: Bool
     )? {
         guard (0...DiceComboLogic.maxRolls).contains(snap.rollsUsed) else { return nil }
         if snap.rollsUsed == 0 {
@@ -375,7 +389,9 @@ public final class DiceComboModel {
         // 広告で振った回数は、通常の 3 回を振り切ったあとにだけ意味がある。
         let adRolls = snap.rollsUsed == DiceComboLogic.maxRolls
             ? min(max(0, snap.adRollsUsed ?? 0), maxAdRerolls) : 0
-        return (snap.dice, snap.held, snap.rollsUsed, scores, adRolls, continueUsed, offering)
+        // この局の合計は、このターンの回数より少なくならない（旧データ・壊れた値は下限に丸める）。
+        let gameAdRolls = min(max(snap.gameAdRollsUsed ?? 0, adRolls), maxAdRerollsPerGame)
+        return (snap.dice, snap.held, snap.rollsUsed, scores, adRolls, gameAdRolls, continueUsed, offering)
     }
 
     #if DEBUG

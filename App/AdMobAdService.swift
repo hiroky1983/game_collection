@@ -98,9 +98,10 @@ public final class AdMobAdService: AdService {
     private var fullScreenDelegate: FullScreenDelegate?
 
     /// 先読みしたリワード広告（#658）。タップ時はこれを使い、読み込みを待たせない。
-    private var rewardedSlot = PreloadedAdSlot<RewardedAd>()
-    /// 進行中の先読み。二重に読み込まないためと、タップがその途中に来たときに相乗りするため。
-    private var rewardedPreloadTask: Task<Void, Never>?
+    /// 読み込みの失敗は間を空けて再試行し、応答が返らない読み込みは打ち切る（#3341）。
+    private let rewardedPreloader = RewardedAdPreloader<RewardedAd> {
+        try await RewardedAd.load(with: AdConfig.effectiveRewardedID, request: Request())
+    }
     /// SDK の初期化（`initializeAds()`）が済むまでは先読みしない。
     private var isRewardedPreloadEnabled = false
 
@@ -114,25 +115,17 @@ public final class AdMobAdService: AdService {
 
     /// リワード広告を 1 本先読みする。使える広告を預かっている・読み込み中なら何もしない。
     /// 読み込むだけで表示はしない（表示はユーザーのタップを起点にした `showRewardedAd()` だけ）。
+    /// 失敗したら 5 秒・15 秒・45 秒と間を空けて読み直す（#3341）。尽きたら次の機会（ハブからゲームを開く）か
+    /// タップ時の読み込みに任せる。
     public func preloadRewardedAd() {
-        guard isRewardedPreloadEnabled, rewardedPreloadTask == nil,
-              !rewardedSlot.hasFreshAd(now: Date()) else { return }
-        rewardedPreloadTask = Task { [weak self] in
-            // 失敗は握りつぶす。次の先読みの機会（ハブからゲームを開く）か、タップ時の読み込みに任せる。
-            let ad = try? await RewardedAd.load(
-                with: AdConfig.effectiveRewardedID,
-                request: Request()
-            )
-            guard let self else { return }
-            if let ad { self.rewardedSlot.store(ad, loadedAt: Date()) }
-            self.rewardedPreloadTask = nil
-        }
+        guard isRewardedPreloadEnabled else { return }
+        rewardedPreloader.start()
     }
 
     /// 先読みした広告を失効前のまま預かっているか（`reward_offer` の `not_ready` の判定・#780）。
     /// 先読みの途中はまだ出せないので false。
     public var isRewardedAdReady: Bool {
-        rewardedSlot.hasFreshAd(now: Date())
+        rewardedPreloader.isReady
     }
 
     // 画面ごとに独立した BannerView を持たせる。共有すると UIView が奪われ HubView で表示されない。
@@ -168,13 +161,12 @@ public final class AdMobAdService: AdService {
     }
 
     @MainActor public func showRewardedAd() async -> Bool {
-        // 先読みの途中でタップされたら、もう 1 本読み始めずにその完了を待つ。
-        if let preload = rewardedPreloadTask {
-            await preload.value
-        }
+        // 読み込み中の 1 回にタップが来たら、もう 1 本読み始めずにその完了を待つ（打ち切りあり）。
+        // 再試行の待ち時間中は待たない（押してから長く動かない状態を作らない・#3341）。
+        await rewardedPreloader.awaitCurrentAttempt()
         // 先読みした広告があれば読み込みを待たずに出す。失効していた・表示に失敗した回だけ、
         // 従来どおりその場で読み込む。
-        if let ad = rewardedSlot.take(now: Date()), let root = rootViewController() {
+        if let ad = rewardedPreloader.take(), let root = rootViewController() {
             switch await present(ad, from: root) {
             case .rewarded:
                 preloadRewardedAd()
@@ -187,21 +179,17 @@ public final class AdMobAdService: AdService {
             }
         }
 
-        let ad: RewardedAd?
-        do {
-            ad = try await RewardedAd.load(
-                with: AdConfig.effectiveRewardedID,
-                request: Request()
-            )
-        } catch {
+        // その場で読む。裏の再試行と二重に読まないよう止めておく。
+        rewardedPreloader.cancelRetries()
+        guard let ad = await rewardedPreloader.loadNow() else {
+            // 読み込めなかった回は回線が戻っていない見込みが高いので、間を空けて読み直す。
+            if isRewardedPreloadEnabled { rewardedPreloader.start(afterFailure: true) }
             return false
         }
-        guard let ad else { return false }
         guard let root = rootViewController() else { return false }
 
         let outcome = await present(ad, from: root)
-        // 出し終えたので次の 1 本を読んでおく。読み込みに失敗した回は、回線が戻っていない
-        // 見込みが高いので続けて読み直さない。
+        // 出し終えたので次の 1 本を読んでおく。
         preloadRewardedAd()
         return outcome == .rewarded
     }

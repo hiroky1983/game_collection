@@ -1073,6 +1073,39 @@
         }
       }
     },
+    "広告を読み込み中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading ad…"
+          }
+        }
+      }
+    },
+    "この局はここまで" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limit reached"
+          }
+        }
+      }
+    },
+    "この局で広告で振れる回数は上限に達しました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You've reached the ad roll limit for this game."
+          }
+        }
+      }
+    },
     "通常の3回を振り切ると使えます" : {
       "extractionState" : "manual",
       "localizations" : {

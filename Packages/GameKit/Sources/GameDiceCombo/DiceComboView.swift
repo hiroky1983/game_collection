@@ -317,12 +317,14 @@ public struct DiceComboView: View {
         GameOverflowBar(actions: [
             GameActionItem(
                 id: "reroll", title: tr("広告で振る"), systemImage: "play.rectangle.fill", role: .ad,
-                note: tr("広告で あと%lld回", model.adRerollsRemaining),
+                note: rerollNote,
                 isEnabled: model.canAdReroll && !isWatchingAd,
                 accessibilityLabel: tr("広告を見てもう1回振る、広告で振れるのはあと%lld回", model.adRerollsRemaining),
                 accessibilityHint: model.canAdReroll
                     ? tr("広告を最後まで見ると、もう1回振れます。キープも使えます")
-                    : tr("通常の3回を振り切ると使えます")
+                    : model.isAdRerollCapReached
+                        ? tr("この局で広告で振れる回数は上限に達しました")
+                        : tr("通常の3回を振り切ると使えます")
             ) { requestReroll() },
         ], verticalPadding: 0)
         .lineLimit(1)
@@ -330,6 +332,13 @@ public struct DiceComboView: View {
     }
 
     private static let rerollControlWidth: CGFloat = 124
+
+    /// 2 行目。広告の読み込み中は押せない理由が分かるようにし（#3341）、局の上限に達したら残り回数ではなくそう伝える。
+    private var rerollNote: String {
+        if rerollRescue.isWatching { return tr("広告を読み込み中") }
+        if model.isAdRerollCapReached { return tr("この局はここまで") }
+        return tr("広告で あと%lld回", model.adRerollsRemaining)
+    }
 
     /// リワード広告 → 1 回振る。局とターンを広告を出す前に控え、ロード中に変わっていたら乗せない。
     private func requestReroll() {
