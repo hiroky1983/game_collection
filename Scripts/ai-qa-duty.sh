@@ -209,9 +209,16 @@ capture_device() {  # capture_device <tag> <devicetype id>
       alive=no
       case "$pid" in ''|*[!0-9]*) ;; *) kill -0 "$pid" 2>/dev/null && alive=yes ;; esac
       f="qa-$(date +%Y%m%d)-$tag-$cond-$game.png"
+      # 撮影の失敗（応答しないシミュレータ・ディスク満杯等）を成功扱いにしない。PNG が実在するものだけを manifest に載せる（#3349）
+      rm -f "$SHOTS/$f"
       xcrun simctl io "$UDID" screenshot --type png "$SHOTS/$f" >/dev/null 2>&1
-      [ -s "$SHOTS/$f" ] && sips -Z 900 "$SHOTS/$f" >/dev/null 2>&1
-      printf '%s\t%s\t%s\t%s\t%s\n' "$f" "$tag" "$cond" "$game" "$alive" >>"$MANIFEST"
+      if [ -s "$SHOTS/$f" ]; then
+        sips -Z 900 "$SHOTS/$f" >/dev/null 2>&1
+        printf '%s\t%s\t%s\t%s\t%s\n' "$f" "$tag" "$cond" "$game" "$alive" >>"$MANIFEST"
+      else
+        rm -f "$SHOTS/$f"
+        log "撮影に失敗したため manifest に載せない: $tag/$cond/$game"
+      fi
     done
   done
   xcrun simctl terminate "$UDID" "$BUNDLE_ID" >/dev/null 2>&1
@@ -239,7 +246,7 @@ NEW_CRASHES=$(comm -13 <(echo "$CRASH_BEFORE") <(echo "$CRASH_AFTER") | grep . |
 DEAD=$(awk -F'\t' '$5=="no"{print $1}' "$MANIFEST")
 TOTAL=$(wc -l <"$MANIFEST" | tr -d ' ')
 log "撮影完了: ${TOTAL} 枚 / 起動 ${QA_LAUNCH_WAIT} 秒後に消えていた: $(echo "$DEAD" | grep -c . || true) / 新しいクラッシュログ: $(echo "$NEW_CRASHES" | grep -c . || true)"
-if [ "$TOTAL" -eq 0 ]; then log "1 枚も撮れなかったため claude は起動しない"; exit 0; fi
+if [ "$TOTAL" -eq 0 ]; then log "1 枚も撮れなかった（撮影失敗は上の「撮影に失敗した」行を参照）ため claude は起動しない"; exit 0; fi
 
 # ---- 入力フィルタ（第三者の本文を AI に渡さない。監査当番と同じ理由・Issue #164）-----------------------
 GH_SHIM_DIR="$QA_HOME_DIR/gh-shim"

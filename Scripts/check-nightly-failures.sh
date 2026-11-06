@@ -5,7 +5,7 @@
 # 経緯: schedule の実行は PR に紐づかないため、PR の CI のように赤が当番の PR 消化に載らない。
 # 失敗に気づく経路が GitHub 既定のメール通知（会長の受信箱）しか無かった。
 #
-# 動き: 各ワークフローの main の最新の schedule 実行を 1 件読み、conclusion が failure のときだけ、
+# 動き: 各ワークフローの main の最新の schedule 実行を 1 件読み、conclusion が failure / startup_failure / timed_out のときだけ、
 #   run URL と `gh run view --log-failed` の先頭を書いた Issue を起票する。同じ run（databaseId）では
 #   二重に起票しない（本文の `nightly-run-id: <id>` を検索で確かめる）。success に戻ったら何もしない
 #   （Issue は開発当番が通常の手順で直して閉じる）。
@@ -33,7 +33,10 @@ for wf in "${WORKFLOWS[@]}"; do
     || { warn "$wf: gh run list が失敗したため検査できませんでした: $(oneline "$run")"; continue; }
   [ -n "$run" ] || continue
   IFS=$'\t' read -r conclusion id url <<<"$run"
-  [ "$conclusion" = failure ] || continue
+  # failure のほか、ワークフローが動き出せなかった startup_failure（構文エラー等）と timed_out も壊れている印（#3349）。
+  # cancelled は手動中止・concurrency による置き換えで普通に起きる（実測: 直近 300 run の 44 件が cancelled）ので除く。
+  # timed_out は実測 0 件（ジョブの timeout-minutes 超過は run の conclusion が failure になる見込み）だが、API 上の値なので含めておく
+  case "$conclusion" in failure|startup_failure|timed_out) ;; *) continue ;; esac
 
   found=$(gh issue list -R "$REPO" --state all --search "nightly-run-id: $id in:body" --json number --jq 'length' 2>&1) \
     || { warn "$wf: 起票済みの確認(gh issue list)が失敗したため見送りました: $(oneline "$found")"; continue; }
