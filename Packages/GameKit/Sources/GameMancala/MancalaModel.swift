@@ -18,6 +18,12 @@ struct MancalaSnapshot: Codable {
     let lastLandingSlot: Int?
 }
 
+/// 最後に選んだ開始条件（#3224）。中断データとは別に残り、終局しても消えない。
+struct MancalaStartChoice: Codable {
+    var humanFirst: Bool
+    var aiLevel: Int
+}
+
 /// マンカラ（CPU 対戦・#1626・企画倉庫）。人間は常に手前（南）で、CPU（北）の手番は
 /// オセロと同じ `withAITurnGuard` の定石で 1 手ずつ進める（#531）。
 ///
@@ -123,8 +129,10 @@ public final class MancalaModel: AITurnGuarded, BoardUndoModel {
             services?.snapshots.clear(for: Self.gameID)
             board       = MancalaBoard()
             currentSide = Self.human
-            humanFirst  = true
-            aiLevel     = CPUStrength.standard.rawValue
+            // 開始シートの初期値は最後に選んだ条件（#3224）。初回・読めないときは先手・標準。
+            let last = services?.playLog?.lastStart(MancalaStartChoice.self, gameID: Self.gameID)
+            humanFirst  = last?.humanFirst ?? true
+            aiLevel     = CPUStrength.strength(for: last?.aiLevel ?? CPUStrength.standard.rawValue).rawValue
             turnID      = 0
             startedAt   = Date()
             undoUsed    = false
@@ -194,6 +202,7 @@ public final class MancalaModel: AITurnGuarded, BoardUndoModel {
     public func newGame(humanFirst: Bool = true, aiLevel: Int = CPUStrength.standard.rawValue) {
         self.humanFirst = humanFirst
         self.aiLevel = aiLevel
+        services?.playLog?.saveLastStart(MancalaStartChoice(humanFirst: humanFirst, aiLevel: aiLevel), gameID: gameID)
         board = MancalaBoard()
         currentSide = humanFirst ? humanSide : humanSide.opponent
         isFinished = false
