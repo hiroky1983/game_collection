@@ -333,6 +333,10 @@ public final class ShiritoriModel: AITurnGuarded {
         services?.feedback.notify(.success)
         // 時間切れで `game_end` を送り済みなので、続きは新しいプレイとして数える。
         services?.gameDidRestart(gameID: gameID, level: mode == .quota ? quota.analyticsLevel : nil)
+        // 延長の直後は札を取っていないが、時間切れ前に遊んだ局の続き。`gameDidProgress` を足さないと、
+        // 札を取らずに離れたとき `game_end`(quit) が出ず `game_start` だけが残る（#3348。2048 の #1953 と同じ）。
+        // 冪等なので、次に札を取ったときの呼び出しでも二重に数えない。
+        services?.gameDidProgress(gameID: gameID)
         services?.gameWillNotResume(gameID: gameID)
         return true
     }
