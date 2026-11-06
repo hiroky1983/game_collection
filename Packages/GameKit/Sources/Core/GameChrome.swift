@@ -375,6 +375,7 @@ public struct GameControlArea<Result: View, Playing: View>: View {
     private let isFinished: Bool
     private let services: GameServices
     private let ladder: DifficultyLadderPrompt?
+    private let showsPlayStreak: Bool
     private let result: () -> Result
     private let playing: () -> Playing
 
@@ -388,12 +389,14 @@ public struct GameControlArea<Result: View, Playing: View>: View {
         isFinished: Bool,
         services: GameServices,
         ladder: DifficultyLadderPrompt? = nil,
+        showsPlayStreak: Bool = true,
         @ViewBuilder result: @escaping () -> Result,
         @ViewBuilder playing: @escaping () -> Playing
     ) {
         self.isFinished = isFinished
         self.services = services
         self.ladder = ladder
+        self.showsPlayStreak = showsPlayStreak
         self.result = result
         self.playing = playing
     }
@@ -410,7 +413,7 @@ public struct GameControlArea<Result: View, Playing: View>: View {
 
             if isFinished {
                 finished {
-                    RecommendationSlot(services: services, isFinished: true, ladder: ladder)
+                    RecommendationSlot(services: services, isFinished: true, ladder: ladder, showsPlayStreak: showsPlayStreak)
                 }
             } else {
                 playing()

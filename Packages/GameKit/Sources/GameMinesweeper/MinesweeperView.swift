@@ -305,7 +305,7 @@ public struct MinesweeperView: View {
     /// 開始前・プレイ中（⋯・ヒント）・コンティニュー中（何も出さない）・終局後（記録 + 次のゲーム + レコメンド）で
     /// 中身が入れ替わるが、**高さは常に終局後の最大構成に揃える**（#148。高さの担保は `GameControlArea`）。
     private var controlArea: some View {
-        GameControlArea(isFinished: model.gameOver && !showContinue, services: services, ladder: ladder) {
+        GameControlArea(isFinished: model.gameOver && !showContinue, services: services, ladder: ladder, showsPlayStreak: false) {
             resultControls
         } playing: {
             // コンティニューの提案中は何も出さない（提案そのものが別の層に出ている）。

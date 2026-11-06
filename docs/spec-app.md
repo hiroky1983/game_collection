@@ -504,6 +504,7 @@ A に載せる対戦ゲームの**相手（CPU）の席**は共通部品 `Oppone
   連続 1 日でも「あと 1 局で連続 N+1 日」（`PlayDayStreak.hubText(days:today:)`）、それ以外は出さない。
   決着の結果カード（`BoardGameResultCard` / `GameClearCard`・#2510 から）の下端にも同じ文言（`PlayDayStreak.hubText`）を 1 行重ねる
   （カードの外へ overlay で重ねるので高さは変わらない。連続日数はハブが環境値 `playStreakProvider`（関数）で配る）。
+  自前の結果 UI を持つゲームにも、決着後の共通枠 `RecommendationSlot`（レコメンド／階段カードの直下。カードが無いときはひな形の空きの上端）へ同じ 1 行を重ねる（#3220。高さは変わらない）。
   広告・通知・報酬には繋げない
 - Game Center ボタンはシートを閉じ切ってからハブの `openGameCenter()` を呼ぶ（未サインインの案内もハブ側）
 
