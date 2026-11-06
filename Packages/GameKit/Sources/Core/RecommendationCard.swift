@@ -210,16 +210,18 @@ public struct RecommendationSlot: View {
 public struct RecommendationArea: View {
     private let services: GameServices
     private let isFinished: Bool
+    private let ladder: DifficultyLadderPrompt?
 
-    public init(services: GameServices, isFinished: Bool) {
+    public init(services: GameServices, isFinished: Bool, ladder: DifficultyLadderPrompt? = nil) {
         self.services = services
         self.isFinished = isFinished
+        self.ladder = ladder
     }
 
     public var body: some View {
         ZStack(alignment: .top) {
             RecommendationCard.heightPlaceholder
-            RecommendationSlot(services: services, isFinished: isFinished)
+            RecommendationSlot(services: services, isFinished: isFinished, ladder: ladder)
         }
     }
 }
