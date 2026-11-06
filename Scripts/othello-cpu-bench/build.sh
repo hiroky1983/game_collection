@@ -18,5 +18,14 @@ done
 cp Scripts/othello-cpu-bench/main.swift "$WORK/main.swift"
 # CPUStrength が参照するだけの型（解析の本体は GameKit の CoreEngine にあり、計測には要らない）。
 echo 'public enum AnalyticsLevel { case novice, beginner, normal, hard }' >"$WORK/AnalyticsLevelStub.swift"
+# 文言の表（#2109）と、ヒント用エンジンが参照するヒントの予算（#2011）も、計測には中身が要らないので最小限に置き換える（#3362）。
+cat >"$WORK/BenchStubs.swift" <<'SWIFT'
+import Foundation
+func tr(_ s: String) -> String { s }
+public struct BoardHintBudget {
+    public static let engineLevel = CPUStrength.hard.rawValue
+    public static let extraThinkingTime: TimeInterval = 0.5
+}
+SWIFT
 swiftc -O -wmo -D OTHELLO_BENCH_STANDALONE -parse-as-library -o "$OUT" "$WORK"/*.swift 2>"$WORK/swiftc.log" \
   || { grep -v "warning:" "$WORK/swiftc.log" >&2; echo "ビルドに失敗しました" >&2; exit 1; }

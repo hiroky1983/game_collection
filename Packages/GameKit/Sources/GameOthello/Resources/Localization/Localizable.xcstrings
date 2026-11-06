@@ -45,24 +45,24 @@
         }
       }
     },
-    "3手先まで読む" : {
+    "1手先だけ・見のがしが多い" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Looks 3 moves ahead"
+            "value" : "Looks 1 move ahead, often slips"
           }
         }
       }
     },
-    "5手先まで読む" : {
+    "2手先まで読む" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Looks 5 moves ahead"
+            "value" : "Looks 2 moves ahead"
           }
         }
       }
