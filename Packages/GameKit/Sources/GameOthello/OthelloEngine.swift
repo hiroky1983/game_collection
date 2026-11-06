@@ -22,21 +22,22 @@ struct OthelloMovePolicy: Equatable, Sendable {
 
 /// オセロの CPU。
 ///
-/// | level | 表示 | 考える時間 | 読む深さの上限 | 最善手を打つ確率 |
-/// |---|---|---|---|---|
-/// | -1 | 入門 | 0.3 秒 | 1 手先 | `noviceBestMoveProbability` |
-/// | 0 | かんたん | 0.5 秒 | 3 手先 | `easyBestMoveProbability` |
-/// | 1 | ふつう | 1 秒 | 4 手先 | `normalBestMoveProbability` |
-/// | 2 | むずかしい | 1.5 秒 | 無し（終局まで） | 100% |
+/// | level | 表示 | 考える時間 | 読む深さの上限 | 最善手を打つ確率 | 外したときの損の幅 |
+/// |---|---|---|---|---|---|
+/// | -1 | 入門 | 0.3 秒 | 1 手先 | `noviceBestMoveProbability` | `noviceSlipMargin` |
+/// | 0 | かんたん | 0.5 秒 | 1 手先 | `easyBestMoveProbability` | `slipMargin` |
+/// | 1 | ふつう | 1 秒 | 2 手先 | `normalBestMoveProbability` | `normalSlipMargin` |
+/// | 2 | むずかしい | 1.5 秒 | 無し（終局まで） | 100% | — |
 ///
-/// **段階の差は、この時間・深さの上限・確率の 3 つだけで付ける**（#1464・会長決裁 2026-09-27）。
+/// **段階の差は、この時間・深さの上限・確率（と外したときの損の幅）で付ける**（#1464・会長決裁 2026-09-27。損の幅は #3362 から段ごと）。
 /// 探索（反復深化 αβ・位置評価）は全段階で同じで、時間が来るか深さの上限まで読み終えたら打つ。
 /// むずかしいは深さの上限が無いので、空きが少なくなれば時間内に終局まで読み切る（終盤の完全読み）。
 /// 以前（#1401）の段階ごとの打ち方（入門=自分にいちばん不利な手・簡単=最も多く返る手・局面数の上限）は廃止した。
-/// 深さの上限が奇数なのは、偶数の深さは 1 つ手前の奇数より弱くなることがあるため（実測）。ただしふつうは #1658 で
-/// 4 手にした（かんたん 3 手に対して 3 手と 5 手のあいだの強さに収まることを実測で確かめた）。
-/// 確率の根拠は `docs/analytics/othello-1464-ladder.md`（上の段の得点率 90% 以上で最も高い値）。
-/// ふつうだけは #1658（会長決裁 2026-10-01）で、かんたんに対する得点率 60〜70% に下げた（`docs/analytics/othello-1658-normal.md`）。
+/// #3362（会長決裁 2026-11-07）で、人の勝率（入門 58%・かんたん 16%・ふつう 17%）を目標（入門 60% 以上・かんたん 40〜60%・
+/// ふつう 35〜50%）に寄せるため、入門〜ふつうを弱くした（かんたん 3→1 手、ふつう 4→2 手。値と対局の結果は
+/// `docs/analytics/othello-3362-ladder.md`）。オセロは深さ 1 手の差が確率より大きく効くので（#1566）、深さを下げたうえで
+/// 確率と損の幅で隣の段に 55〜75% に収めた。ふつうの 2 手は偶数だが、かんたん 1 手に対して 55〜75% に入ることを実測で確かめた。
+/// それ以前の経緯は `docs/analytics/othello-1464-ladder.md`・`othello-1566-ladder.md`・`othello-1658-normal.md`。
 ///
 /// **番号は強さの順だが 0 始まりではない**（`CPUStrength`。既存 3 段階の番号を動かさないため）。
 public struct OthelloEngine: Sendable {
@@ -87,26 +88,30 @@ public struct OthelloEngine: Sendable {
     static func settings(for strength: CPUStrength)
         -> (timeLimit: TimeInterval, depthLimit: Int?, policy: OthelloMovePolicy) {
         switch strength {
-        case .novice: return (0.3, 1, policy(noviceBestMoveProbability))
-        case .easy:   return (0.5, 3, policy(easyBestMoveProbability))
-        case .normal: return (1.0, 4, policy(normalBestMoveProbability))
+        case .novice: return (0.3, 1, policy(noviceBestMoveProbability, margin: noviceSlipMargin))
+        case .easy:   return (0.5, 1, policy(easyBestMoveProbability))
+        case .normal: return (1.0, 2, policy(normalBestMoveProbability, margin: normalSlipMargin))
         case .hard:   return (1.5, nil, .exact)
         }
     }
 
-    /// 最善手を打つ確率（#1464 の実測。上の段の得点率が 90% 以上になる、10% 刻みで最も高い値。上から順に決めた:
-    /// むずかしい 100% に対しふつう 90%、ふつう 90% に対しかんたん 60%、かんたん 60% に対し入門 50%）。
-    /// ふつうは #1658 で 5 手・90% → 4 手・60% に下げた（かんたんに対する得点率 91.8% → 開始局面 1〜400 の 800 局で 64.8%）。
+    /// 最善手を打つ確率（#3362 の実測で決めた。`docs/analytics/othello-3362-ladder.md`）。
+    /// それまで（v1.1.15）は 入門 1 手・50% ／ かんたん 3 手・60% ／ ふつう 4 手・60%（損の幅は全段 40）。
     static let noviceBestMoveProbability = 0.5
-    static let easyBestMoveProbability = 0.6
-    static let normalBestMoveProbability = 0.6
+    static let easyBestMoveProbability = 0.9
+    static let normalBestMoveProbability = 0.5
 
     /// 外したときに許す損の幅（`evaluate` の点数）。X 打ち（角のななめとなり）の減点 1 つ・着手可能数の差 4 手ぶん。
     /// 角を相手に渡す手（角の点 120）は入らない。実測で、外しの候補（最善以外）が残る局面は 8 割強（平均 3 手）。
+    /// かんたんはこの幅（#3362 前は全段この値）。
     static let slipMargin = 40
+    /// 入門の損の幅（#3362）。40 より少し大きい手まで外しに入れて、v1.1.15 の入門と同じか少し弱くする。
+    static let noviceSlipMargin = 50
+    /// ふつうの損の幅（#3362）。2 手読みのふつうは 40 のままだと かんたん（1 手・90%）に 8 割近く勝つので、外しを大きくする。
+    static let normalSlipMargin = 70
 
-    static func policy(_ probability: Double) -> OthelloMovePolicy {
-        OthelloMovePolicy(bestMoveProbability: probability, slipMargin: slipMargin)
+    static func policy(_ probability: Double, margin: Int = slipMargin) -> OthelloMovePolicy {
+        OthelloMovePolicy(bestMoveProbability: probability, slipMargin: margin)
     }
 
     public func bestMove(board: OthelloBoard, stone: OthelloStone) async -> (row: Int, col: Int)? {
@@ -153,7 +158,7 @@ public struct OthelloEngine: Sendable {
         return (move, nodes, depth)
     }
 
-    /// 最善手を外すときの手（#1464）。全候補に自分の手と相手の応手の 2 手だけ（入門は 1 手）読んで点を付け、点の最も高い手を
+    /// 最善手を外すときの手（#1464）。全候補に自分の手と相手の応手の 2 手だけ（入門・かんたんは 1 手）読んで点を付け、点の最も高い手を
     /// 除いたうち、最善から `slipMargin` 以内の損の手から乱択する。角を渡す手・角を捨てる手は幅の外に出る。
     /// 候補が無い・選べる手が即負けの手だけなら `nil`（呼び出し側が探索して最善手を打つ）。
     func slipMove(_ moves: [(Int, Int)], board: OthelloBoard, stone: OthelloStone,
@@ -167,7 +172,7 @@ public struct OthelloEngine: Sendable {
     }
 
     /// 外しの採点で読む深さ（自分の手＋相手の応手）。1 手だけ（打った直後の評価）だと、相手に角を渡す手が見えない。
-    /// ただし**その段の深さの上限より深くは読まない**（入門は 1 手）。上限より深く読んで採点すると、外した手のほうが
+    /// ただし**その段の深さの上限より深くは読まない**（入門・かんたんは 1 手）。上限より深く読んで採点すると、外した手のほうが
     /// 探索の最善手より良い手になりうる（実測: 入門の確率を 50% に下げると、かんたんの得点率が 100% のときより下がった）。
     static let slipReadDepth = 2
     var slipDepth: Int { min(Self.slipReadDepth, depthLimit ?? Self.slipReadDepth) }

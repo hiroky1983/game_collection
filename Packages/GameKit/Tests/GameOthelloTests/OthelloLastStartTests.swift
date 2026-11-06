@@ -22,12 +22,12 @@ private struct LastStartFixture {
 @MainActor
 @Suite("最後に選んだ開始条件（#3151）・GameOthello")
 struct OthelloLastStartTests {
-    @Test("後手・強さ 2 で始めると、次のモデルの初期値が後手・2 になる。記録が無ければ先手・1")
+    @Test("後手・強さ 2 で始めると、次のモデルの初期値が後手・2 になる。記録が無ければ先手・かんたん（#3362）")
     func remembersSideAndLevel() {
         let f = LastStartFixture()
         let first = OthelloModel(services: f.services())
         #expect(first.humanSide == .black)
-        #expect(first.aiLevel == 1)
+        #expect(first.aiLevel == CPUStrength.easy.rawValue)
         first.newGame(humanSide: .white, aiLevel: 2)
         f.store.clear(for: "othello")
         let next = OthelloModel(services: f.services())
