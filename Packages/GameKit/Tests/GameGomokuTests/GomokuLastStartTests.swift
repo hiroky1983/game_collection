@@ -2,6 +2,7 @@ import Testing
 import Foundation
 import Core
 import CoreTestSupport
+import CoreEngine
 @testable import GameGomoku
 
 /// 使い捨ての UserDefaults で PlayLog を作る。
@@ -22,12 +23,12 @@ private struct LastStartFixture {
 @MainActor
 @Suite("最後に選んだ開始条件（#3151）・GameGomoku")
 struct GomokuLastStartTests {
-    @Test("後手・強さ 2・禁じ手ありで始めると、次のモデルの初期値に残る。記録が無ければ先手・1・なし")
+    @Test("後手・強さ 2・禁じ手ありで始めると、次のモデルの初期値に残る。記録が無ければ先手・かんたん・なし（#3362）")
     func remembersSideLevelAndRenju() {
         let f = LastStartFixture()
         let first = GomokuModel(services: f.services())
         #expect(first.humanSide == .black)
-        #expect(first.aiLevel == 1)
+        #expect(first.aiLevel == CPUStrength.easy.rawValue)
         #expect(!first.forbiddenMovesEnabled)
         first.newGame(humanSide: .white, aiLevel: 2, forbiddenMoves: true)
         f.store.clear(for: "gomoku")

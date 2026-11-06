@@ -354,24 +354,24 @@
         }
       }
     },
-    "標準" : {
+    "四は必ず止める" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Standard"
+            "value" : "Always blocks fours"
           }
         }
       }
     },
-    "浅い読み" : {
+    "四を見のがすことも" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Reads shallow"
+            "value" : "Sometimes misses fours"
           }
         }
       }
@@ -508,13 +508,13 @@
         }
       }
     },
-    "見のがしが多い" : {
+    "四もよく見のがす" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Misses a lot"
+            "value" : "Often misses fours"
           }
         }
       }

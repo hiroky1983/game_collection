@@ -35,17 +35,20 @@ struct GomokuStrengthConfigTests {
         #expect(depths == [1, 1, 1, SimpleGomokuEngine.maxDepth])
     }
 
-    /// 会長決裁（2026-09-29・#1566）の制約: 深さ・確率とも 入門 ≤ かんたん ≤ ふつう ≤ むずかしい、
-    /// 確率は 10% 刻み（入門 20% を除き 30% 以上）・隣との差 10〜40 ポイント、深さは隣との差 0〜1 手（むずかしいは上限なしで対象外）。
-    @Test("段階の深さと確率は会長決裁の制約を満たす")
+    /// 段の並び（#3362 の段階表 `docs/analytics/gomoku-3362-ladder.md`）: 強い段ほど 最善手の確率が高く・損の幅が狭く・
+    /// 止め損ねが少ない（どれも 入門 ≤ かんたん ≤ ふつう ≤ むずかしい の向き）。深さは隣との差 0〜1 手（むずかしいは上限なしで対象外）。
+    @Test("段階の深さ・確率・損の幅・止め損ねは強さの順に並ぶ")
     func stagesSatisfyTheLadderConstraints() {
         let engines = CPUStrength.allCases.map { SimpleGomokuEngine(level: $0.rawValue) }
         let percents = engines.map { Int(($0.policy.bestMoveProbability * 100).rounded()) }
-        #expect(percents == [20, 60, 90, 100])
-        #expect(percents.dropFirst().allSatisfy { $0 >= 30 && $0 <= 100 && $0 % 10 == 0 })
-        for (lower, upper) in zip(percents, percents.dropFirst()) {
-            #expect((10...40).contains(upper - lower), "確率の差 \(lower)% → \(upper)%")
-        }
+        #expect(percents == [10, 40, 60, 100])
+        #expect(percents == percents.sorted())
+        let margins = engines.dropLast().map(\.policy.slipMargin)
+        #expect(margins == [10_000, 2_000, 2_000])
+        #expect(margins == margins.sorted(by: >))
+        let misses = engines.map(\.policy.blockMissProbability)
+        #expect(misses == [0.8, 0.5, 0, 0])
+        #expect(misses == misses.sorted(by: >))
         let depths = engines.map(\.depth)
         for (lower, upper) in zip(depths.dropLast(), depths.dropLast().dropFirst()) {
             #expect((0...1).contains(upper - lower), "深さの差 \(lower) → \(upper)")
@@ -53,16 +56,18 @@ struct GomokuStrengthConfigTests {
         #expect(depths == depths.sorted())
     }
 
-    /// むずかしいは 100%。下の段の確率は段階表（入門 `docs/analytics/gomoku-1463-ladder.md`・かんたん / ふつう `gomoku-1566-ladder.md`）で決めた値。
-    @Test("最善手を打つ確率は むずかしい 100%・下の段は段階表の値で、損の幅は全段共通")
+    /// むずかしいは 100%・止め損ねなし（#3362 で変えていない）。下の段は段階表 `gomoku-3362-ladder.md` で決めた値。
+    @Test("最善手を打つ確率と損の幅は段階表の値で、むずかしいは最善手だけ")
     func probabilitiesFollowTheLadder() {
         let policies = CPUStrength.allCases.map { SimpleGomokuEngine(level: $0.rawValue).policy }
         #expect(policies.map(\.bestMoveProbability) == [
             SimpleGomokuEngine.noviceBestMoveProbability, SimpleGomokuEngine.easyBestMoveProbability,
             SimpleGomokuEngine.normalBestMoveProbability, 1,
         ])
+        #expect(policies.map(\.slipMargin).dropLast() == [
+            SimpleGomokuEngine.noviceSlipMargin, SimpleGomokuEngine.easySlipMargin, SimpleGomokuEngine.normalSlipMargin,
+        ])
         #expect(policies.last == .exact)
-        #expect(policies.dropLast().allSatisfy { $0.slipMargin == SimpleGomokuEngine.slipMargin })
     }
 }
 
@@ -115,7 +120,7 @@ struct GomokuMovePolicyTests {
         #expect(abs(rate - 0.5) < 0.12, "確率 50% の外し率が \(rate)")
     }
 
-    /// 相手の四は、確率 0% でも必ず止める（止めない手は外しの候補に入らない）。自分の五も必ず取る。
+    /// 止め損ねの確率が 0 なら、最善手の確率 0% でも相手の四は必ず止める（止めない手は外しの候補に入らない）。自分の五も必ず取る。
     @Test func slipNeverIgnoresAFourOrAWin() async {
         let mustBlock = makeBoard(black: [(7, 3), (7, 4), (7, 5), (7, 6)], white: [(7, 2), (3, 3)])
         let winnable = makeBoard(black: [(3, 10), (4, 10), (5, 10), (1, 1)],
@@ -125,6 +130,50 @@ struct GomokuMovePolicyTests {
                                        policy: SimpleGomokuEngine.policy(0))
             let block = await e.bestMove(board: mustBlock, stone: .white)
             #expect(block?.row == 7 && block?.col == 7, "四を止めていない: \(String(describing: block))")
+            let win = await e.bestMove(board: winnable, stone: .white)
+            #expect(win?.row == 7 && (win?.col == 7 || win?.col == 2), "五を取っていない: \(String(describing: win))")
+        }
+    }
+}
+
+// MARK: - 相手の四の止め損ね（#3362）
+
+@Suite("五目並べ CPU の相手の四の止め損ね（#3362）")
+struct GomokuBlockMissTests {
+
+    private let mustBlock = makeBoard(black: [(7, 3), (7, 4), (7, 5), (7, 6)], white: [(7, 2), (3, 3)])
+
+    /// 止める手を何回打ったか（`trials` 回のうち）。止めなかった手番も、空いている交点に打つ。
+    private func blocks(_ strength: CPUStrength, trials: Int) async -> Int {
+        var blocked = 0
+        for i in 0..<trials {
+            let e = SimpleGomokuEngine(level: strength.rawValue, seed: spread(i), timeLimit: .infinity)
+            let m = await e.bestMove(board: mustBlock, stone: .white)!
+            #expect(mustBlock[m.row, m.col] == nil, "埋まった交点に打った: \(m)")
+            if m.row == 7 && m.col == 7 { blocked += 1 }
+        }
+        return blocked
+    }
+
+    @Test("入門・かんたんは相手の四を設定した確率で止め損ね、ふつう・むずかしいは必ず止める")
+    func lowerStagesSometimesMissAFour() async {
+        let trials = 200
+        let novice = await blocks(.novice, trials: trials)
+        let easy = await blocks(.easy, trials: trials)
+        // 止める割合は 1 − 止め損ねの確率に近い（200 回で ±0.1 に収まる）。
+        #expect(abs(Double(novice) / Double(trials) - (1 - SimpleGomokuEngine.noviceBlockMissProbability)) < 0.1, "入門 \(novice)/\(trials)")
+        #expect(abs(Double(easy) / Double(trials) - (1 - SimpleGomokuEngine.easyBlockMissProbability)) < 0.1, "かんたん \(easy)/\(trials)")
+        #expect(await blocks(.normal, trials: 30) == 30)
+        #expect(SimpleGomokuEngine(level: CPUStrength.hard.rawValue).policy.blockMissProbability == 0)
+    }
+
+    @Test("止め損ねの確率が 1 でも、自分の五は必ず取る")
+    func missingABlockNeverSkipsOwnWin() async {
+        let winnable = makeBoard(black: [(3, 10), (4, 10), (5, 10), (6, 10), (1, 1)],
+                                 white: [(7, 3), (7, 4), (7, 5), (7, 6)])
+        let policy = GomokuMovePolicy(bestMoveProbability: 0, slipMargin: 500, blockMissProbability: 1)
+        for i in 0..<20 {
+            let e = SimpleGomokuEngine(level: CPUStrength.novice.rawValue, seed: spread(i), timeLimit: .infinity, policy: policy)
             let win = await e.bestMove(board: winnable, stone: .white)
             #expect(win?.row == 7 && (win?.col == 7 || win?.col == 2), "五を取っていない: \(String(describing: win))")
         }
