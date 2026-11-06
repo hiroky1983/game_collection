@@ -914,4 +914,24 @@ struct ShiritoriTimeExtensionTests {
         #expect(model.extendTimeAfterAd(forGame: model.gameNumber))
         #expect(starts() == 3, "続きは新しいプレイ（開始 1・始め直し 2・続き 3）")
     }
+
+    @Test("解析: 広告延長の直後に札を取らず離れると game_end(quit) が 1 回出て対応が取れる（#3348）")
+    func leavingRightAfterExtensionSendsQuit() {
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(service: spy, allowedGameIDs: ["shiritori"], now: { Date(timeIntervalSince1970: 0) })
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), analytics: analytics)
+        let model = ShiritoriModel(services: services, cpuDelay: .zero, seed: 1)
+        model.startGame()
+        model.tick(ShiritoriTime.initial)
+        #expect(model.extendTimeAfterAd(forGame: model.gameNumber))
+
+        services.gameDidLeave(gameID: "shiritori")
+
+        let ends = spy.events.compactMap { event -> AnalyticsResult? in
+            if case let .gameEnd(_, result, _, _, _, _, _, _, _, _, _, _) = event { return result } else { return nil }
+        }
+        let starts = spy.events.filter { if case .gameStart = $0 { return true } else { return false } }.count
+        #expect(starts == 2, "前提: 最初と続きで game_start は 2 回")
+        #expect(ends == [.loss, .quit], "続きの 1 プレイに game_end(quit) が付く")
+    }
 }

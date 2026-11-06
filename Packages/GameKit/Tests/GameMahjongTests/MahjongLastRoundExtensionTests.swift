@@ -304,6 +304,24 @@ struct MahjongLastRoundExtensionTests {
         #expect(purposes == [.continue])
     }
 
+    @Test("延長の直後に打牌せず新規対局を始めると、続きの 1 プレイに game_end(quit) が付く（#3348）")
+    func newGameRightAfterExtensionSendsQuit() async {
+        let spy = SpyAnalyticsService()
+        let analytics = GameAnalytics(
+            service: spy, allowedGameIDs: ["mahjong4"], now: { Date(timeIntervalSince1970: 0) }
+        )
+        let (model, _) = makeModel(rewardEarned: true, analytics: analytics)
+        finishLastRound(model, scores: lastPlaceScores)
+        #expect(await model.extendAfterAd() == .granted)
+
+        model.startGame()
+
+        let results = spy.events.compactMap { event -> AnalyticsResult? in
+            if case let .gameEnd(_, result, _, _, _, _, _, _, _, _, _, _) = event { return result } else { return nil }
+        }
+        #expect(results.filter { $0 == .quit }.count == 1, "続きの 1 プレイが quit で閉じる: \(results)")
+    }
+
     @Test("広告を見ているあいだに新規対局を始めたら、延長は新しい対局に乗らない")
     func doesNotLandOnTheNewGame() async {
         let name = "mahjong.extend.\(UUID().uuidString)"
