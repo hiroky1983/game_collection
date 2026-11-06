@@ -59,7 +59,8 @@ public final class AkariKeshiModel {
         } else {
             board = AkariKeshiLogic.cleared
             moves = 0
-            difficulty = .easy
+            // 開始シートの初期値は最後に選んだ難易度（#3224）。初回・読めないときは入門。
+            difficulty = services?.playLog?.lastStart(AkariKeshiDifficulty.self, gameID: AkariKeshiModel.gameID) ?? .easy
             par = 0
             elapsedSeconds = 0
             state = .idle
@@ -94,6 +95,7 @@ public final class AkariKeshiModel {
         board = puzzle.board
         par = puzzle.solution.count
         self.difficulty = difficulty
+        services?.playLog?.saveLastStart(difficulty, gameID: Self.gameID)
         moves = 0
         elapsedSeconds = 0
         recordResult = nil

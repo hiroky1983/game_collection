@@ -221,18 +221,22 @@ public struct RecommendationSlot: View {
 public struct RecommendationArea: View {
     private let services: GameServices
     private let isFinished: Bool
+    private let ladder: DifficultyLadderPrompt?
     private let showsPlayStreak: Bool
 
-    public init(services: GameServices, isFinished: Bool, showsPlayStreak: Bool = true) {
+    public init(services: GameServices, isFinished: Bool, ladder: DifficultyLadderPrompt? = nil,
+                showsPlayStreak: Bool = true) {
         self.services = services
         self.isFinished = isFinished
+        self.ladder = ladder
         self.showsPlayStreak = showsPlayStreak
     }
 
     public var body: some View {
         ZStack(alignment: .top) {
             RecommendationCard.heightPlaceholder
-            RecommendationSlot(services: services, isFinished: isFinished, showsPlayStreak: showsPlayStreak)
+            RecommendationSlot(services: services, isFinished: isFinished, ladder: ladder,
+                               showsPlayStreak: showsPlayStreak)
         }
     }
 }

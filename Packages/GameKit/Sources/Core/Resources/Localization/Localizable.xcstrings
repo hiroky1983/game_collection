@@ -134,6 +134,17 @@
         }
       }
     },
+    "円盤%lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld disks"
+          }
+        }
+      }
+    },
     "%lld連勝中！" : {
       "extractionState" : "manual",
       "localizations" : {

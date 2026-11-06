@@ -12,6 +12,12 @@ struct YonmokuSnapshot: Codable {
     let undoUsed: Bool?
 }
 
+/// 最後に選んだ開始条件（#3224）。中断データとは別に残り、終局しても消えない。
+struct YonmokuStartChoice: Codable {
+    var humanSide: Int
+    var aiLevel: Int
+}
+
 /// 四目並べ（CPU 対戦・#1738・企画倉庫）。黒が先手で、あなたは開始シートで黒（先手）か白（後手）を選ぶ。
 ///
 /// CPU の手番は五目並べ・オセロと同じ `withAITurnGuard` の定石で 1 手ずつ進める（#531）。
@@ -102,8 +108,10 @@ public final class YonmokuModel: AITurnGuarded, BoardUndoModel {
         } else {
             // 壊れた中断データ（入らない列・決着後の手）は読まずに捨てる（開くたびに同じ盤で詰まらないように）。
             services?.snapshots.clear(for: Self.gameID)
-            humanSide = .black
-            aiLevel = CPUStrength.standard.rawValue
+            // 開始シートの初期値は最後に選んだ条件（#3224）。初回・読めないときは先手・標準。
+            let last = services?.playLog?.lastStart(YonmokuStartChoice.self, gameID: Self.gameID)
+            humanSide = last.flatMap { YonmokuDisc(rawValue: $0.humanSide) } ?? .black
+            aiLevel = CPUStrength.strength(for: last?.aiLevel ?? CPUStrength.standard.rawValue).rawValue
             // 開いた直後は開始シートが出る。`game_start` はシートで選ぶまで待つ（五目並べと同じ・PR #572）。
             pendingInitialStart = true
         }
@@ -163,6 +171,7 @@ public final class YonmokuModel: AITurnGuarded, BoardUndoModel {
     public func newGame(humanSide: YonmokuDisc = .black, aiLevel: Int = CPUStrength.standard.rawValue) {
         self.humanSide = humanSide
         self.aiLevel = aiLevel
+        services?.playLog?.saveLastStart(YonmokuStartChoice(humanSide: humanSide.rawValue, aiLevel: aiLevel), gameID: gameID)
         board = YonmokuBoard()
         currentDisc = .black
         moves = []
