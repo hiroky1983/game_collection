@@ -58,7 +58,9 @@ private final class SpyScheduler: ReengagementReminderScheduler {
         return status
     }
 
-    func schedule(gameID: String, fireDates: [Date], title: String, body: String) async {
+    var scheduleSucceeds = true
+
+    func schedule(gameID: String, fireDates: [Date], title: String, body: String) async -> Bool {
         if holdsSchedule {
             await withCheckedContinuation { heldSchedules.append($0) }
         }
@@ -69,6 +71,7 @@ private final class SpyScheduler: ReengagementReminderScheduler {
             scheduled[gameID] = fireDates
             contents[gameID] = (title, body)
         }
+        return scheduleSucceeds
     }
 
     func cancel(gameID: String) {
@@ -269,6 +272,24 @@ struct ReengagementReminderServiceTests {
 
         #expect(spy.scheduled["shogi"]?.count == 3)
         #expect(spy.contents["shogi"]?.title == "「将棋」、久しぶりに遊んでみませんか？")
+    }
+
+    @Test("OS への予約追加が失敗したら失敗回数に残り、成功なら 0 のまま（#3296）")
+    func countsScheduleFailures() async {
+        let games = [ReengagementCandidateInput(gameID: "shogi", plays: 10, lastPlayedAt: date(1, 8))]
+
+        let ok = SpyScheduler()
+        let okService = makeService(ok, Environment(now: date(8, 8)))
+        okService.applicationDidEnterBackground(games: games, availableIDs: ["shogi"])
+        await okService.pendingWork?.value
+        #expect(okService.scheduleFailureCount == 0)
+
+        let failing = SpyScheduler()
+        failing.scheduleSucceeds = false
+        let failService = makeService(failing, Environment(now: date(8, 8)))
+        failService.applicationDidEnterBackground(games: games, availableIDs: ["shogi"])
+        await failService.pendingWork?.value
+        #expect(failService.scheduleFailureCount == 1)
     }
 
     @Test("記録の 1 行があれば本文に添え、無ければ従来の文面のまま（#1604）")

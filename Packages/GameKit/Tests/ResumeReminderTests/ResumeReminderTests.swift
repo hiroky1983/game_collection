@@ -77,13 +77,16 @@ private final class SpyScheduler: ResumeReminderScheduler {
         waiting.forEach { $0.resume() }
     }
 
-    func schedule(_ reminder: ResumeReminder, title: String, body: String) async {
+    var scheduleSucceeds = true
+
+    func schedule(_ reminder: ResumeReminder, title: String, body: String) async -> Bool {
         if holdsSchedule {
             await withCheckedContinuation { heldSchedules.append($0) }
         }
         if yieldsOnEveryCall { await Task.yield() }
         reminders[reminder.gameID] = reminder
         contents[reminder.gameID] = (title, body)
+        return scheduleSucceeds
     }
 
     func cancel(gameIDs: [String]) {
@@ -158,6 +161,22 @@ struct ResumeReminderServiceTests {
         #expect(spy.reminders["shogi"]?.fireDate == date(14, 12))
         #expect(spy.contents["shogi"]?.title == "「将棋」が途中のままです")
         #expect(spy.contents["shogi"]?.body == "続きから、そのまま遊べます。")
+    }
+
+    @Test("OS への予約追加が失敗したら失敗回数に残り、成功なら 0 のまま（#3296）")
+    func countsScheduleFailures() async {
+        let ok = SpyScheduler()
+        let okService = makeService(ok, Environment(now: date(13, 12)))
+        okService.gameDidLeave(gameID: "shogi", hasSnapshot: true)
+        await okService.pendingWork?.value
+        #expect(okService.scheduleFailureCount == 0)
+
+        let failing = SpyScheduler()
+        failing.scheduleSucceeds = false
+        let failService = makeService(failing, Environment(now: date(13, 12)))
+        failService.gameDidLeave(gameID: "shogi", hasSnapshot: true)
+        await failService.pendingWork?.value
+        #expect(failService.scheduleFailureCount == 1)
     }
 
     @Test("同じゲームは1件にまとまり、最後に戻った時刻で知らせる")

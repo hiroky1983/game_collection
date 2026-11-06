@@ -27,7 +27,8 @@ public protocol ReengagementReminderScheduler: AnyObject {
     func requestExplicitAuthorization() async -> ReminderAuthorization
     /// 対象ゲームの予約を `fireDates` ぶん入れる（既存の同ゲームの予約があれば置き換える）。
     /// `fireDates` が空なら、そのゲームの予約をすべて取り消すのと同じ効果になる。
-    func schedule(gameID: String, fireDates: [Date], title: String, body: String) async
+    /// 全件予約できたら true。OS への追加が失敗したら false（呼び出し元が数えて、無反応と取り違えないようにする・#3296）。
+    func schedule(gameID: String, fireDates: [Date], title: String, body: String) async -> Bool
     /// そのゲームぶんの予約（発火済みで通知センターに残っているものも含む）を消す。無くても安全。
     func cancel(gameID: String)
     /// 設定でオフにしたときにすべて消す。
@@ -212,6 +213,8 @@ public final class ReengagementReminderService {
     /// 判定〜予約の世代。待っている間に次の判定が始まった処理を捨てる目印（#663 と同じ設計）。
     @ObservationIgnored private var epoch = 0
     @ObservationIgnored public private(set) var pendingWork: Task<Void, Never>?
+    /// OS への予約追加が失敗した回数（#3296。届かない原因の切り分け用）。
+    @ObservationIgnored public private(set) var scheduleFailureCount = 0
 
     public init(
         scheduler: ReengagementReminderScheduler,
@@ -355,7 +358,8 @@ public final class ReengagementReminderService {
                 continue
             }
             let content = ReengagementReminderPolicy.content(gameTitle: title, recordSummary: recordSummary(gameID))
-            await scheduler.schedule(gameID: gameID, fireDates: resolved[gameID] ?? [], title: content.title, body: content.body)
+            let scheduled = await scheduler.schedule(gameID: gameID, fireDates: resolved[gameID] ?? [], title: content.title, body: content.body)
+            if !scheduled { scheduleFailureCount += 1 }
             // 追加の完了を待つ間に判定がやり直された・設定を切られたなら、入った予約を取り消す
             // （取り消しが追加より先に処理されると残ってしまうため。PR #697 の CodeRabbit 指摘と同型）。
             guard epoch == token, isEnabled(), !store.isPermanentlyStopped else {
