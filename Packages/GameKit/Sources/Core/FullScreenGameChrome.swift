@@ -259,12 +259,18 @@ private struct FullScreenGameHeader<Status: View>: View {
 
     var body: some View {
         let showsChip = condition != nil && !dynamicTypeSize.isAccessibilitySize
+        // 文字サイズが大きいときは表示名の拡大の上限を下げ、札（手番・得点）に幅を回す（#3307）。
+        // 表示名は札より先に幅を取るので、拡大したままだと札が「…」で切れて「いま誰の番か」が読めなくなる。
+        let isLargeText = dynamicTypeSize >= .xxLarge
+        let titleMaxScale: CGFloat = isLargeText ? 1.0 : 1.5
         HStack(spacing: Metrics.headerSpacing) {
             FullScreenHeaderButton(systemImage: "chevron.left", label: tr("戻る"), surface: surface) { dismiss() }
             Text(title)
-                .themeBody(20, weight: .bold, maxScale: 1.5)
+                .themeBody(20, weight: .bold, maxScale: titleMaxScale)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
+                // 札を先に配るぶん、表示名が消えないよう最低限の幅を残す（#3307）。
+                .frame(minWidth: isLargeText ? 64 : nil, alignment: .leading)
                 .foregroundStyle(surface.headerInk)
                 .shadow(color: surface == .felt ? .black.opacity(0.35) : .clear, radius: 2, y: 1)
                 .accessibilityAddTraits(.isHeader)
@@ -272,9 +278,10 @@ private struct FullScreenGameHeader<Status: View>: View {
                 // 条件のチップは表示名の真下に重ねる（下の `overlayPreferenceValue`）。重ねる分の高さだけ空けて、
                 // 表示名＋チップの組が行の中央に来るようにする。
                 .padding(.bottom, showsChip ? Self.chipHeight : 0)
-                .layoutPriority(1)
+                .layoutPriority(isLargeText ? 0 : 1)
             Spacer(minLength: 0)
             status
+                .layoutPriority(isLargeText ? 1 : 0)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .foregroundStyle(surface.headerInk)
