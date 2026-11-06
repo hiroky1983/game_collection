@@ -200,7 +200,10 @@ done
 
 # 床 3: 凍結（lock_branch）済みの release ブランチ。自分以上の版のものだけ見ればよい
 #（自分より小さい版は床にしても結果が変わらない）。凍結済みかを確かめられなければ止める。
-for ref in $(git ls-remote --heads origin 'release/v*' | awk '{ print $2 }'); do
+# ls-remote の失敗（ネットワーク断・認証切れ）を「凍結済みブランチなし」と読み替えない（#3335）
+REMOTE_HEADS="$(git ls-remote --heads origin 'release/v*')" \
+  || die "origin の release ブランチ一覧を取得できないので止めます（git ls-remote が失敗）"
+for ref in $(printf '%s\n' "$REMOTE_HEADS" | awk '{ print $2 }'); do
   bv="${ref#refs/heads/release/v}"
   is_xyz "$bv" || continue
   [ "$(ver_cmp "$bv" "$V")" = -1 ] && continue

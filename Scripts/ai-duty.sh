@@ -1452,14 +1452,20 @@ if [ -n "${REL_BRANCHES:-}" ]; then
 fi
 if [ -n "${REL_BRANCH:-}" ]; then
   RELEASED=1
-  SUBMITTED_TAG=$(git ls-remote --tags origin "v${REL_VER}-submitted" 2>/dev/null)
+  # タグ一覧の取得失敗も「タグなし」と読み替えない（空のままだと未凍結の誤検知になる・#3335）
+  if SUBMITTED_TAG=$(git ls-remote --tags origin "v${REL_VER}-submitted" 2>>"$LOG"); then
+    SUBMITTED_TAG_OK=1
+  else
+    SUBMITTED_TAG=""
+    SUBMITTED_TAG_OK=0
+  fi
   # 取得に失敗したら「凍結なし」と読み替えず、この周回の凍結漏れ検知を見送る（#3227）
-  if LOCK_ENABLED=$(duty_branch_lock_state "$REL_VER" 2>>"$LOG"); then
+  if [ "$SUBMITTED_TAG_OK" = 1 ] && LOCK_ENABLED=$(duty_branch_lock_state "$REL_VER" 2>>"$LOG"); then
     if is_submission_unfrozen "${SUBMITTED_TAG:-}" "${LOCK_ENABLED:-false}"; then
       SUBMISSION_UNFROZEN=1
     fi
   else
-    log "仕事7: release/v${REL_VER} の凍結を判定できないため、凍結漏れの検知をこの周回は見送る"
+    log "仕事7: release/v${REL_VER} の提出タグか凍結を判定できないため、凍結漏れの検知をこの周回は見送る"
   fi
 fi
 
