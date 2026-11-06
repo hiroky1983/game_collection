@@ -185,6 +185,28 @@ fi
 # 公開版を取得できなければ止める（BUMP_STORE_VERSION に壊れた値）
 if run_main "unknown"; then ng "公開版が取れないのに止まらない"; else ok "公開版を取得できなければ止める"; fi
 
+# git ls-remote が失敗したら「凍結済みブランチなし」と読み替えず止める（#3335）
+REAL_GIT="$(command -v git)"
+mkdir -p "$TMP/bin-lsfail"
+cat >"$TMP/bin-lsfail/git" <<LSFAIL
+#!/bin/bash
+for a in "\$@"; do
+  if [ "\$a" = ls-remote ]; then echo "fatal: unable to access origin" >&2; exit 128; fi
+done
+exec "$REAL_GIT" "\$@"
+LSFAIL
+chmod +x "$TMP/bin-lsfail/git"
+: >"$FAKE_GH_LOG"
+if (cd "$WORK" && PATH="$TMP/bin-lsfail:$TMP/bin:$PATH" BUMP_STORE_VERSION=1.1.9 bash "$TARGET" >"$TMP/out.txt" 2>&1); then
+  ng "git ls-remote が失敗したのに止まらない"
+elif grep -q "git ls-remote が失敗" "$TMP/out.txt" \
+     && [ -z "$(git --git-dir="$ORIGIN" for-each-ref 'refs/heads/chore/*')" ] \
+     && ! grep -q 'pr create' "$FAKE_GH_LOG"; then
+  ok "git ls-remote が失敗したら理由を出して止める（push も PR 作成もしない）"
+else
+  ng "ls-remote 失敗時の挙動が違う: $(cat "$TMP/out.txt")"
+fi
+
 clear_chore() {
   local r
   for r in $(git --git-dir="$ORIGIN" for-each-ref --format='%(refname)' 'refs/heads/chore/'); do
