@@ -13,16 +13,16 @@ struct OthelloEngineTests {
     // MARK: - 段階の設定（#1464）
 
     /// 段階の差は時間・深さの上限・最善手の確率の 3 つだけ（会長決裁 2026-09-27）。値を変えたら段階表を測り直すこと。
-    /// ふつうは #1658（会長決裁 2026-10-01）で 4 手・60% に下げた（`docs/analytics/othello-1658-normal.md`）。
+    /// #3362（会長決裁 2026-11-07）で入門〜ふつうを弱くした（`docs/analytics/othello-3362-ladder.md`）。
     @Test("段階の設定は決裁値（時間・深さの上限・最善手の確率）")
     func settingsMatchTheDecision() {
         let novice = OthelloEngine.settings(for: .novice), easy = OthelloEngine.settings(for: .easy)
         let normal = OthelloEngine.settings(for: .normal), hard = OthelloEngine.settings(for: .hard)
         #expect(novice.timeLimit == 0.3 && novice.depthLimit == 1 && novice.policy.bestMoveProbability == 0.5)
-        #expect(easy.timeLimit == 0.5 && easy.depthLimit == 3 && easy.policy.bestMoveProbability == 0.6)
-        #expect(normal.timeLimit == 1.0 && normal.depthLimit == 4 && normal.policy.bestMoveProbability == 0.6)
+        #expect(easy.timeLimit == 0.5 && easy.depthLimit == 1 && easy.policy.bestMoveProbability == 0.9)
+        #expect(normal.timeLimit == 1.0 && normal.depthLimit == 2 && normal.policy.bestMoveProbability == 0.5)
         #expect(hard.timeLimit == 1.5 && hard.depthLimit == nil && hard.policy == .exact)
-        for s in [novice, easy, normal] { #expect(s.policy.slipMargin == 40) }
+        #expect(novice.policy.slipMargin == 50 && easy.policy.slipMargin == 40 && normal.policy.slipMargin == 70)
         // 出荷のエンジンは局面数で打ち切らない（強さは時間と深さの上限で決まる）。
         #expect(OthelloEngine(level: CPUStrength.hard.rawValue).nodeLimit == .max)
     }
@@ -30,7 +30,7 @@ struct OthelloEngineTests {
     @Test("深さの上限より深く読まない")
     func searchStopsAtTheDepthLimit() throws {
         let board = OthelloBoard()
-        for (strength, limit) in [(CPUStrength.novice, 1), (.easy, 3), (.normal, 4)] {
+        for (strength, limit) in [(CPUStrength.novice, 1), (.easy, 1), (.normal, 2)] {
             let r = try #require(OthelloEngine(level: strength.rawValue, timeLimitOverride: .infinity)
                 .analyze(board: board, stone: .black))
             #expect(r.depth == limit, "\(strength.label) が深さ \(r.depth) まで読んだ")
@@ -73,7 +73,7 @@ struct OthelloEngineTests {
     /// 外しの候補は、採点で最も高い手を含まず、最善から損の幅以内の手だけ。
     @Test("外しの候補は最善を除き、損の幅の中の手だけ")
     func slipPoolExcludesTheBestAndStaysWithinTheMargin() {
-        for strength in [CPUStrength.novice, .easy] {
+        for strength in [CPUStrength.novice, .easy, .normal] {
             let engine = OthelloEngine(level: strength.rawValue, seed: 1)
             for seed in 1...12 {
                 let (board, stone) = Self.randomBoard(seed: UInt64(seed), plies: 8 + seed * 3)
@@ -91,7 +91,7 @@ struct OthelloEngineTests {
                 let pool = engine.slipPool(moves, board: board, stone: stone)
                 #expect(pool.count < moves.count, "\(strength.label) seed \(seed): 最善が候補に残っている")
                 for m in pool {
-                    #expect(score(m) >= best - OthelloEngine.slipMargin, "\(strength.label) seed \(seed): 損の幅を超えた手 \(m)")
+                    #expect(score(m) >= best - engine.policy.slipMargin, "\(strength.label) seed \(seed): 損の幅を超えた手 \(m)")
                 }
             }
         }
@@ -102,7 +102,7 @@ struct OthelloEngineTests {
     @Test("外しの採点はその段の深さの上限より深く読まない")
     func slipReadsNoDeeperThanTheLevel() {
         #expect(OthelloEngine(level: CPUStrength.novice.rawValue).slipDepth == 1)
-        #expect(OthelloEngine(level: CPUStrength.easy.rawValue).slipDepth == 2)
+        #expect(OthelloEngine(level: CPUStrength.easy.rawValue).slipDepth == 1)
         #expect(OthelloEngine(level: CPUStrength.normal.rawValue).slipDepth == 2)
     }
 

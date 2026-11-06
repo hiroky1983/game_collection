@@ -17,6 +17,15 @@ public struct HanoiView: View {
         _model = State(initialValue: HanoiModel(services: services, disks: saved ?? HanoiLogic.defaultDisks))
     }
 
+    /// 勝ちが続いたら一段多い円盤の枚数を勧める（#722・#3287）。並びは上の枚数ピッカーと同じ（少ないほどやさしい）。
+    private var ladder: DifficultyLadderPrompt? {
+        let counts = Array(HanoiLogic.diskRange)
+        return DifficultyLadderPrompt(result: model.recordResult, currentLevel: counts.firstIndex(of: model.disks),
+                                      levelLabels: counts.map { tr("円盤%lld枚", $0) }) { index in
+            startNewGame(disks: counts[index])
+        }
+    }
+
     public var body: some View {
         VStack(spacing: 12) {
             header
@@ -28,7 +37,7 @@ public struct HanoiView: View {
             messageLine
             // 初回だけ出す 1 行（以降は `?` ボタンからいつでも読める）。
             HowToPlayHint(.hanoi, playLog: services.playLog)
-            RecommendationArea(services: services, isFinished: model.isSolved)
+            RecommendationArea(services: services, isFinished: model.isSolved, ladder: ladder, showsPlayStreak: false)
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }

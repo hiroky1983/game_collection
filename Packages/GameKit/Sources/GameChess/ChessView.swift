@@ -284,7 +284,7 @@ public struct ChessView: View {
         // 終局後のレコメンドは盤の下端に重ねる（将棋と同じ。高さの予約をせずに済ませる）。
         .overlay(alignment: .bottom) {
             if model.gameOver {
-                RecommendationSlot(services: services, isFinished: true, ladder: ladder)
+                RecommendationSlot(services: services, isFinished: true, ladder: ladder, showsPlayStreak: false)
                     .padding(.horizontal, 8)
                     .padding(.bottom, 8)
             }
@@ -602,7 +602,7 @@ struct ChessNewGameSheet: View {
         self.onCancel = onCancel
     }
 
-    /// 副題が「浅い読み・ミス少なめ」と長めなので、1 行に縮めて収める。
+    /// 副題が「浅い読み・大きなミス」と長めなので、1 行に縮めて収める。
     private static let metrics = GameSetupChooser.Metrics(subtitleMinimumScale: 0.7)
 
     var body: some View {
@@ -625,8 +625,10 @@ struct ChessNewGameSheet: View {
             GameSetupSection(tr("CPUの強さ")) {
                 // 説明は探索の中身と一致させる（#416）。詳細は `SimpleChessEngine.init(level:)`。
                 // 位置評価・静止探索は全段階で同じ。段で変わるのは時間・深さ・最善手を打つ確率（入門〜ふつうは 1 手先）。
+                // #3362: 入門 55%（外すとルークまで只で取られる）・かんたん 40%・ふつう 50%（外すとナイト・ビショップまで）。
+                // 最善手を外す割合が かんたん 60%・ふつう 50% なので「ミス多め」「ミスあり」、入門は損の大きい外しなので「大きなミス」。
                 CPUStrengthPicker(level: $level, details: [
-                    tr("浅い読み・ミス多め"), tr("浅い読み・ミスあり"), tr("浅い読み・ミス少なめ"), tr("定跡＋深読み"),
+                    tr("浅い読み・大きなミス"), tr("浅い読み・ミス多め"), tr("浅い読み・ミスあり"), tr("定跡＋深読み"),
                 ])
             }
             GameSetupSection(tr("駒の見た目")) {

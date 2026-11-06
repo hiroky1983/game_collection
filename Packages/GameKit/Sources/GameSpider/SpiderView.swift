@@ -582,7 +582,7 @@ public struct SpiderView: View {
     }
 
     private var controlArea: some View {
-        GameControlArea(isFinished: model.phase == .won, services: services, ladder: ladder) {
+        GameControlArea(isFinished: model.phase == .won, services: services, ladder: ladder, showsPlayStreak: false) {
             resultControls
         } playing: {
             gameControls

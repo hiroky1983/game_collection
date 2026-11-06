@@ -146,6 +146,8 @@ struct ChessHintTests {
         let log = PlayLog(defaults: defaults)
         let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), playLog: log)
         let model = ChessGameModel(services: services)
+        // 初回の既定は かんたん（#3362）で、記録は段ごとの区分に入る。区分なしの記録を見るため ふつう で始める。
+        model.newGame(aiLevel: 1)
 
         #expect(model.hints.winLossScore.isLeaderboardEligible, "前提: 使う前は順位表の対象")
         await model.requestHint()

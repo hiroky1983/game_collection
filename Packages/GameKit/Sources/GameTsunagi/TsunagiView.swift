@@ -16,6 +16,15 @@ public struct TsunagiView: View {
         _model = State(initialValue: TsunagiModel(services: services))
     }
 
+    /// 勝ちが続いたら一段大きい盤を勧める（#722・#3287）。並びは盤の大きさピッカーと同じ。
+    private var ladder: DifficultyLadderPrompt? {
+        let sizes = TsunagiSize.allCases
+        return DifficultyLadderPrompt(result: model.recordResult, currentLevel: sizes.firstIndex(of: model.size),
+                                      levelLabels: sizes.map(\.label)) { index in
+            withGameAnimation { model.newGame(size: sizes[index]) }
+        }
+    }
+
     public var body: some View {
         VStack(spacing: 14) {
             header
@@ -32,7 +41,7 @@ public struct TsunagiView: View {
             statusLine
             // 初回だけ出す 1 行（以降は `?` ボタンからいつでも読める）。
             HowToPlayHint(.tsunagi, playLog: services.playLog)
-            RecommendationArea(services: services, isFinished: model.isSolved)
+            RecommendationArea(services: services, isFinished: model.isSolved, ladder: ladder, showsPlayStreak: false)
             Spacer()
             BannerSlot(ads: services.ads)
         }

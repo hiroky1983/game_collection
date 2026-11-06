@@ -1076,6 +1076,8 @@ struct GameRecordingTests {
         #expect(log.summaryLine(gameID: "othello") == "2勝0敗・2連勝中")
 
         let model = OthelloModel(services: makeServices(log: log))
+        // 初回の既定は かんたん（#3362）で、記録は強さごとに分かれる。区分なしの記録（ふつう）を見るため ふつうで始める。
+        model.newGame(aiLevel: CPUStrength.normal.rawValue)
         model.resign()
 
         let record = log.record(gameID: "othello")
@@ -1108,6 +1110,8 @@ struct GameRecordingTests {
         defer { defaults.removePersistentDomain(forName: name) }
 
         let model = ChessGameModel(services: makeServices(log: log))
+        // 初回の既定は かんたん（#3362）で、記録は段ごとの区分に入る。区分なしの記録を見るため ふつう で始める。
+        model.newGame(aiLevel: 1)
         model.resign()
         #expect(model.recordResult != nil)
         #expect(log.record(gameID: "chess")?.losses == 1)
