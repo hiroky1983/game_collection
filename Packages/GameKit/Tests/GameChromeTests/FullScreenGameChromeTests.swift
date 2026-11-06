@@ -116,7 +116,8 @@ struct FullScreenGameChromeTests {
         let head = String(source[title.lowerBound...].prefix(1200))
         #expect(head.contains(".lineLimit(1)"))
         #expect(head.contains(".minimumScaleFactor(0.6)"))
-        #expect(head.contains(".layoutPriority(1)"), "表示名が札より先に幅をもらわないと、英語の題字が 0.6 倍まで縮む")
+        #expect(head.contains(".layoutPriority(isLargeText ? 0 : 1)"),
+                "通常の文字サイズでは表示名が札より先に幅をもらわないと、英語の題字が 0.6 倍まで縮む。大きい文字サイズでは札が先（#3307）")
         #expect(head.contains("Spacer(minLength: 0)"), "表示名と札のあいだの余りを吸う Spacer が無い")
     }
 

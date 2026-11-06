@@ -97,12 +97,12 @@ public struct TurnBadge: View {
 
     public var body: some View {
         Text(title)
-            .themeBody(14, weight: .bold, maxScale: 1.5)
+            .themeBody(14, weight: .bold, maxScale: 1.2)
             // 文字サイズ設定で拡大しても帯を押し広げない。縮めて 1 行に収める（#1469）。
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .foregroundStyle(kind.text)
-            .padding(.horizontal, 12).padding(.vertical, 4)
+            .padding(.horizontal, 10).padding(.vertical, 4)
             .background(Capsule().fill(kind.fill))
     }
 }
