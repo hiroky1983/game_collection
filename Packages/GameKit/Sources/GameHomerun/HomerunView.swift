@@ -173,7 +173,7 @@ struct HomerunLobbyView: View {
             HomerunLobbyRankRow(model: model, ads: services.ads)
                 .modifier(HomerunWeekEndRefresh(model: model))
             // 回数 0 の「戻ったら知らせる」はスクロールの中の上の方（SE でも送らずに見える位置）。
-            if !model.ledger.canStart, let returnReminder = services.returnReminder {
+            if HomerunReturnPolicy.showsReminderToggle(canStart: model.ledger.canStart), let returnReminder = services.returnReminder {
                 HomerunReturnReminderToggle(service: returnReminder)
             }
             // 記録と実績は別ページ（会長指示 2026-10-04）。ここは「記録と実績 ›」の 1 行だけ（きろくのカードも置かない）。
@@ -480,6 +480,11 @@ struct HomerunResultView: View {
                     do { try await Task.sleep(for: .seconds(max(0, reset.timeIntervalSinceNow) + 1)) } catch { return }
                     model.refreshDay(now: Date())
                 }
+            // 離脱しやすい最後の 1 球のあとにも「戻ったら知らせる」を出す（#3336。打席前まで戻らなくても予約できる）。
+            if HomerunReturnPolicy.showsReminderToggle(canStart: model.ledger.canStart),
+               let returnReminder = services.returnReminder {
+                HomerunReturnReminderToggle(service: returnReminder)
+            }
         }
         Button {
             withGameAnimation { model.backToLobby() }
