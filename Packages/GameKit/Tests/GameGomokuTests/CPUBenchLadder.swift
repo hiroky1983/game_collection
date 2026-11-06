@@ -8,10 +8,13 @@ import CoreEngine
 /// `swiftc -O -D GOMOKU_BENCH_STANDALONE` で単体バイナリにして最適化ビルドで回せる
 /// （`Scripts/gomoku-cpu-bench`。`swift test -c release` は通らず、デバッグビルドでは探索の対局が現実的な時間に収まらない）。
 enum CPUBenchLadder {
-    enum Outcome { case upperWon, lowerWon, draw }
+    /// `upperForfeited` / `lowerForfeited` は手を返せない・埋まった交点に打とうとした反則負け（#3362 で数を分けた）。
+    enum Outcome { case upperWon, lowerWon, draw, upperForfeited, lowerForfeited }
 
     struct Tally {
         var upperWins = 0, lowerWins = 0, draws = 0
+        /// 反則負けの局数（勝ち負けにも数える）。
+        var forfeits = 0
         var games: Int { upperWins + lowerWins + draws }
         /// 上の段の得点率（勝ち + 引き分け × 0.5）÷ 全局数。
         var upperScore: Double { games == 0 ? 0 : (Double(upperWins) + Double(draws) * 0.5) / Double(games) }
@@ -58,7 +61,7 @@ enum CPUBenchLadder {
             if let factory = upperToMove ? upper : lower {
                 let engineSeed = spread(seed &* 100_000 &+ UInt64(ply) &* 2 &+ (upperToMove ? 1 : 2))
                 guard let m = await factory(engineSeed).bestMove(board: board, stone: stone), board[m.row, m.col] == nil else {
-                    return upperToMove ? .lowerWon : .upperWon  // 手を返せない・非合法は反則負け
+                    return upperToMove ? .upperForfeited : .lowerForfeited  // 手を返せない・非合法は反則負け
                 }
                 (r, c) = m
             } else {
@@ -96,6 +99,8 @@ enum CPUBenchLadder {
                 case .upperWon: tally.upperWins += 1
                 case .lowerWon: tally.lowerWins += 1
                 case .draw: tally.draws += 1
+                case .upperForfeited: tally.lowerWins += 1; tally.forfeits += 1
+                case .lowerForfeited: tally.upperWins += 1; tally.forfeits += 1
                 }
                 add()
             }
@@ -108,12 +113,14 @@ enum CPUBenchLadder {
     /// 負荷で強さが揺れるので、計測の対局は局面数で打ち切る（実機の時間で読める量と等しい）。
     /// `bestMoveProbability` を渡すと、その段階の確率だけを差し替える（確率の候補を試すため）。
     /// `maxDepth` を渡すと、読む深さの上限だけを差し替える（#1566。深さの候補を試すため）。
+    /// `policy` を渡すと、手の選び方をまるごと差し替える（#3362。止め損ねの確率・損の幅も含めて試すため。
+    /// `bestMoveProbability` より優先）。
     static func engine(_ strength: CPUStrength, nodesPerSecond: Double, bestMoveProbability: Double? = nil,
-                       maxDepth: Int? = nil, seed: UInt64) -> SimpleGomokuEngine {
+                       maxDepth: Int? = nil, policy: GomokuMovePolicy? = nil, seed: UInt64) -> SimpleGomokuEngine {
         let shipped = SimpleGomokuEngine(level: strength.rawValue)
         return SimpleGomokuEngine(
             level: strength.rawValue, seed: seed, timeLimit: .infinity,
             maxDepth: maxDepth, nodeLimit: Int(shipped.timeLimit * nodesPerSecond),
-            policy: bestMoveProbability.map(SimpleGomokuEngine.policy))
+            policy: policy ?? bestMoveProbability.map { SimpleGomokuEngine.policy($0) })
     }
 }

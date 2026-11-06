@@ -162,7 +162,8 @@ struct GomokuHintTests {
         #expect(!model.hints.winLossScore.isLeaderboardEligible)
 
         model.resign()
-        #expect(log.record(gameID: "gomoku")?.plays == 1, "自己ベスト（端末内）は使用有無を問わず残す")
+        // 初回の段は かんたん（#3362）なので、記録は強さ別の区分「easy」に入る（ふつう だけが区分なし・#2617）。
+        #expect(log.record(gameID: "gomoku", variant: "easy")?.plays == 1, "自己ベスト（端末内）は使用有無を問わず残す")
         #expect(model.recordResult != nil, "リザルトの記録行も従来どおり出る")
     }
 }

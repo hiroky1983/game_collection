@@ -18,5 +18,14 @@ done
 cp Scripts/gomoku-cpu-bench/main.swift "$WORK/main.swift"
 # CPUStrength が参照するだけの型（解析の本体は GameKit の CoreEngine にあり、計測には要らない）。
 echo 'public enum AnalyticsLevel { case novice, beginner, normal, hard }' >"$WORK/AnalyticsLevelStub.swift"
+# 文言の表（Core の StringTable）とヒントの予算（CoreEngine）は計測に要らないので、同じ名前の最小の代わりを置く（#3362 で追加）。
+echo 'func tr(_ key: String) -> String { key }' >"$WORK/TrStub.swift"
+cat >"$WORK/BoardHintBudgetStub.swift" <<'SWIFT'
+import Foundation
+enum BoardHintBudget {
+    static let engineLevel = CPUStrength.hard.rawValue
+    static let extraThinkingTime: TimeInterval = 0.5
+}
+SWIFT
 swiftc -O -wmo -D GOMOKU_BENCH_STANDALONE -parse-as-library -o "$OUT" "$WORK"/*.swift 2>"$WORK/swiftc.log" \
   || { grep -v "warning:" "$WORK/swiftc.log" >&2; echo "ビルドに失敗しました" >&2; exit 1; }
