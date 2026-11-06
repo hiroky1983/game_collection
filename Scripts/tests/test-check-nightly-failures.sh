@@ -47,6 +47,16 @@ check "起票 0" "0" "$(creates)"
 run ""
 check "run が無くても起票 0" "0" "$(creates)"
 
+echo "== startup_failure / timed_out も起票し、cancelled / skipped は起票しない（#3349） =="
+for c in startup_failure timed_out; do
+  run "$c"
+  check "$c は 2 本起票" "2" "$(creates)"
+done
+for c in cancelled skipped; do
+  run "$c"
+  check "$c は起票 0" "0" "$(creates)"
+done
+
 echo "== 起票済み: 二重に起票しない =="
 run failure 1
 check "起票 0" "0" "$(creates)"
@@ -63,6 +73,13 @@ ROOT="$SCRIPT_DIR/../.."
 expected=$(grep -lE '^[[:space:]]*schedule:' "$ROOT"/.github/workflows/*.yml | xargs -n1 basename | sort | tr '\n' ' ')
 actual=$(sed -n 's/^WORKFLOWS=(\(.*\))$/\1/p' "$TARGET" | tr ' ' '\n' | sort | tr '\n' ' ')
 check "監視対象の列挙" "$expected" "$actual"
+
+echo "== ai-qa-duty.sh: 撮影に失敗したものは manifest に載せない（#3349） =="
+QA="$SCRIPT_DIR/../ai-qa-duty.sh"
+# 撮影行の直後に PNG の実在確認があり、manifest への追記がその分岐の内側にあること
+awk '/screenshot --type png/{on=1} on&&/-s "\$SHOTS\/\$f"/{chk=1} on&&/>>"\$MANIFEST"/{ if(chk) print "guarded"; else print "unguarded"; exit }' "$QA" >"$TMP/qa-guard"
+check "manifest 追記は PNG 実在の確認の後" "guarded" "$(cat "$TMP/qa-guard")"
+bash -n "$QA" && ok "bash -n ai-qa-duty.sh" || ng "bash -n ai-qa-duty.sh"
 
 echo
 echo "結果: PASS=$PASS FAIL=$FAIL"
