@@ -161,7 +161,11 @@ struct Bench {
             let nps = Double(env["NPS"] ?? "") ?? 300_000
             let conc = Int(env["CONCURRENCY"] ?? "") ?? 4
             let first = Int(env["FIRST_OPENING"] ?? "") ?? 1
-            let openings = Int(args[4]) ?? 100
+            guard args.count > 3 else {
+                print("使い方: vs <上の設定> <下の設定> [開始局面数]（設定は novice|easy|normal|hard|v1115-* か 深さ:確率:損の幅:秒）")
+                exit(2)
+            }
+            let openings = args.count > 4 ? Int(args[4]) ?? 100 : 100
             let up = engineSpec(args[2]), low = engineSpec(args[3])
             let t0 = Date()
             let t = VsBench.run(upper: up, lower: low, nps: nps, openings: openings, concurrency: conc, firstOpening: first)
@@ -208,9 +212,11 @@ func engineSpec(_ s: String) -> EngineSpec {
     case "v1115-normal": return EngineSpec(depth: 4, probability: 0.6, margin: 40, seconds: 1.0)
     default:
         let p = s.split(separator: ":").map(String.init)
-        precondition(p.count == 4, "設定は 深さ:確率:損の幅:秒")
-        let d = Int(p[0])!
-        return EngineSpec(depth: d == 0 ? nil : d, probability: Double(p[1])!, margin: Int(p[2])!, seconds: Double(p[3])!)
+        guard p.count == 4, let d = Int(p[0]), let prob = Double(p[1]), let margin = Int(p[2]), let sec = Double(p[3]) else {
+            print("設定が読めません: \(s)（深さ:確率:損の幅:秒 の形で、深さ無しは 0）")
+            exit(2)
+        }
+        return EngineSpec(depth: d == 0 ? nil : d, probability: prob, margin: margin, seconds: sec)
     }
 }
 
