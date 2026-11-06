@@ -199,14 +199,15 @@ public struct SimpleChessEngine: ChessEngine {
     ///
     /// | level | 表示 | 考える時間 | 読む深さの上限 | 最善手を打つ確率 | 定跡 |
     /// |---|---|---|---|---|---|
-    /// | -1 | 入門 | 0.02 秒 | 1 手先 | `noviceBestMoveProbability` | 無し |
+    /// | -1 | 入門 | 0.02 秒 | 1 手先 | `noviceBestMoveProbability`（外すときの損の幅は `noviceSlipMargin`） | 無し |
     /// | 0 | かんたん | 0.1 秒 | 1 手先 | `easyBestMoveProbability` | 無し |
     /// | 1 | ふつう | 0.5 秒 | 1 手先 | `normalBestMoveProbability` | 無し |
     /// | 2 | むずかしい | 2 秒 | 無し（`maxDepth`） | 100% | 有り |
     ///
     /// 探索（反復深化・静止探索・位置評価）は全段階で同じで、時間が来るか深さの上限まで読み終えたら指す。
-    /// 下の 3 段の深さ・確率の根拠は #1566 の段階表（`docs/analytics/chess-1566-ladder.md`: すぐ下の段に対する
-    /// 得点率が 60〜70% に収まる組み合わせ）。
+    /// 下の 3 段の深さの根拠は #1566 の段階表（`docs/analytics/chess-1566-ladder.md`）。確率・損の幅は #3362 で
+    /// 弱くした（`docs/analytics/chess-3362-ladder.md`: 今の同じ段に対する得点率 40% 以下・すぐ下の段に対する
+    /// 得点率 55〜75%）。
     ///
     /// **番号は強さの順だが 0 始まりではない**（`CPUStrength`。既存 3 段階の番号を動かさないため）。
     public init(level: Int = CPUStrength.standard.rawValue) {
@@ -219,7 +220,8 @@ public struct SimpleChessEngine: ChessEngine {
         useBook = strength == .hard
         let shippedTime: TimeInterval
         switch strength {
-        case .novice: (shippedTime, depth, policy) = (0.02, 1, Self.policy(Self.noviceBestMoveProbability))
+        case .novice: (shippedTime, depth, policy) = (0.02, 1, Self.policy(Self.noviceBestMoveProbability,
+                                                                          slipMargin: Self.noviceSlipMargin))
         case .easy:   (shippedTime, depth, policy) = (0.1, 1, Self.policy(Self.easyBestMoveProbability))
         case .normal: (shippedTime, depth, policy) = (0.5, 1, Self.policy(Self.normalBestMoveProbability))
         case .hard:   (shippedTime, depth, policy) = (2.0, Self.maxDepth, .exact)
@@ -242,19 +244,25 @@ public struct SimpleChessEngine: ChessEngine {
     /// 下の 3 段は `depth` に 1 手先の上限を持つ（#1566。2 手先以上は 10% 刻みのどの確率でも下の段に 60〜70% に収まらない）。
     static let maxDepth = 32
 
-    /// 最善手を打つ確率。入門 60% は #1462 の実測（一様乱択の相手に 100 局全勝）。かんたん・ふつうは #1566 の実測
-    /// （各 400 局）で、かんたん 70% が入門に 67.0%、ふつう 80% がかんたんに 61.5% と、すぐ下の段に対する
-    /// 得点率 60〜70% に収まる、制約内で唯一の組み合わせ（`docs/analytics/chess-1566-ladder.md`）。
-    static let noviceBestMoveProbability = 0.6
-    static let easyBestMoveProbability = 0.7
-    static let normalBestMoveProbability = 0.8
+    /// 最善手を打つ確率（#3362・会長決裁 2026-11-07 で弱くした。旧値は 入門 60%・かんたん 70%・ふつう 80%）。
+    /// 人の勝率が 入門 14%・ふつう 0% と強すぎたため。CPU 同士で、新しい段が今の同じ段に 40% 以下・
+    /// すぐ下の段に 55〜75% になる値を実測で選んだ（`docs/analytics/chess-3362-ladder.md`）。
+    /// 入門の確率が かんたん より高いのは、入門だけ外したときの損の幅が大きい（`noviceSlipMargin`）ため。
+    /// 外したときにルークまで只で取られる分、確率を下げなくても かんたん より弱い。
+    static let noviceBestMoveProbability = 0.55
+    static let easyBestMoveProbability = 0.4
+    static let normalBestMoveProbability = 0.5
 
     /// 外したときに許す損の幅（ナイト・ビショップ 1 枚ぶん）。駒 1 枚ぶんを目安に、軽い駒（ナイト 320・ビショップ 330）を
     /// 位置の点込みで只で失う手までが入り、ルーク（500）・クイーンを只で失う手は入らない。初心者らしい
     /// 「駒をうっかり取られる」間違いは出しつつ、大駒を捨てて一気に負ける手は選ばない幅。
     static let slipMargin = 350
 
-    static func policy(_ probability: Double) -> ChessMovePolicy {
+    /// 入門だけの損の幅（ルーク 1 枚ぶん・#3362）。ルーク（500）を位置の点込みで只で失う手までが入り、
+    /// クイーン（900）を只で失う手は入らない。「駒をただで取られる」初心者らしい間違いを入門だけ大きくする。
+    static let noviceSlipMargin = 550
+
+    static func policy(_ probability: Double, slipMargin: Int = slipMargin) -> ChessMovePolicy {
         ChessMovePolicy(bestMoveProbability: probability, slipMargin: slipMargin)
     }
 

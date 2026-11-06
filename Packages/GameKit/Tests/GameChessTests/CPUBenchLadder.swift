@@ -10,6 +10,14 @@ import CoreEngine
 enum CPUBenchLadder {
     enum Outcome { case upperWon, lowerWon, draw }
 
+    /// 手を返さなかった・非合法手を返した回数（反則負けにした局。#3362 の合格基準「反則手 0」を数える）。
+    nonisolated(unsafe) static var forfeitLog: [String] = []
+    private static let forfeitLock = NSLock()
+    static func recordForfeit(_ note: String) {
+        forfeitLock.lock(); defer { forfeitLock.unlock() }
+        forfeitLog.append(note)
+    }
+
     struct Tally {
         var upperWins = 0, lowerWins = 0, draws = 0
         /// 引き分け（手数上限・ステイルメイト・50 手）のうち、下の段階が駒得で上回っていた局（参考値）。
@@ -72,8 +80,10 @@ enum CPUBenchLadder {
             let move: ChessMove
             if let factory = upperToMove ? upper : lower {
                 let engineSeed = seed &* 100_000 &+ UInt64(ply) &* 2 &+ (upperToMove ? 1 : 2)
-                guard let uci = await factory(engineSeed).bestMove(fen: pos.toFEN()),
+                let fen = pos.toFEN()
+                guard let uci = await factory(engineSeed).bestMove(fen: fen),
                       let m = ChessMove.fromUCI(uci), moves.contains(m) else {
+                    recordForfeit(fen)
                     return (upperToMove ? .lowerWon : .upperWon, false)  // 手を返せない・非合法は反則負け
                 }
                 move = m

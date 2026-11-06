@@ -142,16 +142,18 @@ struct ChessMovePolicyTests {
         #expect(move != nil && ChessPosition.start().legalMoves().contains(move!))
     }
 
-    /// 確率は段階表で決めた値（入門は `docs/analytics/chess-1462-ladder.md`、かんたん・ふつうは
-    /// `docs/analytics/chess-1566-ladder.md`: すぐ下の段に対する得点率 60〜70%）。
-    /// 変えるときは同じ計測（`Scripts/chess-cpu-bench`）をやり直して表を更新する。
-    @Test("最善手の確率は 入門 60% / かんたん 70% / ふつう 80% / むずかしい 100%、損の幅はナイト・ビショップ 1 枚ぶん")
+    /// 確率・損の幅は段階表で決めた値（`docs/analytics/chess-3362-ladder.md`: 今の同じ段に対する得点率 40% 以下・
+    /// すぐ下の段に対する得点率 55〜75%）。変えるときは同じ計測（`Scripts/chess-cpu-bench`）をやり直して表を更新する。
+    @Test("最善手の確率は 入門 55% / かんたん 40% / ふつう 50% / むずかしい 100%、損の幅は入門だけルーク 1 枚・ほかはナイト・ビショップ 1 枚ぶん")
     func probabilitiesArePinnedToTheMeasurement() {
         let p = CPUStrength.allCases.map { SimpleChessEngine(level: $0.rawValue).policy }
-        #expect(p.map(\.bestMoveProbability) == [0.6, 0.7, 0.8, 1])
+        #expect(p.map(\.bestMoveProbability) == [0.55, 0.4, 0.5, 1])
         #expect(p[3].isExact)
-        #expect(p[0..<3].allSatisfy { $0.slipMargin == SimpleChessEngine.slipMargin })
+        #expect(p[0].slipMargin == SimpleChessEngine.noviceSlipMargin)
+        #expect(p[1..<3].allSatisfy { $0.slipMargin == SimpleChessEngine.slipMargin })
         #expect(SimpleChessEngine.slipMargin > ChessPieceValue.base(.bishop))
-        #expect(SimpleChessEngine.slipMargin < ChessPieceValue.base(.rook), "外しでもルーク・クイーンは只で損しない")
+        #expect(SimpleChessEngine.slipMargin < ChessPieceValue.base(.rook), "かんたん・ふつうの外しでルーク・クイーンは只で損しない")
+        #expect(SimpleChessEngine.noviceSlipMargin > ChessPieceValue.base(.rook), "入門はルークを只で取られる外しも選ぶ")
+        #expect(SimpleChessEngine.noviceSlipMargin < ChessPieceValue.base(.queen), "入門でもクイーンは只で損しない")
     }
 }

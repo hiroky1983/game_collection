@@ -218,8 +218,8 @@ enum ChessSelfPlay {
 
 /// 下の段（入門・かんたん）の読みの下限と、最善手を外す段の振る舞い。段の番号は 0 始まりではない（`CPUStrength`）。
 ///
-/// 段階どうしの強さの差（すぐ下の段に対する得点率 60〜70%）は CI では回さない。1 組 400 局を回すため、
-/// `Scripts/chess-cpu-bench` で計測し `docs/analytics/chess-1566-ladder.md` に記録してある。
+/// 段階どうしの強さの差（すぐ下の段に対する得点率 55〜75%・#3362）は CI では回さない。1 組 200 局を回すため、
+/// `Scripts/chess-cpu-bench` で計測し `docs/analytics/chess-3362-ladder.md` に記録してある。
 @Suite("チェスの入門・かんたん")
 struct ChessNoviceAndSeriousTests {
 
@@ -316,7 +316,7 @@ struct ChessNoviceAndSeriousTests {
 
     /// 弱くしても壊れていないことの下限: 入門の読み（1 手先）でも、でたらめに指す相手には大差で勝つ。
     /// 種を固定した同じエンジンは毎手同じ目を引くので、ここでは外しを切って読みだけを見る
-    /// （出荷どおり 60% で外す入門の対一様乱択は、計測で 100 局全勝・`docs/analytics/chess-1462-ladder.md`）。
+    /// （出荷どおりの入門（最善手 55%・損の幅 550）の対一様乱択は、計測で 100 局全勝・`docs/analytics/chess-3362-ladder.md`）。
     @Test("入門もでたらめな相手には大差で勝つ")
     func noviceStillCrushesRandomPlay() async {
         let novice = untimed(level: Self.novice, seed: 13)
