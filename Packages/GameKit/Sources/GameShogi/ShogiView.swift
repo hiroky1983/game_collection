@@ -670,7 +670,7 @@ struct NewGameSheet: View {
                 // 説明は探索の中身と一致させる（#416）。詳細は `SimpleMinimaxEngine.init(level:)`。
                 // 位置評価・静止探索は全段階で同じ。段で変わるのは時間・深さ・最善手を打つ確率。
                 CPUStrengthPicker(level: $level, details: [
-                    tr("1手先だけ読む"), tr("2手先まで読む"), tr("3手先まで読む"), tr("定跡＋深読み"),
+                    tr("1手先・ミスが多い"), tr("1手先だけ読む"), tr("2手先まで読む"), tr("定跡＋深読み"),
                 ], extras: [
                     // 達人（#2698）は将棋だけの段。探索は `ShogiMasterEngine`。
                     .init(level: ShogiMasterEngine.level, label: ShogiMasterEngine.label,

@@ -10,8 +10,8 @@ G=Packages/GameKit
 WORK="$(mktemp -d "${DUTY_SCRATCH_DIR:-${TMPDIR:-/tmp}}/shogi-bench-build.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT
 # 単一モジュールにまとめるため、モジュール間の import を外したコピーを作る。
-for f in $G/Sources/CoreEngine/{MMIXRandom,SplitMix64,CPUStrength}.swift \
-         $G/Sources/GameShogi/{Move,MoveGenerator,OpeningBook,Position,ShogiSquare,ShogiTypes,ShogiEngine}.swift \
+for f in $G/Sources/CoreEngine/{MMIXRandom,SplitMix64,CPUStrength,BookPicker}.swift \
+         $G/Sources/GameShogi/{Move,MoveGenerator,OpeningBook,Position,ShogiSquare,ShogiTypes,ShogiEngine,ShogiMasterEngine,ShogiMateSearch}.swift \
          $G/Tests/GameShogiTests/CPUBenchLadder.swift; do
   grep -v '^import CoreEngine$' "$f" >"$WORK/$(basename "$f")"
 done
