@@ -14,7 +14,8 @@ public protocol ChallengeReturnReminderScheduler: AnyObject {
     /// 予約済みの発火時刻。無ければ nil。
     func pendingFireDate() async -> Date?
     /// 既に予約があれば置き換える。
-    func schedule(fireDate: Date, title: String, body: String) async
+    /// 予約できたら true。OS への追加が失敗したら false（呼び出し元が数えて、無反応と取り違えないようにする・#3296）。
+    func schedule(fireDate: Date, title: String, body: String) async -> Bool
     /// 予約（発火済みで通知センターに残っているものも含む）を消す。無くても安全。
     func cancel()
 }
@@ -64,6 +65,9 @@ public final class ChallengeReturnReminderService {
         requestedGameID = gameID
     }
 
+    /// OS への予約追加が失敗した回数（#3296。届かない原因の切り分け用）。
+    @ObservationIgnored public private(set) var scheduleFailureCount = 0
+
     /// 設定の「通知」がオンか（シートのトグルを使えるか）。
     public var isNotificationsEnabled: Bool { isEnabledSetting() }
 
@@ -82,7 +86,7 @@ public final class ChallengeReturnReminderService {
         guard status.allowsScheduling else { return .denied }
         guard epoch == token, isEnabledSetting() else { return .superseded }
         guard fireDate > now() else { return .expired }
-        await scheduler.schedule(fireDate: fireDate, title: title, body: body)
+        if !(await scheduler.schedule(fireDate: fireDate, title: title, body: body)) { scheduleFailureCount += 1 }
         // OS への追加を待っている間に取り消されていたら、追加が済んだあとで消し直す（取り消しが先に走って予約だけ残るのを防ぐ）。
         guard epoch == token else {
             scheduler.cancel()

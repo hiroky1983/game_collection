@@ -45,7 +45,8 @@ public protocol ResumeReminderScheduler: AnyObject {
     func requestExplicitAuthorization() async -> ReminderAuthorization
     func pendingReminders() async -> [ResumeReminder]
     /// 同じゲームの予約が既にあれば置き換える。
-    func schedule(_ reminder: ResumeReminder, title: String, body: String) async
+    /// 予約できたら true。OS への追加が失敗したら false（呼び出し元が数えて、無反応と取り違えないようにする・#3296）。
+    func schedule(_ reminder: ResumeReminder, title: String, body: String) async -> Bool
     func cancel(gameIDs: [String])
     func cancelAll()
 }
@@ -128,6 +129,8 @@ public final class ResumeReminderService {
     @ObservationIgnored private var finishedGameIDs: Set<String> = []
     /// 最後に始めた予約の処理。予約は 1 件ずつ直列に流す（並ぶと上限の判定が古い一覧で走る）。
     @ObservationIgnored public private(set) var pendingWork: Task<Void, Never>?
+    /// OS への予約追加が失敗した回数（#3296。届かない原因の切り分け用）。
+    @ObservationIgnored public private(set) var scheduleFailureCount = 0
 
     /// - Parameters:
     ///   - isEnabled: 設定の「続きのお知らせ」。
@@ -251,7 +254,7 @@ public final class ResumeReminderService {
             scheduler.cancel(gameIDs: evicted)
         }
         let content = ResumeReminderPolicy.content(gameTitle: title, progress: progress)
-        await scheduler.schedule(
+        let scheduled = await scheduler.schedule(
             ResumeReminder(
                 gameID: gameID,
                 fireDate: ResumeReminderPolicy.fireDate(leftAt: leftAt, calendar: calendar)
@@ -259,6 +262,7 @@ public final class ResumeReminderService {
             title: content.title,
             body: content.body
         )
+        if !scheduled { scheduleFailureCount += 1 }
         // 追加の完了を待つ間に開き直された・中断データが消えた・設定を切られたなら、入った予約を取り消す。
         // 取り消しが追加より先に処理されると、取り消したはずの予約が残るため（PR #697 の CodeRabbit 指摘）。
         guard epochs[gameID, default: 0] == token, globalEpoch == global, isEnabled() else {
