@@ -45,4 +45,17 @@ struct ConcentrationProgressToLoseTests {
         try #require(model.isGameOver)
         #expect(!model.hasProgressToLose)
     }
+
+    @Test("外して伏せ直し、盤が全部伏せ・0 対 0 に戻っても失う進行がある（#3337）")
+    func mismatchedAndFlippedBackIsProgress() {
+        let model = ConcentrationModel(services: nil)
+        let first = 0
+        let second = model.cards.indices.first { model.cards[$0].symbol != model.cards[first].symbol }!
+        model.tap(index: first)
+        model.tap(index: second)
+        model.clearMismatch()
+        #expect(model.cards.allSatisfy { !$0.isFaceUp && !$0.isMatched })
+        #expect(model.playerScore == 0 && model.cpuScore == 0)
+        #expect(model.hasProgressToLose)
+    }
 }
