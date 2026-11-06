@@ -77,12 +77,12 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // 添字（`moves[ply - 1]`）が範囲外にならないようにする（#520）。
         self.reviewPly = min(max(snap?.reviewPly ?? moveList.count, 0), moveList.count)
         // 既定は CPU 対戦（人間=白 / CPU=黒）。
-        // 中断データが無いときの初期値は最後に選んだ条件（#2611）。初回は人間=白・入門。
+        // 中断データが無いときの初期値は最後に選んだ条件（#2611）。初回は人間=白・かんたん（#3362）。
         let last = services?.playLog?.lastStart(ChessStartChoice.self, gameID: "chess")
         let lastHuman = last?.humanSide ?? .white
         self.white = snap?.white ?? (lastHuman == .white ? .human : .ai)
         self.black = snap?.black ?? (lastHuman == .white ? .ai : .human)
-        self.aiLevel = snap?.aiLevel ?? last?.aiLevel ?? 1
+        self.aiLevel = snap?.aiLevel ?? last?.aiLevel ?? CPUStrength.easy.rawValue
         self.startedAt = snap?.startedAt ?? Date()
         self.undoUsed = snap?.undoUsed ?? false
         self.resigned = snap?.resigned ?? false

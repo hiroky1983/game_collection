@@ -1108,6 +1108,8 @@ struct GameRecordingTests {
         defer { defaults.removePersistentDomain(forName: name) }
 
         let model = ChessGameModel(services: makeServices(log: log))
+        // 初回の既定は かんたん（#3362）で、記録は段ごとの区分に入る。区分なしの記録を見るため ふつう で始める。
+        model.newGame(aiLevel: 1)
         model.resign()
         #expect(model.recordResult != nil)
         #expect(log.record(gameID: "chess")?.losses == 1)

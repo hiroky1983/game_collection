@@ -28,7 +28,7 @@ struct GameChessLastStartTests {
         let f = LastStartFixture()
         let first = ChessGameModel(services: f.services())
         #expect(first.humanSide == .white)
-        #expect(first.aiLevel == 1)
+        #expect(first.aiLevel == 0, "初回は かんたん（`CPUStrength.easy`・#3362）")
         first.newGame(humanSide: .black, aiLevel: 3)
         f.store.clear(for: "chess")
         let next = ChessGameModel(services: f.services())
