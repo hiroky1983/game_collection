@@ -15,6 +15,7 @@ public struct ConcentrationModule: GameModule {
 
     /// 一枚もめくっていない盤は「続き」ではない（#1847）。めくる・揃える・待ったを使うと、
     /// 表向きの札・揃った札・得点・待ったの使用のどれかが変わる。
+    /// 外して伏せ直した盤は見た目が元に戻るので、手番の交代回数も見る（#3337）。
     public func hasResumableSnapshot(in snapshots: SnapshotStore) -> Bool {
         guard let snap = snapshots.load(ConcentrationSnapshot.self, for: id) else { return false }
         return !Self.isUntouched(snap)
@@ -34,6 +35,7 @@ public struct ConcentrationModule: GameModule {
 
     private static func isUntouched(_ snap: ConcentrationSnapshot) -> Bool {
         !(snap.isFaceUp.contains(true) || snap.isMatched.contains(true)
-            || snap.playerScore > 0 || snap.cpuScore > 0 || snap.mattaUsed)
+            || snap.playerScore > 0 || snap.cpuScore > 0 || snap.mattaUsed
+            || (snap.turnsPlayed ?? 0) > 0)
     }
 }
