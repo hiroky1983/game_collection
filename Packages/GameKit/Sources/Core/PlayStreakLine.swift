@@ -40,11 +40,13 @@ struct PlayStreakLine: View {
 extension View {
     /// 結果カードの下端の外側に連続日数の 1 行を重ねる。レイアウトには参加しないので、カードの高さは変わらない。
     /// 暗幕（黒 45%）の上に出るので文字は白。
-    func playStreakCaption(foreground: Color = .white) -> some View {
+    func playStreakCaption(foreground: Color = .white, isEnabled: Bool = true) -> some View {
         overlay(alignment: .bottom) {
-            PlayStreakLine(foreground: foreground)
-                .padding(.top, 4)
-                .alignmentGuide(.bottom) { $0[.top] }
+            if isEnabled {
+                PlayStreakLine(foreground: foreground)
+                    .padding(.top, 4)
+                    .alignmentGuide(.bottom) { $0[.top] }
+            }
         }
     }
 }

@@ -284,7 +284,7 @@ public struct ChessView: View {
         // 終局後のレコメンドは盤の下端に重ねる（将棋と同じ。高さの予約をせずに済ませる）。
         .overlay(alignment: .bottom) {
             if model.gameOver {
-                RecommendationSlot(services: services, isFinished: true, ladder: ladder)
+                RecommendationSlot(services: services, isFinished: true, ladder: ladder, showsPlayStreak: false)
                     .padding(.horizontal, 8)
                     .padding(.bottom, 8)
             }

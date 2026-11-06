@@ -315,7 +315,7 @@ public struct ShogiView: View {
         // 検討ナビで盤を見たいときに邪魔なら閉じればよい。
         .overlay(alignment: .bottom) {
             if model.gameOver {
-                RecommendationSlot(services: services, isFinished: true, ladder: ladder)
+                RecommendationSlot(services: services, isFinished: true, ladder: ladder, showsPlayStreak: false)
                     .padding(.horizontal, 8)
                     .padding(.bottom, 8)
             }

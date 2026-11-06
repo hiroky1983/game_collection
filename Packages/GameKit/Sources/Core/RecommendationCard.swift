@@ -160,6 +160,9 @@ public struct RecommendationSlot: View {
     private let services: GameServices
     private let isFinished: Bool
     private let ladder: DifficultyLadderPrompt?
+    /// 「連続 N 日あそび中」の 1 行を出すか（#3220）。結果カード（`BoardGameResultCard` / `GameClearCard`）が
+    /// 自分で同じ行を出すゲームは false にして二重表示を避ける。
+    private let showsPlayStreak: Bool
     /// ×で閉じた階段の提案。次の決着の提案は `plays` が変わるので、閉じたままにはならない。
     @State private var dismissedLadder: DifficultyLadderOffer?
 
@@ -170,11 +173,13 @@ public struct RecommendationSlot: View {
     public init(
         services: GameServices,
         isFinished: Bool,
-        ladder: DifficultyLadderPrompt? = nil
+        ladder: DifficultyLadderPrompt? = nil,
+        showsPlayStreak: Bool = true
     ) {
         self.services = services
         self.isFinished = isFinished
         self.ladder = ladder
+        self.showsPlayStreak = showsPlayStreak
     }
 
     public var body: some View {
@@ -188,18 +193,18 @@ public struct RecommendationSlot: View {
                     onOpen: { service.accept() },
                     onDismiss: { service.dismiss() }
                 )
-                .playStreakCaption(foreground: Theme.inkSubText)
+                .playStreakCaption(foreground: Theme.inkSubText, isEnabled: showsPlayStreak)
             } else if let ladder, ladder.offer != dismissedLadder {
                 DifficultyLadderCard(
                     offer: ladder.offer,
                     onClimb: ladder.climb,
                     onDismiss: { dismissedLadder = ladder.offer }
                 )
-                .playStreakCaption(foreground: Theme.inkSubText)
+                .playStreakCaption(foreground: Theme.inkSubText, isEnabled: showsPlayStreak)
             } else {
                 // 通算 20 終局まではレコメンドが出ない（大半の決着）。ひな形が確保した空きの上端に 1 行だけ出す。
                 // 高さ 0 の面に重ねるので、枠の高さ・周りの寸法は動かない。
-                Color.clear.frame(height: 0).playStreakCaption(foreground: Theme.inkSubText)
+                Color.clear.frame(height: 0).playStreakCaption(foreground: Theme.inkSubText, isEnabled: showsPlayStreak)
             }
         }
     }
@@ -216,16 +221,18 @@ public struct RecommendationSlot: View {
 public struct RecommendationArea: View {
     private let services: GameServices
     private let isFinished: Bool
+    private let showsPlayStreak: Bool
 
-    public init(services: GameServices, isFinished: Bool) {
+    public init(services: GameServices, isFinished: Bool, showsPlayStreak: Bool = true) {
         self.services = services
         self.isFinished = isFinished
+        self.showsPlayStreak = showsPlayStreak
     }
 
     public var body: some View {
         ZStack(alignment: .top) {
             RecommendationCard.heightPlaceholder
-            RecommendationSlot(services: services, isFinished: isFinished)
+            RecommendationSlot(services: services, isFinished: isFinished, showsPlayStreak: showsPlayStreak)
         }
     }
 }

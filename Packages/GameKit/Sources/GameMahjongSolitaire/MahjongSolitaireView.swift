@@ -519,7 +519,7 @@ public struct MahjongSolitaireView: View {
     /// プレイ中（ヒント・並べ替え）と取り切った後（記録 + 次のゲーム + レコメンド）で
     /// 中身が入れ替わるが、**高さは常に後者の最大構成に揃える**（#148。高さの担保は `GameControlArea`）。
     private var controlArea: some View {
-        GameControlArea(isFinished: model.phase == .won, services: services) {
+        GameControlArea(isFinished: model.phase == .won, services: services, showsPlayStreak: false) {
             resultControls
         } playing: {
             gameControls
