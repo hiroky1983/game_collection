@@ -147,7 +147,7 @@ public struct AkariKeshiView: View {
     // MARK: - 盤の下
 
     private var controlArea: some View {
-        GameControlArea(isFinished: model.state == .cleared, services: services, ladder: ladder) {
+        GameControlArea(isFinished: model.state == .cleared, services: services, ladder: ladder, showsPlayStreak: false) {
             GameReplayBar(
                 onReplay: { withGameAnimation { model.newGame(difficulty: model.difficulty) } },
                 onChangeSettings: { showNewGame = true }

@@ -530,7 +530,7 @@ public struct SudokuView: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
 
-            GameControlArea(isFinished: model.isFinished, services: services, ladder: ladder) {
+            GameControlArea(isFinished: model.isFinished, services: services, ladder: ladder, showsPlayStreak: false) {
                 resultControls
             } playing: {
                 if model.state == .playing {

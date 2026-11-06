@@ -91,7 +91,7 @@ extension CatPuzzleView {
     /// （`showsFinishedControls`）。
     @ViewBuilder var controlArea: some View {
         if Self.showsFinishedControls(model) {
-            GameControlArea(isFinished: true, services: services, ladder: model.stage == nil ? ladder : nil) {
+            GameControlArea(isFinished: true, services: services, ladder: model.stage == nil ? ladder : nil, showsPlayStreak: false) {
                 if let stage = model.stage, model.isSolved {
                     CatPuzzleNextStageBar(next: stage + 1,
                                           onNext: { startStage(stage + 1) },

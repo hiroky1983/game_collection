@@ -45,7 +45,7 @@ public struct FifteenView: View {
             hintBar
             // 初回だけ出す 1 行（以降は `?` ボタンからいつでも読める）。
             HowToPlayHint(.fifteen, playLog: services.playLog)
-            RecommendationArea(services: services, isFinished: model.isSolved, ladder: ladder)
+            RecommendationArea(services: services, isFinished: model.isSolved, ladder: ladder, showsPlayStreak: false)
             Spacer()
             BannerSlot(ads: services.ads)
         }

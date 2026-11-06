@@ -24,12 +24,14 @@ public extension EnvironmentValues {
 /// 通知・広告・報酬には繋げない（`docs/spec-app.md` の連続日数の方針）。
 struct PlayStreakLine: View {
     @Environment(\.playStreakProvider) private var provider
+    /// 暗幕の上（結果カード）は白、ゲームの地の上（`RecommendationSlot`）は副文字色。
+    var foreground: Color = .white
 
     var body: some View {
         if let text = PlayDayStreak.hubText(streak: provider()) {
             Text(text)
                 .themeCaption(13, weight: .semibold, maxScale: 1.3)
-                .foregroundStyle(.white)
+                .foregroundStyle(foreground)
                 .multilineTextAlignment(.center)
         }
     }
@@ -38,11 +40,13 @@ struct PlayStreakLine: View {
 extension View {
     /// 結果カードの下端の外側に連続日数の 1 行を重ねる。レイアウトには参加しないので、カードの高さは変わらない。
     /// 暗幕（黒 45%）の上に出るので文字は白。
-    func playStreakCaption() -> some View {
+    func playStreakCaption(foreground: Color = .white, isEnabled: Bool = true) -> some View {
         overlay(alignment: .bottom) {
-            PlayStreakLine()
-                .padding(.top, 4)
-                .alignmentGuide(.bottom) { $0[.top] }
+            if isEnabled {
+                PlayStreakLine(foreground: foreground)
+                    .padding(.top, 4)
+                    .alignmentGuide(.bottom) { $0[.top] }
+            }
         }
     }
 }

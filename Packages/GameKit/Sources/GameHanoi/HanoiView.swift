@@ -37,7 +37,7 @@ public struct HanoiView: View {
             messageLine
             // 初回だけ出す 1 行（以降は `?` ボタンからいつでも読める）。
             HowToPlayHint(.hanoi, playLog: services.playLog)
-            RecommendationArea(services: services, isFinished: model.isSolved, ladder: ladder)
+            RecommendationArea(services: services, isFinished: model.isSolved, ladder: ladder, showsPlayStreak: false)
             Spacer(minLength: 0)
             BannerSlot(ads: services.ads)
         }

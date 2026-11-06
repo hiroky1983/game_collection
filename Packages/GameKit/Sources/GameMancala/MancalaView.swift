@@ -226,7 +226,7 @@ public struct MancalaView: View {
     /// 対局中（待った・投了）と終局後（もう一度・レコメンド）で中身が入れ替わるが、
     /// 高さは常に終局後の最大構成に揃える（#148。高さの担保は `GameControlArea`）。
     private var controlArea: some View {
-        GameControlArea(isFinished: model.gameOver, services: services, ladder: ladder) {
+        GameControlArea(isFinished: model.gameOver, services: services, ladder: ladder, showsPlayStreak: false) {
             GameReplayBar(
                 onReplay: { model.newGame(humanFirst: model.humanFirst, aiLevel: model.aiLevel) },
                 onChangeSettings: { showNewGame = true }
