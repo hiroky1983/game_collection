@@ -291,7 +291,7 @@ public struct ShiritoriView: View {
                 VStack(spacing: 8) {
                     HowToPlayHint(.shiritori, playLog: services.playLog)
                     actionArea
-                    RecommendationSlot(services: services, isFinished: model.phase == .result, ladder: ladder)
+                    RecommendationSlot(services: services, isFinished: model.phase == .result, ladder: ladder, showsPlayStreak: false)
                 }
                 .background {
                     GeometryReader { below in

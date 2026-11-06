@@ -252,7 +252,7 @@ public struct YonmokuView: View {
     /// 対局中（待った・投了）と終局後（もう一回・レコメンド）で中身が入れ替わるが、
     /// 高さは常に終局後の最大構成に揃える（#148。高さの担保は `GameControlArea`）。
     private var controlArea: some View {
-        GameControlArea(isFinished: model.gameOver, services: services, ladder: ladder) {
+        GameControlArea(isFinished: model.gameOver, services: services, ladder: ladder, showsPlayStreak: false) {
             GameReplayBar(
                 onReplay: { model.newGame(humanSide: model.humanSide, aiLevel: model.aiLevel) },
                 onChangeSettings: { showNewGame = true }

@@ -301,7 +301,7 @@ public struct GoView: View {
         // 終局後のレコメンドは盤の下端に重ねる（常時高さ予約の代替。将棋 #405 と同じ）。
         .overlay(alignment: .bottom) {
             if model.phase == .finished {
-                RecommendationSlot(services: services, isFinished: true, ladder: ladder)
+                RecommendationSlot(services: services, isFinished: true, ladder: ladder, showsPlayStreak: false)
                     .padding(.horizontal, 8)
                     .padding(.bottom, 8)
             }
