@@ -68,6 +68,17 @@
         }
       }
     },
+    "1手先・ミスが多い" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Looks 1 move ahead, makes many mistakes"
+          }
+        }
+      }
+    },
     "1手先だけ読む" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -97,17 +108,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Looks 2 moves ahead"
-          }
-        }
-      }
-    },
-    "3手先まで読む" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Looks 3 moves ahead"
           }
         }
       }

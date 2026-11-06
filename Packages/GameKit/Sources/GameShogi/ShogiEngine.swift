@@ -173,14 +173,14 @@ public struct SimpleMinimaxEngine: ShogiEngine {
     ///
     /// | level | 表示 | 考える時間 | 読む深さの上限 | 最善手を打つ確率 | 定跡 |
     /// |---|---|---|---|---|---|
-    /// | -1 | 入門 | 0.02 秒 | 1 手先 | `noviceBestMoveProbability` | 無し |
-    /// | 0 | かんたん | 0.1 秒 | 2 手先 | `easyBestMoveProbability` | 無し |
-    /// | 1 | ふつう | 0.5 秒 | 3 手先 | 80% | 無し |
+    /// | -1 | 入門 | 0.005 秒 | 1 手先 | `noviceBestMoveProbability`（50%） | 無し |
+    /// | 0 | かんたん | 0.02 秒 | 1 手先 | `easyBestMoveProbability`（80%） | 無し |
+    /// | 1 | ふつう | 0.025 秒 | 2 手先 | `normalBestMoveProbability`（80%） | 無し |
     /// | 2 | むずかしい | 2 秒 | 無し（`maxDepth`） | 100% | 有り |
     ///
     /// 探索（反復深化・静止探索・位置評価）は全段階で同じで、時間が来るか深さの上限まで読み終えたら指す。
-    /// 確率の根拠は PR #1461 の段階表（`docs/analytics/shogi-1461-ladder.md`: 上の段の得点率 90% 以上で
-    /// 最も高い値）。
+    /// 入門〜ふつうの値の根拠は #3362 の段階表（`docs/analytics/shogi-3362-ladder.md`: 変更前の同じ段に
+    /// 得点率 40% 以下・隣の段に上の段が 55〜75%）。むずかしいは #1461 のまま。
     ///
     /// **番号は強さの順だが 0 始まりではない**（`CPUStrength`。既存 3 段階の番号を動かさないため）。
     public init(level: Int = CPUStrength.standard.rawValue) {
@@ -193,9 +193,9 @@ public struct SimpleMinimaxEngine: ShogiEngine {
         useBook = strength == .hard
         let shippedTime: TimeInterval
         switch strength {
-        case .novice: (shippedTime, depth, policy) = (0.02, 1, Self.policy(Self.noviceBestMoveProbability))
-        case .easy:   (shippedTime, depth, policy) = (0.1, 2, Self.policy(Self.easyBestMoveProbability))
-        case .normal: (shippedTime, depth, policy) = (0.5, 3, Self.policy(Self.normalBestMoveProbability))
+        case .novice: (shippedTime, depth, policy) = (0.005, 1, Self.policy(Self.noviceBestMoveProbability))
+        case .easy:   (shippedTime, depth, policy) = (0.02, 1, Self.policy(Self.easyBestMoveProbability))
+        case .normal: (shippedTime, depth, policy) = (0.025, 2, Self.policy(Self.normalBestMoveProbability))
         case .hard:   (shippedTime, depth, policy) = (2.0, Self.maxDepth, .exact)
         }
         self.timeLimit = overrideTime ?? shippedTime   // ヒント用: 考える時間だけ差し替える（#1739）
@@ -301,14 +301,14 @@ public struct SimpleMinimaxEngine: ShogiEngine {
     }
 
     /// 反復深化の深さの上限（むずかしい）。実際に止めるのは時間（読み終わる終盤だけ早く終わる）。
-    /// 下の段は `depth` に 3 / 2 / 1 手先の上限を持つ（会長決裁 2026-09-27）。
+    /// 下の段は `depth` に ふつう 2 / かんたん 1 / 入門 1 手先の上限を持つ（#3362。変更前は 3 / 2 / 1）。
     static let maxDepth = 32
 
-    /// 最善手を打つ確率（#1461 の実測。上の段の得点率が 90% 以上になる、10% 刻みで最も高い値。
-    /// ふつうは会長決裁の 80%、かんたん・入門は上から順に計測で決めた: ふつう 80% に対しかんたん 70%、
-    /// かんたん 70% に対し入門 100%。入門は外しを使わず、0.02 秒・1 手先の読みの浅さだけで弱くなる）。
-    static let noviceBestMoveProbability = 1.0
-    static let easyBestMoveProbability = 0.7
+    /// 最善手を打つ確率（#3362 の実測で、考える時間・深さと合わせて決めた値。変更前は 入門 100%・かんたん 70%・
+    /// ふつう 80%）。段の差は主に考える時間（＝読める局面数）で付き、確率は細かい合わせに使う
+    /// （`docs/analytics/shogi-3362-ladder.md`）。
+    static let noviceBestMoveProbability = 0.5
+    static let easyBestMoveProbability = 0.8
     static let normalBestMoveProbability = 0.8
 
     /// 外したときに許す損の幅（銀 1 枚ぶん）。歩・香・桂・銀を只で失う手までが入り、金・角・飛は入らない。
@@ -392,9 +392,17 @@ public struct SimpleMinimaxEngine: ShogiEngine {
     static let slipTotalShare = 0.4
 
     /// 探索に使える残りの時間。使った時間と、置換表の確保・後始末ぶん（`searchOverhead`）を引く。
+    /// 考える時間が短い段（入門 0.005 秒など・#3362）は、引く分と最低限の時間を考える時間に比例させる。
+    /// 固定の 0.03 秒を引いて 0.02 秒に切り上げると、0.03 秒より短い段がどれも 0.02 秒読みになり、
+    /// 計測（考える時間 × 局面数）と実機の読む量が合わなくなるため。0.3 秒以上の段は従来どおり。
     static func searchTime(limit: TimeInterval, elapsed: TimeInterval) -> TimeInterval {
-        limit.isFinite ? max(minSearchTime, limit - elapsed - searchOverhead) : limit
+        guard limit.isFinite else { return limit }
+        let overhead = min(searchOverhead, limit * shortLimitOverheadShare)
+        return max(min(minSearchTime, limit), limit - elapsed - overhead)
     }
+
+    /// 短い考える時間から引く後始末ぶんの割合（#3362）。
+    static let shortLimitOverheadShare = 0.1
 
     /// 探索の時間から引く、置換表の確保・返り値の後始末ぶん（秒）。上限を超えないための余裕。
     static let searchOverhead = 0.03
