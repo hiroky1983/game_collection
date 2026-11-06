@@ -535,7 +535,8 @@ struct HubView: View {
         .tint(Theme.coralText)
         .sheet(isPresented: $showSettings) {
             SettingsView(
-                registry: registry, settings: settings, playLog: services.playLog, feedback: services.feedback)
+                registry: registry, settings: settings, playLog: services.playLog, feedback: services.feedback,
+                hapticPreview: AppEnvironment.haptic, soundPreview: AppEnvironment.sound)
                 .presentationDetents([.large])
         }
         .sheet(isPresented: $showRecords, onDismiss: {
