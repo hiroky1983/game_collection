@@ -9,6 +9,10 @@ struct SettingsView: View {
     var playLog: PlayLog?
     /// 消去の完了を伝える触覚（#2936）。注入されないとき（プレビュー等）は何もしない。
     var feedback: FeedbackService = NoopFeedbackService()
+    /// 設定を変えた直後の試し鳴らし用（#3295）。ゲート前の実体を直接渡す（OFF→ON の時点ではゲートが閉じているため）。
+    /// 注入されないとき（プレビュー等）は何もしない。
+    var hapticPreview: FeedbackService = NoopFeedbackService()
+    var soundPreview: FeedbackService = NoopFeedbackService()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
@@ -103,7 +107,11 @@ struct SettingsView: View {
                 Section {
                     Toggle(isOn: Binding(
                         get: { settings.hapticsEnabled },
-                        set: { settings.hapticsEnabled = $0 }
+                        set: {
+                            let turnedOn = $0 && !settings.hapticsEnabled
+                            settings.hapticsEnabled = $0
+                            if turnedOn { hapticPreview.impact(.light) }
+                        }
                     )) {
                         Label(tr("触覚フィードバック"), systemImage: "iphone.radiowaves.left.and.right")
                             .foregroundStyle(Theme.ink)
@@ -112,7 +120,11 @@ struct SettingsView: View {
 
                     Toggle(isOn: Binding(
                         get: { settings.soundEnabled },
-                        set: { settings.soundEnabled = $0 }
+                        set: {
+                            let turnedOn = $0 && !settings.soundEnabled
+                            settings.soundEnabled = $0
+                            if turnedOn { soundPreview.impact(.light) }
+                        }
                     )) {
                         Label(tr("効果音"), systemImage: "speaker.wave.2")
                             .foregroundStyle(Theme.ink)
@@ -122,7 +134,10 @@ struct SettingsView: View {
                     if settings.soundEnabled {
                         Picker(selection: Binding(
                             get: { settings.soundVolume },
-                            set: { settings.soundVolume = $0 }
+                            set: {
+                                settings.soundVolume = $0
+                                soundPreview.impact(.light)
+                            }
                         )) {
                             Text(tr("小")).tag(SoundVolume.small)
                             Text(tr("中")).tag(SoundVolume.medium)
