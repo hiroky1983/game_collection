@@ -267,13 +267,15 @@ def _card(suit, rank, offset):
 
 
 def snapshot_poker():
-    """カード交換フェーズ（5カードドローの見せ場）。CPU の手札は伏せられたまま。
+    """10 回勝負の 4 回目・カード交換フェーズ（手札はスリーカード）。CPU の手札は伏せられたまま。
 
-    アプリが実際に保存するのは betting1/exchange/cpuExchange/betting2 の4フェーズだけなので、
-    撮影用の状態もその中から選ぶ（result を注入すると役名の表示だけが復元されず矛盾する）。
+    `PokerSnapshot`（GamePoker/PokerModel.swift・format 2）に合わせる。旧形式（チップ制）や format 欠落だと
+    アプリが読み捨てて開始シートが開き、対局画面が撮れない（#3377）。
+    保存されるのは exchange/drawn/result のどれか（idle は読まれず、10 回目の決着後は消される）ので、
+    撮影用の状態は exchange にする。
     """
-    player = [_card(0, 12, 10), _card(1, 12, 10), _card(2, 12, 10), _card(3, 8, 6), _card(0, 5, 3)]
-    cpu = [_card(1, 14, 12), _card(2, 14, 12), _card(3, 9, 7), _card(0, 9, 7), _card(1, 4, 2)]
+    player = [_card(0, 12, 10), _card(1, 12, 10), _card(2, 12, 10), _card(3, 9, 7), _card(0, 4, 2)]
+    cpu = [_card(1, 14, 12), _card(2, 14, 12), _card(3, 10, 8), _card(0, 7, 5), _card(1, 3, 1)]
     used = {(c["suit"], c["rank"]) for c in player + cpu}
     deck = [
         _card(s, r, r - 2)
@@ -282,18 +284,28 @@ def snapshot_poker():
         if (s, r) not in used
     ]
     return {
+        "format": 2,
         "playerHand": player,
         "cpuHand": cpu,
         "deck": deck,
-        "playerChips": 90,   # 初期100枚からアンティ10枚ずつ（= ポット20枚）
-        "cpuChips": 90,
-        "pot": 20,
         "phase": "exchange",
-        "currentBet": 0,
-        "playerBetInRound": 0,
-        "cpuBetInRound": 0,
-        "cpuFolded": False,
-        "cpuAction": "チェック",  # .exchange へは cpuBet1Response 経由でしか入らず、必ず表示が付く
+        "round": 4,
+        "playerPoints": 14,
+        "cpuPoints": 9,
+        "playerWins": 2,
+        "cpuWins": 1,
+        "bestRank": 2,           # PokerHandRank.twoPair（ここまでの最高役）
+        "extraExchangeUsed": False,
+        "cpuAction": "",
+        "winner": None,
+        "playerHandRank": 3,     # threeOfAKind
+        "cpuHandRank": 1,        # onePair
+        "roundPoints": 0,
+        "streak": 1,
+        "bestStreak": 1,
+        "cpuExchangedIndices": [],
+        "playerExchangedIndices": [],
+        "sessionFormat": "tenRounds",
     }
 
 
