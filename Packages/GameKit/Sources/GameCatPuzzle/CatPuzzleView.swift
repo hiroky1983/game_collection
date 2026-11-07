@@ -552,31 +552,20 @@ public struct CatPuzzleView: View {
         }
     }
 
+    /// 読み上げ文は `CatPuzzleCellElement` の中で組み立てる。マスが 100 個を超える盤で × を 1 つ付けるたびに、全マスぶんの
+    /// 文を作り直さないため（入力が変わったマスだけ作り直す・#3403）。
     private func cellElement(index: Int, n: Int, room: Int, mark: CatPuzzleModel.Mark, cellSide: CGFloat, inset: CGFloat) -> some View {
-        Color.clear
-            .frame(width: cellSide, height: cellSide)
-            .contentShape(Rectangle())
-            .offset(x: inset + CGFloat(index % n) * cellSide, y: inset + CGFloat(index / n) * cellSide)
-            .accessibilityElement()
-            .accessibilityLabel(CatPuzzleAccessibility.cellLabel(
-                row: index / n, col: index % n,
-                roomName: room == model.keyRoom ? tr("%@（鍵の部屋）", CatPuzzleHouse.room(room).name) : CatPuzzleHouse.room(room).name,
-                mark: mark,
-                isConflict: model.wrongCrosses.contains(index),
-                isHint: model.hintCells.contains(index) || model.hintCrosses.contains(index),
-                isUnfoundCat: model.isUnfoundCat(cell: index)
-            ))
-            .accessibilityHint(model.isOver ? "" : model.isLockedOut(cell: index)
-                               ? tr("鍵の猫を見つけるまで、この部屋には印を付けられません") : model.hintCells.contains(index)
-                               ? tr("ヒントで置いた猫は消せません") : model.hintCrosses.contains(index)
-                               ? tr("ヒントで置いた × は消せません") : model.wrongCrosses.contains(index)
-                               ? tr("ここに猫はいません。赤い × は消せません") : mark == .cat
-                               ? "" : tr("押すと × を付け外しします。猫を見つけるときはアクションの「猫を見つける」を選びます"))
-            .accessibilityAddTraits(.isButton)
-            // VoiceOver では × の付け外しと猫を見つけるを別の操作に分ける（ダブルタップは VoiceOver の「押す」と重なるため）。
-            .accessibilityAction { withGameAnimation { _ = model.toggleCross(cell: index) } }
-            .accessibilityAction(named: tr("× を付け外し")) { withGameAnimation { _ = model.toggleCross(cell: index) } }
-            .accessibilityAction(named: tr("猫を見つける")) { withGameAnimation { model.findCat(cell: index) } }
+        CatPuzzleCellElement(
+            model: model, index: index, n: n, room: room, mark: mark, cellSide: cellSide, inset: inset,
+            isKeyRoom: room == model.keyRoom,
+            isOver: model.isOver,
+            isLockedOut: model.isLockedOut(cell: index),
+            isWrongCross: model.wrongCrosses.contains(index),
+            isHintCat: model.hintCells.contains(index),
+            isHintCross: model.hintCrosses.contains(index),
+            isUnfoundCat: model.isUnfoundCat(cell: index)
+        )
+        .equatable()
     }
 
     // MARK: - コンティニュー・答え合わせ
@@ -663,5 +652,58 @@ public struct CatPuzzleView: View {
     /// ステージの面を始める。`number` が nil なら次に遊ぶ面。
     func startStage(_ number: Int?) {
         withGameAnimation { model.startStage(number) }
+    }
+}
+
+/// 盤の透明なマス 1 つ（操作と読み上げだけを担う）。見た目の入力が同じ間は body を作り直さない（#3403）。
+private struct CatPuzzleCellElement: View, Equatable {
+    /// 操作の送り先（同じ局かだけを比べる。body は `model` の値を読まないので、盤の変化では再評価されない）。
+    let model: CatPuzzleModel
+    let index: Int
+    let n: Int
+    let room: Int
+    let mark: CatPuzzleModel.Mark
+    let cellSide: CGFloat
+    let inset: CGFloat
+    let isKeyRoom: Bool
+    let isOver: Bool
+    let isLockedOut: Bool
+    let isWrongCross: Bool
+    let isHintCat: Bool
+    let isHintCross: Bool
+    let isUnfoundCat: Bool
+
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.model === rhs.model && lhs.index == rhs.index && lhs.n == rhs.n && lhs.room == rhs.room && lhs.mark == rhs.mark
+            && lhs.cellSide == rhs.cellSide && lhs.inset == rhs.inset && lhs.isKeyRoom == rhs.isKeyRoom
+            && lhs.isOver == rhs.isOver && lhs.isLockedOut == rhs.isLockedOut && lhs.isWrongCross == rhs.isWrongCross
+            && lhs.isHintCat == rhs.isHintCat && lhs.isHintCross == rhs.isHintCross && lhs.isUnfoundCat == rhs.isUnfoundCat
+    }
+
+    var body: some View {
+        Color.clear
+            .frame(width: cellSide, height: cellSide)
+            .contentShape(Rectangle())
+            .offset(x: inset + CGFloat(index % n) * cellSide, y: inset + CGFloat(index / n) * cellSide)
+            .accessibilityElement()
+            .accessibilityLabel(CatPuzzleAccessibility.cellLabel(
+                row: index / n, col: index % n,
+                roomName: isKeyRoom ? tr("%@（鍵の部屋）", CatPuzzleHouse.room(room).name) : CatPuzzleHouse.room(room).name,
+                mark: mark,
+                isConflict: isWrongCross,
+                isHint: isHintCat || isHintCross,
+                isUnfoundCat: isUnfoundCat
+            ))
+            .accessibilityHint(isOver ? "" : isLockedOut
+                               ? tr("鍵の猫を見つけるまで、この部屋には印を付けられません") : isHintCat
+                               ? tr("ヒントで置いた猫は消せません") : isHintCross
+                               ? tr("ヒントで置いた × は消せません") : isWrongCross
+                               ? tr("ここに猫はいません。赤い × は消せません") : mark == .cat
+                               ? "" : tr("押すと × を付け外しします。猫を見つけるときはアクションの「猫を見つける」を選びます"))
+            .accessibilityAddTraits(.isButton)
+            // VoiceOver では × の付け外しと猫を見つけるを別の操作に分ける（ダブルタップは VoiceOver の「押す」と重なるため）。
+            .accessibilityAction { withGameAnimation { _ = model.toggleCross(cell: index) } }
+            .accessibilityAction(named: tr("× を付け外し")) { withGameAnimation { _ = model.toggleCross(cell: index) } }
+            .accessibilityAction(named: tr("猫を見つける")) { withGameAnimation { model.findCat(cell: index) } }
     }
 }
