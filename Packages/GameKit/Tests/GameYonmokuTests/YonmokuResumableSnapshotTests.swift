@@ -71,3 +71,67 @@ struct YonmokuResumableSnapshotTests {
         #expect(spy.quits.map(\.gameID) == ["yonmoku"])
     }
 }
+
+/// 「待った」で開始局面まで戻したら離脱の印も戻す（#3398。#3133・#3200 で四目並べだけ取りこぼした）。
+@Suite("四目並べの「待った」と離脱の印（#3398）")
+@MainActor
+struct YonmokuUndoToStartTests {
+    private func makeServices(spy: SpyAnalyticsService) -> GameServices {
+        GameServices(
+            snapshots: MemorySnapshotStore(), ads: NoopAdService(),
+            analytics: GameAnalytics(service: spy, allowedGameIDs: ["yonmoku"]),
+            isResumable: { _, snapshots in YonmokuModule().hasResumableSnapshot(in: snapshots) }
+        )
+    }
+
+    @Test("黒で 1 手指して「待った」で 0 手に戻したら、離れても離脱に数えない")
+    func blackUndoToStartIsNotQuit() async {
+        let spy = SpyAnalyticsService()
+        let services = makeServices(spy: spy)
+        services.gameDidStart(gameID: "yonmoku")
+        let model = YonmokuModel(services: services, cpuDelay: .zero, seed: 1)
+        model.newGame(humanSide: .black)
+        model.tap(column: 3)
+        await model.performAIMoveIfNeeded()
+        #expect(model.canUndo, "前提: 1 往復指して待ったを押せる")
+        model.undoLastExchange()
+        #expect(model.lastMove == nil, "前提: 開始局面まで戻った")
+        services.analytics?.leaveGame(gameID: "yonmoku", isResumable: false)
+        #expect(spy.quits.isEmpty, "指していない盤は離脱に数えない")
+    }
+
+    @Test("白で CPU の初手だけまで戻したら離脱に数えない。途中までの戻しなら印は残る")
+    func whiteUndoToCPUOpeningClearsButMidGameKeeps() async {
+        let spy = SpyAnalyticsService()
+        let services = makeServices(spy: spy)
+        services.gameDidStart(gameID: "yonmoku")
+        let model = YonmokuModel(services: services, cpuDelay: .zero, seed: 1)
+        model.newGame(humanSide: .white)
+        await model.performAIMoveIfNeeded()
+        model.tap(column: 0)
+        await model.performAIMoveIfNeeded()
+        model.tap(column: 1)
+        await model.performAIMoveIfNeeded()
+        // 5 手 → 3 手（自分の手が残る）。印は残る。
+        model.undoLastExchange()
+        services.analytics?.leaveGame(gameID: "yonmoku", isResumable: false)
+        #expect(spy.quits.map(\.gameID) == ["yonmoku"], "途中までの戻しでは従来どおり数える（対照）")
+    }
+
+    @Test("白で 3 手から CPU の初手だけ（1 手）まで戻したら離脱に数えない")
+    func whiteUndoToCPUOpeningIsNotQuit() async {
+        let spy = SpyAnalyticsService()
+        let services = makeServices(spy: spy)
+        services.gameDidStart(gameID: "yonmoku")
+        let model = YonmokuModel(services: services, cpuDelay: .zero, seed: 1)
+        model.newGame(humanSide: .white)
+        await model.performAIMoveIfNeeded()
+        model.tap(column: 0)
+        await model.performAIMoveIfNeeded()
+        #expect(model.canUndo, "前提: 3 手で待ったを押せる")
+        model.undoLastExchange()
+        #expect(model.lastMove != nil, "前提: CPU の初手だけが残っている")
+        services.analytics?.leaveGame(gameID: "yonmoku", isResumable: false)
+        #expect(spy.quits.isEmpty, "CPU の初手だけの盤は離脱に数えない")
+    }
+}
