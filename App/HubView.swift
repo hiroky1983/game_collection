@@ -121,6 +121,15 @@ struct HubView: View {
         ).compactMap { registry.module(id: $0) }
     }
 
+    /// ピックアップの区画（または非表示時の見出し）を出す候補。利用者の非表示設定は見ない（#3404）。
+    private var pickupCandidates: [GameModule] {
+        NewGames.pickupShownIDs(
+            visibleIDs: settings.visibleModules(from: registry).map(\.id),
+            isHiddenByUser: false,
+            isAllCategory: activeCategory == .all
+        ).compactMap { registry.module(id: $0) }
+    }
+
     /// カテゴリーで絞ったあとにグリッドへ並べるゲーム。位置は絞る前の並びでの 1 始まり
     /// （絞り込みの有無で同じゲームの位置が変わらない）。区画に出しているゲームは一覧に出さない（二重に出さない）。
     private var shownGridEntries: [GridEntry] {
@@ -228,11 +237,6 @@ struct HubView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                     if activeCategory == .all {
-                        // ピックアップ（#3358）。「つづき・最近」の行と「はじめの1本」より上。
-                        let pickup = pickupModules
-                        if !pickup.isEmpty {
-                            pickupSection(pickup)
-                        }
                         // 中断・記録ともゼロなら**行ごと出さない**（#660）。「すべて」のときだけ出す（モック 01・04b）。
                         // 連続プレイ日数（#1625）は 2 日以上、または昨日まで続いて今日まだのとき（#3060）だけ、行の見出しの右に控えめに出す。
                         let recent = recentCandidates
@@ -261,6 +265,11 @@ struct HubView: View {
                             .buttonStyle(.pop)
                             .padding(.horizontal, Theme.pad)
                             .padding(.top, Theme.pad)
+                        }
+                        // ピックアップ（#3358）。ヘッダー → 検索 → つづき・最近 → ピックアップの順（#3404）。
+                        // 非表示にしたあとも見出しと「表示」ボタンだけ残し、ハブから戻せる。
+                        if !pickupCandidates.isEmpty {
+                            pickupSection(pickupCandidates, isHidden: settings.pickupHidden)
                         }
                     } else {
                         // カテゴリーを選んだときの見出し（モック 04b の「トランプ　7本」）。
@@ -627,9 +636,9 @@ struct HubView: View {
     /// NavigationStack は表示中の遷移先を1手で差し替えると描画が壊れる（画面が真っ白になる）。
     /// いったん根まで戻し、次の runloop で積み直す。
     /// グリッドの 1 枚。
-    /// 「ピックアップ」の区画（#3358）。見出しと、一覧と同じカード 2 枚。「非表示」で区画を消し、
-    /// 2 本は利用者の並びの位置に戻る（設定の「ピックアップを表示」から再表示できる）。
-    private func pickupSection(_ modules: [GameModule]) -> some View {
+    /// 「ピックアップ」の区画（#3358）。見出しと、一覧と同じカード 2 枚。「非表示」でカードを畳み、
+    /// 2 本は利用者の並びの位置に戻る。畳んだあとも見出しは残り、右の「表示」で戻せる（#3404。設定のスイッチと連動）。
+    private func pickupSection(_ modules: [GameModule], isHidden: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(tr("ピックアップ"))
@@ -638,9 +647,9 @@ struct HubView: View {
                     .accessibilityAddTraits(.isHeader)
                 Spacer(minLength: 8)
                 Button {
-                    withGameAnimation(.easeOut(duration: 0.2)) { settings.pickupHidden = true }
+                    withGameAnimation(.easeOut(duration: 0.2)) { settings.pickupHidden = !isHidden }
                 } label: {
-                    Text(tr("非表示"))
+                    Text(isHidden ? tr("表示") : tr("非表示"))
                         .themeCaption(layout.scaled(12), weight: .heavy)
                         .foregroundStyle(Theme.inkSubText)
                         .lineLimit(1)
@@ -650,15 +659,17 @@ struct HubView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.pop)
-                .accessibilityHint(tr("設定の「ピックアップを表示」から再表示できます"))
+                .accessibilityHint(isHidden ? tr("ピックアップのゲームを表示します") : tr("見出しは残り、右の「表示」でいつでも戻せます"))
             }
             .padding(.horizontal, Theme.pad)
-            LazyVGrid(columns: columns, spacing: Self.gridSpacing) {
-                ForEach(Array(modules.enumerated()), id: \.element.id) { offset, module in
-                    gridTile(GridEntry(module: module, position: offset + 1), source: .pickup)
+            if !isHidden {
+                LazyVGrid(columns: columns, spacing: Self.gridSpacing) {
+                    ForEach(Array(modules.enumerated()), id: \.element.id) { offset, module in
+                        gridTile(GridEntry(module: module, position: offset + 1), source: .pickup)
+                    }
                 }
+                .padding(.horizontal, Theme.pad)
             }
-            .padding(.horizontal, Theme.pad)
         }
         .padding(.top, 4)
     }

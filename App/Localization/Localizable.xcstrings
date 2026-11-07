@@ -727,13 +727,35 @@
         }
       }
     },
-    "設定の「ピックアップを表示」から再表示できます" : {
+    "見出しは残り、右の「表示」でいつでも戻せます" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "You can show it again with Show Picks in Settings"
+            "value" : "The heading stays; tap Show on the right to bring it back"
+          }
+        }
+      }
+    },
+    "ピックアップのゲームを表示します" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows the picked games"
+          }
+        }
+      }
+    },
+    "表示" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show"
           }
         }
       }
