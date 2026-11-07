@@ -621,7 +621,7 @@ struct CatPopModifier: ViewModifier {
 private struct CatPuzzleBoardFloorLayer: View, Equatable {
     let puzzle: CatPuzzle
     let cellSide: CGFloat
-    /// ライト / ダークの切り替えでは描き直す（環境の読み取りを明示しておく）。
+    /// ライト / ダークの切り替えでは描き直す（下の `.id` で確実に作り直す）。
     @Environment(\.colorScheme) private var colorScheme
 
     nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
@@ -634,6 +634,7 @@ private struct CatPuzzleBoardFloorLayer: View, Equatable {
             drawFloors(&context, rooms: rooms)
             drawGrid(&context)
         }
+        .id(colorScheme)
     }
 
     private func rect(of cell: Int) -> CGRect {
