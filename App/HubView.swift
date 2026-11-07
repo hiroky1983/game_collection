@@ -649,7 +649,7 @@ struct HubView: View {
                 Button {
                     withGameAnimation(.easeOut(duration: 0.2)) { settings.pickupHidden = !isHidden }
                 } label: {
-                    Text(tr(isHidden ? "表示" : "非表示"))
+                    Text(isHidden ? tr("表示") : tr("非表示"))
                         .themeCaption(layout.scaled(12), weight: .heavy)
                         .foregroundStyle(Theme.inkSubText)
                         .lineLimit(1)
@@ -659,7 +659,7 @@ struct HubView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.pop)
-                .accessibilityHint(tr(isHidden ? "ピックアップのゲームを表示します" : "見出しは残り、右の「表示」でいつでも戻せます"))
+                .accessibilityHint(isHidden ? tr("ピックアップのゲームを表示します") : tr("見出しは残り、右の「表示」でいつでも戻せます"))
             }
             .padding(.horizontal, Theme.pad)
             if !isHidden {
