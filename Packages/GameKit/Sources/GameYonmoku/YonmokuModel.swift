@@ -212,6 +212,10 @@ public final class YonmokuModel: AITurnGuarded, BoardUndoModel {
         lastMove = Self.lastPoint(of: moves, on: board)
         winningLine = nil
         undoUsed = true
+        // 人間がまだ指していない局面（白は CPU の初手だけも含む）まで戻したら、離脱の印も戻す（#3398。#3200 の手本）。
+        if !CPUOpening.humanHasMoved(totalMoves: moves.count, cpuMovesFirst: humanSide == .white) {
+            services?.gameDidUndoToStart(gameID: gameID)
+        }
         persist()
     }
 
