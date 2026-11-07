@@ -1644,9 +1644,15 @@ query {
 SHIP_READY=0
 SHIP_VER=""
 SHIP_SHA=""
-SHIP_REFS=$(gh api "repos/hiroky1983/game_collection/git/matching-refs/heads/release/v" \
-  --jq '.[] | "\(.ref | sub("^refs/heads/";""))\t\(.object.sha)"' 2>/dev/null || true)
-if [ -n "$SHIP_REFS" ]; then
+# gh の失敗を「空」に読み替えない（空は「release ブランチが無い」の意味）。失敗した回は判定を見送る（#3399）
+SHIP_FETCH_OK=1
+if ! SHIP_REFS=$(gh api "repos/hiroky1983/game_collection/git/matching-refs/heads/release/v" \
+  --jq '.[] | "\(.ref | sub("^refs/heads/";""))\t\(.object.sha)"' 2>/dev/null); then
+  SHIP_REFS=""
+  SHIP_FETCH_OK=0
+  log "仕事13: release ブランチ一覧を取得できないため、出荷準備の判定をこの周回は見送る"
+fi
+if [ "$SHIP_FETCH_OK" = 1 ] && [ -n "$SHIP_REFS" ]; then
   # 公開バージョンは仕事7 が取れていればそれを使う（仕事7 は最大の版が先行していないと取りに行かない）
   SHIP_STORE_VER="${STORE_VER:-}"
   if [ -z "$SHIP_STORE_VER" ]; then
@@ -1654,9 +1660,14 @@ if [ -n "$SHIP_REFS" ]; then
     SHIP_STORE_VER=$(curl -sf --max-time 10 "https://itunes.apple.com/lookup?id=${DUTY_APP_ID}&country=jp&t=$(date +%s)" 2>/dev/null \
       | jq -r '.results[0].version // empty' 2>/dev/null)
   fi
-  SHIP_TAGS=$(gh api "repos/hiroky1983/game_collection/git/matching-refs/tags/v" \
-    --jq '.[].ref | select(endswith("-submitted"))' 2>/dev/null || true)
-  for V in $(ship_candidate_versions "$(printf '%s\n' "$SHIP_REFS" | cut -f1)" "$SHIP_TAGS" "${SHIP_STORE_VER:-}"); do
+  # 失敗を「提出済みタグなし」と読むと提出済みの版を出荷対象に選びうるので、選定ごと見送る（#3399）
+  if ! SHIP_TAGS=$(gh api "repos/hiroky1983/game_collection/git/matching-refs/tags/v" \
+    --jq '.[].ref | select(endswith("-submitted"))' 2>/dev/null); then
+    SHIP_TAGS=""
+    SHIP_FETCH_OK=0
+    log "仕事13: 提出済みタグ一覧を取得できないため、出荷対象の選定をこの周回は見送る"
+  fi
+  for V in $( [ "$SHIP_FETCH_OK" = 1 ] && ship_candidate_versions "$(printf '%s\n' "$SHIP_REFS" | cut -f1)" "$SHIP_TAGS" "${SHIP_STORE_VER:-}"); do
     # 取得に失敗したら「凍結なし」と読み替えず、出荷対象の選定をこの周回は見送る（#3227）
     if ! SHIP_LOCK=$(duty_branch_lock_state "$V" 2>>"$LOG"); then
       log "仕事13: release/v${V} の凍結を判定できないため、出荷対象の選定をこの周回は見送る"
@@ -1676,8 +1687,11 @@ if [ -n "$SHIP_REFS" ]; then
 fi
 if [ -n "$SHIP_VER" ]; then
   SHIP_SHA=$(printf '%s\n' "$SHIP_REFS" | awk -F'\t' -v b="release/v${SHIP_VER}" '$1 == b { print $2 }')
-  SHIP_PRS=$(gh pr list -R hiroky1983/game_collection --state open --base "release/v${SHIP_VER}" --limit 200 \
-    --json number --jq 'length' 2>/dev/null || true)
+  if ! SHIP_PRS=$(gh pr list -R hiroky1983/game_collection --state open --base "release/v${SHIP_VER}" --limit 200 \
+    --json number --jq 'length' 2>/dev/null); then
+    SHIP_PRS=""
+    log "仕事13: release/v${SHIP_VER} 向けのオープン PR 数を取得できないため、出荷準備の判定をこの周回は見送る"
+  fi
   SHIP_REMAINING=""
   SHIP_REQUESTED=""
   if [ "${SHIP_PRS:-}" = "0" ]; then

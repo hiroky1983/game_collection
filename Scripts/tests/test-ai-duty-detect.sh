@@ -455,7 +455,7 @@ echo "== 20. 仕事13 の呼び出し側（本物のブロックをスタブの 
 SHIP_BLOCK=$(awk '/^# 仕事13: 出荷準備の検知/ { f = 1 } /^# 実行モード決定/ { f = 0 } f' "$TARGET")
 check "仕事13 のブロックを切り出せた" "1" "$(printf '%s\n' "$SHIP_BLOCK" | grep -c '^SHIP_READY=0$')"
 
-STUB_LOCK=""; STUB_AHEAD=""; STUB_PRS=""; STUB_GRAPHQL=""
+STUB_LOCK=""; STUB_AHEAD=""; STUB_PRS=""; STUB_GRAPHQL=""; STUB_GH_FAIL=""
 # "キー=値" の並び（空白区切り）から値を引く
 stub_lookup() {
   local e
@@ -469,11 +469,14 @@ gh() {
   local v a prev="" base=""
   case "$1 $2" in
     "api repos/hiroky1983/game_collection/git/matching-refs/heads/release/v")
+      case " $STUB_GH_FAIL " in *" refs "*) echo "gh: HTTP 502" >&2; return 1 ;; esac
+      case " $STUB_GH_FAIL " in *" norefs "*) return 0 ;; esac
       for v in 1.1.0 1.1.1 1.1.2 1.1.3 1.1.4 1.1.5 1.1.6; do
         if [ "$v" = "1.1.5" ]; then printf 'release/v%s\t%s\n' "$v" "$SHA"
         else printf 'release/v%s\t0000000%s\n' "$v" "${v//./}"; fi
       done ;;
     "api repos/hiroky1983/game_collection/git/matching-refs/tags/v")
+      case " $STUB_GH_FAIL " in *" tags "*) echo "gh: HTTP 502" >&2; return 1 ;; esac
       printf '%s\n' "$REAL_TAGS" ;;
     "api repos/hiroky1983/game_collection/branches/"*)
       v="${2#*release%2Fv}"; v="${v%/protection}"
@@ -489,6 +492,7 @@ gh() {
     "api graphql")
       printf '%s' "$STUB_GRAPHQL" ;;
     "pr list")
+      case " $STUB_GH_FAIL " in *" prs "*) echo "gh: HTTP 502" >&2; return 1 ;; esac
       for a in "$@"; do
         [ "$prev" = "--base" ] && base="$a"
         prev="$a"
@@ -504,8 +508,9 @@ export DUTY_BRANCH_LOCK_LIB="$SCRIPT_DIR/../lib/branch-lock.sh"
 # 引数: lock の並び / ahead_by の並び（FAIL で取得失敗）/ base 別の PR 本数の並び / GraphQL 応答
 # 出力: "対象の版 SHIP_READY"
 run_ship_block() {
-  STUB_LOCK="$1"; STUB_AHEAD="$2"; STUB_PRS="$3"; STUB_GRAPHQL="$4"
+  STUB_LOCK="$1"; STUB_AHEAD="$2"; STUB_PRS="$3"; STUB_GRAPHQL="$4"; STUB_GH_FAIL="${5:-}"
   (
+    log() { :; }
     DUTY_TRUSTED_ACTORS="$ACTORS"
     DUTY_APP_ID=0
     eval "$SHIP_BLOCK" >/dev/null 2>&1
@@ -537,6 +542,23 @@ check "v1.1.5 が空（ahead_by=0）なら次の v1.1.6 を対象にする" "1.1
   "$(run_ship_block "" "1.1.5=0 1.1.6=447" "$PRS_NONE" "$MS_READY")"
 check "v1.1.5 が凍結済みなら次の v1.1.6 を対象にする" "1.1.6 0" \
   "$(run_ship_block "1.1.5=true" "$AHEAD_OK" "$PRS_NONE" "$MS_READY")"
+# gh 失敗の注入（#3399）。失敗は「空」と区別して見送り、成功して空なら従来どおり対象なし
+check "release ブランチ一覧の取得失敗なら対象なし" "なし 0" \
+  "$(run_ship_block "" "$AHEAD_OK" "$PRS_NONE" "$MS_READY" refs)"
+check "release ブランチ一覧が成功して空なら対象なし（従来どおり）" "なし 0" \
+  "$(run_ship_block "" "$AHEAD_OK" "$PRS_NONE" "$MS_READY" norefs)"
+check "提出済みタグ一覧の取得失敗なら提出済みの版を選ばず対象なし" "なし 0" \
+  "$(run_ship_block "" "$AHEAD_OK" "$PRS_NONE" "$MS_READY" tags)"
+check "オープン PR 数の取得失敗なら SHIP_READY を立てない" "1.1.5 0" \
+  "$(run_ship_block "" "$AHEAD_OK" "$PRS_NONE" "$MS_READY" prs)"
+# 失敗時に log が1行出ること
+SHIP_FAIL_LOG=$(
+  log() { echo "$*"; }
+  gh() { echo "gh: HTTP 502" >&2; return 1; }
+  DUTY_TRUSTED_ACTORS="$ACTORS"; DUTY_APP_ID=0
+  eval "$SHIP_BLOCK" 2>/dev/null
+)
+check "取得失敗は仕事13 の log が1行出る" "1" "$(printf '%s\n' "$SHIP_FAIL_LOG" | grep -c '^仕事13: ')"
 
 # 合算判定は duty_has_work（#2580 で関数に切り出し）にあり、仕事13 のブロックの外なので走査で見る。
 # 「仕事なし」でログを出して終わる if が関数経由の1行だけであることと、関数が SHIP_READY を含むことを確かめる
