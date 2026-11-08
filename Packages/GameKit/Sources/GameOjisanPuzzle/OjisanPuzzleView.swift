@@ -200,6 +200,14 @@ public struct OjisanPuzzleView: View {
         // 操作は盤の外（画面のどこ）でも受ける（#1946）。ボタンは子として先に反応するので、タップは奪わない。
         .contentShape(Rectangle())
         .gesture(dragGesture(step: max(24, cellSide)))
+        // 外付けキーボード（#3400）: ←→ 移動 / ↓ 落とす / ↑ 回す / スペース 一気に落とす。
+        .gameDirectionKeys(
+            onUp: { keyboardAct { withGameAnimation(.easeOut(duration: 0.1)) { _ = model.rotate(clockwise: true) } } },
+            onDown: { keyboardAct { _ = model.softDrop() } },
+            onLeft: { keyboardAct { _ = model.move(by: -1) } },
+            onRight: { keyboardAct { _ = model.move(by: 1) } },
+            onSpace: { keyboardAct { if model.current != nil { showFlickGuide = false; _ = model.hardDrop() } } }
+        )
         // リザルトは盤の上ではなく遊ぶ部分全体に重ねる（盤は 6×12 で細長く、中に置くと文字が折り返す）。
         // バナーには重ねない（幕の裏のバナーを残さない・`docs/spec-app.md`「広告仕様」）。
         .overlay { if model.outcome != nil, showResult { resultOverlay } }
@@ -703,6 +711,12 @@ public struct OjisanPuzzleView: View {
                 dragStartedAt = nil
                 didHardDrop = false
             }
+    }
+
+    /// キーボード操作は、指の操作（`dragGesture`）と同じ条件のときだけ通す。
+    private func keyboardAct(_ action: () -> Void) {
+        guard model.outcome == nil, !showSetup, !model.isUserPaused else { return }
+        action()
     }
 
     // MARK: - 次の荷物
