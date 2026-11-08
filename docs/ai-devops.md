@@ -485,6 +485,14 @@ CodeRabbit を必須ステータスチェックにする案は採らない。レ
 - **`web/`（LP）は `.github/workflows/web-check.yml` が `npm ci` → `npm run lint` → `npx tsc --noEmit` → `npm run build` を回す**（#2885）。
   `web/**` を触る PR / main への push だけで動く。LP は main マージが即本番公開なので、`ci.yml` がスキップする `web/` だけの PR の保険になる。
   paths 付きのため必須チェックには加えない（`scripts-tests.yml` と同じ理由）。
+- **`.github/workflows/cpu-bench-build.yml` は CPU 計測ツール（`Scripts/*-bench`）がビルドできることを確かめる**（#2509）。
+  bench は GameKit のエンジンのソースをコピーして単体バイナリにするため、エンジン側の変更でコンパイルが壊れる。
+  `scripts-tests.yml` は `Scripts/**` の変更でしか起動しないので、関係する GameKit のソースの変更でも起動する別ジョブにした。
+  paths 付きのため必須チェックには加えない（該当しない PR がマージ不能になるため。理由は `scripts-tests.yml` と同じ）。
+- **`.github/workflows/catpuzzle-stage-bank.yml` は、ねこさがしの同梱ステージ（`CatPuzzleStageBank`・#3258）の 12×12 を GitHub の macOS ランナーで作る手動起動専用のワークフロー**。
+  1 問に数十秒〜数分かかりローカル Mac の負荷が高いため。PR・push では動かないので必須チェックではない。
+  起動時に `ref`（生成器を含むブランチ）・`first`・`last` を必ず指定する（作業ごとに範囲が変わるため既定値は置かない・#3429）。
+  成果物は `gh run download <run-id>` で集め、番号順に並べて `CatPuzzleStageBank.entries` へ貼る。
 
 #### テストの層と、PR で走らせるテストの自動選別（2026-10-27 会長方針・#2953）
 
