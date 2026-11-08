@@ -34,7 +34,11 @@ private struct GameDirectionKeys: ViewModifier {
             .focused($isFocused)
             // フォーカスの枠は盤の見た目を変えるので出さない。
             .focusEffectDisabled()
-            .onAppear { isFocused = true }
+            // 階層が組まれたあとに当てる（onAppear 直では空振りしうる）。シートやボタンのタップで外れたら当て直す。
+            .task { isFocused = true }
+            .onChange(of: isFocused) { _, focused in
+                if !focused { Task { @MainActor in isFocused = true } }
+            }
             .onKeyPress(phases: [.down, .repeat]) { press in
                 guard let handler = handler(for: press.key) else { return .ignored }
                 handler()
