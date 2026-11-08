@@ -9,6 +9,8 @@ name: Scripts のテスト
 # ゲーム追加 PR は Scripts/** に触れないため、test-ai-qa-duty.sh が実物の registry と各 Module を読むのに
 # 回らず、ゲーム ID を引けなくなっても CI が緑のままになる（#2985）。registry と Module も paths に入れて塞ぐ。
 #
+# 解析イベントの種数は spec-app.md と Analytics.swift の食い違いを見張るため、両方も paths に入れる（#3428）。
+#
 # 個別ワークフローで回っている3本（duty-input-filter / lp-game-list / pr-base-guard）もここで重ねて回す。
 # グロブで全本を拾えば、テストを足したときにワークフローの書き足しを忘れても漏れない。重複は数秒。
 #
@@ -29,6 +31,8 @@ on:
       - 'fastlane/Fastfile'
       - 'docs/ai-devops.md'
       - 'docs/aso/metadata-v*.md'
+      - 'docs/spec-app.md'
+      - 'Packages/GameKit/Sources/CoreEngine/Analytics.swift'
   push:
     branches: [main]
     paths:
@@ -40,6 +44,8 @@ on:
       - 'fastlane/Fastfile'
       - 'docs/ai-devops.md'
       - 'docs/aso/metadata-v*.md'
+      - 'docs/spec-app.md'
+      - 'Packages/GameKit/Sources/CoreEngine/Analytics.swift'
 
 concurrency:
   group: scripts-tests-${{ github.ref }}
