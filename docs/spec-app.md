@@ -1585,3 +1585,15 @@ OS の「視差効果を減らす」が ON のときはアニメーションを 
 
 この規約は `AccessibilityTests` の「アニメーションは Core のヘルパー経由でのみ書かれている」で
 機械的に担保している（`Sources/Core` 以外に素の呼び出しが混じるとテストが落ちる）。
+
+### 外付けキーボード（iPad の Magic Keyboard など・#3400・`release/v1.1.16`）
+
+ドラッグ主体の盤を外付けキーボードで動かすための共通部品が `Core/GameKeyboardInput.swift`。
+
+- `View.gameDirectionKeys(onUp:onDown:onLeft:onRight:onSpace:)` … `focusable` + `onKeyPress`（押しっぱなしのリピートも受ける）。
+  つないだキーだけ処理し、つないでいないキーは素通し。フォーカスの枠は出さず、現れた時とフォーカスが外れた時に盤へ当て直す。
+  配線済み: 2048（矢印4方向）・おじさんパズル（←→移動 / ↓落とす / ↑回す / Space 一気に落とす）・ブロック崩し（←→パドル / ↑・Space 発射）。
+  指の操作と同じガード（終局・設定シート・一時停止）を通す。
+- `GameActionCapsule` は役割別にショートカットを持つ（`GameButtonRole.keyboardShortcut`）: `.undo` = ⌘Z、`.hint` = ⇧⌘H
+  （⌘H は iPadOS のホーム操作なので避けた）。無効なカプセルのショートカットも無効。
+- 盤のセルごとのフォーカス移動（将棋・囲碁・オセロ等）は対象外。ほかのドラッグ主体のゲームへ足すときは `gameDirectionKeys` を使う。
