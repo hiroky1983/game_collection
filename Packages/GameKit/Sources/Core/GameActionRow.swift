@@ -203,6 +203,7 @@ struct GameActionCapsuleStyle: ButtonStyle {
             .background(face)
             .contentShape(Capsule())
             .opacity(looksEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.55)
+            .pointerHighlight()
     }
 
     private var foreground: Color {

@@ -88,6 +88,7 @@ public struct GameButtonStyle: ButtonStyle {
                 .frame(minWidth: GameButtonMetrics.minTapTarget, minHeight: GameButtonMetrics.minTapTarget)
                 .contentShape(Rectangle())
                 .opacity(configuration.isPressed ? 0.85 : 1)
+                .pointerHighlight()
         case .block:
             configuration.label
                 .foregroundStyle(foreground)
@@ -97,6 +98,7 @@ public struct GameButtonStyle: ButtonStyle {
                 )
                 .contentShape(Rectangle())
                 .opacity(configuration.isPressed ? 0.85 : 1)
+                .pointerHighlight()
         }
     }
 }
