@@ -366,7 +366,7 @@ public final class DiceComboModel {
             continueUsed: continueUsed,
             gameAdRollsUsed: gameAdRollsUsed
         )
-        try? services?.snapshots.save(snap, for: Self.gameID)
+        services?.snapshots.saveReportingFailure(snap, for: Self.gameID)
     }
 
     /// 中断データを検証して局面に戻す。壊れたデータ・終わった局は nil（新規で始める）。

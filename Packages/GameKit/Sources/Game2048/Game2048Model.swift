@@ -372,7 +372,7 @@ public final class Game2048Model {
 
     private func persist() {
         guard !gameOver else { return }
-        try? services?.snapshots.save(
+        services?.snapshots.saveReportingFailure(
             Game2048Snapshot(
                 board: board,
                 score: score,

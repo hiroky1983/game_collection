@@ -682,7 +682,7 @@ public final class MahjongModel: AITurnGuarded {
             riichiTurn: riichiTurn,
             isRinshanDraw: isRinshanDraw
         )
-        try? services?.snapshots.save(snap, for: gameID)
+        services?.snapshots.saveReportingFailure(snap, for: gameID)
     }
 
     // MARK: - テスト用

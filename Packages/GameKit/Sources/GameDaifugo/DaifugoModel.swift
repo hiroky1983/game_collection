@@ -450,7 +450,7 @@ public final class DaifugoModel: AITurnGuarded {
         if let newLevel {
             aiLevel = CPUStrength.strength(for: newLevel).rawValue
             // 配った直後に閉じても選んだ強さが残るよう、持ち越しとは別に書く。
-            try? services?.snapshots.save(DaifugoPreferences(aiLevel: aiLevel), for: preferencesID)
+            services?.snapshots.saveReportingFailure(DaifugoPreferences(aiLevel: aiLevel), for: preferencesID)
         }
         var deck = DaifugoCard.makeDeck()
         if var generator = makeGenerator() {
@@ -526,7 +526,7 @@ public final class DaifugoModel: AITurnGuarded {
     /// 今の局には効かない（1 局 = 1 RuleSet）。
     public func choosePreferredRuleSet(_ ruleSet: DaifugoRuleSet) {
         preferredRuleSet = ruleSet
-        try? services?.snapshots.save(ruleSet, for: ruleSetID)
+        services?.snapshots.saveReportingFailure(ruleSet, for: ruleSetID)
     }
 
     /// 親（最初の手番）。初回は♦3を持つ人、2ゲーム目以降は前回の大貧民。
@@ -965,7 +965,7 @@ public final class DaifugoModel: AITurnGuarded {
             return
         }
         let carry = DaifugoCarryOver(lastRanking: lastRanking, isExchangeWaived: isExchangeWaived)
-        try? services?.snapshots.save(carry, for: carryOverID)
+        services?.snapshots.saveReportingFailure(carry, for: carryOverID)
     }
 }
 

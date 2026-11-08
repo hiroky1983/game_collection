@@ -653,7 +653,7 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             forbiddenMoves: forbiddenMovesEnabled ? true : nil,
             hintsUsed: hints.used
         )
-        try? services?.snapshots.save(snap, for: gameID)
+        services?.snapshots.saveReportingFailure(snap, for: gameID)
     }
 
     public func clearSnapshot() {

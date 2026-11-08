@@ -286,7 +286,7 @@ public final class TsunagiModel {
 
     private func persist() {
         guard !isSolved else { return }
-        try? services?.snapshots.save(
+        services?.snapshots.saveReportingFailure(
             TsunagiSnapshot(size: size.rawValue, puzzle: puzzle, paths: paths, moves: moves, lastMovedColor: lastMovedColor),
             for: Self.gameID
         )

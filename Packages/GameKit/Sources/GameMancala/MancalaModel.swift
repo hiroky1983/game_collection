@@ -281,7 +281,7 @@ public final class MancalaModel: AITurnGuarded, BoardUndoModel {
             undoUsed: undoUsed ? true : nil, undoSlots: undoHistory.last?.slots,
             lastPitSlot: lastMove?.pitSlot, lastLandingSlot: lastMove?.landingSlot
         )
-        try? services?.snapshots.save(snap, for: gameID)
+        services?.snapshots.saveReportingFailure(snap, for: gameID)
     }
 
     // MARK: - テスト・撮影用

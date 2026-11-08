@@ -670,7 +670,7 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             phase: phase.rawValue,
             hintsUsed: hints.used
         )
-        try? services?.snapshots.save(snap, for: gameID)
+        services?.snapshots.saveReportingFailure(snap, for: gameID)
     }
 
     public func clearSnapshot() {

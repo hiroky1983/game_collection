@@ -326,7 +326,7 @@ public final class AnzanModel {
     }
 
     private func persist() {
-        try? services?.snapshots.save(AnzanSnapshot(settings: settings), for: Self.gameID)
+        services?.snapshots.saveReportingFailure(AnzanSnapshot(settings: settings), for: Self.gameID)
     }
 
     private func refreshRecord() {

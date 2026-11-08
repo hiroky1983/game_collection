@@ -484,7 +484,7 @@ public final class OldMaidModel: AITurnGuarded {
             services?.snapshots.clear(for: gameID)
             return
         }
-        try? services?.snapshots.save(OldMaidSnapshot(
+        services?.snapshots.saveReportingFailure(OldMaidSnapshot(
             game: game, gameNumber: gameNumber,
             revealsJoker: revealsJoker ? true : nil, peekedIDs: peekedIDs.isEmpty ? nil : peekedIDs.sorted()
         ), for: gameID)

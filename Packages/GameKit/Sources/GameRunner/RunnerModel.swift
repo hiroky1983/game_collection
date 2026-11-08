@@ -808,7 +808,7 @@ public final class RunnerModel {
         case .allCleared: resume = RunnerRules.stageCount
         default:          resume = stageNumber
         }
-        try? services?.snapshots.save(
+        services?.snapshots.saveReportingFailure(
             RunnerSnapshot(stage: resume, reachedStage: reachedStage),
             for: Self.gameID
         )
