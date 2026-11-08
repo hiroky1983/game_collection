@@ -15,6 +15,10 @@ for f in $G/CoreEngine/SplitMix64.swift \
          $G/GameCatPuzzle/{CatPuzzleLogic,CatPuzzleSolver,CatPuzzleStage}.swift; do
   grep -v -E '^import (Core|CoreEngine)$' "$f" >"$WORK/$(basename "$f")"
 done
+# CatPuzzleStage.makePuzzle が参照する同梱の入れ物（計測は生成の時間を測るので、同梱の問題は引かない）。
+cat >"$WORK/BankStub.swift" <<'SWIFT'
+enum CatPuzzleStageBank { static func puzzle(for number: Int) -> CatPuzzle? { nil } }
+SWIFT
 cp Scripts/catpuzzle-stage-bench/main.swift "$WORK/main.swift"
 swiftc -O -wmo -o "$OUT" "$WORK"/*.swift 2>"$WORK/swiftc.log" \
   || { grep -v "warning:" "$WORK/swiftc.log" >&2; echo "ビルドに失敗しました" >&2; exit 1; }

@@ -1,5 +1,6 @@
 #!/bin/bash
-# Scripts/{chess,go,gomoku,othello,shogi}-cpu-bench/build.sh が全部ビルドできることの検証（#2509）。
+# Scripts/{chess,go,gomoku,othello,shogi}-cpu-bench と shogi-master-bench・catpuzzle-stage-bench の
+# build.sh が全部ビルドできることの検証（#2509・#3407）。
 #
 # bench は GameKit のエンジンのソースをコピーして単体バイナリにするため、GameKit 側のシグネチャや
 # 依存（CPUStrength が引く tr、BoardHintBudget など）が変わるとコンパイルが壊れる。ところがテストも CI も
@@ -20,16 +21,17 @@ ng() { FAIL=$((FAIL + 1)); echo "  NG   - $1"; }
 TMP="$(mktemp -d "${DUTY_SCRATCH_DIR:-${TMPDIR:-/tmp}}/cpu-bench-build-test.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 
-for game in chess go gomoku othello shogi; do
-  build="$REPO/Scripts/$game-cpu-bench/build.sh"
+for bench in chess-cpu-bench go-cpu-bench gomoku-cpu-bench othello-cpu-bench shogi-cpu-bench shogi-master-bench catpuzzle-stage-bench; do
+  game="$bench"
+  build="$REPO/Scripts/$bench/build.sh"
   if [ ! -f "$build" ]; then
     ng "$game: build.sh が見つからない"
     continue
   fi
   if bash "$build" "$TMP/$game-bench" >"$TMP/$game.log" 2>&1 && [ -x "$TMP/$game-bench" ]; then
-    ok "$game-cpu-bench がビルドできる"
+    ok "$bench がビルドできる"
   else
-    ng "$game-cpu-bench のビルドに失敗"
+    ng "$bench のビルドに失敗"
     sed 's/^/        /' "$TMP/$game.log" | head -30
   fi
 done
