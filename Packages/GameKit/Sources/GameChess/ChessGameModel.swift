@@ -232,6 +232,12 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
     /// 「チェック」の文字を飛び出させる契機（将棋 #377 と同じ）。
     /// **実対局の着手で王手が生じるたび**に増える。検討ナビ・中断復元では増えない。
     public private(set) var checkEventID: Int = 0
+    /// 「チェック」の札を固定待ちより早く畳む契機（待った・新規対局・投了のたびに増える。将棋 #519 と同じ）。
+    ///
+    /// `checkEventID` は着手でしか増えないため、待った等で盤の意味が変わっても札が最大
+    /// `checkBannerHold` ぶん残っていた。`checkEventID` と同じく **0 には戻さない**
+    /// （View は「値が変わったこと」で畳むので、巻き戻すと誤読される）。
+    public private(set) var checkBannerDismissID: Int = 0
     /// 直前の `checkEventID` で王手を**された**側。
     public private(set) var lastCheckedSide: ChessColor?
 
@@ -418,6 +424,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // 通し番号（`checkEventID`）は 0 に戻さない。View は「値が変わったこと」で
         // 文字を出すため、対局をまたいで単調に増やしておかないと巻き戻しが合図として拾われる。
         lastCheckedSide = nil
+        checkBannerDismissID += 1
         self.white = humanSide == .white ? .human : .ai
         self.black = humanSide == .white ? .ai : .human
         self.aiLevel = aiLevel
@@ -604,6 +611,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         guard phase == .playing, !gameOver else { return }
         // 投了で盤の意味が変わるので、ヒントの印も片付ける（#1118）。
         hintMove = nil
+        checkBannerDismissID += 1
         resigned = true
         finish(with: .resignation(loser: humanSide))
         reviewPly = moves.count
@@ -635,6 +643,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         guard canUndo else { return }
         // ヒントの印は 2 手前の盤には合わないので消す（#1118。回数は戻さない）。
         hintMove = nil
+        checkBannerDismissID += 1
         moves.removeLast(2)
         position = positionAt(ply: moves.count)
         legalMovesCache = position.legalMoves()
