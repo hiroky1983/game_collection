@@ -5,22 +5,20 @@ name: CatPuzzle Stage Bank
 # 面の範囲をチャンクに分けてジョブ（matrix）に並べ、各ジョブは Scripts/catpuzzle-stage-bank/build.sh の
 # 最適化ビルドの生成器をコア数ぶんのプロセスに分けて走らせる。成果物（`面番号<TAB>部屋|解`）は
 # `gh run download <run-id>` で集め、番号順に並べて CatPuzzleStageBank.entries へ貼る。
+# ref・最初の面・最後の面は既定値を置かない（作業ごとに範囲が変わり、古い既定値で走るのを防ぐ・#3429）。
 # 生成器（ref のブランチ）は CatPuzzleStage の決まりを見るので、ref には最終の生成手順を入れておくこと。
 on:
   workflow_dispatch:
     inputs:
       ref:
-        description: '生成器を含むブランチ（Scripts/catpuzzle-stage-bank がある release ブランチ等）'
+        description: '生成器を含むブランチ（Scripts/catpuzzle-stage-bank がある release ブランチ等。既定値は置かない＝毎回必ず指定する）'
         required: true
-        default: 'release/v1.1.15'
       first:
         description: '最初の面'
         required: true
-        default: '501'
       last:
         description: '最後の面'
         required: true
-        default: '1000'
       chunk:
         description: '1 ジョブが受け持つ面数'
         required: true
