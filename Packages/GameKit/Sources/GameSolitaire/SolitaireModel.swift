@@ -961,7 +961,7 @@ public final class SolitaireModel {
             drawMode: rules.drawMode.rawValue,
             hintsUsed: hints.used
         )
-        try? services?.snapshots.save(snapshot, for: gameID)
+        services?.snapshots.saveReportingFailure(snapshot, for: gameID)
     }
 
     private func startTimer() {

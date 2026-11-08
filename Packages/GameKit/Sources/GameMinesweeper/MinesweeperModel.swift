@@ -695,7 +695,7 @@ public final class MinesweeperModel {
             hintsUsed: hints.used,
             flagMode: flagMode
         )
-        try? services?.snapshots.save(snap, for: gameID)
+        services?.snapshots.saveReportingFailure(snap, for: gameID)
     }
 
     /// タップ地点から幅優先で開いていく。**探索の深さを `revealWave` として各マスに残す**（#203）。

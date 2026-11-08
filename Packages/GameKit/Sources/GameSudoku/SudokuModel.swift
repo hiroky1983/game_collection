@@ -707,7 +707,7 @@ public final class SudokuModel {
             undosRemaining: undosRemaining,
             noteMode: noteMode
         )
-        try? services?.snapshots.save(snapshot, for: gameID)
+        services?.snapshots.saveReportingFailure(snapshot, for: gameID)
     }
 
     /// 復元して安全に使えるスナップショットか。**長さと値域まで見る**

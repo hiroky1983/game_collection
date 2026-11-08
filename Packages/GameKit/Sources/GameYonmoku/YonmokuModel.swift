@@ -275,7 +275,7 @@ public final class YonmokuModel: AITurnGuarded, BoardUndoModel {
         }
         let snap = YonmokuSnapshot(moves: moves, humanSide: humanSide.rawValue, aiLevel: aiLevel,
                                    startedAt: startedAt, undoUsed: undoUsed ? true : nil)
-        try? services?.snapshots.save(snap, for: gameID)
+        services?.snapshots.saveReportingFailure(snap, for: gameID)
     }
 
     // MARK: - テスト・撮影用

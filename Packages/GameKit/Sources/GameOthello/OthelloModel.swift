@@ -576,7 +576,7 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             lastCol: lastMove?.col,
             hintsUsed: hints.used
         )
-        try? services?.snapshots.save(snap, for: gameID)
+        services?.snapshots.saveReportingFailure(snap, for: gameID)
     }
 }
 

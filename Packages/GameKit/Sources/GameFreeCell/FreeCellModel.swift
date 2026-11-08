@@ -700,7 +700,7 @@ public final class FreeCellModel {
             undosRemaining: undosRemaining,
             hintsUsed: hints.used
         )
-        try? services?.snapshots.save(snapshot, for: gameID)
+        services?.snapshots.saveReportingFailure(snapshot, for: gameID)
     }
 
     private func startTimer() {

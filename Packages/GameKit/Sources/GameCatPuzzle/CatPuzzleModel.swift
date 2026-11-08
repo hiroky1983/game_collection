@@ -661,7 +661,7 @@ public final class CatPuzzleModel {
             hintCrosses: hintCrosses.sorted(), wrongCrosses: wrongCrosses.sorted(),
             continueUsed: continueUsed, stage: stage
         )
-        try? services?.snapshots.save(snapshot, for: Self.gameID)
+        services?.snapshots.saveReportingFailure(snapshot, for: Self.gameID)
     }
 
     /// 鍵の面（9×9 までは 10 面ごと・10×10 以上は 20 面ごと）の鍵の猫。鍵の面でなければ・鍵の猫が決まらなければ nil。

@@ -164,6 +164,6 @@ public final class FifteenModel {
 
     private func persist() {
         guard !isSolved else { return }
-        try? services?.snapshots.save(FifteenSnapshot(tiles: tiles, moves: moves, hintsUsed: hints.used), for: gameID)
+        services?.snapshots.saveReportingFailure(FifteenSnapshot(tiles: tiles, moves: moves, hintsUsed: hints.used), for: gameID)
     }
 }

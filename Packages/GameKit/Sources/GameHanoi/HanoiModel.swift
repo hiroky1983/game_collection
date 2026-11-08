@@ -175,7 +175,7 @@ public final class HanoiModel {
         // 1 手も動かしていない盤と解き終えた盤は保存しない。
         guard moves > 0, !isSolved else { return }
         let snapshot = HanoiSnapshot(disks: disks, pegs: pegs, moves: moves, elapsedSeconds: elapsedSeconds)
-        try? services?.snapshots.save(snapshot, for: Self.gameID)
+        services?.snapshots.saveReportingFailure(snapshot, for: Self.gameID)
     }
 
     // MARK: - 区分

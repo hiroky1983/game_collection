@@ -704,7 +704,7 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             resigned: resigned,
             hintsUsed: hints.used
         )
-        try? services?.snapshots.save(snap, for: gameID)
+        services?.snapshots.saveReportingFailure(snap, for: gameID)
     }
 
     public func clearSnapshot() {

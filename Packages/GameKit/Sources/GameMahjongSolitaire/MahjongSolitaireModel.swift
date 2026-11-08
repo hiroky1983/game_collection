@@ -514,7 +514,7 @@ public final class MahjongSolitaireModel {
             layoutID: layout.id,
             undosRemaining: undosRemaining
         )
-        try? services?.snapshots.save(snapshot, for: gameID)
+        services?.snapshots.saveReportingFailure(snapshot, for: gameID)
     }
 
     private func startTimer() {

@@ -635,7 +635,7 @@ public final class ConcentrationModel {
             cpuMemory: ai.persistedMemory,
             turnsPlayed: turnsPlayed
         )
-        try? services?.snapshots.save(snap, for: gameID)
+        services?.snapshots.saveReportingFailure(snap, for: gameID)
     }
 }
 

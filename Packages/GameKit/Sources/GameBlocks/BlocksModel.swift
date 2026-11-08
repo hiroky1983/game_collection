@@ -382,7 +382,7 @@ public final class BlocksModel {
         // 落球直後などステージの途中は、復元でブロックが全部戻るので開始時点の得点で保存する（#1622）。
         // クリア表示中は進み先のステージ頭なので、ボーナス込みの現在値でよい。
         let resumeScore = phase == .stageCleared ? score : stageStartScore
-        try? services?.snapshots.save(
+        services?.snapshots.saveReportingFailure(
             BlocksSnapshot(
                 stage: resumeStage,
                 score: resumeScore,

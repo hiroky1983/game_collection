@@ -594,6 +594,6 @@ public final class HeartsModel: AITurnGuarded {
             hintsUsed: passHints.used,
             passHintIDs: passHintIDs.sorted()
         )
-        try? services?.snapshots.save(snap, for: gameID)
+        services?.snapshots.saveReportingFailure(snap, for: gameID)
     }
 }

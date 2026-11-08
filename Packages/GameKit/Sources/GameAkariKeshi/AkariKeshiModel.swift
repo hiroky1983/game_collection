@@ -178,7 +178,7 @@ public final class AkariKeshiModel {
     /// 遊んでいる途中で、1 回以上押した盤だけを保存する。
     private func persist() {
         guard state == .playing, moves > 0 else { return }
-        try? services?.snapshots.save(
+        services?.snapshots.saveReportingFailure(
             AkariKeshiSnapshot(board: board, moves: moves, difficulty: difficulty, par: par, elapsedSeconds: elapsedSeconds),
             for: gameID
         )

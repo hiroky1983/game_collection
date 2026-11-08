@@ -521,7 +521,7 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel, BoardHintMode
             turnStartPoints: turnStart?.points, turnStartBar: turnStart?.bar, turnStartOff: turnStart?.off,
             hintsUsed: hints.used, humanMoved: humanHasMoved
         )
-        try? services?.snapshots.save(snap, for: gameID)
+        services?.snapshots.saveReportingFailure(snap, for: gameID)
     }
 
     // MARK: - テスト・撮影用
