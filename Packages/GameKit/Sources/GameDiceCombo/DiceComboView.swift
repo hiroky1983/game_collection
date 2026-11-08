@@ -388,7 +388,7 @@ public struct DiceComboView: View {
             Text(tr("ゲーム終了　合計%lld点", model.total))
                 .scaledFont(17, weight: .heavy, design: .rounded, maxScale: 1.2)
                 .foregroundStyle(Theme.ink)
-            Text(tr("0点の役を1つ、広告を見てやり直せます。\n得点表の色のついた0点の役をタップしてください。"))
+            Text(tr("0点の役を1つ、広告を見てやり直せます。\n得点表の黄色い、または「やり直し」マークのついた0点の役をタップしてください。"))
                 .scaledFont(12, weight: .semibold, design: .rounded, maxScale: 1.2)
                 .foregroundStyle(Theme.inkSubText)
                 .multilineTextAlignment(.center)
@@ -452,6 +452,7 @@ struct DiceComboScoreRow: View {
             .lineLimit(1)
             .minimumScaleFactor(0.6)
             Spacer(minLength: 2)
+            StateSymbolLabel(active: isRedoable, symbol: "arrow.counterclockwise", text: tr("やり直し"))
             valueText
         }
         .padding(.horizontal, 8)

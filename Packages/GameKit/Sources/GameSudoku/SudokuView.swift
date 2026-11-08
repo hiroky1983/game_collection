@@ -11,8 +11,6 @@ public struct SudokuView: View {
     @State private var showGiveUpConfirm = false
     /// ヒントのリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var hintRescue = RewardedRescue()
-    /// 「色なしで区別」の設定。ON のとき、間違いのマスに色以外の印（×・内枠）を足す（#2405）。
-    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     /// 広い画面（iPad）で数字パッドを盤に釣り合う大きさにする倍率（#3185）。iPhone では恒等。
     @Environment(\.adaptiveLayout) private var layout
     /// コンティニューのリワード広告の段取り（同上）。
@@ -435,10 +433,9 @@ public struct SudokuView: View {
             } else if !noteDigits.isEmpty {
                 noteGrid(noteDigits: noteDigits, side: side)
             }
-            if isError && differentiateWithoutColor {
-                errorMark(side: side)
-            }
         }
+        // 「色なしで区別」が ON のとき、間違いのマスに色以外の印（×・内枠）を足す（#2405・#3415）。
+        .stateMark(active: isError) { errorMark(side: side) }
         // 誤答を入れたマスの中身だけを短く横に揺らす（#666。五目並べの無効タップ #202 と同じ型）。
         .modifier(SudokuShake(animatableData: CGFloat(shakes)))
         // 演出の修飾子は入れ子にすると内側が外側のトランザクションを打ち消す（#199）。ここでは
@@ -475,8 +472,6 @@ public struct SudokuView: View {
                 .foregroundStyle(Theme.coralText)
                 .padding(side * 0.08)
         }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
     }
 
     private func noteGrid(noteDigits: [Int], side: CGFloat) -> some View {
