@@ -1597,3 +1597,14 @@ OS の「視差効果を減らす」が ON のときはアニメーションを 
 - `GameActionCapsule` は役割別にショートカットを持つ（`GameButtonRole.keyboardShortcut`）: `.undo` = ⌘Z、`.hint` = ⇧⌘H
   （⌘H は iPadOS のホーム操作なので避けた）。無効なカプセルのショートカットも無効。
 - 盤のセルごとのフォーカス移動（将棋・囲碁・オセロ等）は対象外。ほかのドラッグ主体のゲームへ足すときは `gameDirectionKeys` を使う。
+
+### 色以外で区別（`accessibilityDifferentiateWithoutColor`・#3415・`release/v1.1.16`）
+
+色だけで状態を示している箇所に、設定の「色以外で区別」が ON のときだけ記号・枠線を重ねる共通部品が `Core/StateMark.swift`。
+OFF のときは何も描かず、見た目もレイアウトも変えない。
+
+- `View.stateMark(active:alignment:_:)` … `active` かつ設定 ON のときだけ印を `overlay` する。印は当たり判定・VoiceOver に影響しない
+  （状態の読み上げは呼び出し側の `accessibilityLabel` が持つ）。判定の本体は `StateMark.isVisible`（`AccessibilityTests/StateMarkTests` で固定）。
+- `StateSymbolLabel` … 行の中に記号＋短い文字を差し込む版（レイアウト上の場所を取る）。
+- 適用済み: ナンプレ（間違い）・チェス／将棋（直前手・選択中）・サイコロ役づくり（やり直せる 0 点の役に「やり直し」）。
+  ほかのゲームで色だけの状態表示を見つけたら、手書きの分岐を書かずこの部品を使う。
