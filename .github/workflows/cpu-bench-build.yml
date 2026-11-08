@@ -1,6 +1,6 @@
 name: CPU 計測ツールのビルド
 
-# Scripts/*-cpu-bench（将棋・チェス・囲碁・五目・オセロの CPU 計測ツール）が
+# Scripts/*-bench（将棋・チェス・囲碁・五目・オセロの CPU 計測ツール、将棋達人・ねこさがしの計測ツール）が
 # ビルドできることを確かめる（Issue #2509）。
 #
 # なぜ要るか: bench は GameKit のエンジンのソースをコピーして単体バイナリにするため、エンジン側の変更で
@@ -25,7 +25,8 @@ on:
       - 'Packages/GameKit/Tests/GameGomokuTests/CPUBenchLadder.swift'
       - 'Packages/GameKit/Tests/GameOthelloTests/CPUBenchLadder.swift'
       - 'Packages/GameKit/Tests/GameShogiTests/CPUBenchLadder.swift'
-      - 'Scripts/*-cpu-bench/**'
+      - 'Packages/GameKit/Sources/GameCatPuzzle/**'
+      - 'Scripts/*-bench/**'
       - 'Scripts/tests/test-cpu-bench-build.sh'
       - '.github/workflows/cpu-bench-build.yml'
 
@@ -45,5 +46,5 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: 5 本の bench をビルド
+      - name: 7 本の bench をビルド
         run: bash Scripts/tests/test-cpu-bench-build.sh
