@@ -249,6 +249,11 @@ public struct Game2048View: View {
         .padding(.bottom, Self.undoGapExtra)
         .contentShape(Rectangle())
         .gesture(swipeGesture)
+        // 外付けキーボードの矢印キーでも動かせる（#3400）。勝敗の幕が出ている間は model.move が何もしない。
+        .gameDirectionKeys(
+            onUp: { slide(.up) }, onDown: { slide(.down) },
+            onLeft: { slide(.left) }, onRight: { slide(.right) }
+        )
         // 盤の下に操作の段が増えても、余りを Spacer と山分けして盤が縮まないよう盤を先に確保する（#2023）。
         .layoutPriority(1)
         // 合体元の 2 枚は滑り終えたら片付ける。次の手が先に来たら、その手の中で入れ替わる。

@@ -127,6 +127,7 @@ struct GameActionCapsule: View {
         }
         .buttonStyle(GameActionCapsuleStyle(role: item.role, needsAd: item.badge.needsAd, looksDisabled: item.looksDisabled))
         .disabled(!item.isEnabled)
+        .keyboardShortcut(item.role.keyboardShortcut)
         .hintNudgeGlow(glows, reduceMotion: reduceMotion)
         .accessibilityLabel(item.accessibilityLabel ?? item.title)
         .accessibilityHint(item.accessibilityHint ?? "")
