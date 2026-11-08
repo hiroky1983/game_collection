@@ -336,6 +336,20 @@ public struct PopButtonStyle: ButtonStyle {
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .opacity(configuration.isPressed ? 0.85 : 1)
             .gameAnimation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .pointerHighlight()
+    }
+}
+
+extension View {
+    /// iPad のポインタ（マウス／トラックパッド）を載せたとき、押せる場所が分かるようにする（#3401）。
+    /// 自作 `ButtonStyle` は標準のホバー効果を持たないので `makeBody` から足す。
+    /// Reduce Motion は標準効果に任せる。`hoverEffect` は macOS には無いので iOS だけ。
+    @ViewBuilder func pointerHighlight() -> some View {
+        #if os(iOS)
+        hoverEffect(.highlight)
+        #else
+        self
+        #endif
     }
 }
 
