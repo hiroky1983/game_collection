@@ -82,6 +82,7 @@ final class GameSettings {
                 AppEnvironment.reminders.cancelAll()
                 AppEnvironment.reengagement.cancelAll()
                 AppEnvironment.returnReminder.cancel()
+                AppEnvironment.streakReminder.cancel()
             } else if !oldValue {
                 // オフ→オンは自分で再開を選んだ意思表示。久しぶり通知の永続停止を解く（#3135）。
                 AppEnvironment.reengagement.notificationsDidTurnOn()
@@ -143,6 +144,7 @@ final class GameSettings {
             AppEnvironment.reminders.cancelAll()
             AppEnvironment.reengagement.cancelAll()
             AppEnvironment.returnReminder.cancel()
+            AppEnvironment.streakReminder.cancel()
         }
         self.hintsEnabled = Self.hints.isEnabled
         self.slowModeEnabled = Self.slowMode.isEnabled

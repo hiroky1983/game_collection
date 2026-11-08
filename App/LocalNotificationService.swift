@@ -319,6 +319,57 @@ final class UserNotificationChallengeReturnScheduler: ChallengeReturnReminderSch
     }
 }
 
+/// 連続日数が途切れそうな夕方の通知（#3417）。予約は常に 1 件なので識別子は固定。
+enum StreakReminderNotification {
+    static let identifier = NotificationTapTarget.streakReminderIdentifier
+}
+
+/// `StreakReminderService`（Core）の予約先を `UNUserNotificationCenter` で実装する。
+/// 識別子の名前空間が他の通知と別なので、お互いの予約を巻き込まない。**許可ダイアログは出さない**。
+@MainActor
+final class UserNotificationStreakScheduler: StreakReminderScheduler {
+    private var center: UNUserNotificationCenter { .current() }
+
+    func authorization() async -> ReminderAuthorization {
+        switch await Self.authorizationStatus() {
+        case .authorized:               return .authorized
+        case .provisional, .ephemeral:  return .provisional
+        case .notDetermined:            return .notDetermined
+        case .denied:                   return .denied
+        @unknown default:               return .denied
+        }
+    }
+
+    func schedule(fireDate: Date, title: String, body: String) async -> Bool {
+        await Self.add(fireDate: fireDate, title: title, body: body)
+    }
+
+    func cancel() {
+        center.removePendingNotificationRequests(withIdentifiers: [StreakReminderNotification.identifier])
+        center.removeDeliveredNotifications(withIdentifiers: [StreakReminderNotification.identifier])
+    }
+
+    nonisolated private static func authorizationStatus() async -> UNAuthorizationStatus {
+        await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+
+    nonisolated private static func add(fireDate: Date, title: String, body: String) async -> Bool {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        let components = Calendar.current.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second], from: fireDate
+        )
+        let request = UNNotificationRequest(
+            identifier: StreakReminderNotification.identifier,
+            content: content,
+            trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        )
+        return await NotificationAddLog.add(request, kind: "streak")
+    }
+}
+
 /// 通知のタップを受ける（#663・#1193）。アプリが終了していた状態からのタップも拾うため、
 /// 起動処理の中で delegate を立てる（SwiftUI の `App` だけでは起動時のタップを受け取れない）。
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
@@ -371,6 +422,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                 case .resumeReminder(let gameID): AppEnvironment.reminders.notificationTapped(gameID: gameID)
                 case .reengagement(let gameID):   AppEnvironment.reengagement.notificationTapped(gameID: gameID)
                 case .challengeReturn(let gameID): AppEnvironment.returnReminder.notificationTapped(gameID: gameID)
+                case .streakReminder: AppEnvironment.streakReminder.notificationTapped()
                 case nil: break
                 }
             }

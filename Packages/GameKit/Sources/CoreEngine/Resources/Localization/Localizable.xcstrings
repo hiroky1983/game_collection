@@ -1434,6 +1434,17 @@
         }
       }
     },
+    "今日の 1 局で続けられます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "One game today keeps it going."
+          }
+        }
+      }
+    },
     "酒の役なし" : {
       "extractionState" : "manual",
       "localizations" : {
