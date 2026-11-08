@@ -62,8 +62,10 @@ public final class StreakReminderService {
     @ObservationIgnored private let isSuppressed: Bool
     @ObservationIgnored private let now: @MainActor () -> Date
     @ObservationIgnored private let calendar: Calendar
-    /// 判定〜取り消しの世代。許諾の確認を待つ間に取り消されたら、その予約を捨てる目印。
+    /// 判定の世代。新しい判定が始まったら、古い判定は予約を捨てる（置き換えるのは新しい方）。
     @ObservationIgnored private var epoch = 0
+    /// 取り消しの世代。判定の途中で取り消されたら、その判定の予約を消し直す目印。
+    @ObservationIgnored private var cancelEpoch = 0
     /// OS への予約追加が失敗した回数（#3296）。
     @ObservationIgnored public private(set) var scheduleFailureCount = 0
 
@@ -90,6 +92,7 @@ public final class StreakReminderService {
     public func refresh(playDays: [Int]) async {
         epoch += 1
         let token = epoch
+        let cancelToken = cancelEpoch
         guard !isSuppressed, isEnabledSetting(),
               let plan = StreakReminderPolicy.plan(days: playDays, now: now(), calendar: calendar)
         else {
@@ -100,20 +103,22 @@ public final class StreakReminderService {
             scheduler.cancel()
             return
         }
-        guard epoch == token, isEnabledSetting() else { return }
+        guard epoch == token, cancelEpoch == cancelToken, isEnabledSetting() else { return }
         let scheduled = await scheduler.schedule(
             fireDate: plan.fireDate,
             title: tr("連続 %@ 日あそび中", RecordFormat.number(plan.streak)),
             body: tr("今日の 1 局で続けられます")
         )
         if !scheduled { scheduleFailureCount += 1 }
-        // OS への追加を待つ間に取り消されていたら、追加が済んだあとで消し直す。
-        if epoch != token { scheduler.cancel() }
+        // OS への追加を待つ間に取り消されていたら、追加が済んだあとで消し直す
+        // （別の判定に追い越されただけなら、新しい予約を消さない）。
+        if cancelEpoch != cancelToken { scheduler.cancel() }
     }
 
     /// 遊んだ・設定で通知をオフにした。予約中の処理も捨てる。
     public func cancel() {
         epoch += 1
+        cancelEpoch += 1
         scheduler.cancel()
     }
 }

@@ -233,8 +233,6 @@ public struct GameServices {
     @MainActor
     public func gameDidRestoreFinished(gameID: String) {
         reminders?.gameDidFinish(gameID: gameID)
-        // 今日遊んだので、今日の夕方の「連続が途切れそう」は要らない（翌日分は次にバックグラウンドへ入るとき組み直す・#3417）。
-        streakReminder?.cancel()
     }
 
     /// 終局が確定したが、記録（`gameDidFinish`）は後で付ける局のリザルトに入ったときに各 Model から呼ぶ（#1375）。
@@ -393,6 +391,8 @@ public struct GameServices {
         // 決着した局には「途中のままです」を予約しない（#663）。将棋・チェスは終局後も見返しを
         // 中断データに残すため、中断データの有無だけでは途中の局と見分けられない。
         reminders?.gameDidFinish(gameID: gameID)
+        // 今日遊んだので、今日の夕方の「連続が途切れそう」は要らない（翌日分は次にバックグラウンドへ入るとき組み直す・#3417）。
+        streakReminder?.cancel()
         let isNewScoreBest = result.map { $0.update.points || $0.update.highestValue || $0.update.seconds || $0.update.moves } ?? false
         // 3 連勝（CPU の強さを問わない・ちょうど 3 に達した回だけ・#3097）。
         let reachedThreeWinStreak = outcome == .win && result?.record.currentStreak == 3

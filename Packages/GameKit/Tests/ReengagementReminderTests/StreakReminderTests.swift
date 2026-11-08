@@ -1,6 +1,8 @@
 import Foundation
 import Testing
 @testable import CoreEngine
+import Core
+import CoreTestSupport
 
 @MainActor
 private final class SpyStreakScheduler: StreakReminderScheduler {
@@ -137,5 +139,29 @@ struct StreakReminderTests {
     @Test("タップは識別子で振り分ける")
     func tapTarget() {
         #expect(NotificationTapTarget.resolve(identifier: NotificationTapTarget.streakReminderIdentifier, gameID: nil) == .streakReminder)
+    }
+
+    @MainActor
+    @Test("決着を記録したら（gameDidFinish）その日の予約を取り消す")
+    func cancelsWhenGameFinishes() async {
+        let spy = SpyStreakScheduler()
+        let service = make(spy)
+        await service.refresh(playDays: [Self.day(7), Self.day(8)])
+        #expect(spy.scheduled.count == 1)
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService(), streakReminder: service)
+        services.gameDidFinish(gameID: "shogi", outcome: .win)
+        #expect(spy.scheduled.isEmpty)
+    }
+
+    @MainActor
+    @Test("判定が追い越されても、新しい判定の予約は消さない")
+    func overtakenRefreshKeepsNewerSchedule() async {
+        let spy = SpyStreakScheduler()
+        let service = make(spy)
+        let days = [Self.day(7), Self.day(8)]
+        async let first: Void = service.refresh(playDays: days)
+        async let second: Void = service.refresh(playDays: days)
+        _ = await (first, second)
+        #expect(spy.scheduled.count == 1)
     }
 }
