@@ -302,6 +302,9 @@ public final class Game2048Model {
             services?.gameDidProgress(gameID: gameID)
         } else {
             persist()
+            // 初期盤（2 枚・得点 0）まで戻したら、`move()` で立てた離脱の印も戻す（#3414）。
+            // 保存側の判定（`hasResumableSnapshot`）は手つかず扱いなので、計測もそろえる。途中までの戻しは印を残す。
+            if !hasProgressToLose { services?.gameDidUndoToStart(gameID: gameID) }
         }
         services?.feedback.impact(.medium)
         return true

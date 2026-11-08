@@ -10,12 +10,10 @@ import GameKitTestSupport
 struct UndoToStartWiringTests {
     /// 設計上「待った」で離脱の印を戻さないゲームと、その理由。
     private static let exempt: [String: String] = [
-        "Game2048": "手数の概念が盤の進行と一致せず、開始局面へ戻す設計ではない",
         "GameSolitaire": "一度立った印は下ろさない設計（#500。SolitaireModel の undo コメント）",
         "GameFreeCell": "ソリティア系と同じ（#500）",
         "GameSpider": "ソリティア系と同じ（#500）",
         "GameMahjongSolitaire": "ソリティア系と同じく一度立った印は下ろさない",
-        "GameSudoku": "盤は最初から埋まっており、待ったは入力の取り消しで開始局面の概念が無い",
         "GameCatPuzzle": "一手ごとの巻き戻しで、離脱の印は一度立ったら下ろさない",
     ]
 
