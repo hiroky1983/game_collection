@@ -73,6 +73,8 @@ public struct GameServices {
     public let reengagement: ReengagementReminderService?
     /// 挑戦回数が戻ったら知らせる通知（#1576）。テスト・プレビューでは nil（トグルを出さない）。
     public let returnReminder: ChallengeReturnReminderService?
+    /// 連続日数が途切れそうな夕方の通知（#3417）。テスト・プレビューでは nil（予約しない）。
+    public let streakReminder: StreakReminderService?
     /// 柵越えおじさんの場面の効果音（打ち出し・カキーン・歓声・月が割れる等）。触覚と 1 対 1 の `feedback` とは別の入口
     /// （`HomerunSound` の説明）。テスト・プレビューでは何も鳴らさない。設定の「効果音」のオン / オフは App 層が包んで効かせる。
     public let homerunSound: HomerunSoundService
@@ -99,6 +101,7 @@ public struct GameServices {
         reminders: ResumeReminderService? = nil,
         reengagement: ReengagementReminderService? = nil,
         returnReminder: ChallengeReturnReminderService? = nil,
+        streakReminder: StreakReminderService? = nil,
         homerunSound: HomerunSoundService = NoopHomerunSoundService(),
         haptics: FeedbackService = NoopFeedbackService(),
         isResumable: ((String, SnapshotStore) -> Bool)? = nil,
@@ -116,6 +119,7 @@ public struct GameServices {
         self.reminders = reminders
         self.reengagement = reengagement
         self.returnReminder = returnReminder
+        self.streakReminder = streakReminder
         self.homerunSound = homerunSound
         self.haptics = haptics
         self.isResumable = isResumable
@@ -229,6 +233,8 @@ public struct GameServices {
     @MainActor
     public func gameDidRestoreFinished(gameID: String) {
         reminders?.gameDidFinish(gameID: gameID)
+        // 今日遊んだので、今日の夕方の「連続が途切れそう」は要らない（翌日分は次にバックグラウンドへ入るとき組み直す・#3417）。
+        streakReminder?.cancel()
     }
 
     /// 終局が確定したが、記録（`gameDidFinish`）は後で付ける局のリザルトに入ったときに各 Model から呼ぶ（#1375）。

@@ -69,6 +69,7 @@ enum AppEnvironment {
         reminders: reminders,
         reengagement: reengagement,
         returnReminder: returnReminder,
+        streakReminder: streakReminder,
         // 柵越えおじさんの場面の音（打ち出し・カキーン・歓声等）。触覚とは対応しないので `feedback` とは別の入口で、
         // 設定の「効果音」のオン / オフだけを共有する。音声セッションの扱いを 1 か所に保つため、実体は同じ `sound`。
         homerunSound: GatedHomerunSoundService(base: sound) { settings.soundEnabled },
@@ -131,6 +132,15 @@ enum AppEnvironment {
     static let returnReminder = ChallengeReturnReminderService(
         scheduler: UserNotificationChallengeReturnScheduler(),
         isEnabled: { settings.notificationsEnabled }
+    )
+
+    /// 連続日数が途切れそうな夕方の通知（#3417）。バックグラウンドに入るたびに組み直し、遊んだら取り消す。
+    /// 自動で予約するので、撮影モードと DEBUG ビルドでは予約しない（#663・#1193 と同じ）。
+    /// オン / オフは #663 と同じ設定トグルを共有する。
+    static let streakReminder = StreakReminderService(
+        scheduler: UserNotificationStreakScheduler(),
+        isEnabled: { settings.notificationsEnabled },
+        isSuppressed: isScreenshotMode || isDebugBuild
     )
 
     /// 再エンゲージメント通知（#1193）の対象判定に渡す、登録ゲームぶんの通算プレイ回数・最終プレイ日時。

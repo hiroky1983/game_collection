@@ -11,6 +11,8 @@ public enum NotificationTapTarget: Equatable, Sendable {
     case reengagement(gameID: String)
     /// 挑戦回数が戻ったお知らせ（#1576）。
     case challengeReturn(gameID: String)
+    /// 連続日数が途切れそうな夕方の通知（#3417）。着地先はハブ（ゲームを指定しない）。
+    case streakReminder
 
     public static let resumeReminderPrefix = "resume-reminder."
     public static let reengagementPrefix = "reengagement-reminder."
@@ -18,11 +20,16 @@ public enum NotificationTapTarget: Equatable, Sendable {
     public static let challengeReturnIdentifier = "challenge-return.homerun"
     /// 回数制のゲームは柵越えおじさんだけ。通知に `userInfo` を持たせないため、行き先は固定で返す。
     public static let challengeReturnGameID = "homerun"
+    /// 予約は常に 1 件なので、接頭辞ではなく識別子そのもの（#3417）。
+    public static let streakReminderIdentifier = "streak-reminder.daily"
 
     /// 通知の識別子と `userInfo` の `gameID` から行き先を決める。知らない識別子・`gameID` の欠けは nil。
     public static func resolve(identifier: String, gameID: String?) -> NotificationTapTarget? {
         if identifier == challengeReturnIdentifier {
             return .challengeReturn(gameID: challengeReturnGameID)
+        }
+        if identifier == streakReminderIdentifier {
+            return .streakReminder
         }
         if identifier.hasPrefix(resumeReminderPrefix) {
             return gameID.map { .resumeReminder(gameID: $0) }

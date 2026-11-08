@@ -436,6 +436,11 @@ struct HubView: View {
                     resume: isResumable(id)
                 ))
             }
+            // 連続日数の夕方の通知（#3417）がタップされたら、重なっているシートを閉じてハブを見せる。
+            .onChange(of: services.streakReminder?.tapCount) { _, _ in
+                showSettings = false
+                showRecords = false
+            }
             // ホーム画面アイコン長押し（#1642）の項目がタップされたら、そのゲームを直接開く。
             // 終了していた状態からの起動は値がハブより先に入るため、初期値でも走らせる。
             // 設定で非表示にしたゲームは、項目が古いままでも開かない。
