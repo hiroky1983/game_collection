@@ -82,6 +82,9 @@ public enum Theme {
         public static let yellowText: Pair = (0x976400, yellow)
         public static let tealText: Pair = (0x167B78, teal)
         public static let coralText: Pair = (0xC93D2E, coral)     // `dialogTint` と同じ値
+        /// 紫の**文字色**（#3425）。元の `purple` は白で 3.49:1 しか取れず、11pt の補足文が AA に届かなかった。
+        /// ライトだけ同じ色相のまま濃くして（白 5.30:1・クリーム 4.96:1）、ダークは面（0x2C2522）の上で 4.32:1 と足りないので少し明るくして 4.84:1。
+        public static let purpleText: Pair = (0x6E5AC8, 0x9585E4)
 
         /// 標準ダイアログ（`.alert` / `.confirmationDialog`）のボタンの文字色（#1874）。
         ///
@@ -113,6 +116,7 @@ public enum Theme {
     public static let yellowText = Color(Hex.yellowText)
     public static let tealText = Color(Hex.tealText)
     public static let coralText = Color(Hex.coralText)
+    public static let purpleText = Color(Hex.purpleText)
 
     /// 差し色を**面色**（チップ・ボタンの塗り）として使うときの値。文字は必ず `Theme.onAccent` を載せる。
     /// 値の根拠と、文字色用の差し色と別に持つ理由は `Hex.Fill` のコメントを参照（#220）。

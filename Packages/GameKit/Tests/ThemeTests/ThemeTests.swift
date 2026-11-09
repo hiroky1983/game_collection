@@ -130,6 +130,7 @@ struct ThemeContrastTests {
             ("yellowText", Theme.Hex.yellowText),
             ("tealText", Theme.Hex.tealText),
             ("coralText", Theme.Hex.coralText),
+            ("purpleText", Theme.Hex.purpleText),
         ]
         for (_, pair) in pairs {
             #expect(WCAG.contrast(pair.light, Theme.Hex.background.light) >= Self.aa)
