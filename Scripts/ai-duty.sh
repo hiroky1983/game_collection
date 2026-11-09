@@ -31,14 +31,19 @@ log() { echo "[$(date '+%F %T')] ${DUTY_SLOT:+[s${DUTY_SLOT}] }$*" >>"$LOG"; }
 # （#3413。#3294・#3308・#3399 と同じ直し方）。0 は「検知なし」の意味で、成功時の件数とは区別しない。
 # 引数: $1 = log に出す変数名 / $2 = GraphQL クエリ / $3.. = jq に渡す引数（最後が jq プログラム）
 gh_graphql_count() {
-  local what="$1" query="$2" raw
+  local what="$1" query="$2" raw out
   shift 2
   if ! raw=$(gh api graphql -f query="$query" 2>/dev/null); then
     log "$what: gh api graphql に失敗したため、この検知を見送る（0 件という意味ではない）"
     echo 0
     return 0
   fi
-  printf '%s' "$raw" | jq "$@" 2>/dev/null || echo 0
+  if ! out=$(printf '%s' "$raw" | jq "$@" 2>/dev/null); then
+    log "$what: gh の応答を jq で読めなかったため、この検知を見送る（0 件という意味ではない）"
+    echo 0
+    return 0
+  fi
+  printf '%s\n' "$out"
 }
 
 # DUTY_LOCK_GRACE は外部から差し替えられるため、0 以上の10進整数だけを通して既定値へ戻す。
@@ -1452,7 +1457,7 @@ SUBMISSION_UNFROZEN=0
 if ! REL_BRANCHES=$(gh api "repos/hiroky1983/game_collection/git/matching-refs/heads/release/v" \
   --jq '.[].ref | sub("^refs/heads/";"")' 2>/dev/null); then
   REL_BRANCHES=""
-  log "仕事7: REL_BRANCHES: release ブランチ一覧を取れなかったため、公開済み release の検知（仕事7）を見送る"
+  log "仕事7: REL_BRANCHES: release ブランチ一覧を取れなかったため、公開済み release と凍結漏れの検知を見送る"
 fi
 REL_BRANCH=""
 REL_VER=""
@@ -1461,7 +1466,6 @@ if [ -n "${REL_BRANCHES:-}" ]; then
   # クエリにキャッシュバスタを付けて毎回取り直す。
   STORE_VER=$(curl -sf --max-time 10 "https://itunes.apple.com/lookup?id=${DUTY_APP_ID}&country=jp&t=$(date +%s)" 2>/dev/null \
     | jq -r '.results[0].version // empty' 2>/dev/null)
-  [ -n "$STORE_VER" ] || log "仕事7: STORE_VER: App Store の公開版を取れなかったため、公開済み release の判定は見送られる（仕事7）"
   # 未取り込みの release ブランチを**古い順**に当て、公開版が追いついている最初の1本に決める
   # （release_candidate_versions / is_release_target。経緯は上のコメント参照）。複数あれば最も古いものから。
   for V in $(release_candidate_versions "$REL_BRANCHES"); do
@@ -1473,7 +1477,15 @@ if [ -n "${REL_BRANCHES:-}" ]; then
     case $? in
       0) REL_VER="$V"; REL_BRANCH="release/v${V}"; break ;;
       1) continue ;;
-      *) break ;;
+      *)
+        # 公開版が要る候補（main より先行）で、公開版が無いために判定を止めたときだけ理由を残す
+        case "${AHEAD:-}" in
+          ''|*[!0-9]*) ;;
+          *) if [ "$AHEAD" -gt 0 ] && [ -z "${STORE_VER:-}" ]; then
+               log "仕事7: STORE_VER: App Store の公開版を取れなかったため、release/v${V} の公開判定を見送る"
+             fi ;;
+        esac
+        break ;;
     esac
   done
 fi
@@ -1749,8 +1761,11 @@ query($title: String!) {
       SHIP_STATE=""
       log "仕事13: SHIP_STATE: v${SHIP_VER} のマイルストーン情報を取れなかったため、出荷準備の判定（仕事13）を見送る"
     else
-      SHIP_STATE=$(printf '%s' "$SHIP_RAW" | jq -r --arg trusted "$DUTY_TRUSTED_ACTORS" --arg ver "$SHIP_VER" --arg sha "$SHIP_SHA" \
-        "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $actors | ship_milestone_state($actors; $ver; $sha)' 2>/dev/null || true)
+      if ! SHIP_STATE=$(printf '%s' "$SHIP_RAW" | jq -r --arg trusted "$DUTY_TRUSTED_ACTORS" --arg ver "$SHIP_VER" --arg sha "$SHIP_SHA" \
+        "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $actors | ship_milestone_state($actors; $ver; $sha)' 2>/dev/null); then
+        SHIP_STATE=""
+        log "仕事13: SHIP_STATE: v${SHIP_VER} のマイルストーン情報を jq で読めなかったため、出荷準備の判定を見送る"
+      fi
     fi
     if [ -n "${SHIP_STATE:-}" ]; then
       SHIP_REMAINING="${SHIP_STATE% *}"

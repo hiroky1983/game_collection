@@ -809,6 +809,8 @@ check "仕事5: gh 失敗は 0 件にしつつ RINGI_REPLIES つきの log を 1
   "$(run_gql_block "$RINGI_BLOCK" RINGI_REPLIES FAIL)"
 check "仕事12: gh 失敗は 0 件にしつつ RINGI_STAMPS つきの log を 1 行出す" "0|1|1" \
   "$(run_gql_block "$STAMP_BLOCK" RINGI_STAMPS FAIL)"
+check "仕事12: gh は成功でも応答を jq で読めなければ 0 件にしつつ log を 1 行出す" "0|1|1" \
+  "$(run_gql_block "$STAMP_BLOCK" RINGI_STAMPS '{"data":{"repository":{"issues":{"nodes":null}}}}')"
 check "仕事12: gh 成功で対象なしなら log を出さず 0 件" "0|0|0" \
   "$(run_gql_block "$STAMP_BLOCK" RINGI_STAMPS '{"data":{"repository":{"issues":{"nodes":[]}}}}')"
 # gh の失敗を握り潰す `2>/dev/null | jq … || echo 0` の形が、graphql を叩く検知に残っていないこと
