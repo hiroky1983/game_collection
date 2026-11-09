@@ -38,7 +38,7 @@ echo "== 1. 正常系: 固定版が Xcode の読む場所へ置かれる =="
 R="$(make_root ok 1 1)"
 bash "$R/Scripts/apply-package-resolved.sh" >/dev/null 2>&1
 rc=$?
-[ "$rc" = 0 ] && ok "終了コード 0" || ng "終了コード 0 のはず（実際: $rc）"
+[ "$rc" = 0 ] && ok "終了コード 0" || ng "終了コード 0 のはず（実際: ${rc}）"
 if [ -f "$R/$DEST_REL" ] && cmp -s "$R/Config/Package.resolved" "$R/$DEST_REL"; then
   ok "$DEST_REL に Config/Package.resolved と同じ内容が置かれる"
 else
@@ -54,14 +54,14 @@ echo "== 3. Config/Package.resolved が無いと exit 1 =="
 R="$(make_root nosrc 0 1)"
 bash "$R/Scripts/apply-package-resolved.sh" >/dev/null 2>&1
 rc=$?
-[ "$rc" = 1 ] && ok "終了コード 1" || ng "終了コード 1 のはず（実際: $rc）"
+[ "$rc" = 1 ] && ok "終了コード 1" || ng "終了コード 1 のはず（実際: ${rc}）"
 [ ! -e "$R/$DEST_REL" ] && ok "何も配置されない" || ng "失敗したのに配置された"
 
 echo "== 4. .xcodeproj が無いと exit 1 =="
 R="$(make_root noproj 1 0)"
 bash "$R/Scripts/apply-package-resolved.sh" >/dev/null 2>&1
 rc=$?
-[ "$rc" = 1 ] && ok "終了コード 1" || ng "終了コード 1 のはず（実際: $rc）"
+[ "$rc" = 1 ] && ok "終了コード 1" || ng "終了コード 1 のはず（実際: ${rc}）"
 [ ! -e "$R/GameCollection.xcodeproj" ] && ok ".xcodeproj を勝手に作らない" || ng ".xcodeproj が作られた"
 
 echo
