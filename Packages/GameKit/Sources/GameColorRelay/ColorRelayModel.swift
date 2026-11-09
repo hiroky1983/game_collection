@@ -90,6 +90,8 @@ public final class ColorRelayModel: AITurnGuarded {
     public private(set) var lastActions: [String] = Array(repeating: "", count: maxPlayerCount)
     /// 手札で選択中の札の ID（1 枚だけ）。
     public private(set) var selectedID: Int?
+    /// CPU が動いたことの控え。View が VoiceOver へ読み上げる（#3424）。人間の操作では書かない。保存しない。
+    public private(set) var cpuEvent: CPUEventAnnouncement?
     /// このゲームで引き札の免除（広告）を使ったか。1 ゲーム 1 回。
     public private(set) var isPenaltyWaived = false
     /// 手番の通し番号。番が動くたびに進む。広告の前後で同じ手番かの照合に使う（#729 の局ガード）。
@@ -568,7 +570,13 @@ public final class ColorRelayModel: AITurnGuarded {
                     guard await pauseCPUTurn(for: delay) else { return }
                     guard phase == .playing, currentPlayer != Self.humanIndex else { return }
                 }
-                performCPUTurn(currentPlayer)
+                let mover = currentPlayer
+                performCPUTurn(mover)
+                if !lastActions[mover].isEmpty {
+                    cpuEvent = .next(after: cpuEvent, text: ColorRelayAccessibility.cpuMoveAnnouncement(
+                        name: playerName(mover), action: lastActions[mover]
+                    ))
+                }
                 lastCPUMoveSerial = turnSerial
             }
         }

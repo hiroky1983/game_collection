@@ -92,6 +92,8 @@ public struct ColorRelayView: View {
             guard !isCPUPaused else { return }
             await model.runCPUTurnsIfNeeded()
         }
+        // CPU が動くたびに 1 回読み上げる（#3424）。
+        .cpuEventAnnouncement(model.cpuEvent)
         .task {
             // 開幕のモーダルは置かず、盤を見せたまま配り始める（#192）。
             // 中断から戻ったときは init が `.playing` まで復元しているので配り直さない。

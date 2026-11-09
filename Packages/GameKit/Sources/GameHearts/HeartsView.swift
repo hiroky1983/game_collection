@@ -102,6 +102,8 @@ public struct HeartsView: View {
             guard !isCPUPaused else { return }
             await model.runCPUTurnsIfNeeded()
         }
+        // CPU が札を出すたびに 1 回読み上げる（#3424）。
+        .cpuEventAnnouncement(model.cpuEvent)
         .task {
             // 開幕のモーダルは置かず、卓を見せたまま配り始める（#192）。強さは「新規対局」から選び直せる。
             // 中断から戻ったときは init が局面まで復元しているので配り直さない。

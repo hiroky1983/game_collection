@@ -18,6 +18,12 @@ public enum SpeedAccessibility {
         return parts.joined(separator: tr("、"))
     }
 
+    /// CPU が札を出したときの読み上げ文（例: 「CPUがハートの5を左の台札に出しました」・#3424）。
+    public static func cpuPlayAnnouncement(card: SpeedCard, pileIndex: Int) -> String {
+        let side = pileIndex == 0 ? tr("左の台札") : tr("右の台札")
+        return tr("CPUが%1$@を%2$@に出しました", cardName(card), side)
+    }
+
     /// 台札 1 山の読み上げ。
     public static func pileLabel(index: Int, top: SpeedCard?) -> String {
         let side = index == 0 ? tr("左の台札") : tr("右の台札")

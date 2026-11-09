@@ -7,6 +7,11 @@ import Core
 /// 記号は読み上げても意味が伝わらない。読み上げ文はここに集約して純関数にし、
 /// View を組まずにテストできるようにする。
 public enum DaifugoAccessibility {
+    /// CPU が動いたときの読み上げ文（例: 「CPU2、8 8 革命！」「CPU3、パス」・#3424）。`action` は画面のバッジと同じ動きの文。
+    public static func cpuMoveAnnouncement(name: String, action: String) -> String {
+        tr("%1$@、%2$@", name, action)
+    }
+
     /// スートの読み（ジョーカーは nil）。トランプ共通基盤（CoreEngine）の読みをそのまま使う（#2166）。
     public static func suitName(_ suit: DaifugoSuit?) -> String? {
         suit.map { $0.playing.spokenName }

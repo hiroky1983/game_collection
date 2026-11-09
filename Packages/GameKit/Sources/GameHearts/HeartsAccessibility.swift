@@ -14,6 +14,11 @@ public enum HeartsAccessibility {
         card.figure.spokenLabel
     }
 
+    /// CPU が札を出したときの読み上げ文（例: 「CPU1がスペードのQを出しました」・#3424）。
+    public static func cpuPlayAnnouncement(player: Int, card: HeartsCard) -> String {
+        tr("%1$@が%2$@を出しました", playerName(player), cardName(card))
+    }
+
     /// 手札 1 枚の読み上げ文。点・選択中・受け取った札・出せる / 出せないを文字で足す。
     public static func handCardLabel(
         _ card: HeartsCard, isSelected: Bool, isReceived: Bool = false, hint: HeartsCardHint = .none

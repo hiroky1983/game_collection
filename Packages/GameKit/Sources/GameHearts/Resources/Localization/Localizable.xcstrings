@@ -1479,6 +1479,17 @@
           }
         }
       }
+    },
+    "%1$@が%2$@を出しました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ played %2$@"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
