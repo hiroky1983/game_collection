@@ -1874,49 +1874,8 @@ done
 #     置き場所を一度消して作り直すため、共有すると後から起動したスロットが、実行中の他スロットの PATH に
 #     入っているラッパーを消す。消えた瞬間から相手の `gh` は PATH の後ろの本物に落ち、**フィルタ無しで素通し**になる
 GH_SHIM_DIR="$HOME/.asobiba-duty/gh-shim${SLOT_SUFFIX}"
-install_gh_shim() {
-  local src="$RUN_DIR/Scripts/duty-gh-shim" probe
-  [ -f "$src/gh" ] && [ -f "$src/filter.jq" ] || { log "入力フィルタ: $src が見つからない"; return 1; }
-  rm -rf "$GH_SHIM_DIR" 2>/dev/null
-  mkdir -p "$GH_SHIM_DIR" && chmod 700 "$GH_SHIM_DIR" || return 1
-  cp "$src/gh" "$src/filter.jq" "$GH_SHIM_DIR/" || return 1
-  chmod +x "$GH_SHIM_DIR/gh" || return 1
-  # 素通しの経路が生きているか（ここが壊れると当番はコメントもマージも一切できない）
-  PATH="$GH_SHIM_DIR:$PATH" "$GH_SHIM_DIR/gh" --version >/dev/null 2>&1 \
-    || { log "入力フィルタ: 素通しの確認に失敗"; return 1; }
-  # 第三者の本文が実際に落ちるか（ここが壊れると黙って素通しになり、壊れたことに気づけない）。
-  # **ラッパーの横取り判定まで含めて**実測する。filter.jq 単体の確認では、引数の読み違いによる
-  # 素通しを検知できない（PR #448 の敵対的検証で、`-R` の先置きとエイリアス経由の2通りが
-  # 実際に見つかった）。スタブの gh を噛ませ、代表的な並びで本文が漏れないことを確かめる
-  local stub="$GH_SHIM_DIR/.probe-gh" json="$GH_SHIM_DIR/.probe.json" args
-  cat >"$stub" <<PROBE
-#!/bin/bash
-cat "$json"
-PROBE
-  chmod +x "$stub" || { rm -f "$stub"; return 1; }
-  jq -nc '{number:1,title:"t",author:{login:"duty-shim-probe"},body:"DUTY-SHIM-LEAK",comments:[]}' >"$json" \
-    || { rm -f "$stub" "$json"; log "入力フィルタ: プローブの作成に失敗"; return 1; }
-  for args in "issue view 1" "-R o/r issue view 1" "--repo o/r pr list" "duty-shim-alias 1"; do
-    # shellcheck disable=SC2086
-    probe=$(DUTY_REAL_GH="$stub" "$GH_SHIM_DIR/gh" $args 2>/dev/null)
-    case "$probe" in
-      *DUTY-SHIM-LEAK*)
-        rm -f "$stub" "$json"
-        log "入力フィルタ: 第三者の本文が素通しした（gh ${args}）"
-        return 1 ;;
-    esac
-  done
-  jq -nc --arg a "${DUTY_TRUSTED_ACTORS%%,*}" \
-    '{number:1,title:"t",author:{login:$a},body:"DUTY-SHIM-KEEP",comments:[]}' >"$json" || { rm -f "$stub" "$json"; return 1; }
-  probe=$(DUTY_REAL_GH="$stub" "$GH_SHIM_DIR/gh" issue view 1 2>/dev/null)
-  rm -f "$stub" "$json"
-  case "$probe" in
-    *DUTY-SHIM-KEEP*) ;;
-    *) log "入力フィルタ: 会長の本文まで除去されている"; return 1 ;;
-  esac
-  return 0
-}
-if ! install_gh_shim; then
+source "$RUN_DIR/Scripts/lib/duty-guards.sh" || { log "当番の安全装置（Scripts/lib/duty-guards.sh）を読み込めないため今回は起動しない"; exit 0; }
+if ! install_gh_shim "$GH_SHIM_DIR" "$DUTY_TRUSTED_ACTORS" "$RUN_DIR/Scripts/duty-gh-shim"; then
   log "入力フィルタ（Issue #164）を用意できないため今回は起動しない"
   exit 0
 fi
