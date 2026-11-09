@@ -16,7 +16,7 @@ FAIL=0
 ok() { PASS=$((PASS + 1)); echo "  ok   - $1"; }
 ng() { FAIL=$((FAIL + 1)); echo "  NG   - $1"; }
 
-TMP="$(mktemp -d)"
+TMP="$(mktemp -d)" || exit 1
 trap 'rm -rf "$TMP"' EXIT
 
 # 偽のリポジトリ根を作る。引数: ディレクトリ名 / Package.resolved を置くか(1|0) / .xcodeproj を置くか(1|0)
