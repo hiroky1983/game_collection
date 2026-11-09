@@ -615,7 +615,7 @@ public struct OldMaidView: View {
             HStack(spacing: 8) {
                 Image(systemName: won ? "crown.fill" : "theatermasks.fill")
                     .scaledFont(20)
-                    .foregroundStyle(won ? Theme.yellowText : Theme.purple)
+                    .foregroundStyle(won ? Theme.yellowText : Theme.purple) // accent-text-ok: アイコン（非テキスト 3:1 を満たす）
                     .accessibilityHidden(true)
                 Text(headline)
                     .scaledFont(17, weight: .black, design: .rounded)

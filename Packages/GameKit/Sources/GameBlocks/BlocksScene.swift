@@ -1,3 +1,4 @@
+import Core
 import Foundation
 import SpriteKit
 
@@ -196,7 +197,8 @@ final class BlocksScene: SKScene {
             size: CGSize(width: BlocksField.Metrics.width, height: BlocksField.Metrics.height)
         )
         flash.position = CGPoint(x: BlocksField.Metrics.width / 2, y: BlocksField.Metrics.height / 2)
-        flash.alpha = 0.4
+        // 視差効果の軽減（Reduce Motion）では全面の閃光を弱める（#3425。光の刺激に敏感な人向け）
+        flash.alpha = Motion.isReduceMotionEnabled ? 0.12 : 0.4
         flash.zPosition = 2
         addChild(flash)
         flash.run(.sequence([.fadeOut(withDuration: 0.3), .removeFromParent()]))

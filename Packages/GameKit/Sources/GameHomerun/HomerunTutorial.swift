@@ -129,7 +129,7 @@ struct HomerunTutorialCards: View {
             .accessibilityHidden(true)
             HStack(spacing: 8) {
                 if isTeaser {
-                    Image(systemName: "moon.stars.fill").foregroundStyle(Theme.purple).accessibilityHidden(true)
+                    Image(systemName: "moon.stars.fill").foregroundStyle(Theme.purple).accessibilityHidden(true) // accent-text-ok: 装飾アイコン（非テキスト 3:1 を満たす）
                 } else {
                     Text("\(i + 1)")
                         .scaledFont(13, weight: .black, design: .rounded)
@@ -138,7 +138,7 @@ struct HomerunTutorialCards: View {
                         .background(Circle().fill(Theme.Fill.coral))
                         .accessibilityHidden(true)
                 }
-                Text(text.title).themeBody(16, weight: .black).foregroundStyle(isTeaser ? Theme.purple : Theme.ink)
+                Text(text.title).themeBody(16, weight: .black).foregroundStyle(isTeaser ? Theme.purple : Theme.ink) // accent-text-ok: 16pt 黒字の大きい見出し（3:1 を満たす）
                     .accessibilityAddTraits(.isHeader)
                 Spacer()
             }
