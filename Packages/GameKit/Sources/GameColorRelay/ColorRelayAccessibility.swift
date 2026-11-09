@@ -36,6 +36,11 @@ public enum ColorRelayAccessibility {
         return parts.joined(separator: tr("、"))
     }
 
+    /// CPU が動いたときの読み上げ文（例: 「CPU2、あかの5」・#3424）。`action` は画面のバッジと同じ動きの文。
+    public static func cpuMoveAnnouncement(name: String, action: String) -> String {
+        tr("%1$@、%2$@", name, action)
+    }
+
     /// 相手 1 人の席の読み上げ文（#2369）。画面ではアイコンと裏向きの束で見せている内容を文字にする。
     /// 例: "CPU2、残り1枚、いまの番、直前の手、ぎゃく！"
     public static func seatLabel(name: String, cardCount: Int, isCurrent: Bool, lastAction: String) -> String {

@@ -1104,6 +1104,39 @@
           }
         }
       }
+    },
+    "%1$@があなたの%2$@を引きました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ drew your %2$@"
+          }
+        }
+      }
+    },
+    "%1$@が%2$@から1枚引きました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ drew a card from %2$@"
+          }
+        }
+      }
+    },
+    "。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ". "
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

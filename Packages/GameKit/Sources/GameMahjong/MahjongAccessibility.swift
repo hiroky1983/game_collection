@@ -14,6 +14,11 @@ public enum MahjongAccessibility {
         return parts.joined(separator: listSeparator)
     }
 
+    /// CPU が牌を切ったときの読み上げ文（例: 「CPU1が三萬を切りました」・#3424）。
+    public static func cpuDiscardAnnouncement(player: String, tile: MahjongTile) -> String {
+        tr("%1$@が%2$@を切りました", player, tile.displayName)
+    }
+
     /// 河（捨て牌の並び）。牌が多いので枚数と直近の牌に絞る。
     public static func discardPileLabel(player: String, tiles: [MahjongTile]) -> String {
         guard let last = tiles.last else { return tr("%@の捨て牌はまだありません", player) }

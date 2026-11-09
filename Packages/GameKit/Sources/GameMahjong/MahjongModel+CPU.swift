@@ -75,7 +75,7 @@ extension MahjongModel {
                 return
             }
             if riichi[player] {
-                performDiscard(drawn, by: player)
+                cpuDiscard(drawn, by: player)
                 return
             }
             // 形が悪くならないカン（暗槓・加槓）はしてよい。
@@ -105,7 +105,15 @@ extension MahjongModel {
             // 相手が脅威を作った合図。和了と同じ「成功」を鳴らすと意味が逆になる（#714）。
             services?.feedback.impact(.rigid)
         }
-        performDiscard(choice.tile, by: player)
+        cpuDiscard(choice.tile, by: player)
+    }
+
+    /// CPU の打牌。切る前に VoiceOver 向けの控えを書く（#3424。ロンで局が終わっても切った牌は伝わる）。
+    private func cpuDiscard(_ tile: MahjongTile, by player: Int) {
+        cpuEvent = .next(after: cpuEvent, text: MahjongAccessibility.cpuDiscardAnnouncement(
+            player: playerName(player), tile: tile
+        ))
+        performDiscard(tile, by: player)
     }
 
     /// その人から見えている牌の枚数（自分の手牌 + 全員の河と副露 + ドラ表示牌）。

@@ -198,6 +198,8 @@ public final class DaifugoModel: AITurnGuarded {
     public private(set) var isSkippingToResult = false
     /// 出す・パスの回数（このモデルが生きているあいだ増え続ける）。CPU を起こす `cpuTurnKey` の手数になる。
     private var turnCount = 0
+    /// CPU が動いたことの控え。View が VoiceOver へ読み上げる（#3424）。人間の操作では書かない。保存しない。
+    public private(set) var cpuEvent: CPUEventAnnouncement?
     /// CPU が最後に指した直後の `turnCount`。人間の操作・新しいゲームで `turnCount` が進めば食い違い、連続手番の短い間合いが切れる（テストが書くので `internal`）。
     var lastCPUMoveTurn = -1
 
@@ -821,7 +823,14 @@ public final class DaifugoModel: AITurnGuarded {
                     guard await pauseCPUTurn(for: delay) else { return }
                     guard phase == .playing, currentPlayer != Self.humanIndex else { return }
                 }
-                performCPUTurn(currentPlayer)
+                let mover = currentPlayer
+                performCPUTurn(mover)
+                // 「結果まで進める」の消化は一気に流れるので読み上げない。
+                if !isSkippingToResult, !lastActions[mover].isEmpty {
+                    cpuEvent = .next(after: cpuEvent, text: DaifugoAccessibility.cpuMoveAnnouncement(
+                        name: playerName(mover), action: actionLabel(mover)
+                    ))
+                }
                 lastCPUMoveTurn = turnCount
             }
         }

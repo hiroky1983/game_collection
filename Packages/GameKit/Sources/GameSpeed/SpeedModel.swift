@@ -51,6 +51,8 @@ public final class SpeedModel {
     public private(set) var gameSerial = 0
     /// CPU の待ちを組み直す回数。View はこれを `.task(id:)` の鍵にする。場が動くたびに進む。
     public private(set) var cpuRun = 0
+    /// CPU が札を出したことの控え。View が間引いて VoiceOver へ読み上げる（#3424）。あなたの操作では書かない。保存しない。
+    public private(set) var cpuEvent: CPUEventAnnouncement?
     /// このゲームでタイム（広告）を使ったか。1 ゲーム 1 回。
     public private(set) var timeoutUsed = false
     /// 「めくる」が続いた回数。誰かが出せば 0 に戻る。
@@ -614,6 +616,7 @@ public final class SpeedModel {
             cpuHand.remove(at: index)
             if let next = cpuStock.popLast() { cpuHand.insert(next, at: index) }
             // CPU の着手では触覚を鳴らさない（あなたの操作と区別するため）。
+            cpuEvent = .next(after: cpuEvent, text: SpeedAccessibility.cpuPlayAnnouncement(card: card, pileIndex: pile))
         }
         piles[pile].append(card)
         consecutiveFlips = 0
