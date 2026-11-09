@@ -26,6 +26,21 @@ export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 # 2つのスロットが同じログへ書くため、スロットが決まったあとは行頭にスロット番号を付ける
 log() { echo "[$(date '+%F %T')] ${DUTY_SLOT:+[s${DUTY_SLOT}] }$*" >>"$LOG"; }
 
+# `gh api graphql` の結果を jq で件数にする。gh が失敗（レート制限・502）したら理由を log に出して 0 を返し、
+# その検知だけを見送る。`gh … 2>/dev/null | jq … || echo 0` の形は失敗を「0 件」と区別できず、ログにも残らない
+# （#3413。#3294・#3308・#3399 と同じ直し方）。0 は「検知なし」の意味で、成功時の件数とは区別しない。
+# 引数: $1 = log に出す変数名 / $2 = GraphQL クエリ / $3.. = jq に渡す引数（最後が jq プログラム）
+gh_graphql_count() {
+  local what="$1" query="$2" raw
+  shift 2
+  if ! raw=$(gh api graphql -f query="$query" 2>/dev/null); then
+    log "$what: gh api graphql に失敗したため、この検知を見送る（0 件という意味ではない）"
+    echo 0
+    return 0
+  fi
+  printf '%s' "$raw" | jq "$@" 2>/dev/null || echo 0
+}
+
 # DUTY_LOCK_GRACE は外部から差し替えられるため、0 以上の10進整数だけを通して既定値へ戻す。
 # `[ "$AGE" -lt "$DUTY_LOCK_GRACE" ]` は非数値だと「整数式が必要」で**失敗（= 偽）**になり、
 # 猶予の判定を素通りして取得直後の PID 未書き込みロックを回収してしまう
@@ -1213,12 +1228,16 @@ fi
 # 除外しないと条件成立まで毎時空振りで当番を起動し続けることになる（#54 で実際に発生）。
 # 自動ハンコ（仕事14・stamp:auto）で付いた Issue に会長が ai:hold を付けたら着手しない（会長決裁 2026-10-17
 # 「止めたいものは ai:hold を付けるだけ」。会長が自分で押したハンコ + ai:hold は従来どおり「マージだけ止める」）。
-APPROVED=$(gh issue list -R hiroky1983/game_collection --label "ai:approved" --state open \
+# gh の失敗は「着手候補 0 件」と区別が付かないので、log に残してこの検知だけ見送る（#3413）
+if ! APPROVED=$(gh issue list -R hiroky1983/game_collection --label "ai:approved" --state open \
   --json number,labels \
   --jq '[.[] | ([.labels[].name]) as $l
         | select(($l | index("ai:in-progress")) == null and ($l | index("ringi:pending")) == null
                  and ($l | index("blocked")) == null and ($l | index("duty:heavy")) == null
-                 and (($l | index("stamp:auto")) == null or ($l | index("ai:hold")) == null))] | length' 2>/dev/null || echo 0)
+                 and (($l | index("stamp:auto")) == null or ($l | index("ai:hold")) == null))] | length' 2>/dev/null); then
+  APPROVED=0
+  log "APPROVED: 承認済み Issue の一覧を取れなかったため、仕事1の検知を見送る（0 件という意味ではない）"
+fi
 
 # 重い Issue（duty:heavy）はこの Mac の当番では拾わない。クラウド（claude.ai の routine）で進める
 # （会長決裁 2026-09-27「duty:heavy がついてるやつはクラウドに移そう」。対局計測が Mac を何時間もふさぐため）。
@@ -1293,7 +1312,7 @@ DUTY_TRUSTED_ACTORS="${DUTY_TRUSTED_ACTORS:-hiroky1983}"
 detect_singleton_jobs() {
 # 仕事2: オープン PR 上の未解決 CodeRabbit スレッド
 # 上限 50 PR × 100 スレッド（個人リポジトリの規模では実質全件。超えたら要ページング対応）
-THREADS=$(gh api graphql -f query='
+THREADS=$(gh_graphql_count THREADS '
 query {
   repository(owner: "hiroky1983", name: "game_collection") {
     pullRequests(states: OPEN, first: 50) {
@@ -1308,11 +1327,11 @@ query {
       }
     }
   }
-}' 2>/dev/null | jq --argjson busy "$OTHER_CLAIMS_JSON" "$DUTY_JQ_BUSY_LIB"'[.data.repository.pullRequests.nodes[]
+}' --argjson busy "$OTHER_CLAIMS_JSON" "$DUTY_JQ_BUSY_LIB"'[.data.repository.pullRequests.nodes[]
   | select(linked_to_busy($busy) | not) | .reviewThreads.nodes[]
   | select(.isResolved == false)
   | (.comments.nodes[0].author.login // "") as $l
-  | select($l == "coderabbitai" or $l == "coderabbitai[bot]")] | length' 2>/dev/null || echo 0)
+  | select($l == "coderabbitai" or $l == "coderabbitai[bot]")] | length')
 
 # 仕事3: CodeRabbit のレビューが HEAD に対して未着のオープン PR（Issue #41）
 # 「未解決スレッド数」だけを見ていると、レビュー自体が走らなかった PR（レート制限・
@@ -1336,7 +1355,7 @@ query {
 # 直後の発火を避けるため、HEAD コミットが 30 分以上前のものだけを対象にする（committedDate は
 # push 時刻の下限でしかないが、ここでの用途は「催促を急ぎすぎない」猶予だけで、
 # 早まっても催促上限3回で頭打ちになる）。
-PENDING_REVIEW=$(gh api graphql -f query='
+PENDING_REVIEW=$(gh_graphql_count PENDING_REVIEW '
 query {
   repository(owner: "hiroky1983", name: "game_collection") {
     pullRequests(states: OPEN, first: 50) {
@@ -1350,7 +1369,7 @@ query {
       }
     }
   }
-}' 2>/dev/null | jq --arg trusted "$DUTY_TRUSTED_ACTORS" --argjson busy "$OTHER_CLAIMS_JSON" \
+}' --arg trusted "$DUTY_TRUSTED_ACTORS" --argjson busy "$OTHER_CLAIMS_JSON" \
   "$DUTY_JQ_BUSY_LIB"'($trusted | split(",")) as $actors
   | [.data.repository.pullRequests.nodes[]
   | select(.isDraft == false)
@@ -1372,7 +1391,7 @@ query {
       | select($actors | index($a))
       | select((.updatedAt | fromdateiso8601) >= $head)
       | select((.body // "") | contains("@coderabbitai review"))] | length) as $nudges
-  | select($nudges < 3)] | length' 2>/dev/null || echo 0)
+  | select($nudges < 3)] | length')
 
 # 仕事4: コンフリクトで滞留しているオープン PR（誰のトリガーにも掛からず放置される穴の解消）
 # gh の失敗を「0 件」と読み替えない（コンフリクトの PR があっても当番が起きなくなるため・#3308）
@@ -1390,7 +1409,7 @@ fi
 #     区別できない。よって「最後の会長コメント（= 自社のマーカーが付かないコメント）が決裁スレッド
 #     (【要決裁】)でも反映記録(決裁反映)でもない」ことを検知条件とする。判定は上の
 #     DUTY_JQ_COMMENT_LIB の is_ringi_reply（除外の内訳と経緯もそちらのコメント参照）。
-RINGI_REPLIES=$(gh api graphql -f query='
+RINGI_REPLIES=$(gh_graphql_count RINGI_REPLIES '
 query {
   repository(owner: "hiroky1983", name: "game_collection") {
     issues(states: OPEN, labels: ["ringi:pending"], first: 20) {
@@ -1400,9 +1419,9 @@ query {
       }
     }
   }
-}' 2>/dev/null | jq --arg trusted "$DUTY_TRUSTED_ACTORS" "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $actors
+}' --arg trusted "$DUTY_TRUSTED_ACTORS" "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $actors
   | [.data.repository.issues.nodes[]
-  | select(is_ringi_reply($actors))] | length' 2>/dev/null || echo 0)
+  | select(is_ringi_reply($actors))] | length')
 
 # 仕事6: マージ可能なのに放置されている PR（CLEAN かつ auto-merge 未設定）
 # 「完成したのに誰もマージしない」滞留（PR #58 で実際に発生）の検知
@@ -1429,8 +1448,12 @@ RELEASED=0
 # 属していなかった。公開判定（下の RELEASED）と同じブロックで、同じ REL_BRANCH に対して
 # タグと凍結の有無も確認する——新しい検知ジョブを増やさずに済む。
 SUBMISSION_UNFROZEN=0
-REL_BRANCHES=$(gh api "repos/hiroky1983/game_collection/git/matching-refs/heads/release/v" \
-  --jq '.[].ref | sub("^refs/heads/";"")' 2>/dev/null)
+# 取得失敗は「release ブランチなし」と区別が付かないので、log に残してこの検知を見送る（#3413）
+if ! REL_BRANCHES=$(gh api "repos/hiroky1983/game_collection/git/matching-refs/heads/release/v" \
+  --jq '.[].ref | sub("^refs/heads/";"")' 2>/dev/null); then
+  REL_BRANCHES=""
+  log "仕事7: REL_BRANCHES: release ブランチ一覧を取れなかったため、公開済み release の検知（仕事7）を見送る"
+fi
 REL_BRANCH=""
 REL_VER=""
 if [ -n "${REL_BRANCHES:-}" ]; then
@@ -1438,10 +1461,14 @@ if [ -n "${REL_BRANCHES:-}" ]; then
   # クエリにキャッシュバスタを付けて毎回取り直す。
   STORE_VER=$(curl -sf --max-time 10 "https://itunes.apple.com/lookup?id=${DUTY_APP_ID}&country=jp&t=$(date +%s)" 2>/dev/null \
     | jq -r '.results[0].version // empty' 2>/dev/null)
+  [ -n "$STORE_VER" ] || log "仕事7: STORE_VER: App Store の公開版を取れなかったため、公開済み release の判定は見送られる（仕事7）"
   # 未取り込みの release ブランチを**古い順**に当て、公開版が追いついている最初の1本に決める
   # （release_candidate_versions / is_release_target。経緯は上のコメント参照）。複数あれば最も古いものから。
   for V in $(release_candidate_versions "$REL_BRANCHES"); do
-    AHEAD=$(gh api "repos/hiroky1983/game_collection/compare/main...release/v${V}" --jq '.ahead_by' 2>/dev/null)
+    if ! AHEAD=$(gh api "repos/hiroky1983/game_collection/compare/main...release/v${V}" --jq '.ahead_by' 2>/dev/null); then
+      AHEAD=""
+      log "仕事7: AHEAD: release/v${V} の main との差分を取れなかったため、仕事7 の判定を見送る"
+    fi
     is_release_target "${AHEAD:-}" "$V" "${STORE_VER:-}"
     case $? in
       0) REL_VER="$V"; REL_BRANCH="release/v${V}"; break ;;
@@ -1477,7 +1504,7 @@ fi
 # 接頭辞は返信だけでなく、当番がこの種の Issue に投稿する記録コメント（保留・見送り等）にも必須。
 # 規程は ai-duty-prompt.md 1-e-3（#120: #79 の保留記録がマーカー無しで毎時の空振り起動を生んだ）。
 # 経営企画室のコメント（`<!-- ai-management-` 始まり）の除外は DUTY_JQ_COMMENT_LIB 側で行う（#168）。
-PROPOSED_REPLIES=$(gh api graphql -f query='
+PROPOSED_REPLIES=$(gh_graphql_count PROPOSED_REPLIES '
 query {
   repository(owner: "hiroky1983", name: "game_collection") {
     issues(states: OPEN, labels: ["ai:proposed"], first: 20) {
@@ -1488,9 +1515,9 @@ query {
       }
     }
   }
-}' 2>/dev/null | jq --arg trusted "$DUTY_TRUSTED_ACTORS" "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $actors
+}' --arg trusted "$DUTY_TRUSTED_ACTORS" "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $actors
   | [.data.repository.issues.nodes[]
-  | select(is_proposed_reply($actors))] | length' 2>/dev/null || echo 0)
+  | select(is_proposed_reply($actors))] | length')
 
 # 仕事9: 孤児化した ai:in-progress の回収（Issue #83）
 # 当番が着手直後に異常終了すると ai:in-progress が残留し、その Issue は仕事1の集計から
@@ -1586,7 +1613,7 @@ fi
 # blocked のまま2日近く放置された）。仕事5・8と同じ DUTY_JQ_COMMENT_LIB のパターンで、
 # blocked Issue に会長（= 自社マーカーの付かない信頼アカウントコメント）の新規コメントが付き、
 # かつ当番の応答（先頭 "解除確認"）がまだ無いものだけを拾う。
-BLOCKED_UPDATES=$(gh api graphql -f query='
+BLOCKED_UPDATES=$(gh_graphql_count BLOCKED_UPDATES '
 query {
   repository(owner: "hiroky1983", name: "game_collection") {
     issues(states: OPEN, labels: ["blocked"], first: 20) {
@@ -1596,9 +1623,9 @@ query {
       }
     }
   }
-}' 2>/dev/null | jq --arg trusted "$DUTY_TRUSTED_ACTORS" "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $actors
+}' --arg trusted "$DUTY_TRUSTED_ACTORS" "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $actors
   | [.data.repository.issues.nodes[]
-  | select(is_blocked_reply($actors))] | length' 2>/dev/null || echo 0)
+  | select(is_blocked_reply($actors))] | length')
 
 # 仕事12: ハンコによる決裁の着信（Issue #436）
 # 会長の運用宣言（2026-09-02）: 「やるのはハンコ（ai:approved）を押すことと Issue に返信することだけ。
@@ -1607,7 +1634,7 @@ query {
 # 掛からないまま沈む（#164 は 2026-08-19 にハンコが押されたのに 2026-09-02 の会長指摘まで2週間滞留した）。
 # 「決裁スレッドを出したあとにハンコが押された」= 推奨案での決裁成立として当番を起こす。
 # 判定は DUTY_JQ_COMMENT_LIB の is_ringi_stamp（発火・停止の条件と経緯はそちらのコメント参照）。
-RINGI_STAMPS=$(gh api graphql -f query='
+RINGI_STAMPS=$(gh_graphql_count RINGI_STAMPS '
 query {
   repository(owner: "hiroky1983", name: "game_collection") {
     issues(states: OPEN, labels: ["ringi:pending"], first: 20) {
@@ -1625,9 +1652,9 @@ query {
       }
     }
   }
-}' 2>/dev/null | jq --arg trusted "$DUTY_TRUSTED_ACTORS" "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $actors
+}' --arg trusted "$DUTY_TRUSTED_ACTORS" "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $actors
   | [.data.repository.issues.nodes[]
-  | select(is_ringi_stamp($actors))] | length' 2>/dev/null || echo 0)
+  | select(is_ringi_stamp($actors))] | length')
 
 # 仕事13: 出荷準備の検知（Issue #483）
 # release ブランチに内容が溜まったことを検知して出荷工程を起こす経路が無かった。仕事7 は公開**後**の
@@ -1676,7 +1703,10 @@ if [ "$SHIP_FETCH_OK" = 1 ] && [ -n "$SHIP_REFS" ]; then
     SHIP_AHEAD=""
     if [ "$SHIP_LOCK" != "true" ]; then
       # 失敗を 0 に丸めない（丸めると「空のブランチ」と区別できず次の版へ進んでしまう）
-      SHIP_AHEAD=$(gh api "repos/hiroky1983/game_collection/compare/main...release/v${V}" --jq '.ahead_by' 2>/dev/null || true)
+      if ! SHIP_AHEAD=$(gh api "repos/hiroky1983/game_collection/compare/main...release/v${V}" --jq '.ahead_by' 2>/dev/null); then
+        SHIP_AHEAD=""
+        log "仕事13: SHIP_AHEAD: release/v${V} の main との差分を取れなかったため、出荷対象の選定（仕事13）を見送る"
+      fi
     fi
     is_ship_target "$SHIP_LOCK" "$SHIP_AHEAD"
     case $? in
@@ -1698,7 +1728,8 @@ if [ -n "$SHIP_VER" ]; then
     # オープン Issue は 100件、ops:chairman の Issue は 50件・各コメント直近 50件まで見る。
     # オープン Issue が打ち切られていたら ship_remaining_issues が件数を返さず、鳴らさない側に倒れる。
     # マイルストーンの検索は部分一致で、v1.1.1 は v1.1.10〜19 にも当たるので枠を 50 に広げてある
-    SHIP_STATE=$(gh api graphql -f title="v${SHIP_VER}" -f query='
+    # 失敗は空のまま SHIP_READY を立てない側に倒れるが、理由が残るよう log を出す（#3413）
+    if ! SHIP_RAW=$(gh api graphql -f title="v${SHIP_VER}" -f query='
 query($title: String!) {
   repository(owner: "hiroky1983", name: "game_collection") {
     milestones(first: 50, query: $title, states: [OPEN, CLOSED]) {
@@ -1714,8 +1745,13 @@ query($title: String!) {
       }
     }
   }
-}' 2>/dev/null | jq -r --arg trusted "$DUTY_TRUSTED_ACTORS" --arg ver "$SHIP_VER" --arg sha "$SHIP_SHA" \
-      "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $actors | ship_milestone_state($actors; $ver; $sha)' 2>/dev/null || true)
+}' 2>/dev/null); then
+      SHIP_STATE=""
+      log "仕事13: SHIP_STATE: v${SHIP_VER} のマイルストーン情報を取れなかったため、出荷準備の判定（仕事13）を見送る"
+    else
+      SHIP_STATE=$(printf '%s' "$SHIP_RAW" | jq -r --arg trusted "$DUTY_TRUSTED_ACTORS" --arg ver "$SHIP_VER" --arg sha "$SHIP_SHA" \
+        "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $actors | ship_milestone_state($actors; $ver; $sha)' 2>/dev/null || true)
+    fi
     if [ -n "${SHIP_STATE:-}" ]; then
       SHIP_REMAINING="${SHIP_STATE% *}"
       SHIP_REQUESTED="${SHIP_STATE#* }"

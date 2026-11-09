@@ -779,6 +779,42 @@ check "ログが無い日は 0" "日次サマリ 2026-10-18: 当番起動 0 回 
   "$(duty_daily_summary_line "$SLOG" 2026-10-18)"
 rm -f "$SLOG"
 
+# #3413: gh api graphql の失敗を「0 件」に化けさせず、log に変数名つきの理由を出してその検知だけ見送る。
+# 仕事5（RINGI_REPLIES）と仕事12（RINGI_STAMPS）は本物のブロックをスタブの gh で実行して固定する
+echo "== 22. graphql の失敗を握り潰さない（#3413）=="
+RINGI_BLOCK=$(awk '/^# 仕事5: 決裁コメントの着信/ { f = 1 } /^# 仕事6: / { f = 0 } f' "$TARGET")
+STAMP_BLOCK=$(awk '/^# 仕事12: ハンコによる決裁の着信/ { f = 1 } /^# 仕事13: / { f = 0 } f' "$TARGET")
+check "仕事5 のブロックを切り出せた" "1" "$(printf '%s\n' "$RINGI_BLOCK" | grep -c '^RINGI_REPLIES=')"
+check "仕事12 のブロックを切り出せた" "1" "$(printf '%s\n' "$STAMP_BLOCK" | grep -c '^RINGI_STAMPS=')"
+# 引数: ブロック / 変数名 / graphql の応答（FAIL で gh を失敗させる）
+# 出力: "<変数の値>|<log の行数>|<変数名つきの log の行数>"
+run_gql_block() {
+  local block="$1" var="$2" resp="$3"
+  (
+    # log は $(...) の中（サブシェル）で呼ばれるので、変数ではなくファイルに集める
+    LOGF=$(mktemp "${TMPDIR:-/tmp}/duty-gql-log.XXXXXX")
+    log() { echo "$*" >>"$LOGF"; }
+    gh() { if [ "$resp" = FAIL ]; then echo "gh: HTTP 502" >&2; return 1; fi; printf '%s' "$resp"; }
+    DUTY_TRUSTED_ACTORS="$ACTORS"
+    eval "$block" >/dev/null 2>&1
+    printf '%s|%s|%s' "${!var}" "$(grep -c . "$LOGF")" "$(grep -c "^$var: " "$LOGF")"
+    rm -f "$LOGF"
+  )
+}
+RINGI_RESP=$(jq -nc --argjson n "$(node ringi:pending "hiroky1983=$RINGI_THREAD" "hiroky1983=$CHAIRMAN")" \
+  '{data: {repository: {issues: {nodes: [$n]}}}}')
+check "仕事5: gh 成功で会長の返信があれば 1 件（成功時の挙動は変えない）" "1|0|0" \
+  "$(run_gql_block "$RINGI_BLOCK" RINGI_REPLIES "$RINGI_RESP")"
+check "仕事5: gh 失敗は 0 件にしつつ RINGI_REPLIES つきの log を 1 行出す" "0|1|1" \
+  "$(run_gql_block "$RINGI_BLOCK" RINGI_REPLIES FAIL)"
+check "仕事12: gh 失敗は 0 件にしつつ RINGI_STAMPS つきの log を 1 行出す" "0|1|1" \
+  "$(run_gql_block "$STAMP_BLOCK" RINGI_STAMPS FAIL)"
+check "仕事12: gh 成功で対象なしなら log を出さず 0 件" "0|0|0" \
+  "$(run_gql_block "$STAMP_BLOCK" RINGI_STAMPS '{"data":{"repository":{"issues":{"nodes":[]}}}}')"
+# gh の失敗を握り潰す `2>/dev/null | jq … || echo 0` の形が、graphql を叩く検知に残っていないこと
+check "graphql の結果を直接 jq へ流して || echo 0 する形が残っていない" "0" \
+  "$(grep -v '^[[:space:]]*#' "$TARGET" | grep -c "^}' 2>/dev/null | jq ")"
+
 echo
 echo "結果: PASS=$PASS FAIL=$FAIL"
 [ "$FAIL" -eq 0 ]
