@@ -5,9 +5,21 @@
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ / %2$lld moves (best possible %3$lld) / Time %4$@"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@ / %2$lld move (best possible %3$lld) / Time %4$@"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@ / %2$lld moves (best possible %3$lld) / Time %4$@"
+                }
+              }
+            }
           }
         }
       }
