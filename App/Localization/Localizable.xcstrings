@@ -782,6 +782,17 @@
         }
       }
     },
+    "1番人気" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Most popular"
+          }
+        }
+      }
+    },
     "未プレイ" : {
       "extractionState" : "manual",
       "localizations" : {
