@@ -163,7 +163,8 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
                     currentStone  = last.2.opponent
                 } else {
                     lastMove     = nil
-                    currentStone = .black
+                    // 手順が空でも、旧形式から再開してヒントだけ使った局は白番でありうる。保存した手番を読む（#3441）。
+                    currentStone = GomokuStone(rawValue: snap.currentStone) ?? .black
                 }
             } else {
                 let cells = snap.cells.map { $0.flatMap { GomokuStone(rawValue: $0) } }
@@ -559,17 +560,14 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
 
     // MARK: - 待った（自分の直前手＋CPU 応手の 2 手を戻す）
 
-    private func mover(at index: Int) -> GomokuStone {
-        index % 2 == 0 ? .black : .white
-    }
-
     /// 人間の手番で、直前の自分の手と CPU 応手をまとめて戻せるか。
     public var canUndo: Bool {
         // 読み中は戻さない（待つ前の局面のヒントが、手数が戻ったあとの局面に適用されてしまうため。#2236）
         guard !gameOver, !isAITurn, !isThinking, !isHintThinking else { return false }
         let n = moves.count
         guard n >= 2 else { return false }
-        return mover(at: n - 1) == humanSide.opponent && mover(at: n - 2) == humanSide
+        // 手番は手順の石の色で見る。旧形式から再開した局は白番から始まりうるので、偶奇では決められない（#3441）。
+        return moves[n - 1].stone == humanSide.opponent && moves[n - 2].stone == humanSide
     }
 
     /// 待った: 直前 2 手（人間→CPU）を巻き戻し、人間が指し直せる状態にする。
@@ -591,12 +589,13 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
             currentStone = last.stone.opponent
         } else {
             lastMove     = nil
-            currentStone = .black
+            // 2 手戻して空になるのは、人間が最初の手を打っていた局。指し直すのは人間（旧形式の白番開始も含む）。
+            currentStone = humanSide
         }
         // 人間がまだ指していない局（開始局面）まで戻したら、離脱の印を戻す。手が 0 手なら中断データも残さない（#3200）。
         // 手順を持たない旧形式から復元した局は、復元前の石が baseBoard に残る。それは開始局面ではない。
         let fromEmptyBoard = baseBoard.moveCount == 0
-        if fromEmptyBoard, !(0..<moves.count).contains(where: { mover(at: $0) == humanSide }) {
+        if fromEmptyBoard, !moves.contains(where: { $0.stone == humanSide }) {
             services?.gameDidUndoToStart(gameID: gameID)
         }
         if fromEmptyBoard, moves.isEmpty {
