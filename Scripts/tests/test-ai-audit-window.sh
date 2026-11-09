@@ -55,6 +55,10 @@ chmod +x "$TEST_HOME/.local/bin/gh"
 ORIGIN_SRC="$TEST_HOME/origin-src"
 mkdir -p "$ORIGIN_SRC/Scripts/duty-gh-shim"
 cp "$SCRIPT_DIR/../duty-gh-shim/gh" "$SCRIPT_DIR/../duty-gh-shim/filter.jq" "$ORIGIN_SRC/Scripts/duty-gh-shim/"
+# 当番の安全装置の共通関数とフック本体（#3430）。worktree に無いと当番は fail closed で起動しない
+mkdir -p "$ORIGIN_SRC/Scripts/lib" "$ORIGIN_SRC/Scripts/duty-hooks"
+cp "$SCRIPT_DIR/../lib/duty-guards.sh" "$ORIGIN_SRC/Scripts/lib/"
+cp "$SCRIPT_DIR/../duty-hooks/docs-only-pre-commit" "$ORIGIN_SRC/Scripts/duty-hooks/"
 git -C "$ORIGIN_SRC" init -q -b main
 git -C "$ORIGIN_SRC" -c user.email=test@example.com -c user.name=test add -A
 git -C "$ORIGIN_SRC" -c user.email=test@example.com -c user.name=test commit -q -m init

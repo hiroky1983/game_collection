@@ -1,0 +1,16 @@
+#!/bin/bash
+# docs/ 以外への変更を含むコミットを拒否する pre-commit フック本体（#3430）。
+# 経営企画室・監査当番（ai-management-duty.sh / ai-audit-duty.sh）が GIT_CONFIG_* 経由の
+# core.hooksPath で有効化する（Scripts/lib/duty-guards.sh の install_docs_only_hook）。
+# 引数 $1: 拒否時に標準エラーへ出す 1 行目のメッセージ（当番ごとに変える）。
+# 検査の落とし穴: 既定のリネーム検出だと「App/x.swift → docs/x.swift」の移動が新しい名前
+# （docs/x.swift）だけで報告され、元の App/ の削除を素通しする。--no-renames で両側を見る。
+set -uo pipefail
+msg="${1:-この当番は docs/ 配下しか変更できません。以下がその対象外です:}"
+offending=$(git diff --cached --name-only --no-renames | grep -v '^docs/' || true)
+if [ -n "$offending" ]; then
+  echo "$msg" >&2
+  echo "$offending" >&2
+  exit 1
+fi
+exit 0
