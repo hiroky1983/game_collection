@@ -190,14 +190,19 @@ final class BlocksScene: SKScene {
         renderedVaultClears = model.field.vaultsClearedCount
     }
 
+    private static let vaultFlashName = "vaultFlash"
+
     /// 金庫を空にした瞬間の演出（#1250）。盤全体を一瞬明るくして、詰まっていたものが崩れたと伝える。
     private func flashVaultCleared() {
+        // 連続して空にしても重ねない（重なると合成後の不透明度が 0.12 を超え、軽減の意味が薄れる）
+        childNode(withName: Self.vaultFlashName)?.removeFromParent()
         let flash = SKSpriteNode(
             color: BlocksPalette.color(BlocksPalette.ball),
             size: CGSize(width: BlocksField.Metrics.width, height: BlocksField.Metrics.height)
         )
         flash.position = CGPoint(x: BlocksField.Metrics.width / 2, y: BlocksField.Metrics.height / 2)
         // 視差効果の軽減（Reduce Motion）では全面の閃光を弱める（#3425。光の刺激に敏感な人向け）
+        flash.name = Self.vaultFlashName
         flash.alpha = Motion.isReduceMotionEnabled ? 0.12 : 0.4
         flash.zPosition = 2
         addChild(flash)
