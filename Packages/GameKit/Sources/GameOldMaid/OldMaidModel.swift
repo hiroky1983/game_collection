@@ -288,6 +288,8 @@ public final class OldMaidModel: AITurnGuarded {
         game = base.game
         redrawBase = nil
         isUntouchedDeal = base.wasUntouchedDeal
+        // 配り直しの手つかずに戻したなら、引いたときに立てた「捨てたら途中離脱」の印も戻す（#3422）。
+        if base.wasUntouchedDeal { services?.gameDidUndoToStart(gameID: gameID) }
         selectedID = nil
         peekedIDs = []
         revealsJoker = true
