@@ -5,9 +5,21 @@
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@, this hand %2$lld pts, total %3$lld pts"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@, this hand %2$lld pt, total %3$lld pt(s)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%1$@, this hand %2$lld pts, total %3$lld pts"
+                }
+              }
+            }
           }
         }
       }
