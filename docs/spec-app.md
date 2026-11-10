@@ -23,6 +23,12 @@ Packages/GameKit/
     CoreTestSupport/    ← テスト用の Core 差し替え部品（#841。ManualClock・メモリ上の中断データ置き場・触覚/解析イベント/お知らせ予約のスパイ。製品には含めず、テストターゲットからだけ依存する）
     MahjongTiles/       ← 麻雀牌の絵柄と描画（`MahjongTile`・牌ビュー・ギャラリー。麻雀ソリティアと四人打ち麻雀で共有し、各ゲームで描き直さない）
     HomerunCore/        ← 柵越えおじさんの判定・日次台帳・蓄積（SwiftUI 非依存の層。`GameHomerun` が使う。#1348）
+    CoreObjectArt/      ← 具体物カードのドット絵（`ObjectCardArt`。神経衰弱とカードしりとりが使う。`Core` に依存・#2953 で Core から切り出し）
+    CoreMiniBoard/      ← 盤ゲームの遊び方の図で共通に使う小さな盤（将棋・五目並べ・囲碁・チェス・オセロ・バックギャモン・四目並べが使う。`Core` に依存・#2044/#2953）
+    CoreMiniCard/       ← 遊び方の図でトランプ系ゲームが共通に使う小さな札・列・置き場（ポーカー・神経衰弱・ブラックジャック・大富豪・ソリティア・フリーセル・スパイダー・いろリレー・スピード・ババ抜き・ハーツの 11 本が使う。`Core` に依存・#2044/#2953）
+    CoreSolitaireFigures/ ← ソリティア・フリーセル・スパイダーの遊び方の図（3 本が使う。`Core` と `CoreMiniCard` に依存・#2044/#2953）
+    CoreOjisanPixel/    ← チャリンコおじさんのドット絵（走者のコマ・正面顔。ランナー・ねこさがし・盆栽が使う。`Core` に依存・#1092/#2953）
+    CoreOjisan/         ← 共通キャラクター「おじさん」のベクター版の図案（柵越えおじさんが使う。`Core` に依存・#700/#2953）
     Game2048/           ← 2048
     GameShogi/          ← 将棋
     GameMahjong/        ← 麻雀（4人打ち。`release/v1.1.14` から、配牌のまま 1 枚も切っていない 1 局目〈`roundNumber == 1 && honba == 0 && dealer == 0` で河・副露が空〉は「続きから」に出さない・#2542。保存は残るので開き直すと同じ配牌に戻る。`hasUntouchedSnapshot` で見分け、走査テスト `UntouchedSnapshotScanTests` の開始操作表に登録。※ release/v1.1.14 で実装・main へは未取り込み。対局の長さは `MahjongGameLength` の 3 択〈一局戦・東風戦・半荘戦、開始シートの並びもこの順。`release/v1.1.15`・#3098〉。半荘戦は東1局〜南4局の 8 局で、終わり方〈トビ・アガリやめ・流局の本場・トビ復活〉は東風戦の決まりを南場まで延ばしたもの、西入なし。場は別に保存せず通し番号 `roundNumber`〈1〜8〉と `gameLength` から導く〈`roundWind(forRound:)`。旧データは東場〉。記録は `recordVariant = "hanchan"` で東風戦・一局戦と別枠、Game Center の順位表へは送らない）
