@@ -274,6 +274,8 @@ public final class MahjongSolitaireModel {
         // ハブに「続きから」を出さないための既存のガードで、意図どおり（利用回数はメモリ上に残るので
         // この局のリザルトには出る。中断を挟むと 0 に戻るが、盤面ごと配り直しになる状態のため矛盾しない）。
         persist()
+        // 全牌が戻った（手つかずの盤に戻った）なら、取ったときに立てた離脱の印も戻す（#3458）。
+        if remainingCount == layout.count { services?.gameDidUndoToStart(gameID: gameID) }
         return true
     }
 

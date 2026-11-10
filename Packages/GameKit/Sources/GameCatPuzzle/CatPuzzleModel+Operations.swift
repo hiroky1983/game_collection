@@ -154,6 +154,7 @@ extension CatPuzzleModel {
         moves += 1
         services?.feedback.impact(.light)
         persist()
+        clearProgressMarkIfUntouched()
     }
 
     /// 印を全部消して同じ問題を最初から。ミス・ヒント・経過秒は引き継ぎ、ヒントで置いた猫・×、赤い × も残る。
@@ -169,6 +170,14 @@ extension CatPuzzleModel {
         services?.feedback.impact(.light)
         // 印の無い盤は保存しない（開いただけの盤を「続き」にしない）。ヒント・赤い × の印があれば保存する。
         persist()
+        clearProgressMarkIfUntouched()
+    }
+
+    /// 印・ヒント・ミスがすべて無い手つかずの盤に戻ったら、`tap` で立てた離脱の印も戻す（#3458）。
+    /// ヒントで置いた印・赤い ×・ミスが残っていれば盤に手が入ったままなので、印は残す。
+    private func clearProgressMarkIfUntouched() {
+        guard !isOver, !hasProgressToLose, hintsUsed == 0, mistakes == 0 else { return }
+        services?.gameDidUndoToStart(gameID: Self.gameID)
     }
 
     /// ヒントを 1 回使う。推理の 1 歩（`CatPuzzleLogic.hint`）を盤に反映する: 確定した × を置き、猫が確定する
