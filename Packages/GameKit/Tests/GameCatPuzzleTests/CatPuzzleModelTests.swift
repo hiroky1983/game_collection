@@ -817,7 +817,8 @@ struct CatPuzzleModelTests {
         #expect(model.continueAfterAd())
         placeCat(model, at: wrongs[3])
         #expect(model.mistakes == 3 && model.isFailed && !model.isOfferingContinue, "2 回目の提案はしない")
-        #expect(spy.ends(of: CatPuzzleModel.gameID) == 1 && spy.outcomes == [.loss])
+        // コンティニューで数え直した続きの局の負けも `game_end` になる（#3446）。
+        #expect(spy.ends(of: CatPuzzleModel.gameID) == 2 && spy.outcomes == [.loss, .loss])
         model.newGame()
         #expect(!model.continueUsed && !model.isFailed)
     }
