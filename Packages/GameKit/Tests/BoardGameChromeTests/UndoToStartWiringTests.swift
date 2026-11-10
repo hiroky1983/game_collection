@@ -13,8 +13,6 @@ struct UndoToStartWiringTests {
         "GameSolitaire": "一度立った印は下ろさない設計（#500。SolitaireModel の undo コメント）",
         "GameFreeCell": "ソリティア系と同じ（#500）",
         "GameSpider": "ソリティア系と同じ（#500）",
-        "GameMahjongSolitaire": "ソリティア系と同じく一度立った印は下ろさない",
-        "GameCatPuzzle": "一手ごとの巻き戻しで、離脱の印は一度立ったら下ろさない",
     ]
 
     private static func modulesWithUndo() throws -> [String] {
