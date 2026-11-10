@@ -675,6 +675,14 @@ struct HubView: View {
                 }
                 .padding(.horizontal, Theme.pad)
             }
+            // 区画の下の薄いグレーの線（#3447）。非表示にしても見出し＋「表示」の下に残す。
+            // 色はランキングの行の区切り（`RankingBoard`）と同じ `inkSub` の薄塗り。ダークでも薄く見える。
+            Rectangle()
+                .fill(Theme.inkSub.opacity(0.25))
+                .frame(height: 1)
+                .padding(.horizontal, Theme.pad)
+                .padding(.top, isHidden ? 0 : 12)
+                .accessibilityHidden(true)
         }
         .padding(.top, 4)
     }
@@ -694,6 +702,7 @@ struct HubView: View {
                 resumeProgress: hasResume ? registry.resumeProgress(gameID: module.id, in: services.snapshots) : nil,
                 isNew: NewGames.currentVersionIDs.contains(module.id),
                 isEvent: HubEventBadge.isShown(gameID: module.id),
+                isMostPopular: NewGames.mostPopularIDs.contains(module.id),
                 updateTag: UpdatedGames.tag(for: module.id),
                 isUnplayed: isUnplayed,
                 // 柵越えおじさんだけ、今日の残り回数（#2208。ボールの絵は #2273）。「イベント開催中」と両方出す（#2572）。
@@ -792,6 +801,8 @@ private struct GameCard: View {
     let isNew: Bool
     /// 「イベント開催中」の印を出すか（#2566）。NEW のほうが優先で、文字の印は左下に 1 つだけ。
     let isEvent: Bool
+    /// 「1番人気」の札を出すか（#3447。対象は `NewGames.mostPopularIDs`）。NEW・イベントの次に優先する。
+    let isMostPopular: Bool
     /// その版で中身が増えたゲームのタグ（「新ステージ追加」など・#2790）。優先順は NEW ＞ イベント ＞ 更新 ＞ 続きから。
     var updateTag: UpdateTag?
     /// 一度も遊んでいないゲームか（#2849）。NEW・イベント・続きからのどれも無いときだけ「未プレイ」を出す。
@@ -870,7 +881,7 @@ private struct GameCard: View {
     }
 
     /// 「続きから」の印を出す局面か（NEW・イベントが優先）。
-    private var showsResumeBadge: Bool { !isNew && !isEvent && hasResume }
+    private var showsResumeBadge: Bool { !isNew && !isEvent && !isMostPopular && hasResume }
 
     /// 文字の印。「続きから」を出しているときは、その下に進み具合の印を 1 段足す（#2870）。
     @ViewBuilder
@@ -891,6 +902,8 @@ private struct GameCard: View {
             badgeCapsule("NEW")
         } else if isEvent {
             badgeCapsule(tr("イベント開催中"))
+        } else if isMostPopular {
+            badgeCapsule(tr("1番人気"))
         } else if let updateTag {
             badgeCapsule(updateTag.label)
         } else if hasResume {
@@ -947,6 +960,7 @@ private struct GameCard: View {
         if showsResumeBadge, let resumeProgress { parts.append(resumeProgress) }
         if isNew { parts.append(tr("新着")) }
         if isEvent { parts.append(tr("イベント開催中")) }
+        if isMostPopular { parts.append(tr("1番人気")) }
         if let updateTag { parts.append(updateTag.label) }
         if isUnplayed { parts.append(tr("未プレイ")) }
         if let count { parts.append(count.labelText()) }
