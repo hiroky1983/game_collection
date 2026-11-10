@@ -140,6 +140,25 @@ struct ThemeContrastTests {
         }
     }
 
+    /// ランキングの自分の行（`Fill.yellow` 25% 重ね）の補足文は、ライト・ダークとも 4 つの地の上で AA（#3453）。
+    @Test func purpleNoteOnMeRowMeetsAA() {
+        func blended(_ base: UInt32) -> UInt32 {
+            var out: UInt32 = 0
+            for shift: UInt32 in [16, 8, 0] {
+                let f = Double((Theme.Hex.Fill.yellow >> shift) & 0xFF), b = Double((base >> shift) & 0xFF)
+                out |= UInt32((f * 0.25 + b * 0.75).rounded()) << shift
+            }
+            return out
+        }
+        let pair = Theme.Hex.purpleOnMeRowText
+        for base in [Theme.Hex.background.light, Theme.Hex.surface.light] {
+            #expect(WCAG.contrast(pair.light, blended(base)) >= Self.aa)
+        }
+        for base in [Theme.Hex.background.dark, Theme.Hex.surface.dark] {
+            #expect(WCAG.contrast(pair.dark, blended(base)) >= Self.aa)
+        }
+    }
+
     /// ダークは元の差し色のまま（ダークの見た目を変えない）。ライトの生の差し色が足りないことも固定する。
     @Test func accentTextKeepsDarkValueAndRawAccentsFailOnLight() {
         #expect(Theme.Hex.yellowText.dark == Theme.Hex.yellow)
