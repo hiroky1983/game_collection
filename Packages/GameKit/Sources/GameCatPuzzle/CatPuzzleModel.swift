@@ -594,6 +594,11 @@ public final class CatPuzzleModel {
         startTimer()
         services?.feedback.notify(.success)
         persist()
+        // `game_end(loss)` はもう送信済みなので、続きは次の1プレイとして数える（#3446。2048 の #1953 と同じ）。
+        // こうしないと続きの局の `game_end` が `.finished` のまま弾かれる。
+        services?.gameDidRestart(gameID: Self.gameID, level: analyticsLevel)
+        // 続きの盤面は既に指した盤面なので、捨てたら途中離脱として数える。
+        services?.gameDidProgress(gameID: Self.gameID)
         return true
     }
 
