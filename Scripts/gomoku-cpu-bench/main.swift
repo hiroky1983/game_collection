@@ -13,6 +13,8 @@ import Foundation
 //                                        ヒントはアプリと同じ `BoardHintBudget.engineLevel`（= むずかしい）の読みで、
 //                                        考える時間だけ「むずかしい + 追加秒」（既定 0.5）にする。ヒントは対局者の段階に依存しない
 //   hinttiming [positions] [<追加秒>]     ヒントの 1 手の時間（実時間・上限 むずかしい + 追加秒）: 平均・最大・上限で打ち切られた割合
+//   vs <上の指定> <下の指定> <局面数>     #3362。指定は `段階` か `段階:確率:止め損ね:損の幅[:深さ]`。
+//                                        `段階` だけなら出荷値、`old-段階` は #3362 より前の出荷値（`legacyPolicy`）
 // 対局は考える時間を局面数（nps × 秒）に置き換えて回す（`CPUBenchLadder.engine`）。
 // 環境変数: NPS（match / random で使う 1 秒あたりの局面数）・CONCURRENCY（既定 4）・
 // FIRST_OPENING（最初の開始局面の番号・既定 1。小分けにして続きから回すとき）。
@@ -27,6 +29,30 @@ func strength(_ name: String) -> CPUStrength {
 }
 
 let env = ProcessInfo.processInfo.environment
+
+/// #3362 より前の出荷値（入門 20%・かんたん 60%・ふつう 90%・損の幅 500・止め損ねなし・深さはどれも 1 手先）。
+func legacyPolicy(_ s: CPUStrength) -> GomokuMovePolicy {
+    switch s {
+    case .novice: return GomokuMovePolicy(bestMoveProbability: 0.2, slipMargin: 500)
+    case .easy: return GomokuMovePolicy(bestMoveProbability: 0.6, slipMargin: 500)
+    case .normal: return GomokuMovePolicy(bestMoveProbability: 0.9, slipMargin: 500)
+    case .hard: return .exact
+    }
+}
+
+/// `vs` の指定を読む（段階・手の選び方・深さ。`nil` は出荷値）。
+func spec(_ text: String) -> (CPUStrength, GomokuMovePolicy?, Int?) {
+    if text.hasPrefix("old-") {
+        let s = strength(String(text.dropFirst(4)))
+        return (s, legacyPolicy(s), s == .hard ? nil : 1)
+    }
+    let parts = text.split(separator: ":").map(String.init)
+    let s = strength(parts[0])
+    guard parts.count >= 4 else { return (s, nil, nil) }
+    let policy = GomokuMovePolicy(bestMoveProbability: Double(parts[1])!, slipMargin: Int(parts[3])!,
+                                  blockMissProbability: Double(parts[2])!)
+    return (s, policy, parts.count > 4 ? Int(parts[4]) : nil)
+}
 
 /// このプロセスが使った CPU 時間（秒）。ほかのプロセスに CPU を取られても増えない。
 func cpuSeconds() -> Double {
@@ -142,6 +168,18 @@ struct Bench {
                 lower: { CPUBenchLadder.engine(.hard, nodesPerSecond: nps, seed: $0) },
                 openings: openings, concurrency: conc, firstOpening: first)
             print("HINT ヒントどおり(むずかしい+\(extra)s) 対 むずかしい NPS \(Int(nps)) 開始局面 \(first)〜\(first + openings - 1): \(t.games)局 ヒント側の勝ち \(t.upperWins) 負け \(t.lowerWins) 引き分け \(t.draws) 勝率 \(String(format: "%.1f", t.upperScore * 100))% 所要 \(Int(Date().timeIntervalSince(t0)))s")
+        case "vs":
+            guard let nps = Double(env["NPS"] ?? "") else { print("NPS を渡してください"); return }
+            let conc = Int(env["CONCURRENCY"] ?? "") ?? 4
+            let first = Int(env["FIRST_OPENING"] ?? "") ?? 1
+            let t0 = Date()
+            let up = spec(args[2]), low = spec(args[3])
+            let openings = Int(args[4]) ?? 4
+            let t = await CPUBenchLadder.run(
+                upper: { CPUBenchLadder.engine(up.0, nodesPerSecond: nps, maxDepth: up.2, policy: up.1, seed: $0) },
+                lower: { CPUBenchLadder.engine(low.0, nodesPerSecond: nps, maxDepth: low.2, policy: low.1, seed: $0) },
+                openings: openings, concurrency: conc, firstOpening: first)
+            print("VS \(args[2]) 対 \(args[3]) NPS \(Int(nps)) 開始局面 \(first)〜\(first + openings - 1): \(t.games)局 上の勝ち \(t.upperWins) 負け \(t.lowerWins) 引き分け \(t.draws) 反則 \(t.forfeits) 得点率 \(String(format: "%.1f", t.upperScore * 100))% 所要 \(Int(Date().timeIntervalSince(t0)))s")
         case "match", "random":
             guard let nps = Double(env["NPS"] ?? "") else { print("NPS を渡してください"); return }
             let conc = Int(env["CONCURRENCY"] ?? "") ?? 4

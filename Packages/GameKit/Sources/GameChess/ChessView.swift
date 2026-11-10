@@ -130,6 +130,10 @@ public struct ChessView: View {
             try? await Task.sleep(for: .seconds(ChessMotion.checkBannerHold))
             if checkBannerID == id { checkBannerID = nil }
         }
+        // 待った・新規対局・投了で盤の意味が変わったら、上の固定待ちを待たずに札を畳む（将棋 #519 と同じ）。
+        .onChange(of: model.checkBannerDismissID) { _, _ in
+            checkBannerID = nil
+        }
         // 人間の着手・CPU の着手・待った・検討ナビのどれで局面が変わっても、
         // 経路を問わずここ 1 か所で駒の対応付けを進める（#200）。
         .onChange(of: model.displayedPosition) { _, position in
@@ -602,7 +606,7 @@ struct ChessNewGameSheet: View {
         self.onCancel = onCancel
     }
 
-    /// 副題が「浅い読み・ミス少なめ」と長めなので、1 行に縮めて収める。
+    /// 副題が「浅い読み・大きなミス」と長めなので、1 行に縮めて収める。
     private static let metrics = GameSetupChooser.Metrics(subtitleMinimumScale: 0.7)
 
     var body: some View {
@@ -625,8 +629,10 @@ struct ChessNewGameSheet: View {
             GameSetupSection(tr("CPUの強さ")) {
                 // 説明は探索の中身と一致させる（#416）。詳細は `SimpleChessEngine.init(level:)`。
                 // 位置評価・静止探索は全段階で同じ。段で変わるのは時間・深さ・最善手を打つ確率（入門〜ふつうは 1 手先）。
+                // #3362: 入門 55%（外すとルークまで只で取られる）・かんたん 40%・ふつう 50%（外すとナイト・ビショップまで）。
+                // 最善手を外す割合が かんたん 60%・ふつう 50% なので「ミス多め」「ミスあり」、入門は損の大きい外しなので「大きなミス」。
                 CPUStrengthPicker(level: $level, details: [
-                    tr("浅い読み・ミス多め"), tr("浅い読み・ミスあり"), tr("浅い読み・ミス少なめ"), tr("定跡＋深読み"),
+                    tr("浅い読み・大きなミス"), tr("浅い読み・ミス多め"), tr("浅い読み・ミスあり"), tr("定跡＋深読み"),
                 ])
             }
             GameSetupSection(tr("駒の見た目")) {
@@ -783,8 +789,6 @@ struct ChessCell: View {
     let isLight: Bool
     let isSelected: Bool
     let isLastMove: Bool
-    /// 「色なしで区別」の設定。ON のとき、直前手・選択中に色以外の印を足す（#2486）。
-    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
 
     var body: some View {
         ZStack {
@@ -795,9 +799,10 @@ struct ChessCell: View {
             if isSelected {
                 Rectangle().fill(Theme.yellow.opacity(0.6))
             }
-            if differentiateWithoutColor {
-                BoardCellMarks(size: size, isSelected: isSelected, isLastMove: isLastMove)
-            }
+        }
+        // 「色なしで区別」が ON のとき、直前手・選択中に色以外の印を足す（#2486・#3415）。
+        .stateMark(active: isSelected || isLastMove) {
+            BoardCellMarks(size: size, isSelected: isSelected, isLastMove: isLastMove)
         }
         .frame(width: size, height: size)
         .contentShape(Rectangle())

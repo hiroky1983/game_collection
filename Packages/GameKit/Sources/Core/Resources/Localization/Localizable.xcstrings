@@ -1,6 +1,28 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "X でポスト" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Post on X"
+          }
+        }
+      }
+    },
+    "ポストしなくても遊べます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You can play without posting."
+          }
+        }
+      }
+    },
     "ラスト" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -108,6 +130,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Move %2$lld of %1$lld"
+          }
+        }
+      }
+    },
+    "円盤%lld枚" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld disks"
           }
         }
       }
@@ -5572,6 +5605,61 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Player"
+          }
+        }
+      }
+    },
+    "%lld / %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld / %lld"
+          }
+        }
+      }
+    },
+    "ひとつ前" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous"
+          }
+        }
+      }
+    },
+    "ひとつ次" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next"
+          }
+        }
+      }
+    },
+    "一覧から選ぶ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose from list"
+          }
+        }
+      }
+    },
+    "上下にスワイプして変更します" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swipe up or down to change"
           }
         }
       }

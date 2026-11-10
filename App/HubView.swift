@@ -83,8 +83,10 @@ struct HubView: View {
         max(1, layout.hubColumnCount(containerWidth: layout.width, spacing: Self.gridSpacing))
     }
 
-    /// 表示するゲームの並び。常に先頭のゲーム（#3339）、開催中のイベントのゲーム（#3321）、この版の新着（#2104）の順に先頭へ固定し、
+    /// 表示するゲームの並び。開催中のイベントのゲーム（#3321）、この版の新着（#2104）の順に先頭へ固定し、
     /// そのあとに利用者の並びが続く。非表示にしたゲームは `visibleModules` の時点で除かれるので、固定でも出さない。
+    /// ピックアップ（#3358）のゲームもここには通常の位置で入っている（差し色の引きと位置を安定させるため）。
+    /// 区画を出しているあいだ一覧から抜くのは `shownGridEntries`。
     private var pinnedVisibleModules: [GameModule] {
         let visible = settings.visibleModules(from: registry)
         let order = NewGames.pinned(visibleIDs: visible.map(\.id), eventIDs: HubEventBadge.activeIDs())
@@ -110,12 +112,36 @@ struct HubView: View {
         let position: Int
     }
 
+    /// 「ピックアップ」の区画に出すゲーム（#3358）。区画の順は `NewGames.pickupIDs` で固定。
+    private var pickupModules: [GameModule] {
+        NewGames.pickupShownIDs(
+            visibleIDs: settings.visibleModules(from: registry).map(\.id),
+            isHiddenByUser: settings.pickupHidden,
+            isAllCategory: activeCategory == .all
+        ).compactMap { registry.module(id: $0) }
+    }
+
+    /// ピックアップの区画（または非表示時の見出し）を出す候補。利用者の非表示設定は見ない（#3404）。
+    private var pickupCandidates: [GameModule] {
+        NewGames.pickupShownIDs(
+            visibleIDs: settings.visibleModules(from: registry).map(\.id),
+            isHiddenByUser: false,
+            isAllCategory: activeCategory == .all
+        ).compactMap { registry.module(id: $0) }
+    }
+
     /// カテゴリーで絞ったあとにグリッドへ並べるゲーム。位置は絞る前の並びでの 1 始まり
-    /// （絞り込みの有無で同じゲームの位置が変わらない）。
+    /// （絞り込みの有無で同じゲームの位置が変わらない）。区画に出しているゲームは一覧に出さない（二重に出さない）。
     private var shownGridEntries: [GridEntry] {
         let entries = pinnedVisibleModules.enumerated().map { GridEntry(module: $0.element, position: $0.offset + 1) }
         guard activeCategory != .all else { return entries }
         return entries.filter { registry.category(of: $0.module.id) == activeCategory }
+    }
+
+    /// 区画のゲームを除いた、「すべて」のときの一覧。
+    private var gridEntriesBelowPickup: [GridEntry] {
+        let picked = Set(pickupModules.map(\.id))
+        return shownGridEntries.filter { !picked.contains($0.module.id) }
     }
 
     /// 「つづき・最近」行（#660）に出す候補。順序と打ち切りの規則は `RecentGames` が持つ。
@@ -240,6 +266,11 @@ struct HubView: View {
                             .padding(.horizontal, Theme.pad)
                             .padding(.top, Theme.pad)
                         }
+                        // ピックアップ（#3358）。ヘッダー → 検索 → つづき・最近 → ピックアップの順（#3404）。
+                        // 非表示にしたあとも見出しと「表示」ボタンだけ残し、ハブから戻せる。
+                        if !pickupCandidates.isEmpty {
+                            pickupSection(pickupCandidates, isHidden: settings.pickupHidden)
+                        }
                     } else {
                         // カテゴリーを選んだときの見出し（モック 04b の「トランプ　7本」）。
                         HubCategoryHeading(title: activeCategory.title, count: shownGridEntries.count)
@@ -253,7 +284,7 @@ struct HubView: View {
                             .padding(.top, 12)
                     }
                     LazyVGrid(columns: columns, spacing: Self.gridSpacing) {
-                        ForEach(shownGridEntries, id: \.module.id) { entry in
+                        ForEach(gridEntriesBelowPickup, id: \.module.id) { entry in
                             gridTile(entry)
                         }
                     }
@@ -405,6 +436,11 @@ struct HubView: View {
                     resume: isResumable(id)
                 ))
             }
+            // 連続日数の夕方の通知（#3417）がタップされたら、重なっているシートを閉じてハブを見せる。
+            .onChange(of: services.streakReminder?.tapCount) { _, _ in
+                showSettings = false
+                showRecords = false
+            }
             // ホーム画面アイコン長押し（#1642）の項目がタップされたら、そのゲームを直接開く。
             // 終了していた状態からの起動は値がハブより先に入るため、初期値でも走らせる。
             // 設定で非表示にしたゲームは、項目が古いままでも開かない。
@@ -513,7 +549,8 @@ struct HubView: View {
         .tint(Theme.coralText)
         .sheet(isPresented: $showSettings) {
             SettingsView(
-                registry: registry, settings: settings, playLog: services.playLog, feedback: services.feedback)
+                registry: registry, settings: settings, playLog: services.playLog, feedback: services.feedback,
+                hapticPreview: AppEnvironment.haptic, soundPreview: AppEnvironment.sound)
                 .presentationDetents([.large])
         }
         .sheet(isPresented: $showRecords, onDismiss: {
@@ -604,14 +641,60 @@ struct HubView: View {
     /// NavigationStack は表示中の遷移先を1手で差し替えると描画が壊れる（画面が真っ白になる）。
     /// いったん根まで戻し、次の runloop で積み直す。
     /// グリッドの 1 枚。
-    private func gridTile(_ entry: GridEntry) -> some View {
+    /// 「ピックアップ」の区画（#3358）。見出しと、一覧と同じカード 2 枚。「非表示」でカードを畳み、
+    /// 2 本は利用者の並びの位置に戻る。畳んだあとも見出しは残り、右の「表示」で戻せる（#3404。設定のスイッチと連動）。
+    private func pickupSection(_ modules: [GameModule], isHidden: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(tr("ピックアップ"))
+                    .themeCaption(layout.scaled(12), weight: .heavy)
+                    .foregroundStyle(Theme.inkSubText)
+                    .accessibilityAddTraits(.isHeader)
+                Spacer(minLength: 8)
+                Button {
+                    withGameAnimation(.easeOut(duration: 0.2)) { settings.pickupHidden = !isHidden }
+                } label: {
+                    Text(isHidden ? tr("表示") : tr("非表示"))
+                        .themeCaption(layout.scaled(12), weight: .heavy)
+                        .foregroundStyle(Theme.inkSubText)
+                        .lineLimit(1)
+                        .fixedSize()
+                        // 当たり判定は枠の内側で 44pt 確保する（枠の外へはみ出させても反応しない）。
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.pop)
+                .accessibilityHint(isHidden ? tr("ピックアップのゲームを表示します") : tr("見出しは残り、右の「表示」でいつでも戻せます"))
+            }
+            .padding(.horizontal, Theme.pad)
+            if !isHidden {
+                LazyVGrid(columns: columns, spacing: Self.gridSpacing) {
+                    ForEach(Array(modules.enumerated()), id: \.element.id) { offset, module in
+                        gridTile(GridEntry(module: module, position: offset + 1), source: .pickup)
+                    }
+                }
+                .padding(.horizontal, Theme.pad)
+            }
+            // 区画の下の薄いグレーの線（#3447）。非表示にしても見出し＋「表示」の下に残す。
+            // 色はランキングの行の区切り（`RankingBoard`）と同じ `inkSub` の薄塗り。ダークでも薄く見える。
+            Rectangle()
+                .fill(Theme.inkSub.opacity(0.25))
+                .frame(height: 1)
+                .padding(.horizontal, Theme.pad)
+                .padding(.top, isHidden ? 0 : 12)
+                .accessibilityHidden(true)
+        }
+        .padding(.top, 4)
+    }
+
+    private func gridTile(_ entry: GridEntry, source: GameOpenSource = .hub) -> some View {
         let module = entry.module
         let hasResume = isResumable(module.id)
         // 記録が無い（一度も遊んでいない）ゲームに出す。1 回遊べば消える（#2849）。記録が読めないときは出さない。
         let isUnplayed = services.playLog.map { !$0.hasPlayed(gameID: module.id) } ?? false
         // 位置は並べ替え設定を反映した**見えている順**の 1 始まり（#659）。
         return NavigationLink(value: HubRoute(
-            gameID: module.id, source: .hub, position: entry.position, resume: hasResume
+            gameID: module.id, source: source, position: entry.position, resume: hasResume
         )) {
             GameCard(
                 module: module,
@@ -619,6 +702,7 @@ struct HubView: View {
                 resumeProgress: hasResume ? registry.resumeProgress(gameID: module.id, in: services.snapshots) : nil,
                 isNew: NewGames.currentVersionIDs.contains(module.id),
                 isEvent: HubEventBadge.isShown(gameID: module.id),
+                isMostPopular: NewGames.mostPopularIDs.contains(module.id),
                 updateTag: UpdatedGames.tag(for: module.id),
                 isUnplayed: isUnplayed,
                 // 柵越えおじさんだけ、今日の残り回数（#2208。ボールの絵は #2273）。「イベント開催中」と両方出す（#2572）。
@@ -717,6 +801,8 @@ private struct GameCard: View {
     let isNew: Bool
     /// 「イベント開催中」の印を出すか（#2566）。NEW のほうが優先で、文字の印は左下に 1 つだけ。
     let isEvent: Bool
+    /// 「1番人気」の札を出すか（#3447。対象は `NewGames.mostPopularIDs`）。NEW・イベントの次に優先する。
+    let isMostPopular: Bool
     /// その版で中身が増えたゲームのタグ（「新ステージ追加」など・#2790）。優先順は NEW ＞ イベント ＞ 更新 ＞ 続きから。
     var updateTag: UpdateTag?
     /// 一度も遊んでいないゲームか（#2849）。NEW・イベント・続きからのどれも無いときだけ「未プレイ」を出す。
@@ -795,7 +881,7 @@ private struct GameCard: View {
     }
 
     /// 「続きから」の印を出す局面か（NEW・イベントが優先）。
-    private var showsResumeBadge: Bool { !isNew && !isEvent && hasResume }
+    private var showsResumeBadge: Bool { !isNew && !isEvent && !isMostPopular && hasResume }
 
     /// 文字の印。「続きから」を出しているときは、その下に進み具合の印を 1 段足す（#2870）。
     @ViewBuilder
@@ -816,6 +902,8 @@ private struct GameCard: View {
             badgeCapsule("NEW")
         } else if isEvent {
             badgeCapsule(tr("イベント開催中"))
+        } else if isMostPopular {
+            badgeCapsule(tr("1番人気"))
         } else if let updateTag {
             badgeCapsule(updateTag.label)
         } else if hasResume {
@@ -872,6 +960,7 @@ private struct GameCard: View {
         if showsResumeBadge, let resumeProgress { parts.append(resumeProgress) }
         if isNew { parts.append(tr("新着")) }
         if isEvent { parts.append(tr("イベント開催中")) }
+        if isMostPopular { parts.append(tr("1番人気")) }
         if let updateTag { parts.append(updateTag.label) }
         if isUnplayed { parts.append(tr("未プレイ")) }
         if let count { parts.append(count.labelText()) }

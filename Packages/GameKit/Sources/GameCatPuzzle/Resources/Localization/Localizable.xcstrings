@@ -1,6 +1,61 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "おじさんちのねこさがしで、鍵の面をクリアしました！ #あそびば" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cleared a key stage in Ojisan's Hidden Cats! #asobiba"
+          }
+        }
+      }
+    },
+    "おじさんちのねこさがし、鍵の面まで来ました。猫はどこにいる？ #あそびば" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Made it to a key stage in Ojisan's Hidden Cats. Where are the cats? #asobiba"
+          }
+        }
+      }
+    },
+    "鍵を持った猫を見つけて、鍵の面をクリア！ おじさんちのねこさがし #あそびば" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Found the cat with the key and cleared the key stage! Ojisan's Hidden Cats #asobiba"
+          }
+        }
+      }
+    },
+    "X でポストして、ヒント ＋%1$lld・餌をあげる ＋%2$lld をもらう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Post on X to get Hint +%1$lld and Feed +%2$lld"
+          }
+        }
+      }
+    },
+    "ヒント ＋%1$lld・餌をあげる ＋%2$lld をもらいました！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You got Hint +%1$lld and Feed +%2$lld!"
+          }
+        }
+      }
+    },
     "%1$@（%2$@）" : {
       "extractionState" : "manual",
       "localizations" : {

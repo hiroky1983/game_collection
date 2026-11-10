@@ -654,16 +654,9 @@ struct MinesweeperNewGameSheet: View {
             }, onCancel: onCancel
         ) {
             GameSetupSection(tr("難易度")) {
-                HStack(spacing: 6) {
-                    ForEach(Array(MinesweeperDifficulty.allCases.enumerated()), id: \.element) { step, difficulty in
-                        GameSetupChooser(title: difficulty.label, subtitle: difficulty.subtitle,
-                                         selected: level == difficulty,
-                                         accent: DifficultyTile.accent(step: step, of: MinesweeperDifficulty.allCases.count),
-                                         metrics: DifficultyTile.metrics) {
-                            level = difficulty
-                        }
-                    }
-                }
+                SetupStepSelector(
+                    ladder: MinesweeperDifficulty.allCases.map { ($0, $0.label, $0.subtitle) },
+                    selection: $level)
             }
         }
     }

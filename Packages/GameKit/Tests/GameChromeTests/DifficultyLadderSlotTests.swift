@@ -77,6 +77,8 @@ struct DifficultyLadderSlotTests {
             "GameSolitaire", "GameSpider", "GameShiritori", "GameAnzan",
             // #3152: CPU の強さを持つのに未配線だったトランプ 2 本。
             "GameHearts", "GameDaifugo",
+            // #3287: 大きさが難易度なのに未配線だった 3 本。
+            "GameHanoi", "GameTsunagi", "GameFifteen",
         ]
         for name in leveled {
             let dir = sources.appendingPathComponent(name)

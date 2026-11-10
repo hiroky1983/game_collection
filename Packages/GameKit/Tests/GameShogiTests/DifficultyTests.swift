@@ -83,7 +83,7 @@ enum ShogiSelfPlay {
     /// `timeLimit: .infinity` で締切そのものを無くし、深さだけで決まる状態にする（有限の大きい値だと、
     /// 高負荷時にその値を超えて打ち切りが再発しうる。#1187）。むずかしいの深さ上限は 32 で、そのままでは
     /// 終わらないので `depth` に絞る（既定 5 は `smallGainBehindRecapture` が要る深さ・#502）。下の段は
-    /// 出荷の深さ上限（3 / 2 / 1 手先）のほうが浅いので、そちらが効く。
+    /// 出荷の深さ上限（ふつう 2 / かんたん 1 / 入門 1 手先・#3362）のほうが浅いので、そちらが効く。
     ///
     /// - Parameter slips: `true` なら出荷どおり「最善手を外す」（#1461）。既定は `false`
     ///   （読みだけを固定するテストが確率で揺れないように）。
@@ -99,25 +99,25 @@ enum ShogiSelfPlay {
 @Suite("将棋の難易度: 段階の設計（#1461）")
 struct ShogiDifficultyConfigTests {
 
-    /// 会長決裁（2026-09-27）: 入門 0.02 秒 / かんたん 0.1 秒 / ふつう 0.5 秒 / むずかしい 2 秒。
-    /// 局面数の上限は強さの主軸にしない（出荷値では使わない）。
-    @Test("考える時間は 0.02 / 0.1 / 0.5 / 2 秒で、局面数の上限は無い")
+    /// #3362（会長決裁 2026-11-07 の合格基準で計測）: 入門 0.005 秒 / かんたん 0.02 秒 / ふつう 0.025 秒 /
+    /// むずかしい 2 秒（むずかしいは 2026-09-27 の決裁のまま）。局面数の上限は強さの主軸にしない（出荷値では使わない）。
+    @Test("考える時間は 0.005 / 0.02 / 0.025 / 2 秒で、局面数の上限は無い")
     func timeLimitsFollowTheDecision() {
         let limits = CPUStrength.allCases.map { SimpleMinimaxEngine(level: $0.rawValue).timeLimit }
-        #expect(limits == [0.02, 0.1, 0.5, 2])
+        #expect(limits == [0.005, 0.02, 0.025, 2])
         #expect(CPUStrength.allCases.allSatisfy { SimpleMinimaxEngine(level: $0.rawValue).nodeLimit == nil })
     }
 
-    /// 会長決裁（2026-09-27）: 深さの上限は 入門 1 / かんたん 2 / ふつう 3 手先、むずかしいは上限なし。
+    /// #3362: 深さの上限は 入門 1 / かんたん 1 / ふつう 2 手先、むずかしいは上限なし。
     @Test("探索の仕組みは全段階で同じで、違うのは時間・深さの上限・確率・定跡（むずかしいだけ）")
     func onlyTimeDepthAndProbabilityDiffer() {
         let engines = CPUStrength.allCases.map { SimpleMinimaxEngine(level: $0.rawValue) }
-        #expect(engines.map(\.depth) == [1, 2, 3, SimpleMinimaxEngine.maxDepth])
+        #expect(engines.map(\.depth) == [1, 1, 2, SimpleMinimaxEngine.maxDepth])
         #expect(engines.allSatisfy { $0.usePositional && $0.useQuiescence })
         #expect(engines.map(\.useBook) == [false, false, false, true])
     }
 
-    /// 確率は段階の順に並ぶとは限らない（入門は深さ 1 手先・0.02 秒だけで十分弱く、外しを使わない）。
+    /// 確率は段階の順に並ぶとは限らない（段の差は主に考える時間で付ける・#3362）。
     @Test("むずかしいは 100%・外しを使う段階の損の幅は共通")
     func probabilitiesShareTheSlipMargin() {
         let p = CPUStrength.allCases.map { SimpleMinimaxEngine(level: $0.rawValue).policy }
@@ -127,12 +127,12 @@ struct ShogiDifficultyConfigTests {
         #expect(SimpleMinimaxEngine.slipMargin < PieceValue.base(.gold), "外しでも金より大きい駒は損しない")
     }
 
-    /// 確率は `docs/analytics/shogi-1461-ladder.md` の段階表（上の段の得点率 90% 以上で最も高い値）で決めた値。
-    /// ふつう 80% は会長決裁。変えるときは同じ計測（`Scripts/shogi-cpu-bench`）をやり直して表を更新する。
-    @Test("最善手の確率は 入門 100% / かんたん 70% / ふつう 80% / むずかしい 100%、損の幅は銀 1 枚ぶん")
+    /// 確率は `docs/analytics/shogi-3362-ladder.md` の段階表で決めた値（変更前の同じ段に 40% 以下・隣の段に
+    /// 上の段が 55〜75%）。変えるときは同じ計測（`Scripts/shogi-cpu-bench`）をやり直して表を更新する。
+    @Test("最善手の確率は 入門 50% / かんたん 80% / ふつう 80% / むずかしい 100%、損の幅は銀 1 枚ぶん")
     func probabilitiesArePinnedToTheMeasurement() {
         let p = CPUStrength.allCases.map { SimpleMinimaxEngine(level: $0.rawValue).policy.bestMoveProbability }
-        #expect(p == [1, 0.7, 0.8, 1])
+        #expect(p == [0.5, 0.8, 0.8, 1])
         #expect(SimpleMinimaxEngine.slipMargin == PieceValue.base(.silver))
     }
 }
@@ -175,7 +175,7 @@ struct ShogiDifficultyLadderTests {
     }
 
     /// 全段階が同じ探索（静止探索つき）を回す（#1461: `onlyTimeDepthAndProbabilityDiffer`）ので、
-    /// 取り返しの奥の駒得は時間内に読めれば見える。代表として「ふつう」（3 手先まで）で確かめる。
+    /// 取り返しの奥の駒得は時間内に読めれば見える。代表として「ふつう」（2 手先まで）で確かめる。
     @Test("取り返しの奥の駒得は、時間内に読めれば取る")
     func seesTheGainBehindRecapture() async {
         let engine = ShogiSelfPlay.untimed(level: CPUStrength.normal.rawValue)
@@ -193,7 +193,7 @@ struct ShogiWeakLevelsDesignTests {
         #expect(hard.useBook && hard.timeLimit == 2 && hard.depth == SimpleMinimaxEngine.maxDepth && hard.policy.isExact)
     }
 
-    /// かんたんは最善手を外す（30%）ので、同じ局面でも指す手が散る。むずかしいは決定的。
+    /// かんたんは最善手を外す（20%）ので、同じ局面でも指す手が散る。むずかしいは決定的。
     @Test("かんたんは同じ局面でも指す手が散り、むずかしいは散らない")
     func easyVariesItsMove() async {
         let sfen = "4k4/9/9/4p4/4G4/9/9/9/4K4 b - 1"

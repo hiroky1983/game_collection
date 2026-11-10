@@ -48,13 +48,39 @@ public enum NewGames {
     /// v1.1.15 は新着なし（会長指示 2026-10-31）。次に新ゲームを出す版でここへ足す。
     public static let currentVersionIDs: Set<String> = []
 
-    /// 期間やイベントに関係なく、ハブの一番上に固定するゲームの ID（#3339・会長決裁 2026-11-05）。
-    /// 利用者の並び替え設定より優先し、保存した並びは書き換えない。
-    public static let alwaysFirstIDs: [String] = ["catpuzzle"]
+    /// ハブの一番上「ピックアップ」の区画に出すゲームの ID（#3358・会長決裁 2026-11-06）。
+    /// 区画の中の順はこの並びで固定し、利用者の並び替え設定には従わない。**版を上げるときにここを書き換える**
+    /// （`currentVersionIDs` と同じく、コード上の 1 か所の定数）。
+    ///
+    /// v1.1.16 はねこさがしとソリティア（#3447・会長指示 2026-11-09。当初の将棋から差し替え）。
+    /// 柵越えおじさんは次のイベント（#2793）で上げるため今回は外す。
+    public static let pickupIDs: [String] = ["catpuzzle", "solitaire"]
 
-    /// ハブに並べるゲームの順。常に先頭のゲーム（#3339）、開催中のイベントのゲーム、この版の新着、そのあとに残りを並べる（#3321）。
+    /// ハブのカードに「1番人気」の札を出すゲームの ID（#3447・会長指示 2026-11-09）。
+    /// 札を付けるゲームはここ 1 か所で持つ。入れ替えるときはここだけ書き換える。
+    public static let mostPopularIDs: Set<String> = ["solitaire"]
+
+    /// 区画に実際に出すゲーム（#3358）。区画を出す条件（カテゴリーが「すべて」・利用者が非表示にしていない）を
+    /// 満たさないとき、および利用者がゲーム自体を非表示にしたものは出さない。区画の中の順は `pickupIDs` のまま。
+    ///
+    /// - Parameters:
+    ///   - visibleIDs: 非表示のゲームを除いた、利用者の並びのゲーム ID。
+    ///   - isHiddenByUser: 利用者が区画を非表示にしているか。版が変わっても保たれる（本人の選択を優先）。
+    ///   - isAllCategory: カテゴリーが「すべて」か。絞り込み中は区画を出さない。
+    public static func pickupShownIDs(
+        visibleIDs: [String],
+        isHiddenByUser: Bool,
+        isAllCategory: Bool,
+        pickupIDs: [String] = pickupIDs
+    ) -> [String] {
+        guard isAllCategory, !isHiddenByUser else { return [] }
+        return pickupIDs.filter { visibleIDs.contains($0) }
+    }
+
+    /// ハブに並べるゲームの順。開催中のイベントのゲーム、この版の新着、そのあとに残りを並べる（#3321）。
     /// どれも元の順（利用者の並び替え設定を反映済みの順）を保つ。保存した並びは書き換えず、表示の順だけを変える
-    /// ので、イベントが終われば元の並びに戻る。
+    /// ので、イベントが終われば元の並びに戻る。ピックアップ（#3358）はここでは扱わない
+    /// （区画に出しているあいだ一覧から抜くのは呼び出し側）。
     ///
     /// - Parameters:
     ///   - visibleIDs: 非表示を除いた、利用者の並びのゲーム ID。非表示のゲームは入っていないので
@@ -63,15 +89,12 @@ public enum NewGames {
     public static func pinned(
         visibleIDs: [String],
         newIDs: Set<String> = currentVersionIDs,
-        eventIDs: Set<String> = [],
-        alwaysFirstIDs: [String] = alwaysFirstIDs
+        eventIDs: Set<String> = []
     ) -> [String] {
-        let always = alwaysFirstIDs.filter { visibleIDs.contains($0) }
-        let others = visibleIDs.filter { !alwaysFirstIDs.contains($0) }
-        let events = others.filter { eventIDs.contains($0) }
-        let news = others.filter { newIDs.contains($0) && !eventIDs.contains($0) }
-        let rest = others.filter { !newIDs.contains($0) && !eventIDs.contains($0) }
-        return always + events + news + rest
+        let events = visibleIDs.filter { eventIDs.contains($0) }
+        let news = visibleIDs.filter { newIDs.contains($0) && !eventIDs.contains($0) }
+        let rest = visibleIDs.filter { !newIDs.contains($0) && !eventIDs.contains($0) }
+        return events + news + rest
     }
 
     /// 長押しメニューの「いちばん上に置く」（#662）が、すでに**表示上**その位置にあるか（#2124）。
@@ -85,12 +108,11 @@ public enum NewGames {
         orderedIDs: [String],
         hiddenIDs: Set<String>,
         newIDs: Set<String> = currentVersionIDs,
-        eventIDs: Set<String> = [],
-        alwaysFirstIDs: [String] = alwaysFirstIDs
+        eventIDs: Set<String> = []
     ) -> Bool {
         guard let index = orderedIDs.firstIndex(of: id) else { return true }
         let before = orderedIDs[..<index]
-        let pinnedIDs = newIDs.union(eventIDs).union(alwaysFirstIDs)
+        let pinnedIDs = newIDs.union(eventIDs)
         if pinnedIDs.contains(id) { return before.isEmpty }
         return before.allSatisfy { pinnedIDs.contains($0) && !hiddenIDs.contains($0) }
     }
@@ -102,15 +124,13 @@ public enum NewGames {
         orderedIDs: [String],
         hiddenIDs: Set<String>,
         newIDs: Set<String> = currentVersionIDs,
-        eventIDs: Set<String> = [],
-        alwaysFirstIDs: [String] = alwaysFirstIDs
+        eventIDs: Set<String> = []
     ) -> String {
         func isPinnedAhead(_ ids: Set<String>) -> Bool {
             !ids.contains(id) && orderedIDs.contains { ids.contains($0) && !hiddenIDs.contains($0) }
         }
         if isPinnedAhead(newIDs) { return tr("「%@」を新着の次に移しました", title) }
         if isPinnedAhead(eventIDs) { return tr("「%@」をイベント開催中のゲームの次に移しました", title) }
-        if isPinnedAhead(Set(alwaysFirstIDs)) { return tr("「%@」を常に先頭のゲームの次に移しました", title) }
         return tr("「%@」を先頭に移しました", title)
     }
 

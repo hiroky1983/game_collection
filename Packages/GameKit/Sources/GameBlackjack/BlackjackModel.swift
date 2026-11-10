@@ -398,7 +398,7 @@ public final class BlackjackModel {
             phase: phase,
             format: format
         )
-        try? services?.snapshots.save(snap, for: gameID)
+        services?.snapshots.saveReportingFailure(snap, for: gameID)
     }
 
     // MARK: - Deal

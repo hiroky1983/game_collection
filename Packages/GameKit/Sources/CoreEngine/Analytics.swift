@@ -111,6 +111,10 @@ public enum AnalyticsEndCause: String, Equatable, Sendable, CaseIterable {
     /// 穴（`pit`）と分けてあるのは、**落ちた理由が違う**から——穴は「跳び越せなかった」、
     /// こちらは「跳び続けられなかった」で、直す先（床の長さか、置いた位置か）も別になる。
     case sink
+    /// 腰痛ゲージが満タンになって入院した（腰痛おじさんパズルの荷運び・#3352）。
+    case hospital
+    /// 荷物が積み上がって出現位置が埋まった・せり上がりで押し出された（同上）。入院（`hospital`）とは直し先が違う。
+    case buried
 }
 
 /// `game_end` の `exit`。**途中離脱（quit）の直前に何が起きていたか**（#2848）。
@@ -120,6 +124,22 @@ public enum AnalyticsEndCause: String, Equatable, Sendable, CaseIterable {
 public enum AnalyticsExit: String, Equatable, Sendable, CaseIterable {
     /// ミスした直後に、走り直さずやめた。
     case afterMiss = "after_miss"
+}
+
+/// `game_end` に載せる、腰痛おじさんパズルの荷運びの 1 プレイのまとめ（#3352）。決着（win / loss）のときだけ載る。
+public struct AnalyticsGaugeSummary: Equatable, Sendable {
+    /// 開始時の腰痛ゲージ（0...100）。広告で続けた局では、続けた時点のゲージ。
+    public let startValue: Int
+    /// そのプレイの最大ゲージ（0...100）。
+    public let peakValue: Int
+    /// そのプレイで消した荷物の数（マス数）。
+    public let clearedCount: Int
+
+    public init(startValue: Int, peakValue: Int, clearedCount: Int) {
+        self.startValue = min(100, max(0, startValue))
+        self.peakValue = min(100, max(startValue, peakValue, 0))
+        self.clearedCount = max(0, clearedCount)
+    }
 }
 
 /// `game_end` に載せる、そのプレイ中のミスのまとめ（#2848）。ミスのたびにはイベントを出さない。
@@ -285,6 +305,8 @@ public enum GameOpenSource: String, Equatable, Sendable, CaseIterable {
     case records
     /// ディープリンク `asobiba://game/<game_id>`（#2141。App 内イベントのリンク等）。
     case deeplink
+    /// ハブ最上部の「ピックアップ」の区画（#3358）。版ごとに推す 2 本。並びとして読まないので位置は送らない。
+    case pickup
 
     /// 並びの中の位置を持つ導線か。持たない導線（1枚しか出ないカード・通知）では
     /// `position` の鍵ごと送らない。
@@ -292,7 +314,7 @@ public enum GameOpenSource: String, Equatable, Sendable, CaseIterable {
         switch self {
         case .hub, .recent:                              return true
         case .recommendation, .notification, .firstPick, .quickAction, .hero,
-             .resumeReminder, .reengagement, .challengeReturn, .records, .deeplink: return false
+             .resumeReminder, .reengagement, .challengeReturn, .records, .deeplink, .pickup: return false
         }
     }
 }
@@ -339,7 +361,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
         gameID: String, result: AnalyticsResult, durationSec: Int,
         mode: AnalyticsMode? = nil, cause: AnalyticsEndCause? = nil, hintsUsed: Int = 0,
         credit: AnalyticsCredit? = nil, level: AnalyticsLevel? = nil, misses: AnalyticsMissSummary? = nil,
-        eventPoints: Int? = nil, teachUsed: Int = 0
+        eventPoints: Int? = nil, teachUsed: Int = 0, gauge: AnalyticsGaugeSummary? = nil
     )
     /// 面をクリアしたあと、次の面へ進まず（もう一度も押さず）画面を離れた（#2848）。パラメータは `game_id` / `level`。
     /// 面を進めるゲーム（`level` が `stage-N`）のクリア（win）の直後に離れたときだけ、離れた 1 回につき 1 回。
@@ -363,7 +385,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
     ///
     /// 数えるのは**押したこと**で、共有シートで実際に送ったか・どこへ送ったかは載せない
     /// （共有シートは OS の画面で、アプリからは結果を確実には取れないため）。スコアの生値も載せない。
-    case shareTap(gameID: String)
+    case shareTap(gameID: String, offer: ShareOfferStep? = nil)
     /// 通知の許可ダイアログの結果（#2008）。ダイアログを実際に出した 1 回につき 1 回。
     /// パラメータは `result` / `trigger` のみで、ゲーム ID は載せない。
     case notificationPermission(result: NotificationPermissionResult, trigger: NotificationPermissionTrigger)
@@ -372,7 +394,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
     case reviewPrompt(kind: ReviewPromptKind, step: ReviewPromptStep, trigger: ReviewPromptTrigger? = nil)
     /// ゲーム内の特典を渡した（ねこさがしのデイリーランキング上位・#3256）。渡した 1 回につき 1 回。
     /// パラメータは `game_id` / `rank`（前日の順位）/ `items`（`hint` / `teach` / `hint_teach`）のみ。
-    case rewardGrant(gameID: String, rank: Int, items: RewardGrantItems)
+    case rewardGrant(gameID: String, rank: Int, items: RewardGrantItems, purpose: RewardGrantPurpose = .ranking)
 
     /// Firebase のイベント名。
     public var name: String {
@@ -408,7 +430,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
                 if let days = engagement.daysSinceLastPlay { parameters["days_since_last_play"] = .int(days) }
             }
             return parameters
-        case let .gameEnd(gameID, result, durationSec, mode, cause, hintsUsed, credit, level, misses, eventPoints, teachUsed):
+        case let .gameEnd(gameID, result, durationSec, mode, cause, hintsUsed, credit, level, misses, eventPoints, teachUsed, gauge):
             var parameters: [String: AnalyticsValue] = [
                 "game_id": .string(gameID),
                 // `AnalyticsResult` は win / loss / draw / quit の4値に閉じた enum。
@@ -435,6 +457,12 @@ public enum AnalyticsEvent: Equatable, Sendable {
             }
             // イベントのポイントを稼いだクリアだけ（ねこさがしの 1 か月イベント・#3204）。
             if let eventPoints { parameters["event_points"] = .int(eventPoints) }
+            // 腰痛おじさんパズルの荷運びの決着だけ（開始・最大ゲージと消した数。#3352）。
+            if let gauge {
+                parameters["pain_start"] = .int(gauge.startValue)
+                parameters["pain_max"] = .int(gauge.peakValue)
+                parameters["cleared_count"] = .int(gauge.clearedCount)
+            }
             return parameters
         case let .clearExit(gameID, level):
             return ["game_id": .string(gameID), "level": .string(level.parameterValue)]
@@ -459,8 +487,11 @@ public enum AnalyticsEvent: Equatable, Sendable {
                 "purpose": .string(purpose.rawValue),
                 "result": .string(result.rawValue),
             ]
-        case let .shareTap(gameID):
-            return ["game_id": .string(gameID)]
+        case let .shareTap(gameID, offer):
+            var parameters: [String: AnalyticsValue] = ["game_id": .string(gameID)]
+            // X でポストして特典をもらう提案（#3359）の表示・押下のときだけ `offer` を載せる。通常の共有は `game_id` のみ。
+            if let offer { parameters["offer"] = .string(offer.rawValue) }
+            return parameters
         case let .notificationPermission(result, trigger):
             return [
                 "result": .string(result.rawValue),
@@ -474,12 +505,18 @@ public enum AnalyticsEvent: Equatable, Sendable {
             // 勝利の見せ場のきっかけは従来どおり鍵を送らない。遊んだ日数の節目だけ載せる（#3078）。
             if let trigger { parameters["trigger"] = .string(trigger.rawValue) }
             return parameters
-        case let .rewardGrant(gameID, rank, items):
-            return [
+        case let .rewardGrant(gameID, rank, items, purpose):
+            var parameters: [String: AnalyticsValue] = [
                 "game_id": .string(gameID),
-                "rank": .int(rank),
                 "items": .string(items.rawValue),
             ]
+            // 順位の特典（#3256）は従来どおり `rank` を送り `purpose` は載せない。X でポストした特典（#3359）は順位が無いので
+            // `rank` の代わりに `purpose = share` を送る。
+            switch purpose {
+            case .ranking: parameters["rank"] = .int(rank)
+            case .share: parameters["purpose"] = .string(purpose.rawValue)
+            }
+            return parameters
         }
     }
 }
@@ -489,6 +526,24 @@ public enum RewardGrantItems: String, Sendable, CaseIterable {
     case hint
     case teach
     case hintTeach = "hint_teach"
+    /// 柵越えおじさんのその日のプレイ回数 +1（X でポストした特典・#3359）。
+    case challenge
+}
+
+/// `reward_grant` の `purpose`（#3359）。何の特典か。順位の特典（#3256）は従来どおり載せない。
+public enum RewardGrantPurpose: String, Sendable, CaseIterable {
+    /// デイリーランキングの順位の特典（`rank` を送る）。
+    case ranking
+    /// X でポストした特典（ゲームごとに 1 回）。
+    case share
+}
+
+/// `share_tap` の `offer`（#3359）。「X でポストして特典をもらう」提案の流れ。通常の共有ボタンは載せない。
+public enum ShareOfferStep: String, Sendable, CaseIterable {
+    /// 提案を出した（結果画面に表示した 1 回につき 1 回）。
+    case shown
+    /// 提案の「X でポスト」を押した。
+    case tap
 }
 
 /// `review_prompt` の `kind`（#3061）。どちらの評価のお願いか。
@@ -615,6 +670,8 @@ public final class GameAnalytics {
     private var missCounts: [String: Int] = [:]
     /// そのプレイのクリアで稼いだイベントのポイント（#3204）。終わりの `game_end` に載せる。
     private var eventPoints: [String: Int] = [:]
+    /// 進行中のプレイのゲージのまとめ（#3352）。終わりの `game_end` に載せる。プレイを始め直すと消える。
+    private var gauges: [String: AnalyticsGaugeSummary] = [:]
     /// 進行中のプレイで「猫を教える」を使った回数（#3232）。終わりの `game_end` に `teach_used` として載せる。
     private var teachCounts: [String: Int] = [:]
     private var missPercents: [String: Int] = [:]
@@ -774,6 +831,15 @@ public final class GameAnalytics {
         unresolvedMisses.insert(gameID)
     }
 
+    /// 決着の原因（`cause`）とゲージのまとめを覚える（腰痛おじさんパズルの荷運び・#3352）。**イベントは送らない**。
+    /// `finishPlay` より前に呼ぶと、その `game_end` に載る。`recordMissCause` と違い、ミスの回数は数えない
+    /// （入院・積み上がりは「ミス」ではなく決着）。`cause` は負けたときだけ渡す。
+    public func recordEndDetail(gameID: String, cause: AnalyticsEndCause?, gauge: AnalyticsGaugeSummary) {
+        guard case .inFlight = plays[gameID] else { return }
+        causes[gameID] = cause
+        gauges[gameID] = gauge
+    }
+
     /// そのプレイのクリアで稼いだイベントのポイントを覚える（#3204）。**イベントは送らない**。
     /// `finishPlay` より前に呼ぶと、その `game_end` に `event_points` として載る。
     public func recordEventPoints(gameID: String, points: Int) {
@@ -828,15 +894,15 @@ public final class GameAnalytics {
     }
 
     /// ゲーム内の特典を渡したときに呼ぶ（#3256）。プレイの数え方には影響しない。
-    public func recordRewardGrant(gameID: String, rank: Int, items: RewardGrantItems) {
+    public func recordRewardGrant(gameID: String, rank: Int, items: RewardGrantItems, purpose: RewardGrantPurpose = .ranking) {
         guard allowedGameIDs.contains(gameID) else { return }
-        service.log(.rewardGrant(gameID: gameID, rank: rank, items: items))
+        service.log(.rewardGrant(gameID: gameID, rank: rank, items: items, purpose: purpose))
     }
 
     /// リザルトの共有ボタンを押したときに呼ぶ（#1043）。プレイの数え方には影響しない。
-    public func recordShareTap(gameID: String) {
+    public func recordShareTap(gameID: String, offer: ShareOfferStep? = nil) {
         guard allowedGameIDs.contains(gameID) else { return }
-        service.log(.shareTap(gameID: gameID))
+        service.log(.shareTap(gameID: gameID, offer: offer))
     }
 
     /// 通知の許可ダイアログを出して結果が返ったときに呼ぶ（#2008）。プレイの数え方には影響しない。
@@ -1035,7 +1101,7 @@ public final class GameAnalytics {
             gameID: gameID, result: result, durationSec: seconds,
             mode: modes[gameID], cause: causes[gameID], hintsUsed: hintsUsed, credit: credits[gameID],
             level: levels[gameID], misses: misses, eventPoints: eventPoints[gameID],
-            teachUsed: teachCounts[gameID] ?? 0
+            teachUsed: teachCounts[gameID] ?? 0, gauge: gauges[gameID]
         ))
     }
 
@@ -1051,6 +1117,7 @@ public final class GameAnalytics {
         causes[gameID] = nil
         missCounts[gameID] = nil
         eventPoints[gameID] = nil
+        gauges[gameID] = nil
         teachCounts[gameID] = nil
         missPercents[gameID] = nil
         unresolvedMisses.remove(gameID)

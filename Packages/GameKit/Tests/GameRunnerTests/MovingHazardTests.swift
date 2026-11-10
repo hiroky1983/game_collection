@@ -622,7 +622,7 @@ struct RunnerHazardMotionTests {
         #expect(cause("--V---", at: Self.segment * 2 + offset - 6) == .pit, "裂け目は 1 段で跳んでも落ちる")
         // 沈む床（#1089）だけは `RunnerHazardKind` を持たない——床は障害ではないので、
         // 死因は `RunnerField` が直に立てる（`sink`）。語彙はこの 1 つだけ増えた。
-        #expect(AnalyticsEndCause.allCases.count == 5)
+        #expect(AnalyticsEndCause.allCases.count == 7, "走るゲームの語彙は sink まで。hospital・buried は腰痛おじさんパズル（#3352）")
         #expect(AnalyticsEndCause.allCases.map(\.rawValue).contains("sink"))
     }
 

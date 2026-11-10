@@ -1,6 +1,17 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "やり直し" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Redo"
+          }
+        }
+      }
+    },
     "%1$@ %2$lld点" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -67,13 +78,13 @@
         }
       }
     },
-    "0点の役を1つ、広告を見てやり直せます。\n得点表の色のついた0点の役をタップしてください。" : {
+    "0点の役を1つ、広告を見てやり直せます。\n得点表の黄色い、または「やり直し」マークのついた0点の役をタップしてください。" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Watch an ad to redo one combo that scored 0.\nTap a highlighted 0-point combo on the score sheet."
+            "value" : "Watch an ad to redo one combo that scored 0.\nTap a 0-point combo that is highlighted in yellow or marked “Redo” on the score sheet."
           }
         }
       }

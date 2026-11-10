@@ -724,7 +724,7 @@ public final class SpeedModel {
     }
 
     private func persist() {
-        try? services?.snapshots.save(SpeedSnapshot(settings: settings), for: Self.gameID)
+        services?.snapshots.saveReportingFailure(SpeedSnapshot(settings: settings), for: Self.gameID)
     }
 
     private func refreshRecord() {

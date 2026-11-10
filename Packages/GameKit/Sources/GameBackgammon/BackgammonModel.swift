@@ -177,7 +177,10 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel, BoardHintMode
         } else {
             board         = BackgammonBoard()
             currentSide   = .white
-            aiLevel       = CPUStrength.standard.rawValue
+            // 開始シートの初期値は最後に選んだ強さ（#3224）。初回・読めないときは標準。
+            aiLevel       = CPUStrength.strength(
+                for: services?.playLog?.lastStart(Int.self, gameID: Self.gameID) ?? CPUStrength.standard.rawValue
+            ).rawValue
             dice          = []
             remainingDice = []
             turnID        = 0
@@ -322,6 +325,7 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel, BoardHintMode
 
     public func newGame(aiLevel: Int = CPUStrength.standard.rawValue) {
         self.aiLevel = aiLevel
+        services?.playLog?.saveLastStart(aiLevel, gameID: gameID)
         board = BackgammonBoard()
         winner = nil
         winKind = nil
@@ -517,7 +521,7 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel, BoardHintMode
             turnStartPoints: turnStart?.points, turnStartBar: turnStart?.bar, turnStartOff: turnStart?.off,
             hintsUsed: hints.used, humanMoved: humanHasMoved
         )
-        try? services?.snapshots.save(snap, for: gameID)
+        services?.snapshots.saveReportingFailure(snap, for: gameID)
     }
 
     // MARK: - テスト・撮影用

@@ -239,7 +239,7 @@ public final class PokerModel {
             playerExchangedIndices: playerExchangedIndices.sorted(),
             sessionFormat: format
         )
-        try? services?.snapshots.save(snap, for: gameID)
+        services?.snapshots.saveReportingFailure(snap, for: gameID)
     }
 
     // MARK: - 決着の表示（#1754）

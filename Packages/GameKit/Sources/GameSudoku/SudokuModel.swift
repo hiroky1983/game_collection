@@ -472,6 +472,12 @@ public final class SudokuModel {
         selected = step.index
         services?.feedback.impact(.rigid)
         persist()
+        // 入力もメモもヒントもミスも無い盤（`SudokuModule` の手つかず判定と同じ）に戻したら、
+        // `enter` で立てた離脱の印も戻す（#3414）。ミスは戻らないので、誤答を戻しただけなら印は残る。
+        let entered = board.indices.contains { !given[$0] && board[$0] != 0 }
+        if !entered, !notes.contains(where: { $0 != 0 }), hintsUsed == 0, mistakes == 0 {
+            services?.gameDidUndoToStart(gameID: gameID)
+        }
     }
 
     /// 選択マスの数字とメモを消す。
@@ -707,7 +713,7 @@ public final class SudokuModel {
             undosRemaining: undosRemaining,
             noteMode: noteMode
         )
-        try? services?.snapshots.save(snapshot, for: gameID)
+        services?.snapshots.saveReportingFailure(snapshot, for: gameID)
     }
 
     /// 復元して安全に使えるスナップショットか。**長さと値域まで見る**

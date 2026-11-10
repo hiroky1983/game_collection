@@ -805,14 +805,13 @@ struct GoNewGameSheet: View {
                 .themeBody(13).foregroundStyle(Theme.inkSubText)
 
             GameSetupSection(tr("碁盤の大きさ")) {
-                HStack(spacing: 12) {
-                    ForEach(GoBoardSize.allCases, id: \.self) { size in
-                        GameSetupChooser(title: size.label,
-                                         subtitle: size == .nine ? tr("短時間で終わる") : tr("じっくり打つ"),
-                                         selected: boardSize == size, accent: Theme.Fill.purple,
-                                         metrics: Self.metrics) { boardSize = size }
-                    }
-                }
+                SetupStepSelector(
+                    options: GoBoardSize.allCases.map {
+                        SetupStepOption(value: $0, title: $0.label,
+                                        detail: $0 == .nine ? tr("短時間で終わる") : tr("じっくり打つ"),
+                                        accent: Theme.Fill.purple)
+                    },
+                    selection: $boardSize)
             }
 
             GameSetupSection(tr("あなたの石")) {
@@ -834,15 +833,13 @@ struct GoNewGameSheet: View {
             // 置き石は黒（人間）がハンデをもらう仕組みなので、白を選んだときは出さない。
             if side == .black {
                 GameSetupSection(tr("置き石（ハンデ）")) {
-                    HStack(spacing: 8) {
-                        ForEach(GoRuleset.handicapChoices, id: \.self) { count in
-                            GameSetupChooser(title: count == 0 ? tr("互先") : tr("%lld子", count),
-                                             subtitle: count == 0 ? tr("コミ6.5") : tr("コミ0.5"),
-                                             selected: handicap == count,
-                                             accent: Theme.Fill.purple,
-                                             metrics: Self.metrics) { handicap = count }
-                        }
-                    }
+                    SetupStepSelector(
+                        options: GoRuleset.handicapChoices.map { count in
+                            SetupStepOption(value: count, title: count == 0 ? tr("互先") : tr("%lld子", count),
+                                            detail: count == 0 ? tr("コミ6.5") : tr("コミ0.5"),
+                                            accent: Theme.Fill.purple)
+                        },
+                        selection: $handicap)
                 }
             }
         }

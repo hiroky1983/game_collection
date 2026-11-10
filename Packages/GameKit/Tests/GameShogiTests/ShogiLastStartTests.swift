@@ -27,7 +27,7 @@ struct ShogiLastStartTests {
         let f = LastStartFixture()
         let first = ShogiGameModel(services: f.services())
         #expect(first.humanSide == .black)
-        #expect(first.aiLevel == 1)
+        #expect(first.aiLevel == CPUStrength.easy.rawValue, "初回は かんたん（#3362）")
         #expect(first.startSheetSetting.handicap == .even)
         first.newGame(humanSide: .white, aiLevel: 3, handicap: .even, dropper: .player)
         first.newGame(humanSide: .black, aiLevel: 3, handicap: .rook, dropper: .cpu)

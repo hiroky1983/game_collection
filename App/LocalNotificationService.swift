@@ -1,6 +1,24 @@
 import UIKit
+import os
 import UserNotifications
 import Core
+
+/// 通知の予約（`UNUserNotificationCenter.add`）の成否を 1 行ログに残す（#3296）。
+/// 許諾の結果とは別に、予約できなかったことを「無反応」と取り違えないための記録。
+enum NotificationAddLog {
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "app", category: "notification")
+
+    /// 予約できたら true。失敗はログに残して false を返す。
+    nonisolated static func add(_ request: UNNotificationRequest, kind: String) async -> Bool {
+        do {
+            try await UNUserNotificationCenter.current().add(request)
+            return true
+        } catch {
+            logger.error("通知の予約に失敗 kind=\(kind, privacy: .public) id=\(request.identifier, privacy: .public) error=\(String(describing: error), privacy: .public)")
+            return false
+        }
+    }
+}
 
 /// 中断したゲームのお知らせ（#663）の通知の識別子。delegate（非隔離）からも読むため、
 /// MainActor に隔離される型の中ではなくここに置く。
@@ -44,7 +62,7 @@ final class UserNotificationReminderScheduler: ResumeReminderScheduler {
         await Self.pendingReminderRequests()
     }
 
-    func schedule(_ reminder: ResumeReminder, title: String, body: String) async {
+    func schedule(_ reminder: ResumeReminder, title: String, body: String) async -> Bool {
         await Self.add(reminder, title: title, body: body)
     }
 
@@ -92,7 +110,7 @@ final class UserNotificationReminderScheduler: ResumeReminderScheduler {
         }
     }
 
-    nonisolated private static func add(_ reminder: ResumeReminder, title: String, body: String) async {
+    nonisolated private static func add(_ reminder: ResumeReminder, title: String, body: String) async -> Bool {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
@@ -108,7 +126,7 @@ final class UserNotificationReminderScheduler: ResumeReminderScheduler {
             content: content,
             trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
         )
-        try? await UNUserNotificationCenter.current().add(request)
+        return await NotificationAddLog.add(request, kind: "resume")
     }
 }
 
@@ -155,18 +173,19 @@ final class UserNotificationReengagementScheduler: ReengagementReminderScheduler
         return await authorization()
     }
 
-    func schedule(gameID: String, fireDates: [Date], title: String, body: String) async {
+    func schedule(gameID: String, fireDates: [Date], title: String, body: String) async -> Bool {
         let previous = pendingOperation
-        let task = Task<Void, Never> {
+        let task = Task<Bool, Never> {
             await previous?.value
             // 前回の予約が残っているとインデックスがずれて末尾が重複するため、採番し直す前に必ず消す。
             let identifiers = ReengagementReminderPolicy.offsetDays.indices
                 .map { ReengagementReminderNotification.identifier(for: gameID, index: $0) }
             UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: identifiers)
-            await Self.add(gameID: gameID, fireDates: fireDates, title: title, body: body)
+            return await Self.add(gameID: gameID, fireDates: fireDates, title: title, body: body)
         }
-        pendingOperation = task
-        await task.value
+        // 直列化の鎖は結果を持たない Task<Void> で繋ぎ、成否は task から受け取る。
+        pendingOperation = Task { _ = await task.value }
+        return await task.value
     }
 
     func cancel(gameID: String) {
@@ -203,8 +222,8 @@ final class UserNotificationReengagementScheduler: ReengagementReminderScheduler
         center.removeDeliveredNotifications(withIdentifiers: deliveredIDs)
     }
 
-    nonisolated private static func add(gameID: String, fireDates: [Date], title: String, body: String) async {
-        let center = UNUserNotificationCenter.current()
+    nonisolated private static func add(gameID: String, fireDates: [Date], title: String, body: String) async -> Bool {
+        var allScheduled = true
         for (index, fireDate) in fireDates.enumerated() {
             let content = UNMutableNotificationContent()
             content.title = title
@@ -219,8 +238,9 @@ final class UserNotificationReengagementScheduler: ReengagementReminderScheduler
                 content: content,
                 trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
             )
-            try? await center.add(request)
+            if await !NotificationAddLog.add(request, kind: "reengagement") { allScheduled = false }
         }
+        return allScheduled
     }
 }
 
@@ -260,7 +280,7 @@ final class UserNotificationChallengeReturnScheduler: ChallengeReturnReminderSch
         await Self.pendingTriggerDate()
     }
 
-    func schedule(fireDate: Date, title: String, body: String) async {
+    func schedule(fireDate: Date, title: String, body: String) async -> Bool {
         await Self.add(fireDate: fireDate, title: title, body: body)
     }
 
@@ -281,7 +301,7 @@ final class UserNotificationChallengeReturnScheduler: ChallengeReturnReminderSch
             .flatMap { ($0.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate() }
     }
 
-    nonisolated private static func add(fireDate: Date, title: String, body: String) async {
+    nonisolated private static func add(fireDate: Date, title: String, body: String) async -> Bool {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
@@ -295,7 +315,58 @@ final class UserNotificationChallengeReturnScheduler: ChallengeReturnReminderSch
             content: content,
             trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
         )
-        try? await UNUserNotificationCenter.current().add(request)
+        return await NotificationAddLog.add(request, kind: "challengeReturn")
+    }
+}
+
+/// 連続日数が途切れそうな夕方の通知（#3417）。予約は常に 1 件なので識別子は固定。
+enum StreakReminderNotification {
+    static let identifier = NotificationTapTarget.streakReminderIdentifier
+}
+
+/// `StreakReminderService`（Core）の予約先を `UNUserNotificationCenter` で実装する。
+/// 識別子の名前空間が他の通知と別なので、お互いの予約を巻き込まない。**許可ダイアログは出さない**。
+@MainActor
+final class UserNotificationStreakScheduler: StreakReminderScheduler {
+    private var center: UNUserNotificationCenter { .current() }
+
+    func authorization() async -> ReminderAuthorization {
+        switch await Self.authorizationStatus() {
+        case .authorized:               return .authorized
+        case .provisional, .ephemeral:  return .provisional
+        case .notDetermined:            return .notDetermined
+        case .denied:                   return .denied
+        @unknown default:               return .denied
+        }
+    }
+
+    func schedule(fireDate: Date, title: String, body: String) async -> Bool {
+        await Self.add(fireDate: fireDate, title: title, body: body)
+    }
+
+    func cancel() {
+        center.removePendingNotificationRequests(withIdentifiers: [StreakReminderNotification.identifier])
+        center.removeDeliveredNotifications(withIdentifiers: [StreakReminderNotification.identifier])
+    }
+
+    nonisolated private static func authorizationStatus() async -> UNAuthorizationStatus {
+        await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+
+    nonisolated private static func add(fireDate: Date, title: String, body: String) async -> Bool {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        let components = Calendar.current.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second], from: fireDate
+        )
+        let request = UNNotificationRequest(
+            identifier: StreakReminderNotification.identifier,
+            content: content,
+            trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        )
+        return await NotificationAddLog.add(request, kind: "streak")
     }
 }
 
@@ -351,6 +422,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
                 case .resumeReminder(let gameID): AppEnvironment.reminders.notificationTapped(gameID: gameID)
                 case .reengagement(let gameID):   AppEnvironment.reengagement.notificationTapped(gameID: gameID)
                 case .challengeReturn(let gameID): AppEnvironment.returnReminder.notificationTapped(gameID: gameID)
+                case .streakReminder: AppEnvironment.streakReminder.notificationTapped()
                 case nil: break
                 }
             }

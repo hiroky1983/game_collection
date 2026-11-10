@@ -61,9 +61,9 @@ struct CatPuzzleBoardCanvas: View {
         let rooms = (0..<n).map { CatPuzzleHouse.room($0) }
         ZStack(alignment: .topLeading) {
             // 下の層: 床・マスの区切り・ヒントの黄色い帯・壁・×（赤い × は別の層）。× はどのマスでも中央に描く。
+            // 床とマスの区切りは × を付け外ししても変わらないので別の層に分け、入力が同じ間は描き直さない（#3403）。
+            CatPuzzleBoardFloorLayer(puzzle: puzzle, cellSide: cellSide).equatable()
             Canvas { context, _ in
-                drawFloors(&context, rooms: rooms)
-                drawGrid(&context)
                 drawKeyVeil(&context)
                 drawHintGlow(&context)
                 drawConflictFills(&context)
@@ -180,29 +180,6 @@ struct CatPuzzleBoardCanvas: View {
     }
 
     // MARK: - 下の層
-
-    private func drawFloors(_ context: inout GraphicsContext, rooms: [CatPuzzleHouse.Room]) {
-        for cell in 0..<puzzle.cellCount {
-            let room = rooms[puzzle.rooms[cell] % rooms.count]
-            let r = rect(of: cell)
-            context.fill(Path(r), with: .color(room.tint))
-            CatPuzzleFloorPainter.draw(room.floor, in: r, strength: room.patternStrength, context: &context, ink: Theme.ink)
-        }
-    }
-
-    /// マスの区切り（タップの単位）。床の柄よりはっきり、壁より細く。
-    private func drawGrid(_ context: inout GraphicsContext) {
-        let n = puzzle.side
-        var path = Path()
-        for i in 1..<n {
-            let p = CGFloat(i) * cellSide
-            path.move(to: CGPoint(x: p, y: 0))
-            path.addLine(to: CGPoint(x: p, y: cellSide * CGFloat(n)))
-            path.move(to: CGPoint(x: 0, y: p))
-            path.addLine(to: CGPoint(x: cellSide * CGFloat(n), y: p))
-        }
-        context.stroke(path, with: .color(CatPuzzleHouse.gridColor), lineWidth: CatPuzzleHouse.gridWidth)
-    }
 
     /// 鍵が閉じている間、鍵の部屋の外のマスを薄く覆う（触れないマスだと分かるように）。
     private func drawKeyVeil(_ context: inout GraphicsContext) {
@@ -636,5 +613,54 @@ struct CatPopModifier: ViewModifier {
             .scaleEffect(scale)
             .rotationEffect(.degrees(degrees))
             .opacity(opacity)
+    }
+}
+
+/// 盤の床とマスの区切り（× の付け外しでは変わらない層）。`Equatable` にして `.equatable()` で重ね、
+/// 盤の大きさ・拡大率が同じ間は × のたびに Canvas を描き直さない（#3403）。
+private struct CatPuzzleBoardFloorLayer: View, Equatable {
+    let puzzle: CatPuzzle
+    let cellSide: CGFloat
+    /// ライト / ダークの切り替えでは描き直す（下の `.id` で確実に作り直す）。
+    @Environment(\.colorScheme) private var colorScheme
+
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.puzzle == rhs.puzzle && lhs.cellSide == rhs.cellSide
+    }
+
+    var body: some View {
+        let rooms = (0..<puzzle.side).map { CatPuzzleHouse.room($0) }
+        Canvas { context, _ in
+            drawFloors(&context, rooms: rooms)
+            drawGrid(&context)
+        }
+        .id(colorScheme)
+    }
+
+    private func rect(of cell: Int) -> CGRect {
+        CatPuzzleBoardCanvas.rect(of: cell, side: puzzle.side, cellSide: cellSide)
+    }
+
+    private func drawFloors(_ context: inout GraphicsContext, rooms: [CatPuzzleHouse.Room]) {
+        for cell in 0..<puzzle.cellCount {
+            let room = rooms[puzzle.rooms[cell] % rooms.count]
+            let r = rect(of: cell)
+            context.fill(Path(r), with: .color(room.tint))
+            CatPuzzleFloorPainter.draw(room.floor, in: r, strength: room.patternStrength, context: &context, ink: Theme.ink)
+        }
+    }
+
+    /// マスの区切り（タップの単位）。床の柄よりはっきり、壁より細く。
+    private func drawGrid(_ context: inout GraphicsContext) {
+        let n = puzzle.side
+        var path = Path()
+        for i in 1..<n {
+            let p = CGFloat(i) * cellSide
+            path.move(to: CGPoint(x: p, y: 0))
+            path.addLine(to: CGPoint(x: p, y: cellSide * CGFloat(n)))
+            path.move(to: CGPoint(x: 0, y: p))
+            path.addLine(to: CGPoint(x: cellSide * CGFloat(n), y: p))
+        }
+        context.stroke(path, with: .color(CatPuzzleHouse.gridColor), lineWidth: CatPuzzleHouse.gridWidth)
     }
 }

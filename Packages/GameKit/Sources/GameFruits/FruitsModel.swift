@@ -381,7 +381,7 @@ public final class FruitsModel {
             hasMadeKinmatsu: hasMadeKinmatsu,
             highestKind: highestKind
         )
-        try? services?.snapshots.save(snapshot, for: Self.gameID)
+        services?.snapshots.saveReportingFailure(snapshot, for: Self.gameID)
     }
 
     #if DEBUG

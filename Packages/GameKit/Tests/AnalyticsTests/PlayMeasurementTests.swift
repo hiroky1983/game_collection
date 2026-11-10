@@ -76,7 +76,7 @@ struct QuitTrackingTests {
         analytics.restartPlay(gameID: "solitaire", mode: .endless)
 
         let ends = spy.events.compactMap { event -> (result: AnalyticsResult, mode: AnalyticsMode?)? in
-            if case let .gameEnd(_, result, _, mode, _, _, _, _, _, _, _) = event { return (result, mode) } else { return nil }
+            if case let .gameEnd(_, result, _, mode, _, _, _, _, _, _, _, _) = event { return (result, mode) } else { return nil }
         }
         #expect(ends.count == 1)
         #expect(ends.first?.result == .quit)
@@ -97,7 +97,7 @@ struct QuitTrackingTests {
         let modes = spy.events.compactMap { event -> (name: String, mode: AnalyticsMode?)? in
             switch event {
             case let .gameStart(_, _, mode, _, _):     return ("start", mode)
-            case let .gameEnd(_, _, _, mode, _, _, _, _, _, _, _): return ("end", mode)
+            case let .gameEnd(_, _, _, mode, _, _, _, _, _, _, _, _): return ("end", mode)
             default:                             return nil
             }
         }
@@ -701,10 +701,12 @@ struct GameOpenWiringTests {
                 "導線を持たない遷移がある（game_open の source が分からない）")
         // 導線ごとに正しい source を載せている。
         // グリッド（#2566 から柵越えおじさんも通常のタイルで、ほかと同じ `.hub`・位置あり。`.hero` の発火点は無い）。
-        #expect(source.range(of: #"gameID: module\.id, source: \.hub, position: entry\.position"#,
+        #expect(source.range(of: #"gameID: module\.id, source: source, position: entry\.position"#,
                              options: .regularExpression) != nil, "グリッド")
         #expect(source.range(of: #"GridEntry\(module: \$0\.element, position: \$0\.offset \+ 1\)"#,
                              options: .regularExpression) != nil, "グリッド（.hub と位置）")
+        #expect(source.contains("source: GameOpenSource = .hub"), "グリッドの既定の導線は .hub")
+        #expect(source.contains("source: .pickup"), "ピックアップの区画（#3358）")
         #expect(!source.contains("source: .hero"), "柵越えおじさんの特別枠（.hero）は廃止した")
         #expect(source.range(of: #"gameID: candidate\.gameID, source: \.recent,\s*position: offset \+ 1"#,
                              options: .regularExpression) != nil, "つづき・最近")

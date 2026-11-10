@@ -717,6 +717,17 @@
         }
       }
     },
+    "浅い読み・大きなミス" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shallow, big blunders"
+          }
+        }
+      }
+    },
     "浅い読み・ミスあり" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -735,17 +746,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Shallow, many mistakes"
-          }
-        }
-      }
-    },
-    "浅い読み・ミス少なめ" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shallow, few mistakes"
           }
         }
       }

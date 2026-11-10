@@ -105,14 +105,15 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         // 手数の範囲に収める（切り詰めが起きた手順や壊れた値でも添字が範囲外にならないように）。
         self.reviewPly = min(max(snap?.reviewPly ?? moveList.count, 0), moveList.count)
         // 既定は CPU 対戦（人間=先手 / CPU=後手）。
-        // 中断データが無いときの初期値は最後に選んだ条件（#3151）。初回は人間=先手・入門・平手。
+        // 中断データが無いときの初期値は最後に選んだ条件（#3151）。初回は人間=先手・かんたん・平手（#3362）。
         let last = snap == nil ? services?.playLog?.lastStart(ShogiStartChoice.self, gameID: "shogi") : nil
         let lastHuman = last.flatMap { Side(rawValue: $0.humanSide) } ?? .black
         self.sente = snap?.sente ?? (lastHuman == .black ? .human : .ai)
         self.gote = snap?.gote ?? (lastHuman == .black ? .ai : .human)
-        // 保存値が今の段に無い（旧版の値など）ときは入門に倒す。達人（#2698）は共通の段の外にある。
+        // 保存値が今の段に無い（旧版の値など）ときも初回と同じ かんたん に倒す。達人（#2698）は共通の段の外にある。
         let supportedLevels = Set(CPUStrength.allCases.map(\.rawValue) + [ShogiMasterEngine.level])
-        self.aiLevel = snap?.aiLevel ?? last.flatMap { supportedLevels.contains($0.aiLevel) ? $0.aiLevel : nil } ?? 1
+        self.aiLevel = snap?.aiLevel ?? last.flatMap { supportedLevels.contains($0.aiLevel) ? $0.aiLevel : nil }
+            ?? CPUStrength.easy.rawValue
         self.lastStartSetting = last.map {
             ShogiMatchSetting(handicap: ShogiHandicap(rawValue: $0.handicap) ?? .even,
                               dropper: ShogiHandicapDropper(rawValue: $0.dropper) ?? .player)
@@ -945,7 +946,7 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
             resigned: resigned,
             hintsUsed: hints.used
         )
-        try? services?.snapshots.save(snap, for: gameID)
+        services?.snapshots.saveReportingFailure(snap, for: gameID)
     }
 
     public func clearSnapshot() {

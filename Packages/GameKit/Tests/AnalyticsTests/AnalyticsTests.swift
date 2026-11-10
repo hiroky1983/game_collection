@@ -153,7 +153,7 @@ struct AnalyticsEventShapeTests {
 
         // 1枚しか出ない導線は位置を持たない。渡されても送らない（実在しない位置を作らない）。
         for source in [GameOpenSource.recommendation, .notification, .firstPick, .quickAction,
-                       .resumeReminder, .reengagement, .challengeReturn, .records, .deeplink] {
+                       .resumeReminder, .reengagement, .challengeReturn, .records, .deeplink, .pickup] {
             let event = AnalyticsEvent.gameOpen(gameID: "shogi", source: source, position: 1, resume: false)
             #expect(Set(event.parameters.keys) == ["game_id", "source", "resume"], "\(source)")
         }
@@ -181,11 +181,11 @@ struct AnalyticsEventShapeTests {
                 == ["resume", "challenge", "reengagement"])
     }
 
-    @Test("source は hub / recent / recommendation / notification / first_pick / quick_action / hero / resume_reminder / reengagement / challenge_return / records / deeplink の12値に閉じている（#659・#721・#1950・#1974・#2141）")
+    @Test("source は hub / recent / recommendation / notification / first_pick / quick_action / hero / resume_reminder / reengagement / challenge_return / records / deeplink / pickup の13値に閉じている（#659・#721・#1950・#1974・#2141・#3358）")
     func openSourceIsClosed() {
         #expect(GameOpenSource.allCases.map(\.rawValue) == [
             "hub", "recent", "recommendation", "notification", "first_pick", "quick_action", "hero",
-            "resume_reminder", "reengagement", "challenge_return", "records", "deeplink",
+            "resume_reminder", "reengagement", "challenge_return", "records", "deeplink", "pickup",
         ])
         #expect(GameOpenSource.allCases.filter(\.hasPosition) == [.hub, .recent])
     }
@@ -233,7 +233,17 @@ struct AnalyticsEventShapeTests {
         ])
 
         // `reward_grant`（#3256）は game_id / rank / items の 3 鍵だけ。items の語彙は enum に閉じる。
-        #expect(RewardGrantItems.allCases.map(\.rawValue) == ["hint", "teach", "hint_teach"])
+        #expect(RewardGrantItems.allCases.map(\.rawValue) == ["hint", "teach", "hint_teach", "challenge"])
+        // X でポストした特典（#3359）は rank の代わりに purpose = share を送る。順位の特典は purpose を載せない。
+        #expect(RewardGrantPurpose.allCases.map(\.rawValue) == ["ranking", "share"])
+        #expect(AnalyticsEvent.rewardGrant(gameID: "homerun", rank: 0, items: .challenge, purpose: .share).parameters == [
+            "game_id": .string("homerun"), "items": .string("challenge"), "purpose": .string("share"),
+        ])
+        // `share_tap` の `offer`（#3359）は提案の表示・押下のときだけ。通常の共有は game_id のみ。
+        #expect(ShareOfferStep.allCases.map(\.rawValue) == ["shown", "tap"])
+        #expect(AnalyticsEvent.shareTap(gameID: "homerun", offer: .tap).parameters == [
+            "game_id": .string("homerun"), "offer": .string("tap"),
+        ])
         #expect(AnalyticsEvent.rewardGrant(gameID: "catpuzzle", rank: 1, items: .hintTeach).parameters == [
             "game_id": .string("catpuzzle"), "rank": .int(1), "items": .string("hint_teach"),
         ])
@@ -292,16 +302,16 @@ struct AnalyticsEventShapeTests {
 
     /// #1089（沈む床）で `sink` を 1 つだけ足した。**足す前の 4 値の並びは変えない**
     /// ——GA4 側の既存の集計は値の集合が増えても壊れないが、既存の値の綴りが変わると壊れる。
-    @Test("cause は pit / rock / bird / animal / sink の5値に閉じている（#796・#1089）")
+    @Test("cause は pit / rock / bird / animal / sink の7値に閉じている（#796・#1089・#3352）")
     func causeIsClosed() {
-        #expect(AnalyticsEndCause.allCases.map(\.rawValue) == ["pit", "rock", "bird", "animal", "sink"])
+        #expect(AnalyticsEndCause.allCases.map(\.rawValue) == ["pit", "rock", "bird", "animal", "sink", "hospital", "buried"])
         let sent = AnalyticsEndCause.allCases.map { cause -> String in
             guard case let .string(text)? = AnalyticsEvent
                 .gameEnd(gameID: "runner", result: .loss, durationSec: 0, cause: cause)
                 .parameters["cause"] else { return "" }
             return text
         }
-        #expect(sent == ["pit", "rock", "bird", "animal", "sink"])
+        #expect(sent == ["pit", "rock", "bird", "animal", "sink", "hospital", "buried"])
     }
 
     @Test("result は win / loss / draw / quit の4値に閉じている（#500）")
@@ -1503,7 +1513,7 @@ struct RunnerQuitTests {
         #expect(spy.ends.isEmpty, "ミスでは終局しない")
         services.gameDidLeave(gameID: RunnerModel.gameID)
         let end = spy.events.last
-        guard case let .gameEnd(_, result, _, _, cause, _, _, _, _, _, _)? = end else { Issue.record("game_end が無い"); return }
+        guard case let .gameEnd(_, result, _, _, cause, _, _, _, _, _, _, _)? = end else { Issue.record("game_end が無い"); return }
         #expect(result == .quit)
         #expect(cause == .pit)
     }
@@ -1513,14 +1523,14 @@ struct RunnerQuitTests {
         let (services, spy) = makeServices()
         let model = RunnerModel(services: services, startingAt: 1)
         autoPlayCurrentStage(model)
-        guard case let .gameEnd(_, result, _, _, cause, _, _, _, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
+        guard case let .gameEnd(_, result, _, _, cause, _, _, _, _, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
         #expect(result == .win)
         #expect(cause == nil)
         // 次のプレイへ持ち越さない: 2 面でミスして離れると、2 面の死因だけが載る。
         model.advanceToNextStage()
         failCurrentStage(model)
         services.gameDidLeave(gameID: RunnerModel.gameID)
-        guard case let .gameEnd(_, result2, _, _, cause2, _, _, _, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
+        guard case let .gameEnd(_, result2, _, _, cause2, _, _, _, _, _, _, _)? = spy.events.last else { Issue.record("game_end が無い"); return }
         #expect(result2 == .quit)
         #expect(cause2 == .pit)
     }
@@ -1532,7 +1542,7 @@ struct RunnerQuitTests {
         let model = RunnerModel(services: services)
         failCurrentStage(model)
         services.gameDidLeave(gameID: RunnerModel.gameID)
-        guard case let .gameEnd(_, result, _, _, _, _, _, _, misses, _, _)? = spy.events.last
+        guard case let .gameEnd(_, result, _, _, _, _, _, _, misses, _, _, _)? = spy.events.last
         else { Issue.record("game_end が無い"); return }
         #expect(result == .quit)
         #expect(misses?.count == 1)
@@ -1553,7 +1563,7 @@ struct RunnerQuitTests {
         failCurrentStage(model)
         model.retryStage()
         autoPlayCurrentStage(model)
-        guard case let .gameEnd(_, result, _, _, _, _, _, _, misses, _, _)? = spy.events.last
+        guard case let .gameEnd(_, result, _, _, _, _, _, _, misses, _, _, _)? = spy.events.last
         else { Issue.record("game_end が無い"); return }
         #expect(result == .win)
         #expect(misses?.count == 2)
@@ -1708,7 +1718,7 @@ struct UntouchedSnapshotReopenTests {
     /// 最後の `game_end` の `mode`（#3225）。
     private func lastEndMode(_ spy: SpyAnalyticsService) -> AnalyticsMode? {
         spy.events.reversed().lazy.compactMap { event -> AnalyticsMode?? in
-            if case let .gameEnd(_, _, _, mode, _, _, _, _, _, _, _) = event { return .some(mode) } else { return nil }
+            if case let .gameEnd(_, _, _, mode, _, _, _, _, _, _, _, _) = event { return .some(mode) } else { return nil }
         }.first ?? nil
     }
 

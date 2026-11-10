@@ -59,7 +59,8 @@ public final class AkariKeshiModel {
         } else {
             board = AkariKeshiLogic.cleared
             moves = 0
-            difficulty = .easy
+            // 開始シートの初期値は最後に選んだ難易度（#3224）。初回・読めないときは入門。
+            difficulty = services?.playLog?.lastStart(AkariKeshiDifficulty.self, gameID: AkariKeshiModel.gameID) ?? .easy
             par = 0
             elapsedSeconds = 0
             state = .idle
@@ -94,6 +95,7 @@ public final class AkariKeshiModel {
         board = puzzle.board
         par = puzzle.solution.count
         self.difficulty = difficulty
+        services?.playLog?.saveLastStart(difficulty, gameID: Self.gameID)
         moves = 0
         elapsedSeconds = 0
         recordResult = nil
@@ -176,7 +178,7 @@ public final class AkariKeshiModel {
     /// 遊んでいる途中で、1 回以上押した盤だけを保存する。
     private func persist() {
         guard state == .playing, moves > 0 else { return }
-        try? services?.snapshots.save(
+        services?.snapshots.saveReportingFailure(
             AkariKeshiSnapshot(board: board, moves: moves, difficulty: difficulty, par: par, elapsedSeconds: elapsedSeconds),
             for: gameID
         )

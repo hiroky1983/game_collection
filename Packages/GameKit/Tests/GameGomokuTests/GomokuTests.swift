@@ -286,7 +286,7 @@ struct GomokuStrengthLabelTests {
         #expect(source.contains(#"GameSetupSection(tr("CPUの強さ"))"#))
         // #1174。並びは `CPUStrength` のやさしい順と同じ（「ガチ」はv1.1.6で一旦見送り）。
         #expect(source.contains("CPUStrengthPicker(level: $level"))
-        for wording in ["見のがしが多い", "浅い読み", "標準", "深い読み"] {
+        for wording in ["四もよく見のがす", "四を見のがすことも", "四は必ず止める", "深い読み"] {
             #expect(
                 SourceScan.matchCount(of: NSRegularExpression.escapedPattern(for: wording), in: source) == 1,
                 "「\(wording)」が1箇所でない（強さ選択の文言が変わっている）"

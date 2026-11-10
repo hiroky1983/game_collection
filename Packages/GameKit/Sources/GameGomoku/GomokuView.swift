@@ -781,9 +781,10 @@ struct GomokuNewGameSheet: View {
                 }
             }
             GameSetupSection(tr("CPUの強さ")) {
-                // 説明は `SimpleGomokuEngine.init(level:)` の中身と一致させる（#416）。
+                // 説明は `SimpleGomokuEngine.init(level:)` の中身と一致させる（#416）。下の 3 段は読む深さが同じ（1 手先）で、
+                // 差は相手の四を止め損ねるか（入門 80%・かんたん 50%・ふつう 止める）と甘い手の多さ（#3362）。
                 CPUStrengthPicker(level: $level, details: [
-                    tr("見のがしが多い"), tr("浅い読み"), tr("標準"), tr("深い読み"),
+                    tr("四もよく見のがす"), tr("四を見のがすことも"), tr("四は必ず止める"), tr("深い読み"),
                 ])
             }
             // 既定はオフ（自由五目）。オンにすると黒だけが三三・四四・長連を打てなくなる。

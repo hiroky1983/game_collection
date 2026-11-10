@@ -288,7 +288,7 @@ public final class ColorRelayModel: AITurnGuarded {
                 let clamped = min(max(newOpponents, Self.opponentCountRange.lowerBound), Self.opponentCountRange.upperBound)
                 playerCount = clamped + 1
             }
-            try? services?.snapshots.save(
+            services?.snapshots.saveReportingFailure(
                 ColorRelayPreferences(aiLevel: aiLevel, opponentCount: opponentCount), for: preferencesID
             )
         }
@@ -715,6 +715,6 @@ public final class ColorRelayModel: AITurnGuarded {
             aiLevel: aiLevel,
             humanHasActed: humanHasActed
         )
-        try? services?.snapshots.save(snap, for: gameID)
+        services?.snapshots.saveReportingFailure(snap, for: gameID)
     }
 }

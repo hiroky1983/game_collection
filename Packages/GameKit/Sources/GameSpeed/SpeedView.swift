@@ -804,6 +804,10 @@ public struct SpeedView: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 14).padding(.vertical, 12)
         .popCard(corner: Theme.cornerSmall)
+        // 勝敗はアイコンと色だけで見せているので、出た時点で文にして VoiceOver に 1 回だけ伝える（#3325）。
+        // 操作欄は同じ階層に残すので `.isModal` は付けない。
+        .accessibilityElement(children: .contain)
+        .announcesResultAppearance(statusText)
     }
 
     private func resultRow(_ name: String, remaining: Int, isWinner: Bool) -> some View {
@@ -1135,15 +1139,11 @@ struct SpeedSetupSheet: View {
             onStart: { onStart(settings) }, onCancel: onCancel
         ) {
             GameSetupSection(tr("速さ")) {
-                HStack(spacing: 12) {
-                    ForEach(SpeedLevel.allCases, id: \.self) { level in
-                        GameSetupChooser(title: level.label, subtitle: level.subtitle,
-                                         selected: settings.level == level,
-                                         accent: Theme.Fill.coral, metrics: Self.metrics) {
-                            settings.level = level
-                        }
-                    }
-                }
+                SetupStepSelector(
+                    options: SpeedLevel.allCases.map {
+                        SetupStepOption(value: $0, title: $0.label, detail: $0.subtitle, accent: Theme.Fill.coral)
+                    },
+                    selection: $settings.level)
                 Text(tr("あなたに制限時間はありません。設定の「ゆっくりモード」をオンにすると、CPU はさらにゆっくりになります。"))
                     .themeCaption(11)
                     .foregroundStyle(Theme.inkSubText)

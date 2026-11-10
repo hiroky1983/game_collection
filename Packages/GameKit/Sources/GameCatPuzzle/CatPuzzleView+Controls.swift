@@ -319,7 +319,9 @@ extension CatPuzzleView {
                         hint: tr("ステージ %lld を始めます", stage + 1)
                     ) { startStage(stage + 1) }
                 },
-                share: CatPuzzleShare.content(for: model)
+                share: CatPuzzleShare.content(for: model),
+                xShareOffer: model.xShareOffer(),
+                xShareGranted: model.xShareGranted
             ) {
                 clearCardClosed = true
             }

@@ -81,6 +81,8 @@ struct GameCollectionApp: App {
                     games: AppEnvironment.reengagementCandidateInputs(),
                     availableIDs: AppEnvironment.settings.visibleModules(from: AppEnvironment.registry).map(\.id)
                 )
+                // 連続日数が途切れそうな夕方の通知（#3417）も、離れる時点の遊んだ日から組み直す。
+                Task { await AppEnvironment.streakReminder.refresh(playDays: AppEnvironment.playLog.playDays) }
                 // ホーム画面アイコン長押し（#1642）の項目も、アプリを離れる時点の状態で組み直す。
                 AppEnvironment.quickActions.refresh(
                     registry: AppEnvironment.registry,

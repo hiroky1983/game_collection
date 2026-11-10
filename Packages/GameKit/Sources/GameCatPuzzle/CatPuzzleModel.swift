@@ -128,6 +128,10 @@ public final class CatPuzzleModel {
     public private(set) var keyOpenings = 0
     /// 前日のランキングの特典を渡した直後のカードの中身（#3256）。閉じたら nil。保存しない。
     var dailyRewardCard: CatPuzzleDailyReward.Grant?
+    /// いまのクリアの結果画面に「X でポストして特典をもらう」を出すか（#3359）。鍵の面を初めてクリアし、まだ受け取っていないときだけ立つ。
+    var xShareOfferEligible = false
+    /// 上の提案で特典を渡した（結果画面を開いている間「もらいました」を出すための印）。
+    var xShareGranted = false
     /// 特典の順位を読んでいる最中（二重に読まない）。
     @ObservationIgnored var isClaimingDailyReward = false
     /// ステージの問題を裏で作っている間（`startStage`）。盤は操作できず、計時もしない。
@@ -513,6 +517,7 @@ public final class CatPuzzleModel {
         isSolved = true
         solvedAt = stopwatch.now()
         // ステージは決着の時点で次の面へ進める（クリアのカードを閉じずにアプリを落としても進み具合は残る）。
+        updateXShareEligibility()
         if let stage, stage + 1 > savedStage { stageDefaults.set(stage + 1, forKey: Self.stageProgressKey) }
         showsClearCard = false
         chooseUncleLine(solved: true)
@@ -656,7 +661,7 @@ public final class CatPuzzleModel {
             hintCrosses: hintCrosses.sorted(), wrongCrosses: wrongCrosses.sorted(),
             continueUsed: continueUsed, stage: stage
         )
-        try? services?.snapshots.save(snapshot, for: Self.gameID)
+        services?.snapshots.saveReportingFailure(snapshot, for: Self.gameID)
     }
 
     /// 鍵の面（9×9 までは 10 面ごと・10×10 以上は 20 面ごと）の鍵の猫。鍵の面でなければ・鍵の猫が決まらなければ nil。

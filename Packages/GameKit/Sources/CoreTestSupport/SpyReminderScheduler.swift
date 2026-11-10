@@ -13,8 +13,9 @@ public final class SpyReminderScheduler: ResumeReminderScheduler {
     public func authorization() async -> ReminderAuthorization { .authorized }
     public func requestExplicitAuthorization() async -> ReminderAuthorization { .authorized }
     public func pendingReminders() async -> [ResumeReminder] { Array(reminders.values) }
-    public func schedule(_ reminder: ResumeReminder, title: String, body: String) async {
+    public func schedule(_ reminder: ResumeReminder, title: String, body: String) async -> Bool {
         reminders[reminder.gameID] = reminder
+        return true
     }
     public func cancel(gameIDs: [String]) { gameIDs.forEach { reminders[$0] = nil } }
     public func cancelAll() { reminders.removeAll() }

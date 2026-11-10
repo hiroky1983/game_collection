@@ -41,6 +41,15 @@ struct RecommendationSlotTests {
         #expect(height(RecommendationSlot(services: services, isFinished: true, ladder: nil)) == 0)
     }
 
+    /// 連続 2 日以上でも、枠の高さは増えない（重ねて描くだけ・#3220）。
+    @Test("連続日数の 1 行は枠の高さを変えない")
+    func streakCaptionDoesNotChangeHeight() {
+        let services = makeServices()
+        let withStreak = RecommendationSlot(services: services, isFinished: true)
+            .environment(\.playStreakProvider, { 3 })
+        #expect(height(withStreak) == 0)
+    }
+
     /// 「ほかのあそび」の部品が復活していないことをソースで見る（#917 の取り下げを固定）。
     /// コメントの言及に当たらないよう、コードの行だけを見る。
     @Test("ほかのあそびの部品は枠から消えている")

@@ -242,6 +242,13 @@ public struct BlocksView: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: Theme.cornerSmall, style: .continuous))
         }
+        // 外付けキーボード（#3400）: ←→ パドル / スペース・↑ 発射。VoiceOver のアクションと同じ呼び出し。
+        .gameDirectionKeys(
+            onUp: keyboardLaunch,
+            onLeft: { if model.phase == .ready || model.phase == .playing { model.nudgePaddle(steps: -1) } },
+            onRight: { if model.phase == .ready || model.phase == .playing { model.nudgePaddle(steps: 1) } },
+            onSpace: keyboardLaunch
+        )
         // シーンは `.aspectFit` なので、枠の縦横比をフィールドと必ず一致させる。
         // ずれると左右に余白が出て、タップ位置とパドルの対応も狂う。
         .aspectRatio(BlocksField.Metrics.aspectRatio, contentMode: .fit)
@@ -265,6 +272,10 @@ public struct BlocksView: View {
     /// （`-simulateBlocks paused` で実測。ブロックもパドルも消えた）。
     private func syncRenderLoop() {
         scene.view?.isPaused = !model.phase.needsAnimationFrames
+    }
+
+    private func keyboardLaunch() {
+        if model.phase == .ready { model.launch() }
     }
 
     private var accessibilityValue: String {

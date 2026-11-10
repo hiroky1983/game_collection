@@ -64,18 +64,21 @@ private let gomokuCenterOrder: [Int] = (0..<(gomokuBoardSize * gomokuBoardSize))
 ///
 /// 難易度は**考える時間**（`SimpleGomokuEngine.timeLimit`）・読む深さの上限（`depth`）と、この確率で決める。
 /// 確率が外れた手番は、同じ探索で最善から `slipMargin` 以内の手に正確な評価値を付け（`scoreWindow`）、
-/// 最善以外のうち損が `slipMargin` 以内の手から乱択する。自分の五・相手の四を止める手は探索の前に
-/// 決まる（外さない）ので、相手の五を止めない手は選ばれない。相手に五を作られる読み筋の手
-/// （評価値 `losingScore` 以下）も選ばない。
+/// 最善以外のうち損が `slipMargin` 以内の手から乱択する。自分の五は探索の前に決まる（必ず取る）。
+/// 相手の四を止める手も探索の前に決まるが、`blockMissProbability` の確率で止め損ねる（#3362。
+/// 入門・かんたんだけ。止める手を候補から外して残りを読む）。相手に五を作られる読み筋の手
+/// （評価値 `losingScore` 以下）は外しの候補に入れない。
 struct GomokuMovePolicy: Equatable {
     /// 探索が出した最善手をそのまま打つ確率（0...1）。
     var bestMoveProbability: Double
     /// 外したときに許す損の幅（評価値の差）。
     var slipMargin: Int
+    /// 相手の四（次に五になる形）を止め損ねる確率（0...1・#3362）。止める手番のたびに引く。
+    var blockMissProbability: Double = 0
 
     /// 最善手だけを選ぶ（むずかしい）。
     static let exact = GomokuMovePolicy(bestMoveProbability: 1, slipMargin: 0)
-    /// 探索を素直に回すだけでよいか。
+    /// 最善手を外さないか（止め損ねは `blockMissProbability` で別に決まる）。
     var isExact: Bool { bestMoveProbability >= 1 }
 
     /// この値以下の評価値の手は、読みの中で相手に五（か止められない四）を作られる手。外しの候補に入れない。
@@ -109,17 +112,17 @@ private struct GomokuRandom: RandomNumberGenerator {
 
 /// 五目並べの CPU。
 ///
-/// | level | 表示 | 考える時間 | 読む深さの上限 | 最善手を打つ確率 |
-/// |---|---|---|---|---|
-/// | -1 | 入門 | 0.3 秒 | 1 手先 | `noviceBestMoveProbability` |
-/// | 0 | かんたん | 0.5 秒 | 1 手先 | `easyBestMoveProbability` |
-/// | 1 | ふつう | 1 秒 | 1 手先 | `normalBestMoveProbability` |
-/// | 2 | むずかしい | 2 秒 | 無し（`maxDepth`） | 100% |
+/// | level | 表示 | 考える時間 | 読む深さの上限 | 最善手を打つ確率 | 外したときの損の幅 | 相手の四を止め損ねる確率 |
+/// |---|---|---|---|---|---|---|
+/// | -1 | 入門 | 0.3 秒 | 1 手先 | `noviceBestMoveProbability` | `noviceSlipMargin` | `noviceBlockMissProbability` |
+/// | 0 | かんたん | 0.5 秒 | 1 手先 | `easyBestMoveProbability` | `easySlipMargin` | `easyBlockMissProbability` |
+/// | 1 | ふつう | 1 秒 | 1 手先 | `normalBestMoveProbability` | `normalSlipMargin` | 0（必ず止める） |
+/// | 2 | むずかしい | 2 秒 | 無し（`maxDepth`） | 100% | — | 0（必ず止める） |
 ///
 /// 探索（反復深化の αβ・各局面は点の高い `breadth` 手だけ読む・四を作る手は 1 手延長）は全段階で同じで、
 /// 時間が来るか深さの上限まで読み終えたら打つ（#1463。会長決裁 2026-09-26・09-28）。
-/// かんたん・ふつうの深さと確率の根拠は段階表（`docs/analytics/gomoku-1566-ladder.md`: 隣の段に対する上の段の得点率 60〜70%。
-/// 会長決裁 2026-09-29）。入門は `docs/analytics/gomoku-1463-ladder.md`。
+/// 入門〜ふつうの確率・損の幅・止め損ねの根拠は段階表 `docs/analytics/gomoku-3362-ladder.md`（会長決裁 2026-11-07:
+/// 今の同じ段に 40% 以下・隣の段に対する上の段の得点率 55〜75%）。それより前は `gomoku-1566-ladder.md`・`gomoku-1463-ladder.md`。
 ///
 /// **番号は強さの順だが 0 始まりではない**（`CPUStrength`。既存 3 段階の番号を動かさないため）。
 public struct SimpleGomokuEngine: GomokuEngine {
@@ -142,18 +145,28 @@ public struct SimpleGomokuEngine: GomokuEngine {
     /// 全段階で同じ（#1463。全幅で読むと深さ 5 で 1 秒を超える）。
     static let breadth = 14
 
-    /// 最善手を打つ確率。入門は #1463 の実測、かんたん・ふつうは #1566 の実測（隣の段に対する得点率 60〜70% の合格範囲から）。
-    static let noviceBestMoveProbability = 0.2
-    static let easyBestMoveProbability = 0.6
-    static let normalBestMoveProbability = 0.9
+    /// 最善手を打つ確率（#3362 の実測。それまでは 入門 20% / かんたん 60% / ふつう 90%）。
+    static let noviceBestMoveProbability = 0.1
+    static let easyBestMoveProbability = 0.4
+    static let normalBestMoveProbability = 0.6
 
-    /// 外したときに許す損の幅（評価値の差）。開三 1 本（`patternScore` の 500）ぶん。
-    /// 相手に活四を許す手（1 万以上）や、自分の開三を逃して相手に先手を渡す手は入らず、
-    /// 形が 1 段甘い手（開二・止め三の置き場所の違い）までが入る。
+    /// 相手の四を止め損ねる確率（#3362）。入門・かんたんだけ。ふつう・むずかしいは必ず止める。
+    static let noviceBlockMissProbability = 0.8
+    static let easyBlockMissProbability = 0.5
+
+    /// 外したときに許す損の幅の基準（評価値の差）。開三 1 本（`patternScore` の 500）ぶん。
+    /// テスト・計測が確率だけを差し替えるとき（`policy(_:)`）に使う。#3362 より前は全段がこの値だった。
     static let slipMargin = 500
+    /// 段ごとの損の幅（#3362）。ふつう・かんたんは開三 4 本ぶん（形が 2〜3 段甘い手まで入る）、
+    /// 入門は活四 1 本ぶん（`patternScore` の 10000。相手の三を放っておく手まで入る）。
+    /// 相手に五を作られる読み筋の手（`GomokuMovePolicy.losingScore` 以下）はどの段でも選ばない。
+    static let noviceSlipMargin = 10_000
+    static let easySlipMargin = 2_000
+    static let normalSlipMargin = 2_000
 
-    static func policy(_ probability: Double) -> GomokuMovePolicy {
-        GomokuMovePolicy(bestMoveProbability: probability, slipMargin: slipMargin)
+    /// 確率だけを決めた手の選び方（止め損ねは無し）。テスト・計測が確率だけを差し替えるための口。
+    static func policy(_ probability: Double, blockMiss: Double = 0) -> GomokuMovePolicy {
+        GomokuMovePolicy(bestMoveProbability: probability, slipMargin: slipMargin, blockMissProbability: blockMiss)
     }
 
     public init(level: Int = CPUStrength.standard.rawValue, forbiddenMoves: Bool = false) {
@@ -168,9 +181,17 @@ public struct SimpleGomokuEngine: GomokuEngine {
         self.now = now
         let shippedTime: TimeInterval
         switch CPUStrength.strength(for: level) {
-        case .novice: (shippedTime, depth, self.policy) = (0.3, 1, Self.policy(Self.noviceBestMoveProbability))
-        case .easy:   (shippedTime, depth, self.policy) = (0.5, 1, Self.policy(Self.easyBestMoveProbability))
-        case .normal: (shippedTime, depth, self.policy) = (1.0, 1, Self.policy(Self.normalBestMoveProbability))
+        case .novice:
+            (shippedTime, depth) = (0.3, 1)
+            self.policy = GomokuMovePolicy(bestMoveProbability: Self.noviceBestMoveProbability, slipMargin: Self.noviceSlipMargin,
+                                           blockMissProbability: Self.noviceBlockMissProbability)
+        case .easy:
+            (shippedTime, depth) = (0.5, 1)
+            self.policy = GomokuMovePolicy(bestMoveProbability: Self.easyBestMoveProbability, slipMargin: Self.easySlipMargin,
+                                           blockMissProbability: Self.easyBlockMissProbability)
+        case .normal:
+            (shippedTime, depth) = (1.0, 1)
+            self.policy = GomokuMovePolicy(bestMoveProbability: Self.normalBestMoveProbability, slipMargin: Self.normalSlipMargin)
         case .hard:   (shippedTime, depth, self.policy) = (2.0, Self.maxDepth, .exact)
         }
         self.timeLimit = timeLimit ?? shippedTime
@@ -195,7 +216,8 @@ public struct SimpleGomokuEngine: GomokuEngine {
         // 外すかどうかを先に決める。外す手番だけ、最善から `slipMargin` 以内の手に正確な評価値を付けて読む。
         let slips = !policy.isExact && Double.random(in: 0..<1, using: &rng) >= policy.bestMoveProbability
         var ctx = makeContext()
-        guard let best = ctx.search(board: board, stone: stone, scoreWindow: slips ? policy.slipMargin : nil)
+        guard let best = ctx.search(board: board, stone: stone, scoreWindow: slips ? policy.slipMargin : nil,
+                                    blockMissProbability: policy.blockMissProbability, rng: &rng)
         else { return nil }
         guard slips, let picked = policy.slip(ctx.rootScores, best: best.0 * gomokuBoardSize + best.1, using: &rng)
         else { return best }
@@ -294,8 +316,17 @@ private struct GomokuSearchContext {
 
     /// `scoreWindow` を渡すと、最善から `scoreWindow` 以内の手はすべて正確な評価値を持つように根を探索し、
     /// `rootScores` に残す（手の選び方 `GomokuMovePolicy` の材料。窓の外の手は上限値になるので選ばれない）。
-    /// 自分の五・相手の四を止める手は探索せずに返す（`rootScores` は空のまま＝外さない）。
+    /// 自分の五・相手の四を止める手は探索せずに返す（`rootScores` は空のまま＝外さない。止め損ねる手番は下の版）。
     mutating func search(board: GomokuBoard, stone: GomokuStone, scoreWindow: Int? = nil) -> (Int, Int)? {
+        var unused = GomokuRandom(seed: 0)
+        return search(board: board, stone: stone, scoreWindow: scoreWindow, blockMissProbability: 0, rng: &unused)
+    }
+
+    /// `blockMissProbability` の確率で、相手の四を止める手番に止め損ねる（#3362）。止める手（相手が五にできる交点）を
+    /// すべて候補から外して、残りを普段どおり読む。乱数は止める手番になったときだけ引く（止める場面の無い手番の
+    /// 乱数の並びは変えない）。止める手のほかに打てる交点が無ければ止める。
+    mutating func search<R: RandomNumberGenerator>(board: GomokuBoard, stone: GomokuStone, scoreWindow: Int?,
+                                                   blockMissProbability: Double, rng: inout R) -> (Int, Int)? {
         let candidates = legalMoves(candidateMoves(board: board), board: board, stone: stone)
         guard !candidates.isEmpty else { return (gomokuBoardSize / 2, gomokuBoardSize / 2) }
 
@@ -306,12 +337,19 @@ private struct GomokuSearchContext {
         }
         // 相手の即勝ちをブロック。相手が打てない手（禁じ手）は脅威ではないので数えない。
         let opp = stone.opponent
-        for (r, c) in candidates where !isForbidden(board, row: r, col: c, stone: opp) {
+        let blocks = candidates.filter { r, c in
+            guard !isForbidden(board, row: r, col: c, stone: opp) else { return false }
             var b = board; b[r, c] = opp
-            if b.checkWin(row: r, col: c) { return (r, c) }
+            return b.checkWin(row: r, col: c)
+        }
+        var roots = candidates
+        if let block = blocks.first {
+            let misses = blockMissProbability > 0 && Double.random(in: 0..<1, using: &rng) < blockMissProbability
+            roots.removeAll { r, c in blocks.contains { $0 == (r, c) } }
+            if !misses || roots.isEmpty { return block }
         }
 
-        return searchRoot(board: board, stone: stone, roots: candidates.map { $0.0 * gomokuBoardSize + $0.1 },
+        return searchRoot(board: board, stone: stone, roots: roots.map { $0.0 * gomokuBoardSize + $0.1 },
                           scoreWindow: scoreWindow)
     }
 

@@ -45,6 +45,9 @@ public enum HomerunReturnPolicy {
         nextReset(after: now, calendar: calendar).addingTimeInterval(notificationDelay)
     }
 
+    /// 「戻ったら知らせる」のトグルを出すか。回数が尽きている（打席に立てない）ときだけ。打席前と結果画面で共通。
+    public static func showsReminderToggle(canStart: Bool) -> Bool { !canStart }
+
     /// 予約が生きているか（トグルの初期状態）。予約の実体は OS が持つので、その発火時刻から判定する。
     public static func isReminderActive(pendingFireDate: Date?, now: Date) -> Bool {
         guard let pendingFireDate else { return false }

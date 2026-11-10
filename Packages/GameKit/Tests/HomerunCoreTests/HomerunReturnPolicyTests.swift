@@ -92,4 +92,10 @@ struct HomerunReturnPolicyTests {
         #expect(!HomerunReturnPolicy.isReminderActive(pendingFireDate: now, now: now))
         #expect(!HomerunReturnPolicy.isReminderActive(pendingFireDate: now.addingTimeInterval(-1), now: now))
     }
+
+    @Test("「戻ったら知らせる」は回数が尽きているとき（打席に立てないとき）だけ出す（#3336）")
+    func reminderToggleShownOnlyWhenCannotStart() {
+        #expect(HomerunReturnPolicy.showsReminderToggle(canStart: false))
+        #expect(!HomerunReturnPolicy.showsReminderToggle(canStart: true))
+    }
 }

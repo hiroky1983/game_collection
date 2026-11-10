@@ -1,6 +1,61 @@
 {
   "sourceLanguage" : "ja",
   "strings" : {
+    "柵越えおじさんで 10 球の合計 %@ 飛ばした！ #あそびば" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hit a total of %@ over 10 pitches in Sakugoe Ojisan! #asobiba"
+          }
+        }
+      }
+    },
+    "柵越えおじさん、合計 %@ かっ飛ばしました。あなたはどこまで飛ばせる？ #あそびば" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Smashed %@ in total in Sakugoe Ojisan. How far can you hit? #asobiba"
+          }
+        }
+      }
+    },
+    "%@ 越えの大ホームラン連発！ 柵越えおじさん #あそびば" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Over %@ of big home runs in a row! Sakugoe Ojisan #asobiba"
+          }
+        }
+      }
+    },
+    "X でポストして、今日のプレイ回数 ＋%lld をもらう" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Post on X to get +%lld play today"
+          }
+        }
+      }
+    },
+    "今日のプレイ回数が ＋%lld 回になりました！" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's plays went up by %lld!"
+          }
+        }
+      }
+    },
     "%1$@ 〜 %2$@" : {
       "extractionState" : "manual",
       "localizations" : {

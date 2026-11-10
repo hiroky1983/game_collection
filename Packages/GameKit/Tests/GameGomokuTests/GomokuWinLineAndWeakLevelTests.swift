@@ -187,11 +187,12 @@ struct GomokuCandidateOrderTests {
     }
 
     /// 中心から等距離の防ぎ点が2つあるとき、防ぐなら行の小さい方を選ぶ（起動ごとに変わらない）。
+    /// かんたん以下は四を止め損ねることがある（#3362）ので、必ず止める ふつう で確かめる。
     @Test func tiedBlocksAreChosenByCoordinate() async {
         let board = makeBoard(black: [(2, 3), (2, 4), (2, 5), (2, 6), (12, 3), (12, 4), (12, 5), (12, 6)],
                               white: [(2, 2), (12, 2)])
         for i in 0..<20 {
-            let move = await SimpleGomokuEngine(level: 0, seed: spreadSeed(i))
+            let move = await SimpleGomokuEngine(level: CPUStrength.normal.rawValue, seed: spreadSeed(i))
                 .bestMove(board: board, stone: .white)
             #expect(move?.row == 2 && move?.col == 7)
         }

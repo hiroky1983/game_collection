@@ -9,6 +9,10 @@ struct SettingsView: View {
     var playLog: PlayLog?
     /// 消去の完了を伝える触覚（#2936）。注入されないとき（プレビュー等）は何もしない。
     var feedback: FeedbackService = NoopFeedbackService()
+    /// 設定を変えた直後の試し鳴らし用（#3295）。ゲート前の実体を直接渡す（OFF→ON の時点ではゲートが閉じているため）。
+    /// 注入されないとき（プレビュー等）は何もしない。
+    var hapticPreview: FeedbackService = NoopFeedbackService()
+    var soundPreview: FeedbackService = NoopFeedbackService()
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
@@ -87,11 +91,27 @@ struct SettingsView: View {
                     Text(tr("ドラッグで並べ替え、トグルで表示 / 非表示を切り替えられます。"))
                 }
 
+                // MARK: ピックアップ（#3358）
+                Section {
+                    Toggle(isOn: Binding(
+                        get: { !settings.pickupHidden },
+                        set: { settings.pickupHidden = !$0 }
+                    )) {
+                        Label(tr("ピックアップを表示"), systemImage: "pin")
+                            .foregroundStyle(Theme.ink)
+                    }
+                    .tint(Theme.coral) // accent-text-ok: トグルのトラック（面）
+                }
+
                 // MARK: フィードバック
                 Section {
                     Toggle(isOn: Binding(
                         get: { settings.hapticsEnabled },
-                        set: { settings.hapticsEnabled = $0 }
+                        set: {
+                            let turnedOn = $0 && !settings.hapticsEnabled
+                            settings.hapticsEnabled = $0
+                            if turnedOn { hapticPreview.impact(.light) }
+                        }
                     )) {
                         Label(tr("触覚フィードバック"), systemImage: "iphone.radiowaves.left.and.right")
                             .foregroundStyle(Theme.ink)
@@ -100,7 +120,11 @@ struct SettingsView: View {
 
                     Toggle(isOn: Binding(
                         get: { settings.soundEnabled },
-                        set: { settings.soundEnabled = $0 }
+                        set: {
+                            let turnedOn = $0 && !settings.soundEnabled
+                            settings.soundEnabled = $0
+                            if turnedOn { soundPreview.impact(.light) }
+                        }
                     )) {
                         Label(tr("効果音"), systemImage: "speaker.wave.2")
                             .foregroundStyle(Theme.ink)
@@ -110,7 +134,10 @@ struct SettingsView: View {
                     if settings.soundEnabled {
                         Picker(selection: Binding(
                             get: { settings.soundVolume },
-                            set: { settings.soundVolume = $0 }
+                            set: {
+                                settings.soundVolume = $0
+                                soundPreview.impact(.light)
+                            }
                         )) {
                             Text(tr("小")).tag(SoundVolume.small)
                             Text(tr("中")).tag(SoundVolume.medium)
@@ -363,9 +390,9 @@ struct SettingsView: View {
                         .themeBody(16)
                         .foregroundStyle(isVisible ? Theme.ink : Theme.inkSubText)
                     // 開催中は並びに関係なくハブの先頭に出る（#3321）。動かしても期間中は先頭のままと分かるようにする。
-                    if isVisible, NewGames.alwaysFirstIDs.contains(id) {
-                        // ねこさがしは期間に関係なく常に先頭（#3339）。
-                        Text(tr("常に先頭に表示"))
+                    if isVisible, !settings.pickupHidden, NewGames.pickupIDs.contains(id) {
+                        // ピックアップの区画に出ているゲームは、並びに関係なくハブの一番上に出る（#3358）。
+                        Text(tr("ピックアップに表示"))
                             .scaledFont(12)
                             .foregroundStyle(Theme.inkSubText)
                     } else if isVisible, HubEventBadge.isShown(gameID: id) {

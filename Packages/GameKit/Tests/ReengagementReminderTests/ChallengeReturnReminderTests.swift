@@ -27,9 +27,11 @@ private final class SpyReturnScheduler: ChallengeReturnReminderScheduler {
         return status
     }
     func pendingFireDate() async -> Date? { scheduled.last?.fireDate }
-    func schedule(fireDate: Date, title: String, body: String) async {
+    var scheduleSucceeds = true
+    func schedule(fireDate: Date, title: String, body: String) async -> Bool {
         duringSchedule?()
         scheduled = [(fireDate, title, body)]   // 同じ識別子で置き換わる
+        return scheduleSucceeds
     }
     func cancel() { cancelled += 1; scheduled = [] }
 }
@@ -53,6 +55,18 @@ struct ChallengeReturnReminderTests {
         #expect(spy.scheduled.count == 1)
         #expect(spy.scheduled.first?.fireDate == fire)
         #expect(await service.pendingFireDate() == fire)
+    }
+
+    @Test("OS への予約追加が失敗したら失敗回数に残る（#3296）")
+    func countsScheduleFailure() async {
+        let spy = SpyReturnScheduler()
+        let service = make(spy)
+        _ = await service.enable(fireDate: fire, title: "t", body: "b")
+        #expect(service.scheduleFailureCount == 0)
+
+        spy.scheduleSucceeds = false
+        _ = await service.enable(fireDate: fire, title: "t", body: "b")
+        #expect(service.scheduleFailureCount == 1)
     }
 
     @Test("設定の「通知」がオフなら予約せず、許可も求めない")

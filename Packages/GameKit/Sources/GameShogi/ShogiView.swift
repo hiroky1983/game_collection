@@ -630,18 +630,13 @@ struct NewGameSheet: View {
             onCancel: onCancel
         ) {
             GameSetupSection(tr("手合い")) {
-                HStack(spacing: 12) {
-                    ForEach(ShogiHandicap.allCases, id: \.self) { option in
-                        GameSetupChooser(
-                            title: option.title,
-                            subtitle: option == .even ? tr("ハンデなし") : tr("上手が駒を落とす"),
-                            selected: handicap == option,
-                            accent: Theme.fillStrong, onAccent: .white,
-                            metrics: .init(title: .body(18), subtitleSize: 11, verticalPadding: 12,
-                                           titleMinimumScale: 0.7, subtitleMinimumScale: 0.6)
-                        ) { handicap = option }
-                    }
-                }
+                SetupStepSelector(
+                    options: ShogiHandicap.allCases.map {
+                        SetupStepOption(value: $0, title: $0.title,
+                                        detail: $0 == .even ? tr("ハンデなし") : tr("上手が駒を落とす"),
+                                        accent: Theme.Fill.yellow)
+                    },
+                    selection: $handicap, showsScale: false)
             }
             if handicap == .even {
                 GameSetupSection(tr("あなたの手番")) {
@@ -675,7 +670,7 @@ struct NewGameSheet: View {
                 // 説明は探索の中身と一致させる（#416）。詳細は `SimpleMinimaxEngine.init(level:)`。
                 // 位置評価・静止探索は全段階で同じ。段で変わるのは時間・深さ・最善手を打つ確率。
                 CPUStrengthPicker(level: $level, details: [
-                    tr("1手先だけ読む"), tr("2手先まで読む"), tr("3手先まで読む"), tr("定跡＋深読み"),
+                    tr("1手先・ミスが多い"), tr("1手先だけ読む"), tr("2手先まで読む"), tr("定跡＋深読み"),
                 ], extras: [
                     // 達人（#2698）は将棋だけの段。探索は `ShogiMasterEngine`。
                     .init(level: ShogiMasterEngine.level, label: ShogiMasterEngine.label,
@@ -703,8 +698,6 @@ struct ShogiCell: View {
     let size: CGFloat
     let isSelected: Bool
     let isLastMove: Bool
-    /// 「色なしで区別」の設定。ON のとき、直前手・選択中に色以外の印を足す（#2486）。
-    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
 
     var body: some View {
         // 盤の木地は盤全体に敷いたテクスチャ（#366）が担うため、マスは
@@ -716,9 +709,10 @@ struct ShogiCell: View {
             if isSelected {
                 Rectangle().fill(Theme.yellow.opacity(0.6))
             }
-            if differentiateWithoutColor {
-                BoardCellMarks(size: size, isSelected: isSelected, isLastMove: isLastMove)
-            }
+        }
+        // 「色なしで区別」が ON のとき、直前手・選択中に色以外の印を足す（#2486・#3415）。
+        .stateMark(active: isSelected || isLastMove) {
+            BoardCellMarks(size: size, isSelected: isSelected, isLastMove: isLastMove)
         }
         .frame(width: size, height: size)
         .contentShape(Rectangle())

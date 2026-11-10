@@ -11,8 +11,6 @@ public struct SudokuView: View {
     @State private var showGiveUpConfirm = false
     /// ヒントのリワード広告の段取り（連打ガード・広告・失敗アラート。#526）。
     @State private var hintRescue = RewardedRescue()
-    /// 「色なしで区別」の設定。ON のとき、間違いのマスに色以外の印（×・内枠）を足す（#2405）。
-    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     /// 広い画面（iPad）で数字パッドを盤に釣り合う大きさにする倍率（#3185）。iPhone では恒等。
     @Environment(\.adaptiveLayout) private var layout
     /// コンティニューのリワード広告の段取り（同上）。
@@ -435,10 +433,9 @@ public struct SudokuView: View {
             } else if !noteDigits.isEmpty {
                 noteGrid(noteDigits: noteDigits, side: side)
             }
-            if isError && differentiateWithoutColor {
-                errorMark(side: side)
-            }
         }
+        // 「色なしで区別」が ON のとき、間違いのマスに色以外の印（×・内枠）を足す（#2405・#3415）。
+        .stateMark(active: isError) { errorMark(side: side) }
         // 誤答を入れたマスの中身だけを短く横に揺らす（#666。五目並べの無効タップ #202 と同じ型）。
         .modifier(SudokuShake(animatableData: CGFloat(shakes)))
         // 演出の修飾子は入れ子にすると内側が外側のトランザクションを打ち消す（#199）。ここでは
@@ -475,8 +472,6 @@ public struct SudokuView: View {
                 .foregroundStyle(Theme.coralText)
                 .padding(side * 0.08)
         }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
     }
 
     private func noteGrid(noteDigits: [Int], side: CGFloat) -> some View {
@@ -855,26 +850,22 @@ struct SudokuNewGameSheet: View {
             }, onCancel: onCancel
         ) {
             GameSetupSection(tr("難易度")) {
-                HStack(spacing: 6) {
-                    // 「約」を付けるのは、唯一解を保てないマスは削れずに戻すため、実際の
-                    // 空きマス数が範囲の上限に届かないことがあるから（`SudokuEngine` の
-                    // `removalRange` のコメント参照・#354 の S6）。
-                    difficultyTile(.easy,   subtitle: tr("空き 約30〜35"), accent: DifficultyTile.accent(step: 0, of: 3))
-                    difficultyTile(.normal, subtitle: tr("空き 約40〜45"), accent: DifficultyTile.accent(step: 1, of: 3))
-                    difficultyTile(.hard,   subtitle: tr("空き 約46〜50"), accent: DifficultyTile.accent(step: 2, of: 3))
-                    difficultyTile(.expert, subtitle: tr("空き 約52〜56"), accent: Theme.Fill.purple)
-                }
+                // 「約」を付けるのは、唯一解を保てないマスは削れずに戻すため、実際の
+                // 空きマス数が範囲の上限に届かないことがあるから（`SudokuEngine` の
+                // `removalRange` のコメント参照・#354 の S6）。
+                SetupStepSelector(
+                    options: [
+                        SetupStepOption(value: SudokuDifficulty.easy, title: SudokuDifficulty.easy.label,
+                                        detail: tr("空き 約30〜35"), accent: DifficultyTile.accent(step: 0, of: 3)),
+                        SetupStepOption(value: SudokuDifficulty.normal, title: SudokuDifficulty.normal.label,
+                                        detail: tr("空き 約40〜45"), accent: DifficultyTile.accent(step: 1, of: 3)),
+                        SetupStepOption(value: SudokuDifficulty.hard, title: SudokuDifficulty.hard.label,
+                                        detail: tr("空き 約46〜50"), accent: DifficultyTile.accent(step: 2, of: 3)),
+                        SetupStepOption(value: SudokuDifficulty.expert, title: SudokuDifficulty.expert.label,
+                                        detail: tr("空き 約52〜56"), accent: Theme.Fill.purple),
+                    ],
+                    selection: $difficulty)
             }
-        }
-    }
-
-    private func difficultyTile(_ value: SudokuDifficulty, subtitle: String, accent: Color) -> some View {
-        // 4 枚並ぶと副題が 2 行になる。「約30〜」「35」と数字の途中で折れないよう、波ダッシュ（U+301C）の前後に
-        // 語結合子（U+2060）を入れて、折れるのを「空き」と「約…」の間だけにする（#3099）。
-        GameSetupChooser(title: value.label, subtitle: subtitle.replacingOccurrences(of: "\u{301C}", with: "\u{2060}\u{301C}\u{2060}"),
-                         selected: difficulty == value, accent: accent,
-                         metrics: DifficultyTile.metrics) {
-            difficulty = value
         }
     }
 }

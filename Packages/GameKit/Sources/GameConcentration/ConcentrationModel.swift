@@ -20,6 +20,9 @@ struct ConcentrationSnapshot: Codable {
     let hintsUsed: Int?
     /// CPU の記憶（#2543）。再開で消えると離れて戻るだけで CPU を弱くできる。鍵を持たない旧い中断データは記憶なしとして読む。
     let cpuMemory: ConcentrationCPUMemory?
+    /// 手番が交代した回数（#3337）。外して伏せ直し、盤が「全部伏せ・0 対 0」に戻っても進行済みと分かるよう保存する。
+    /// 鍵を持たない旧い中断データは 0（従来どおり盤の見た目だけで判定）として読む。
+    let turnsPlayed: Int?
 }
 
 /// ヒントの回数（会長決裁 2026-10-11・#2026）。1 ゲーム 無料 1 回、使い切ったら広告 1 本で +1、広告は最大 3 回。
@@ -44,6 +47,8 @@ public final class ConcentrationModel {
     public internal(set) var firstFlippedIndex: Int? = nil
     /// ターン交代時のみインクリメントし task(id:) の再起動トリガーとして使う
     public private(set) var turnID: Int = 0
+    /// この局で手番が交代した回数（#3337）。中断データに保存する。
+    private var turnsPlayed: Int = 0
     public private(set) var isGameOver: Bool = false
     public private(set) var lastMatchedIndices: [Int] = []
     public private(set) var mismatchedIndices: [Int] = []
@@ -80,8 +85,9 @@ public final class ConcentrationModel {
     public var isHumanTurn: Bool { currentPlayer == .human }
     public var canMatta: Bool { !isGameOver && isHumanTurn && !mismatchedIndices.isEmpty }
     /// 「新規」で失われる進行があるか（#1011）。1 枚でもめくった・取った札があり、まだ決着していないとき。
+    /// 外して伏せ直しただけで盤が元に戻っても、手番が進んでいれば進行済み（#3337）。
     public var hasProgressToLose: Bool {
-        !isGameOver && cards.contains { $0.isFaceUp || $0.isMatched }
+        !isGameOver && (turnsPlayed > 0 || cards.contains { $0.isFaceUp || $0.isMatched })
     }
 
     // MARK: - ヒント（#2026）
@@ -220,6 +226,7 @@ public final class ConcentrationModel {
         for i in mismatchedIndices { cards[i].isFaceUp = false }
         mismatchedIndices = []
         currentPlayer = currentPlayer.next
+        turnsPlayed += 1
         turnID += 1
         persist()
     }
@@ -406,6 +413,7 @@ public final class ConcentrationModel {
         currentPlayer = .human
         firstFlippedIndex = nil
         turnID = 0
+        turnsPlayed = 0
         isGameOver = false
         lastMatchedIndices = []
         mismatchedIndices = []
@@ -447,6 +455,7 @@ public final class ConcentrationModel {
         isThinking = false
         firstFlippedIndex = nil
         turnID = 0
+        turnsPlayed = snap.turnsPlayed ?? 0
         isGameOver = false
         lastMatchedIndices = []
         mismatchedIndices = []
@@ -479,7 +488,10 @@ public final class ConcentrationModel {
         // 手番交代は `clearMismatch()`（= 1.2 秒後の自動ターン交代）だけが行うため、
         // その猶予の間に画面を離れて戻ると「外したら相手番」を操作だけで踏み倒せていた。
         let hadPendingMismatch = Self.validatedMismatch(of: snap, symbols: setting.symbols) != nil
-        if hadPendingMismatch { currentPlayer = currentPlayer.next }
+        if hadPendingMismatch {
+            currentPlayer = currentPlayer.next
+            turnsPlayed += 1
+        }
 
         // CPUターン復元：turnID を非ゼロにすることで task(id:) を確実に起動させる
         if currentPlayer == .cpu { turnID = 1 }
@@ -620,9 +632,10 @@ public final class ConcentrationModel {
             mattaUsed: mattaUsed,
             mismatchedIndices: mismatchedIndices,
             hintsUsed: hints.used,
-            cpuMemory: ai.persistedMemory
+            cpuMemory: ai.persistedMemory,
+            turnsPlayed: turnsPlayed
         )
-        try? services?.snapshots.save(snap, for: gameID)
+        services?.snapshots.saveReportingFailure(snap, for: gameID)
     }
 }
 

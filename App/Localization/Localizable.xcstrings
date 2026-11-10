@@ -694,13 +694,79 @@
         }
       }
     },
-    "常に先頭に表示" : {
+    "ピックアップに表示" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Always shown first"
+            "value" : "Shown in Picks"
+          }
+        }
+      }
+    },
+    "ピックアップ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Picks"
+          }
+        }
+      }
+    },
+    "非表示" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide"
+          }
+        }
+      }
+    },
+    "見出しは残り、右の「表示」でいつでも戻せます" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The heading stays; tap Show on the right to bring it back"
+          }
+        }
+      }
+    },
+    "ピックアップのゲームを表示します" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows the picked games"
+          }
+        }
+      }
+    },
+    "表示" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show"
+          }
+        }
+      }
+    },
+    "ピックアップを表示" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Picks"
           }
         }
       }
@@ -712,6 +778,17 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Event"
+          }
+        }
+      }
+    },
+    "1番人気" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Most popular"
           }
         }
       }

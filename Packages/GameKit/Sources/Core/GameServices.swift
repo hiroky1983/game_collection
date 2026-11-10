@@ -73,6 +73,8 @@ public struct GameServices {
     public let reengagement: ReengagementReminderService?
     /// 挑戦回数が戻ったら知らせる通知（#1576）。テスト・プレビューでは nil（トグルを出さない）。
     public let returnReminder: ChallengeReturnReminderService?
+    /// 連続日数が途切れそうな夕方の通知（#3417）。テスト・プレビューでは nil（予約しない）。
+    public let streakReminder: StreakReminderService?
     /// 柵越えおじさんの場面の効果音（打ち出し・カキーン・歓声・月が割れる等）。触覚と 1 対 1 の `feedback` とは別の入口
     /// （`HomerunSound` の説明）。テスト・プレビューでは何も鳴らさない。設定の「効果音」のオン / オフは App 層が包んで効かせる。
     public let homerunSound: HomerunSoundService
@@ -99,6 +101,7 @@ public struct GameServices {
         reminders: ResumeReminderService? = nil,
         reengagement: ReengagementReminderService? = nil,
         returnReminder: ChallengeReturnReminderService? = nil,
+        streakReminder: StreakReminderService? = nil,
         homerunSound: HomerunSoundService = NoopHomerunSoundService(),
         haptics: FeedbackService = NoopFeedbackService(),
         isResumable: ((String, SnapshotStore) -> Bool)? = nil,
@@ -116,6 +119,7 @@ public struct GameServices {
         self.reminders = reminders
         self.reengagement = reengagement
         self.returnReminder = returnReminder
+        self.streakReminder = streakReminder
         self.homerunSound = homerunSound
         self.haptics = haptics
         self.isResumable = isResumable
@@ -294,6 +298,18 @@ public struct GameServices {
         analytics?.recordShareTap(gameID: gameID)
     }
 
+    /// 「X でポストして特典をもらう」提案（#3359）を出した・押したときに呼ぶ。`share_tap` に `offer` を載せて送るだけ。
+    @MainActor
+    public func gameDidOfferXShare(gameID: String, step: ShareOfferStep) {
+        analytics?.recordShareTap(gameID: gameID, offer: step)
+    }
+
+    /// X でポストした特典（#3359）を渡したときに呼ぶ。`reward_grant`（`purpose = share`）を送るだけ。
+    @MainActor
+    public func gameDidGrantShareReward(gameID: String, items: RewardGrantItems) {
+        analytics?.recordRewardGrant(gameID: gameID, rank: 0, items: items, purpose: .share)
+    }
+
     /// ゲーム内の特典（ねこさがしのデイリーランキング上位・#3256）を渡したときに呼ぶ。`reward_grant` を送るだけ。
     @MainActor
     public func gameDidGrantReward(gameID: String, rank: Int, items: RewardGrantItems) {
@@ -338,6 +354,13 @@ public struct GameServices {
         analytics?.recordMissCause(gameID: gameID, cause: cause, progressPercent: progressPercent)
     }
 
+    /// 決着の原因とゲージのまとめを `game_end` に載せる（腰痛おじさんパズルの荷運び・#3352）。
+    /// `gameDidFinish` の**直前**に呼ぶ。イベントの種類は増やさない。
+    @MainActor
+    public func gameDidRecordEndDetail(gameID: String, cause: AnalyticsEndCause?, gauge: AnalyticsGaugeSummary) {
+        analytics?.recordEndDetail(gameID: gameID, cause: cause, gauge: gauge)
+    }
+
     /// ゲームが決着したときに各 Model から呼ぶ唯一の入口。
     ///
     /// 同じリザルト画面に出る2つの依頼（評価リクエスト #53 / レコメンド #52）の競合を
@@ -368,6 +391,8 @@ public struct GameServices {
         // 決着した局には「途中のままです」を予約しない（#663）。将棋・チェスは終局後も見返しを
         // 中断データに残すため、中断データの有無だけでは途中の局と見分けられない。
         reminders?.gameDidFinish(gameID: gameID)
+        // 今日遊んだので、今日の夕方の「連続が途切れそう」は要らない（翌日分は次にバックグラウンドへ入るとき組み直す・#3417）。
+        streakReminder?.cancel()
         let isNewScoreBest = result.map { $0.update.points || $0.update.highestValue || $0.update.seconds || $0.update.moves } ?? false
         // 3 連勝（CPU の強さを問わない・ちょうど 3 に達した回だけ・#3097）。
         let reachedThreeWinStreak = outcome == .win && result?.record.currentStreak == 3

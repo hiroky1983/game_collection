@@ -838,6 +838,9 @@ public struct RunnerView: View {
         case .bird: return tr("鳥にぶつかった。跳ばずに走って下を抜けよう")
         case .animal: return tr("動物にぶつかった")
         case .sink: return tr("沈んでしまった")
+        // 腰痛おじさんパズルの決着（#3352）。ミスの 1 行は走るゲームだけが出すので、ここには来ない。
+        case .hospital: return tr("入院した")
+        case .buried: return tr("積み上がった")
         }
     }
 

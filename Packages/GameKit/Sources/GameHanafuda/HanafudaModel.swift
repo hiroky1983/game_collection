@@ -301,7 +301,7 @@ public final class HanafudaModel: AITurnGuarded {
             hasExtendedMatch: hasExtendedMatch,
             bankedKoiKoiCounts: [bankedHumanKoiKoi, bankedCPUKoiKoi]
         )
-        try? services?.snapshots.save(snap, for: Self.gameID)
+        services?.snapshots.saveReportingFailure(snap, for: Self.gameID)
     }
 
     // MARK: - 試合の開始

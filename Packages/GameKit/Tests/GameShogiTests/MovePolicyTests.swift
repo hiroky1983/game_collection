@@ -106,6 +106,19 @@ struct ShogiMovePolicyTests {
         #expect(SimpleMinimaxEngine.searchTime(limit: .infinity, elapsed: 5) == .infinity)
     }
 
+    /// 0.03 秒（後始末ぶん）より短い段（#3362: 入門 0.005 秒など）も、考える時間に見合う量だけ読む。
+    /// 固定の後始末ぶんを引いて最低限の 0.02 秒に切り上げると、短い段がどれも同じ 0.02 秒読みになる。
+    @Test("考える時間が短い段は、引く分も最低限も考える時間に比例する")
+    func shortLimitsKeepTheirOwnBudget() {
+        #expect(SimpleMinimaxEngine.searchTime(limit: 0.005, elapsed: 0) <= 0.005)
+        #expect(SimpleMinimaxEngine.searchTime(limit: 0.005, elapsed: 0) >= 0.0045 - 1e-9)
+        #expect(SimpleMinimaxEngine.searchTime(limit: 0.005, elapsed: 1) == 0.005)
+        #expect(SimpleMinimaxEngine.searchTime(limit: 0.02, elapsed: 0) < SimpleMinimaxEngine.searchTime(limit: 0.025, elapsed: 0),
+                "かんたん（0.02 秒）と ふつう（0.025 秒）で読む時間が同じになっている")
+        // 0.3 秒以上は従来どおり固定の後始末ぶんを引く。
+        #expect(abs(SimpleMinimaxEngine.searchTime(limit: 2, elapsed: 0) - (2 - SimpleMinimaxEngine.searchOverhead)) < 1e-9)
+    }
+
     @Test("局面数の上限に達したら読みを打ち切り、途中の深さは採用せず合法手を返す")
     func nodeLimitStopsTheSearch() {
         let engine = SimpleMinimaxEngine(depth: 5, usePositional: true, useQuiescence: true,

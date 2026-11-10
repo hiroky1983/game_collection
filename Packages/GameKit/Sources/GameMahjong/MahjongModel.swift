@@ -597,6 +597,9 @@ public final class MahjongModel: AITurnGuarded {
         // `game_end` はもう送信済みなので、続きは次の 1 プレイとして数える（#158。
         // こうしないと `game_start` 1 回に対して `game_end` が 2 回付き、対応が崩れる）。
         services?.gameDidRestart(gameID: gameID, mode: gameLength.analyticsMode)
+        // 続きは既に打った半荘。配っただけの手牌で休憩し、復元後に「新規対局」で捨てると
+        // `game_end`(quit) が欠けるため、最初の打牌を待たず進行ありとして数える（#3348）。
+        services?.gameDidProgress(gameID: gameID)
         // Game Center（#289）は送信済みのぶんを取り消さない。四人打ち麻雀はリーダーボードの
         // 対象外（勝敗しか残らない対 CPU 戦のため `GameCenterLeaderboard` に登録が無い）で、
         // 実績の進捗は勝利数と遊んだゲーム数から作られる。トビ = 負けなので勝利数は増えておらず、
@@ -636,6 +639,8 @@ public final class MahjongModel: AITurnGuarded {
         startHand()
         // `game_end` は送信済みなので、続きは次の 1 プレイとして数える（復活と同じ・#158）。
         services?.gameDidRestart(gameID: gameID, mode: gameLength.analyticsMode)
+        // 復活と同じ理由で、最初の打牌を待たず進行ありとして数える（#3348）。
+        services?.gameDidProgress(gameID: gameID)
         return .granted
     }
 
@@ -677,7 +682,7 @@ public final class MahjongModel: AITurnGuarded {
             riichiTurn: riichiTurn,
             isRinshanDraw: isRinshanDraw
         )
-        try? services?.snapshots.save(snap, for: gameID)
+        services?.snapshots.saveReportingFailure(snap, for: gameID)
     }
 
     // MARK: - テスト用
