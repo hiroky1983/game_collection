@@ -68,6 +68,14 @@ check "パックが先走っていても落ちる"        1 "$(pack 'オフラ�
 check "複数箇所が揃っていれば通る"          0 "$(pack '定番12種' '将棋ほかの12本を収録しています。' '12本すべてが最後まで遊べます。')" "$(swiftsrc 12)"
 check "1箇所だけ直し漏れても落ちる"         1 "$(pack '定番12種' '将棋ほかの12本を収録しています。' '10本すべてが最後まで遊べます。')" "$(swiftsrc 12)"
 
+echo "== 1.5. サブタイトルの丸め表記（ROUND。会長決裁 2026-10-24・#2053）=="
+# サブタイトルは「10の位で丸めた本数＋種以上」が正（説明文など他の欄はちょうどの本数のまま）。
+check "丸めた本数（定番付き）が実装と合えば通る" 0 "$(pack '大富豪・ソリティア・麻雀など定番30種以上｜全画面広告なし' '32本を収録しています。' '32本すべてが最後まで遊べます。')" "$(swiftsrc 32)"
+check "丸めた本数（定番無し）が実装と合えば通る" 0 "$(pack '遊べる30種以上｜全画面広告なし' '32本を収録しています。')" "$(swiftsrc 32)"
+check "丸めた本数がちょうどのままだと落ちる"     1 "$(pack '定番32種以上｜全画面広告なし' '32本を収録しています。')" "$(swiftsrc 32)"
+check "丸めた本数が10の位を跨いで古いと落ちる"   1 "$(pack '定番30種以上｜全画面広告なし' '40本を収録しています。')" "$(swiftsrc 40)"
+check "サブタイトルは丸め・説明文はちょうどの組み合わせでも1箇所でも直し漏れれば落ちる" 1 "$(pack '定番30種以上｜全画面広告なし' '30本を収録しています。')" "$(swiftsrc 32)"
+
 echo "== 2. 収録本数ではない言い回しを誤検知しない（v1.1.0 パックの実例）=="
 check "「これ1本」は収録本数と読まない"      0 "$(pack 'オフラインで遊べる定番ゲーム8種の詰め合わせ' '8つの定番ゲームがこれ1本。通信不要のオフライン対応です。')" "$(swiftsrc 8)"
 check "「これ1本」だけでは本数の主張と見ない" 1 "$(pack '8つの定番ゲームがこれ1本。')" "$(swiftsrc 8)"
@@ -164,11 +172,34 @@ cp "$(pack '定番10種')" "$GIT_TMP/docs/aso/metadata-v9.9.9.md"
 branch_check "パックがあり食い違えば落ちる"             1 "release/v9.9.9"
 
 echo "== 7. 実物のパックで動く（回帰の最終確認）=="
-if bash "$TARGET" "$REPO/docs/aso/metadata-v1.1.1.md" "$REPO/App/AppGameServices.swift" >/dev/null 2>&1; then
-  ok "docs/aso/metadata-v1.1.1.md が現在の実装と一致している"
-else
-  ng "docs/aso/metadata-v1.1.1.md が現在の実装と一致していない"
-fi
+# 見たいのは「実物の入稿文言の書き方から本数を1つに読み取れる」こと。以前は過去版のパックを
+# **現在の** registry と比べていたため、ゲームを足すたびに必ず落ちていた（#762）。
+# そこで registry を 1〜60 本で作り、受理される本数がちょうど1つであることを見る
+# （0 = 読み取れない、2 以上 = どの本数でも通る = 検証になっていない）。
+REAL_PACKS=0
+for real in "$REPO"/docs/aso/metadata-v*.md; do
+  [ -f "$real" ] || continue
+  REAL_PACKS=$((REAL_PACKS + 1))
+  # 会長決裁で ASC の値（22本）を据え置き、```text フェンスから本数の主張を意図的に外したパック
+  # （metadata-v1.1.10.md §1-1。本数が読めないのが正しい状態）。v1.1.11 も文言 24本・実装 25本の食い違いを
+  # 意図的に残して同じ形にしている（metadata-v1.1.11.md §1）。誤って通さないよう名指しで除外する。
+  case "$(basename "$real")" in metadata-v1.1.10.md | metadata-v1.1.11.md)
+    ok "docs/aso/$(basename "$real") は本数の主張を意図的に外したパックなので対象外"
+    continue
+    ;;
+  esac
+  accepted=""
+  for ((n = 1; n <= 60; n++)); do
+    if bash "$TARGET" "$real" "$(swiftsrc "$n")" >/dev/null 2>&1; then accepted="$accepted $n"; fi
+  done
+  name="docs/aso/$(basename "$real")"
+  if [ "$(echo "$accepted" | wc -w | tr -d ' ')" = "1" ]; then
+    ok "$name から収録本数を1つに読み取れる（${accepted# }本）"
+  else
+    ng "$name から収録本数を1つに読み取れない（受理された本数: [${accepted# }]）"
+  fi
+done
+if [ "$REAL_PACKS" -gt 0 ]; then ok "実物のパックが ${REAL_PACKS} 本ある"; else ng "docs/aso/metadata-v*.md が見つからない"; fi
 
 echo "== 8. 配信レーンから呼ばれている（仕込み忘れの検出）=="
 # Fastfile 全体を grep すると、別レーンやコメントに文字列があるだけで通ってしまう

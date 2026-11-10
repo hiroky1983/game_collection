@@ -1,0 +1,34 @@
+{
+ "ip17_base": {
+  "felt_w_pt": 370.0,
+  "felt_h_pt": 431.6666666666667,
+  "felt_top_pt": 196.0,
+  "card_w_pt": 34.0,
+  "card_h_pt": 48,
+  "step_pt": 21.0
+ },
+ "ip17_full": {
+  "felt_w_pt": 370.0,
+  "felt_h_pt": 525.6666666666666,
+  "felt_top_pt": 114.0,
+  "card_w_pt": 34.0,
+  "card_h_pt": 48,
+  "step_pt": 21.0
+ },
+ "se3_base": {
+  "felt_w_pt": 344.0,
+  "felt_h_pt": 302.5,
+  "felt_top_pt": 153.5,
+  "card_w_pt": 31.4,
+  "card_h_pt": 44,
+  "step_pt": 13.0
+ },
+ "se3_full": {
+  "felt_w_pt": 345.0,
+  "felt_h_pt": 396.5,
+  "felt_top_pt": 71.5,
+  "card_w_pt": 31.5,
+  "card_h_pt": 44,
+  "step_pt": 19.0
+ }
+}

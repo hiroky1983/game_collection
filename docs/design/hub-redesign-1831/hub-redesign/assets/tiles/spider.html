@@ -1,0 +1,24 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:179px;height:215px;overflow:hidden}
+body{font-family:"SF Pro Rounded",".SF NS Rounded","Hiragino Sans",sans-serif;-webkit-font-smoothing:antialiased}
+.bg{position:absolute;inset:0}
+.o{position:absolute;filter:drop-shadow(0 6px 6px rgba(0,0,0,.28))}
+.px{image-rendering:pixelated}
+.card{position:absolute;width:62px;height:88px;border-radius:7px;background:#fff;border:1.5px solid #E6E0D6;box-shadow:0 6px 8px rgba(0,0,0,.28);font-weight:800;font-family:"SF Pro Rounded",".SF NS Rounded",sans-serif}
+.card .r{position:absolute;left:6px;top:4px;font-size:17px;line-height:1}
+.card .s{position:absolute;left:6px;top:22px;font-size:14px;line-height:1}
+.card .c{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:34px;padding-top:10px}
+.card.red{color:#C0392B}.card.blk{color:#1A1A1A}
+.back{position:absolute;width:62px;height:88px;border-radius:7px;background:#2F5F9E;border:4px solid #fff;box-shadow:0 6px 8px rgba(0,0,0,.28)}
+.back::after{content:"";position:absolute;inset:4px;border-radius:4px;border:2px solid rgba(255,255,255,.55);background:repeating-linear-gradient(45deg,rgba(255,255,255,.18) 0 4px,transparent 4px 8px)}
+.stone{position:absolute;width:44px;height:44px;border-radius:50%;box-shadow:0 5px 6px rgba(0,0,0,.3)}
+.stone.b{background:radial-gradient(circle at 35% 30%,#5a5a5a,#111 70%)}
+.stone.w{background:radial-gradient(circle at 35% 30%,#fff,#d9d9d9 75%)}
+.grid{position:absolute;background-size:26px 26px;background-image:linear-gradient(rgba(0,0,0,.35) 1.5px,transparent 1.5px),linear-gradient(90deg,rgba(0,0,0,.35) 1.5px,transparent 1.5px)}
+.chip{position:absolute;width:46px;height:46px;border-radius:50%;border:5px dashed #fff;box-shadow:0 5px 6px rgba(0,0,0,.3)}
+.koma{position:absolute;width:62px;height:70px;filter:drop-shadow(0 6px 5px rgba(0,0,0,.3))}
+.tile2048{position:absolute;width:64px;height:64px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff;box-shadow:0 6px 8px rgba(0,0,0,.25)}
+.num{position:absolute;font-weight:900;color:#fff;text-shadow:0 4px 6px rgba(0,0,0,.25)}
+.cell{position:absolute;width:52px;height:52px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:30px;box-shadow:0 6px 8px rgba(0,0,0,.28)}
+</style></head><body><div class="bg" style="background:linear-gradient(160deg,#6ED1B0 0%,#1D6B4F 50%,#134A37 100%)"></div><div style="position:absolute;inset:0;transform:translateY(24px)"><div class="back" style="left:8px;top:14px;transform:rotate(-6deg)"></div><div class="back" style="left:118px;top:14px;transform:rotate(6deg)"></div><div class="card blk" style="left:58px;top:24px;transform:rotate(0deg) scale(1);transform-origin:bottom center"><div class="r">K</div><div class="s">♠</div><div class="c">♠</div></div><div class="card blk" style="left:58px;top:50px;transform:rotate(0deg) scale(1);transform-origin:bottom center"><div class="r">Q</div><div class="s">♠</div><div class="c">♠</div></div><div class="card blk" style="left:58px;top:76px;transform:rotate(0deg) scale(1);transform-origin:bottom center"><div class="r">J</div><div class="s">♠</div><div class="c">♠</div></div><div class="card blk" style="left:58px;top:102px;transform:rotate(0deg) scale(1);transform-origin:bottom center"><div class="r">10</div><div class="s">♠</div><div class="c">♠</div></div><div class="card blk" style="left:58px;top:128px;transform:rotate(0deg) scale(1);transform-origin:bottom center"><div class="r">9</div><div class="s">♠</div><div class="c">♠</div></div><svg class="o" style="left:116px;top:120px;width:54px;transform:rotate(16deg)" viewBox="0 0 48 44"><circle cx="24" cy="26" r="11" fill="#2B2634"/><circle cx="24" cy="12" r="7" fill="#2B2634"/><path d="M24 24 Q4 10 2 22" stroke="#2B2634" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M24 24 Q6 22 2 34" stroke="#2B2634" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M24 24 Q10 34 8 44" stroke="#2B2634" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M24 24 Q44 10 46 22" stroke="#2B2634" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M24 24 Q42 22 46 34" stroke="#2B2634" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M24 24 Q38 34 40 44" stroke="#2B2634" stroke-width="3" fill="none" stroke-linecap="round"/><circle cx="21" cy="10" r="1.6" fill="#fff"/><circle cx="27" cy="10" r="1.6" fill="#fff"/></svg></div></body></html>

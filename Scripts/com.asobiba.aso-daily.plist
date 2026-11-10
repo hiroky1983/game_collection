@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  ASO の日次取得（Scripts/aso-daily.py・Issue #2231）を毎日 10:00 に動かす launchd ジョブ。
+  入れ方・止め方は docs/ai-devops.md「ASO の日次取得」。
+
+  実行するのは当番専用クローン（~/.asobiba-duty/game_collection。ai-duty.sh が 3 分ごとに fetch している）の
+  origin/main の aso-daily.py。会長の作業ツリーはブランチが main とは限らないため使わない。
+  取り出しに失敗した日は前回取り出した版（~/asobiba-kpi/bin/aso-daily.py）で動く。
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.asobiba.aso-daily</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>-c</string>
+		<string>bin="$HOME/asobiba-kpi/bin"; mkdir -p "$bin" &amp;&amp; chmod 700 "$bin" || exit 1
+if git -C "$HOME/.asobiba-duty/game_collection" show origin/main:Scripts/aso-daily.py &gt;"$bin/aso-daily.py.new" 2&gt;/dev/null &amp;&amp; [ -s "$bin/aso-daily.py.new" ]; then
+  mv "$bin/aso-daily.py.new" "$bin/aso-daily.py"
+else
+  rm -f "$bin/aso-daily.py.new"; echo "aso-daily: origin/main から取り出せなかったため前回の版で実行"
+fi
+exec /usr/bin/python3 "$bin/aso-daily.py"</string>
+	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+		<key>LANG</key>
+		<string>ja_JP.UTF-8</string>
+	</dict>
+	<key>RunAtLoad</key>
+	<false/>
+	<key>StandardErrorPath</key>
+	<string>/Users/yamadahiroki/Library/Logs/asobiba-aso-daily.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/yamadahiroki/Library/Logs/asobiba-aso-daily.log</string>
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Hour</key>
+		<integer>10</integer>
+		<key>Minute</key>
+		<integer>0</integer>
+	</dict>
+</dict>
+</plist>

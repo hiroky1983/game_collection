@@ -1,6 +1,6 @@
 #!/bin/bash
 # ai-duty.sh の「会長の書き込み」検知（仕事5: 決裁着信 / 仕事8: 企画議論着信 / 仕事11: blocked 解除確認 /
-# 仕事12: ハンコによる決裁）の検証。
+# 仕事12: ハンコによる決裁）と、純粋関数に切り出した判定（仕事7: 凍結漏れ / 仕事13: 出荷準備）の検証。
 #
 # 当番(AI)・経営企画室・会長はすべて同じ hiroky1983 トークンで投稿するため、この3者を分けるのは
 # 本文のマーカーだけである。マーカーの取りこぼしはそのまま毎時の空振り起動になる（#120・#168）ので、
@@ -141,7 +141,10 @@ for entry in "企画議論=企画議論（経営企画室）: 回答します" \
              "解除確認=解除確認: まだ条件未達" \
              "着手見送り=着手見送り: 着手条件 xxx が未達" \
              "決裁スレッド=$RINGI_THREAD" \
-             "決裁反映=決裁反映: 承認のため着手します"; do
+             "決裁反映=決裁反映: 承認のため着手します" \
+             "復旧=復旧: 当番の異常終了により ai:in-progress が残留していたため解除しました（#2580）" \
+             "自動ハンコ=自動ハンコ: 起票から 24 時間経過・自動ハンコ（OK 範囲: 不具合の修正）" \
+             "自動ハンコの週次まとめ=自動ハンコ（週次まとめ）: この 1 週間に自動ハンコで着手対象にした Issue は 1 件です"; do
   label="${entry%%=*}"
   prefix="${entry#*=}"
   check "仕事5 が「${label}…」で発火しない" "false" \
@@ -275,9 +278,544 @@ check "最新のラベル操作が「剥がし」なら発火しない（会長�
 check "会長が付け直した（第三者の剥がしの後）なら発火する" "true" \
   "$(ringi_stamp "$(stamp_node "ringi:pending,ai:approved" "$T1,attacker,U;$T2,hiroky1983,L" "$T1=$RINGI_THREAD")")"
 
+# 仕事7の凍結判定（#580）。v1.1.3 で「審査提出時に -submitted タグ・lock_branch を掛ける」
+# 手順の実施主体がどこにも無く、丸ごと飛ばされた。同じ判定ブロックで公開済み release ブランチの
+# タグ・凍結の有無も確認するようにした（is_submission_unfrozen）。
+echo "== 12. 仕事7（審査提出の凍結漏れ）: 発火すべきケース =="
+check "タグが無ければ発火する（lock は掛かっていても）" "0" \
+  "$(is_submission_unfrozen "" "true"; echo $?)"
+check "lock が掛かっていなければ発火する（タグはあっても）" "0" \
+  "$(is_submission_unfrozen "abc123	refs/tags/v1.1.3-submitted" "false"; echo $?)"
+check "タグも lock も無ければ発火する" "0" \
+  "$(is_submission_unfrozen "" "false"; echo $?)"
+
+echo "== 13. 仕事7: 発火してはいけないケース =="
+check "タグ・lock が両方揃っていれば発火しない" "1" \
+  "$(is_submission_unfrozen "abc123	refs/tags/v1.1.3-submitted" "true"; echo $?)"
+
+# 仕事7の対象ブランチ選び（#1722・2026-10-06）。従来は `sort -V | tail -1` で最新の release ブランチ
+# だけを見ており、公開前に次版（release/v1.1.10）を切る運用と噛み合わず、公開済みの v1.1.9 を一生
+# 検知できなかった。release_candidate_versions / is_release_target でブランチを古い順に当てるように直した。
+echo "== 13.5. 仕事7 の対象ブランチ選び（release_candidate_versions）=="
+check "release/vX.Y.Z 形式のブランチを古い順に出す（最新だけを選ばない）" "1.1.5 1.1.6 1.1.9 1.1.10" \
+  "$(release_candidate_versions "$(printf 'release/v%s\n' 1.1.10 1.1.5 1.1.9 1.1.6)" | tr '\n' ' ' | sed 's/ $//')"
+check "release/vX.Y.Z の形でない名前は無視する" "1.1.5" \
+  "$(release_candidate_versions "$(printf 'release/v1.1.0-submitted\nrelease/vnext\nrelease/v1.2\nrelease/v1.1.5\n')")"
+
+echo "== 13.6. 仕事7 の対象判定（is_release_target）=="
+check "main より先行し、公開版が追いついていれば対象（#1722: v1.1.10 を切った後でも v1.1.9 を拾う）" "0" \
+  "$(is_release_target "170" "1.1.9" "1.1.9"; echo $?)"
+check "main より先行していない（ahead_by=0・取り込み済み）なら次の候補へ" "1" \
+  "$(is_release_target "0" "1.1.8" "1.1.9"; echo $?)"
+check "公開版がまだ候補の版に追いついていなければ打ち切る（古い順なので以降も未公開）" "2" \
+  "$(is_release_target "182" "1.1.10" "1.1.9"; echo $?)"
+check "先行量が取得できなければ打ち切る（取りこぼしを次の版へ進めない）" "2" \
+  "$(is_release_target "" "1.1.9" "1.1.9"; echo $?)"
+check "先行量がエラーの JSON でも打ち切る" "2" \
+  "$(is_release_target '{"message":"Server Error"}' "1.1.9" "1.1.9"; echo $?)"
+check "公開バージョンが取得できなければ打ち切る" "2" \
+  "$(is_release_target "170" "1.1.9" ""; echo $?)"
+
+# 仕事13（出荷準備の検知・#483）。発火条件の設計を誤ると空振り起動が恒久化する（#120・#168・#386）一方、
+# 除外が足りないと検知全体が静かに沈黙する（2026-09-08 経営企画室の検算: v1.1.3 は未承認の #79 で鳴らなかった）。
+# 両方向の失敗をここで固定する。
+# 2026-09-16 時点の実データ: release/v1.1.0〜v1.1.6、-submitted タグは v1.1.0〜v1.1.4、公開は 1.1.4
+REAL_BRANCHES=$(printf 'release/v%s\n' 1.1.0 1.1.1 1.1.2 1.1.3 1.1.4 1.1.5 1.1.6)
+REAL_TAGS=$(printf 'refs/tags/v%s-submitted\n' 1.1.0 1.1.1 1.1.2 1.1.3 1.1.4)
+cands() { ship_candidate_versions "$1" "$2" "$3" | tr '\n' ' ' | sed 's/ $//'; }
+
+echo "== 14. 仕事13 の対象選び（未提出の最も古い版）=="
+check "最大の版ではなく未提出の最も古い版が先頭に来る（v1.1.6 より v1.1.5）" "1.1.5 1.1.6" \
+  "$(cands "$REAL_BRANCHES" "$REAL_TAGS" "1.1.4")"
+check "停止条件の一段目: -submitted タグを打った版は対象から外れる" "1.1.6" \
+  "$(cands "$REAL_BRANCHES" "$REAL_TAGS
+refs/tags/v1.1.5-submitted" "1.1.4")"
+check "公開済みの版はタグが無くても外れる（凍結漏れは仕事7 の担当）" "1.1.5 1.1.6" \
+  "$(cands "$REAL_BRANCHES" "$(printf 'refs/tags/v%s-submitted\n' 1.1.0 1.1.1 1.1.2 1.1.3)" "1.1.4")"
+check "公開バージョンが取れなければ公開済みの除外はしない（タグだけで絞る）" "1.1.5 1.1.6" \
+  "$(cands "$REAL_BRANCHES" "$REAL_TAGS" "")"
+check "git ls-remote 形式・注釈付きタグの ^{} 行も提出済みとして読む" "1.1.6" \
+  "$(cands "$REAL_BRANCHES" "abc	refs/tags/v1.1.5-submitted^{}" "1.1.4")"
+check "v1.1.1 のタグで v1.1.10 は外れない（部分一致しない）" "1.1.9 1.1.10" \
+  "$(cands "$(printf 'release/v%s\n' 1.1.1 1.1.9 1.1.10)" "refs/tags/v1.1.1-submitted" "")"
+check "release/vX.Y.Z の形でない名前は無視する" "1.1.5" \
+  "$(cands "$(printf 'release/v1.1.0-submitted\nrelease/vnext\nrelease/v1.2\nrelease/v1.1.5\n')" "" "")"
+
+echo "== 15. 仕事13: 凍結・先行量で対象を決める =="
+check "未凍結で main より先行していれば対象" "0" "$(is_ship_target "false" "375"; echo $?)"
+check "保護設定が取れず gh がエラーの JSON を返しても凍結とは読まない" "0" \
+  "$(is_ship_target '{"message":"Branch not protected","status":"404"}false' "3"; echo $?)"
+check "停止条件の一段目: lock_branch が掛かっていれば対象外（タグの打ち漏れがあっても）" "1" \
+  "$(is_ship_target "true" "375"; echo $?)"
+check "main より先行していない（ahead_by=0 と正常に取れた）なら次の候補へ" "1" "$(is_ship_target "false" "0"; echo $?)"
+# 検証指摘: 取得失敗を「次の候補へ」にすると v1.1.5 を飛ばして v1.1.6 を対象にしてしまう
+check "先行量が空（取得失敗）なら打ち切る" "2" "$(is_ship_target "false" ""; echo $?)"
+check "先行量がエラーの JSON（5xx・レート制限）なら打ち切る" "2" \
+  "$(is_ship_target "false" '{"message":"Server Error","status":"502"}'; echo $?)"
+check "lock が掛かっていれば先行量を見ずに次の候補へ" "1" "$(is_ship_target "true" ""; echo $?)"
+
+echo "== 16. 仕事13: 出荷準備を始めてよいか =="
+check "PR 0本・残作業 0件・未依頼なら発火する" "0" "$(is_ship_ready "0" "0" "false"; echo $?)"
+check "その版を base にするオープン PR が残っていれば発火しない" "1" "$(is_ship_ready "1" "0" "false"; echo $?)"
+check "残作業が残っていれば発火しない" "1" "$(is_ship_ready "0" "1" "false"; echo $?)"
+check "停止条件の二段目: 実機確認を依頼済みなら発火しない" "1" "$(is_ship_ready "0" "0" "true"; echo $?)"
+check "PR の本数が取れなければ発火しない" "1" "$(is_ship_ready "" "0" "false"; echo $?)"
+check "マイルストーンが取れなければ発火しない" "1" "$(is_ship_ready "0" "" ""; echo $?)"
+check "オープン Issue の取得が打ち切られていたら発火しない" "1" "$(is_ship_ready "0" "truncated" "false"; echo $?)"
+
+# GraphQL 応答と同じ形のマイルストーンを組み立てる。
+# 引数: $1 マイルストーン名、以降 "open=ラベル(カンマ区切り)" と "req=author=本文"（ops:chairman Issue のコメント）、
+#       "hasnext"（オープン Issue に次のページがある）
+ms_node() {
+  local title="$1"; shift
+  local opens='[]' comments='[]' e labels next=false
+  for e in "$@"; do
+    case "$e" in
+      hasnext) next=true ;;
+      open=*)
+        labels=$(printf '%s' "${e#open=}" | tr ',' '\n' | jq -R '{name: .}' | jq -sc .)
+        opens=$(printf '%s' "$opens" | jq -c --argjson l "$labels" '. + [{number: 1, labels: {nodes: $l}}]') ;;
+      req=*)
+        e="${e#req=}"
+        comments=$(printf '%s' "$comments" \
+          | jq -c --arg a "${e%%=*}" --arg b "${e#*=}" '. + [{author: {login: $a}, body: $b}]') ;;
+    esac
+  done
+  jq -nc --arg t "$title" --argjson o "$opens" --argjson c "$comments" --argjson n "$next" \
+    '{data: {repository: {milestones: {nodes: [{title: $t, openIssues: {pageInfo: {hasNextPage: $n}, nodes: $o},
+       requestIssues: {nodes: [{number: 2, comments: {nodes: $c}}]}}]}}}}'
+}
+# オープン Issue を N件（全部 blocked）持つマイルストーン。pageInfo は付けない（取れなかったときの備え）
+ms_many() {
+  jq -nc --argjson n "$1" '{data: {repository: {milestones: {nodes: [{title: "v1.1.5",
+    openIssues: {nodes: [range($n) | {number: ., labels: {nodes: [{name: "blocked"}]}}]},
+    requestIssues: {nodes: []}}]}}}}'
+}
+# ai-duty.sh 仕事13 の呼び出しと同じ式。出力は "残作業の件数 依頼済みか"
+SHA="662a161abcdef0123456789"
+ship_state() { printf '%s' "$1" | jq -r --arg trusted "$ACTORS" --arg ver "$2" --arg sha "$SHA" "$DUTY_JQ_COMMENT_LIB"'($trusted | split(",")) as $actors | ship_milestone_state($actors; $ver; $sha)'; }
+
+echo "== 17. 仕事13: 残作業の数え方（沈黙する方向の失敗を防ぐ）=="
+# 2026-09-08 経営企画室の検算そのもの: #171・#54 が blocked、#79 が未承認 ai:proposed のみ
+check "blocked 2件と未承認 ai:proposed 1件だけなら残作業 0（#483 の検算・v1.1.3）" "0 false" \
+  "$(ship_state "$(ms_node v1.1.5 "open=blocked" "open=blocked" "open=ai:proposed")" 1.1.5)"
+check "ringi:pending・ops:chairman（承認済みでも）・ラベル無しは残作業に数えない" "0 false" \
+  "$(ship_state "$(ms_node v1.1.5 "open=ai:proposed,ai:approved,ringi:pending" "open=ai:proposed,ai:approved,risk:sensitive,ops:chairman" "open=")" 1.1.5)"
+check "承認済み（ai:approved）の未着手は残作業に数える" "1 false" \
+  "$(ship_state "$(ms_node v1.1.5 "open=ai:proposed,ai:approved" "open=blocked")" 1.1.5)"
+check "承認済みで着手中（ai:in-progress）も残作業に数える" "2 false" \
+  "$(ship_state "$(ms_node v1.1.5 "open=ai:proposed,ai:approved,ai:in-progress" "open=ai:approved,risk:ui")" 1.1.5)"
+check "承認済みでも blocked なら数えない" "0 false" \
+  "$(ship_state "$(ms_node v1.1.5 "open=ai:approved,blocked")" 1.1.5)"
+check "マイルストーン名は完全一致で選ぶ（v1.1.50 を v1.1.5 と読まない）" "" \
+  "$(ship_state "$(ms_node v1.1.50 "open=ai:approved")" 1.1.5)"
+
+echo "== 18. 仕事13: 停止条件の二段目（実機確認の依頼マーカー）=="
+check "現在の HEAD の SHA 付きで依頼済みなら止まる" "0 true" \
+  "$(ship_state "$(ms_node v1.1.5 "req=hiroky1983=出荷準備: v1.1.5 @662a161 実機確認をお願いします")" 1.1.5)"
+check "SHA を長く書いても止まる" "0 true" \
+  "$(ship_state "$(ms_node v1.1.5 "req=hiroky1983=出荷準備: v1.1.5 @662a161abcdef 実機確認をお願いします")" 1.1.5)"
+check "依頼の後に release ブランチが動いた（古い SHA）なら再び鳴る" "0 false" \
+  "$(ship_state "$(ms_node v1.1.5 "req=hiroky1983=出荷準備: v1.1.5 @0123456 実機確認をお願いします")" 1.1.5)"
+check "別の版の依頼では止まらない" "0 false" \
+  "$(ship_state "$(ms_node v1.1.5 "req=hiroky1983=出荷準備: v1.1.4 @662a161 実機確認をお願いします")" 1.1.5)"
+check "v1.1.50 の依頼で v1.1.5 は止まらない" "0 false" \
+  "$(ship_state "$(ms_node v1.1.5 "req=hiroky1983=出荷準備: v1.1.50 @662a161")" 1.1.5)"
+check "第三者のコメントでは検知を握り潰せない（PR #446 と同じ）" "0 false" \
+  "$(ship_state "$(ms_node v1.1.5 "req=attacker=出荷準備: v1.1.5 @662a161 実機確認をお願いします")" 1.1.5)"
+check "会長が語を引用しただけでは止まらない（先頭一致・PR #387 と同じ）" "0 false" \
+  "$(ship_state "$(ms_node v1.1.5 "req=hiroky1983=前回の 出荷準備: v1.1.5 @662a161 は確認した")" 1.1.5)"
+check "依頼コメントが無ければ止まらない" "0 false" \
+  "$(ship_state "$(ms_node v1.1.5 "req=hiroky1983=着手見送り: 条件未達")" 1.1.5)"
+
+# 停止マーカーを置いた Issue に blocked・ringi:pending・ai:proposed が付いていても、仕事5・8・11 が
+# 「会長の新規コメント」と誤認して鳴らないこと（is_duty_reply の集合に揃っている）
+echo "== 19. 仕事13 の停止マーカーが当番マーカーの集合に入っている（#386 と同じ揃え方）=="
+SHIP_MARKER="出荷準備: v1.1.5 @662a161 実機確認をお願いします"
+check "仕事5 が「出荷準備…」で発火しない" "false" \
+  "$(ringi "$(node "ringi:pending" "hiroky1983=会長の指示" "hiroky1983=$SHIP_MARKER")")"
+check "仕事8 が「出荷準備…」で発火しない" "false" \
+  "$(proposed "$(node "ai:proposed" "hiroky1983=会長の指示" "hiroky1983=$SHIP_MARKER")")"
+check "仕事11 が「出荷準備…」で発火しない" "false" \
+  "$(blocked "$(node "blocked" "hiroky1983=会長の指示" "hiroky1983=$SHIP_MARKER")")"
+
+# 検証指摘: 先頭 100件が除外対象ばかりだと、101件目以降の承認済み Issue を見落として誤発火する
+echo "== 17-b. 仕事13: オープン Issue の取得が打ち切られていたら件数を返さない =="
+check "次のページがあれば truncated（鳴らさない）" "truncated false" \
+  "$(ship_state "$(ms_node v1.1.5 hasnext "open=blocked")" 1.1.5)"
+check "pageInfo が取れなくても 100件に達していれば truncated" "truncated false" \
+  "$(ship_state "$(ms_many 100)" 1.1.5)"
+check "99件で次のページが無ければ件数を返す（対照）" "0 false" \
+  "$(ship_state "$(ms_many 99)" 1.1.5)"
+
+# 検証指摘: 純粋関数のテストだけでは呼び出し側の配線（is_ship_ready への引数・候補ループの break・
+# SHIP_STATE の分け方・gh pr list の --base）を壊しても緑のまま通った。ai-duty.sh の仕事13 ブロックを
+# そのまま切り出し、gh と curl だけをスタブに差し替えて実行する（テスト用の写しを持たない）。
+echo "== 20. 仕事13 の呼び出し側（本物のブロックをスタブの gh で実行）=="
+SHIP_BLOCK=$(awk '/^# 仕事13: 出荷準備の検知/ { f = 1 } /^# 実行モード決定/ { f = 0 } f' "$TARGET")
+check "仕事13 のブロックを切り出せた" "1" "$(printf '%s\n' "$SHIP_BLOCK" | grep -c '^SHIP_READY=0$')"
+
+STUB_LOCK=""; STUB_AHEAD=""; STUB_PRS=""; STUB_GRAPHQL=""; STUB_GH_FAIL=""
+# "キー=値" の並び（空白区切り）から値を引く
+stub_lookup() {
+  local e
+  for e in $2; do
+    if [ "${e%%=*}" = "$1" ]; then printf '%s' "${e#*=}"; return 0; fi
+  done
+  return 1
+}
+# 実物の gh は --jq を適用した結果を出し、HTTP エラーではエラーの JSON を出して非0で終わる。それに合わせる
+gh() {
+  local v a prev="" base=""
+  case "$1 $2" in
+    "api repos/hiroky1983/game_collection/git/matching-refs/heads/release/v")
+      case " $STUB_GH_FAIL " in *" refs "*) echo "gh: HTTP 502" >&2; return 1 ;; esac
+      case " $STUB_GH_FAIL " in *" norefs "*) return 0 ;; esac
+      for v in 1.1.0 1.1.1 1.1.2 1.1.3 1.1.4 1.1.5 1.1.6; do
+        if [ "$v" = "1.1.5" ]; then printf 'release/v%s\t%s\n' "$v" "$SHA"
+        else printf 'release/v%s\t0000000%s\n' "$v" "${v//./}"; fi
+      done ;;
+    "api repos/hiroky1983/game_collection/git/matching-refs/tags/v")
+      case " $STUB_GH_FAIL " in *" tags "*) echo "gh: HTTP 502" >&2; return 1 ;; esac
+      printf '%s\n' "$REAL_TAGS" ;;
+    "api repos/hiroky1983/game_collection/branches/"*)
+      v="${2#*release%2Fv}"; v="${v%/protection}"
+      if [ "$(stub_lookup "$v" "$STUB_LOCK")" = "FAIL" ]; then  # 404 以外の失敗（レート制限）
+        printf '{"message":"API rate limit exceeded","status":"403"}'; echo "gh: API rate limit exceeded (HTTP 403)" >&2; return 1
+      fi
+      stub_lookup "$v" "$STUB_LOCK" || { printf '{"message":"Branch not protected","status":"404"}'; echo "gh: Branch not protected (HTTP 404)" >&2; return 1; } ;;
+    "api repos/hiroky1983/game_collection/compare/"*)
+      v="${2##*release/v}"
+      a=$(stub_lookup "$v" "$STUB_AHEAD") || a=0
+      if [ "$a" = "FAIL" ]; then printf '{"message":"Server Error","status":"502"}'; return 1; fi
+      printf '%s\n' "$a" ;;
+    "api graphql")
+      printf '%s' "$STUB_GRAPHQL" ;;
+    "pr list")
+      case " $STUB_GH_FAIL " in *" prs "*) echo "gh: HTTP 502" >&2; return 1 ;; esac
+      for a in "$@"; do
+        [ "$prev" = "--base" ] && base="$a"
+        prev="$a"
+      done
+      # --base が無ければ main 向けを含む全オープン PR の本数を返す（2026-09-16 時点で 6本）
+      if [ -n "$base" ]; then stub_lookup "$base" "$STUB_PRS" || echo 0; else echo 6; fi ;;
+    *) return 1 ;;
+  esac
+}
+curl() { printf '{"results":[{"version":"1.1.4"}]}'; }
+# 凍結の確認は origin/main から取り出す実装なので、テストでは手元の lib を指す（#3227）
+export DUTY_BRANCH_LOCK_LIB="$SCRIPT_DIR/../lib/branch-lock.sh"
+# 引数: lock の並び / ahead_by の並び（FAIL で取得失敗）/ base 別の PR 本数の並び / GraphQL 応答
+# 出力: "対象の版 SHIP_READY"
+run_ship_block() {
+  STUB_LOCK="$1"; STUB_AHEAD="$2"; STUB_PRS="$3"; STUB_GRAPHQL="$4"; STUB_GH_FAIL="${5:-}"
+  (
+    log() { :; }
+    DUTY_TRUSTED_ACTORS="$ACTORS"
+    DUTY_APP_ID=0
+    eval "$SHIP_BLOCK" >/dev/null 2>&1
+    printf '%s %s' "${SHIP_VER:-なし}" "$SHIP_READY"
+  )
+}
+AHEAD_OK="1.1.5=375 1.1.6=447"
+PRS_NONE="release/v1.1.5=0 release/v1.1.6=0"
+MS_READY=$(ms_node v1.1.5 "open=blocked" "open=ai:proposed")
+MS_REQUESTED=$(ms_node v1.1.5 "open=blocked" "req=hiroky1983=出荷準備: v1.1.5 @662a161 実機確認をお願いします")
+MS_WORK=$(ms_node v1.1.5 "open=ai:approved")
+MS_TRUNC=$(ms_node v1.1.5 hasnext "open=blocked")
+
+check "条件が揃えば v1.1.5 で発火する（main 向けの PR 6本は数えない）" "1.1.5 1" \
+  "$(run_ship_block "" "$AHEAD_OK" "$PRS_NONE" "$MS_READY")"
+check "依頼マーカーが現在の HEAD にあれば発火しない（is_ship_ready に依頼の有無が届いている）" "1.1.5 0" \
+  "$(run_ship_block "" "$AHEAD_OK" "$PRS_NONE" "$MS_REQUESTED")"
+check "release/v1.1.5 向けの PR が残っていれば発火しない" "1.1.5 0" \
+  "$(run_ship_block "" "$AHEAD_OK" "release/v1.1.5=1" "$MS_READY")"
+check "残作業が残っていれば発火しない" "1.1.5 0" \
+  "$(run_ship_block "" "$AHEAD_OK" "$PRS_NONE" "$MS_WORK")"
+check "オープン Issue の取得が打ち切られていれば発火しない" "1.1.5 0" \
+  "$(run_ship_block "" "$AHEAD_OK" "$PRS_NONE" "$MS_TRUNC")"
+check "v1.1.5 の凍結を確かめられない（404 以外の失敗）なら「凍結なし」と見なさず対象なし（#3227）" "なし 0" \
+  "$(run_ship_block "1.1.5=FAIL" "$AHEAD_OK" "$PRS_NONE" "$MS_READY")"
+check "v1.1.5 の ahead_by が取得失敗なら v1.1.6 へ進まず対象なし（検証指摘1）" "なし 0" \
+  "$(run_ship_block "" "1.1.5=FAIL 1.1.6=447" "$PRS_NONE" "$MS_READY")"
+check "v1.1.5 が空（ahead_by=0）なら次の v1.1.6 を対象にする" "1.1.6 0" \
+  "$(run_ship_block "" "1.1.5=0 1.1.6=447" "$PRS_NONE" "$MS_READY")"
+check "v1.1.5 が凍結済みなら次の v1.1.6 を対象にする" "1.1.6 0" \
+  "$(run_ship_block "1.1.5=true" "$AHEAD_OK" "$PRS_NONE" "$MS_READY")"
+# gh 失敗の注入（#3399）。失敗は「空」と区別して見送り、成功して空なら従来どおり対象なし
+check "release ブランチ一覧の取得失敗なら対象なし" "なし 0" \
+  "$(run_ship_block "" "$AHEAD_OK" "$PRS_NONE" "$MS_READY" refs)"
+check "release ブランチ一覧が成功して空なら対象なし（従来どおり）" "なし 0" \
+  "$(run_ship_block "" "$AHEAD_OK" "$PRS_NONE" "$MS_READY" norefs)"
+check "提出済みタグ一覧の取得失敗なら提出済みの版を選ばず対象なし" "なし 0" \
+  "$(run_ship_block "" "$AHEAD_OK" "$PRS_NONE" "$MS_READY" tags)"
+check "オープン PR 数の取得失敗なら SHIP_READY を立てない" "1.1.5 0" \
+  "$(run_ship_block "" "$AHEAD_OK" "$PRS_NONE" "$MS_READY" prs)"
+# 失敗時に log が1行出ること
+SHIP_FAIL_LOG=$(
+  log() { echo "$*"; }
+  gh() { echo "gh: HTTP 502" >&2; return 1; }
+  DUTY_TRUSTED_ACTORS="$ACTORS"; DUTY_APP_ID=0
+  eval "$SHIP_BLOCK" 2>/dev/null
+)
+check "取得失敗は仕事13 の log が1行出る" "1" "$(printf '%s\n' "$SHIP_FAIL_LOG" | grep -c '^仕事13: ')"
+
+# 合算判定は duty_has_work（#2580 で関数に切り出し）にあり、仕事13 のブロックの外なので走査で見る。
+# 「仕事なし」でログを出して終わる if が関数経由の1行だけであることと、関数が SHIP_READY を含むことを確かめる
+NO_WORK_IF=$(grep -v '^[[:space:]]*#' "$TARGET" | grep -B1 'log "仕事なし' | grep '^if ')
+check "「仕事なし」の合算判定は1行だけ" "1" "$(printf '%s\n' "$NO_WORK_IF" | grep -c '^if ')"
+check "「仕事なし」の合算判定に SHIP_READY が入っている" "1" \
+  "$(sed -n '/^duty_has_work()/,/^}/p' "$TARGET" | grep -cF '"${SHIP_READY:-0}"')"
+
+# #1075: 未承認の企画 Issue に社長セッションが付けた ai:in-progress で、仕事9 が30分ごとに空振り起動していた
+echo "== 21. 仕事9（孤児の集計）=="
+OLD="2026-01-01T00:00:00Z"
+NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+# 引数: "番号|ラベル(カンマ区切り)|updatedAt" の並び
+orphan_issues() {
+  local e n l u out='[]'
+  for e in "$@"; do
+    IFS='|' read -r n l u <<<"$e"
+    out=$(printf '%s' "$out" | jq -c --argjson n "$n" --arg l "$l" --arg u "$u" \
+      '. + [{number: $n, updatedAt: $u, labels: ($l | split(",") | map({name: .}))}]')
+  done
+  printf '%s' "$out"
+}
+check "承認済みで30分以上無更新なら数える" "1" \
+  "$(count_orphans "$(orphan_issues "1|ai:approved,ai:in-progress|$OLD")" 1800 '[]')"
+check "未承認（ai:approved なし）は無更新でも数えない（#1075）" "0" \
+  "$(count_orphans "$(orphan_issues "1016|ai:proposed,ai:in-progress,risk:sensitive|$OLD")" 1800 '[]')"
+check "未承認と承認済みが混ざっていれば承認済みだけ数える（#1016 と #83 の形）" "1" \
+  "$(count_orphans "$(orphan_issues "1016|ai:proposed,ai:in-progress|$OLD" "80|ai:approved,ai:in-progress|$OLD")" 1800 '[]')"
+check "承認済みでも更新が新しければ数えない" "0" \
+  "$(count_orphans "$(orphan_issues "1|ai:approved,ai:in-progress|$NOW")" 1800 '[]')"
+check "承認済みでもオープン PR に紐づいていれば数えない" "0" \
+  "$(count_orphans "$(orphan_issues "7|ai:approved,ai:in-progress|$OLD")" 1800 '[7]')"
+check "duty:heavy（クラウドが担当）は無更新でも数えない" "0" \
+  "$(count_orphans "$(orphan_issues "1462|ai:approved,ai:in-progress,duty:heavy|$OLD")" 1800 '[]')"
+check "duty:heavy と通常の孤児が混ざっていれば通常のほうだけ数える" "1" \
+  "$(count_orphans "$(orphan_issues "1462|ai:approved,ai:in-progress,duty:heavy|$OLD" "80|ai:approved,ai:in-progress|$OLD")" 1800 '[]')"
+check "取得に失敗して空なら件数を出さない（呼び出し側が 0 に倒す）" "" \
+  "$(count_orphans "" 1800 '[]')"
+
+# #1534: 決裁待ちのドラフト PR と、release 向け PR が出ている Issue で空振り起動していた
+echo "== 21b. 仕事6（放置 PR）のドラフト除外と仕事9 の本文紐づけ =="
+check "非ドラフトの CLEAN・auto-merge 未設定は数える" "1" \
+  "$(count_stalled '[{"isDraft":false,"mergeStateStatus":"CLEAN","autoMergeRequest":null,"closingIssuesReferences":[]}]' '[]')"
+check "ドラフトの CLEAN・auto-merge 未設定は数えない（#1534）" "0" \
+  "$(count_stalled '[{"isDraft":true,"mergeStateStatus":"CLEAN","autoMergeRequest":null,"closingIssuesReferences":[]}]' '[]')"
+check "ドラフトと非ドラフトが混ざれば非ドラフトだけ数える" "1" \
+  "$(count_stalled '[{"isDraft":true,"mergeStateStatus":"CLEAN","autoMergeRequest":null},{"isDraft":false,"mergeStateStatus":"CLEAN","autoMergeRequest":null}]' '[]')"
+check "非ドラフトでも auto-merge 済み・CLEAN でなければ数えない" "0" \
+  "$(count_stalled '[{"isDraft":false,"mergeStateStatus":"CLEAN","autoMergeRequest":{"enabledAt":"x"}},{"isDraft":false,"mergeStateStatus":"BLOCKED","autoMergeRequest":null}]' '[]')"
+check "他スロットの Issue を Closes する PR は数えない" "0" \
+  "$(count_stalled '[{"isDraft":false,"mergeStateStatus":"CLEAN","autoMergeRequest":null,"closingIssuesReferences":[{"number":9}]}]' '[9]')"
+check "本文の Closes #N を紐づけとして数える（release 向けで closingIssuesReferences が空）" "[1511]" \
+  "$(pr_linked_issue_numbers '[{"body":"Closes #1511\n本文","closingIssuesReferences":{"nodes":[]}}]')"
+check "本文の「関連: #N」も紐づけとして数える（#1527 の形）" "[1501]" \
+  "$(pr_linked_issue_numbers '[{"body":"関連: #1501","closingIssuesReferences":{"nodes":[]}}]')"
+check "closingIssuesReferences と本文の和集合（重複は1つ）" "[7,8]" \
+  "$(pr_linked_issue_numbers '[{"body":"fixes #8 / Closes #7","closingIssuesReferences":{"nodes":[{"number":7}]}}]')"
+check "本文が無い・空なら空配列" "[]" \
+  "$(pr_linked_issue_numbers '[{"body":null,"closingIssuesReferences":{"nodes":[]}},{"body":"","closingIssuesReferences":[]}]')"
+check "単語の途中（disclose / prefs）は紐づけと読まない" "[]" \
+  "$(pr_linked_issue_numbers '[{"body":"disclose #7 / prefs #8","closingIssuesReferences":[]}]')"
+check "本文参照の Issue は孤児に数えない・参照の無い Issue は数える" "1" \
+  "$(count_orphans "$(orphan_issues "1511|ai:approved,ai:in-progress|$OLD" "80|ai:approved,ai:in-progress|$OLD")" 1800 "$(pr_linked_issue_numbers '[{"body":"Closes #1511","closingIssuesReferences":{"nodes":[]}}]')")"
+check "呼び出し側: 仕事6 が isDraft を取得して純粋関数に渡している（取り忘れると全件が非ドラフト扱い）" "1" \
+  "$(grep -c 'if STALLED_PRS=$(gh pr list .*--json mergeStateStatus,autoMergeRequest,isDraft,closingIssuesReferences' "$TARGET")"
+check "呼び出し側: 仕事9 が PR 本文を取得して紐づけ判定に通している" "1" \
+  "$(grep -c '^LINKED_ISSUES=$(pr_linked_issue_numbers' "$TARGET")"
+
+# 呼び出し側の配線（--json に labels を足し忘れると、純粋関数のテストは緑のまま全件が未承認扱いになる）。
+# 仕事9 のブロックをそのまま切り出し、gh だけをスタブに差し替える。スタブは実物と同じく --json で頼んだ欄しか返さない
+ORPHAN_BLOCK=$(awk '/^# 仕事9: 孤児化した ai:in-progress の回収/ { f = 1 } /^# 仕事10:/ { f = 0 } f' "$TARGET")
+check "仕事9 のブロックを切り出せた" "1" "$(printf '%s\n' "$ORPHAN_BLOCK" | grep -c '^ORPHANS="${ORPHANS:-0}"$')"
+run_orphan_block() {
+  STUB_ISSUES="$1"
+  (
+    gh() {
+      local a prev="" fields=""
+      case "$1 $2" in
+        "api graphql") printf '[]' ;;
+        "issue list")
+          for a in "$@"; do
+            [ "$prev" = "--json" ] && fields="$a"
+            prev="$a"
+          done
+          printf '%s' "$STUB_ISSUES" | jq -c --arg f "$fields" '[.[] | with_entries(select(.key as $k | $f | split(",") | index($k)))]' ;;
+        *) return 1 ;;
+      esac
+    }
+    eval "$ORPHAN_BLOCK" >/dev/null 2>&1
+    printf '%s' "$ORPHANS"
+  )
+}
+check "呼び出し側: 承認済みの孤児を数える" "1" \
+  "$(run_orphan_block "$(orphan_issues "1016|ai:proposed,ai:in-progress|$OLD" "80|ai:approved,ai:in-progress|$OLD")")"
+check "呼び出し側: 未承認だけなら 0（#1075）" "0" \
+  "$(run_orphan_block "$(orphan_issues "1016|ai:proposed,ai:in-progress|$OLD")")"
+
+# gh の一覧取得の失敗を「空」と読み替えない（#3294）。仕事10（取り残しコミット）と着手候補の取得を、
+# 本物のブロックのまま gh を失敗させて実行する。git は一時リポジトリに refs/remotes/origin/* だけ置いて本物を使う
+echo "== 10-b. gh の一覧取得が失敗した回は空扱いにしない（#3294）=="
+ORPHAN_COMMITS_BLOCK=$(awk '/^# 仕事10: マージ済み PR のブランチに取り残されたコミット/ { f = 1 } /^# 仕事11:/ { f = 0 } f' "$TARGET")
+check "仕事10 のブロックを切り出せた" "1" "$(printf '%s\n' "$ORPHAN_COMMITS_BLOCK" | grep -c '^ORPHAN_COMMITS=0 ORPHAN_SCAN_OK=0')"
+GR=$(mktemp -d)
+git init -q "$GR"
+(
+  cd "$GR" || exit 1
+  git -c user.email=t@t -c user.name=t commit -q --allow-empty -m a
+  A=$(git rev-parse HEAD)
+  git -c user.email=t@t -c user.name=t commit -q --allow-empty -m b
+  B=$(git rev-parse HEAD)
+  git update-ref refs/remotes/origin/main "$A"
+  git update-ref refs/remotes/origin/release/v1 "$A"
+  git update-ref refs/remotes/origin/feat "$B"
+)
+# 引数: オープン PR の head 一覧 / オープン一覧を失敗させるか(1) / マージ済み一覧を失敗させるか(1)。出力: "孤児コミット数 ログ行数"
+run_orphan_commits_block() {
+  local open="$1" fail_open="$2" fail_merged="$3"
+  (
+    DUTY_DIR="$GR"
+    LOGF=$(mktemp)
+    log() { echo "$*" >>"$LOGF"; }
+    gh() {
+      case "$*" in
+        *"--state open"*) [ "$fail_open" = 1 ] && return 1; printf '%s' "$open" ;;
+        *"--state merged"*) [ "$fail_merged" = 1 ] && return 1; printf 'feat\trelease/v1\n' ;;
+        *) return 1 ;;
+      esac
+    }
+    eval "$ORPHAN_COMMITS_BLOCK" >/dev/null 2>&1
+    printf '%s %s' "$ORPHAN_COMMITS" "$(wc -l <"$LOGF" | tr -d ' ')"
+    rm -f "$LOGF"
+  )
+}
+check "対照: 取り残しのあるマージ済みブランチは数える" "1 0" "$(run_orphan_commits_block "" 0 0)"
+check "対照: オープン PR のあるブランチは数えない" "0 0" "$(run_orphan_commits_block "feat" 0 0)"
+check "オープン PR の一覧が取れない回は「PR なし」と読まず水増ししない・ログを1行出す" "0 1" "$(run_orphan_commits_block "" 1 0)"
+check "マージ済み一覧が取れない回は検知を飛ばし、ログを1行出す" "0 1" "$(run_orphan_commits_block "" 0 1)"
+check "両方失敗ならログは2行" "0 2" "$(run_orphan_commits_block "" 1 1)"
+
+CANDIDATES_BLOCK=$(awk '/^if ! CANDIDATES=\$\(gh issue list/ { f = 1 } /^# 重い Issue の一覧/ { f = 0 } f' "$TARGET")
+check "着手候補の取得ブロックを切り出せた" "1" "$(printf '%s\n' "$CANDIDATES_BLOCK" | grep -c 'if ! CANDIDATES=')"
+run_candidates_block() {
+  local fail="$1"
+  (
+    LOGF=$(mktemp)
+    log() { echo "$*" >>"$LOGF"; }
+    gh() { [ "$fail" = 1 ] && return 1; printf '[{"number":7,"labels":[{"name":"ai:approved"}],"milestone":null}]' | jq -r "${@: -1}"; }
+    eval "$CANDIDATES_BLOCK" >/dev/null 2>&1
+    printf '[%s] %s' "$CANDIDATES" "$(wc -l <"$LOGF" | tr -d ' ')"
+    rm -f "$LOGF"
+  )
+}
+check "対照: 成功すれば候補を返してログは出ない" "[7 false false] 0" "$(run_candidates_block 0)"
+check "着手候補の取得に失敗した回は空にしてログに取得失敗を残す" "[] 1" "$(run_candidates_block 1)"
+
+# 仕事4（コンフリクト）・仕事6（放置 PR）の取得失敗も「0 件」と読み替えない（#3308）。本物のブロックのまま gh を失敗させる
+echo "== 10-d. 仕事4・6 は gh の失敗を 0 件と読み替えず、ログを1行出す（#3308）=="
+CONFLICT_BLOCK=$(awk '/^# 仕事4: コンフリクトで滞留/ { f = 1 } /^# 仕事5:/ { f = 0 } f' "$TARGET")
+STALLED_BLOCK=$(awk '/^# 仕事6: マージ可能なのに放置/ { f = 1 } /^# 仕事7:/ { f = 0 } f' "$TARGET")
+check "仕事4 のブロックを切り出せた" "1" "$(printf '%s\n' "$CONFLICT_BLOCK" | grep -c 'if CONFLICT_PRS=')"
+check "仕事6 のブロックを切り出せた" "1" "$(printf '%s\n' "$STALLED_BLOCK" | grep -c 'if STALLED_PRS=')"
+# 引数: 検知ブロック / gh を失敗させるか(1) / 出力する変数名。出力: "件数 ログ行数"
+run_pr_block() {
+  local block="$1" fail="$2" var="$3"
+  (
+    OTHER_CLAIMS_JSON='[]'
+    LOGF=$(mktemp)
+    log() { echo "$*" >>"$LOGF"; }
+    gh() { [ "$fail" = 1 ] && return 1; printf '[{"mergeable":"CONFLICTING","mergeStateStatus":"CLEAN","autoMergeRequest":null,"isDraft":false,"closingIssuesReferences":[]}]'; }
+    eval "$block" >/dev/null 2>&1
+    printf '%s %s' "${!var}" "$(wc -l <"$LOGF" | tr -d ' ')"
+    rm -f "$LOGF"
+  )
+}
+check "対照: 仕事4 は成功すれば数えてログは出ない" "1 0" "$(run_pr_block "$CONFLICT_BLOCK" 0 CONFLICTS)"
+check "仕事4: gh が失敗した回は 0 に倒しログを1行出す" "0 1" "$(run_pr_block "$CONFLICT_BLOCK" 1 CONFLICTS)"
+check "対照: 仕事6 は成功すれば数えてログは出ない" "1 0" "$(run_pr_block "$STALLED_BLOCK" 0 STALLED)"
+check "仕事6: gh が失敗した回は 0 に倒しログを1行出す" "0 1" "$(run_pr_block "$STALLED_BLOCK" 1 STALLED)"
+
 echo "== 11. 呼び出し側が共通定義を使っている（判定の写しを作っていない）=="
 USES=$(grep -c 'DUTY_JQ_COMMENT_LIB"' "$TARGET")
-check "仕事5・仕事8・仕事11・仕事12 の4箇所が DUTY_JQ_COMMENT_LIB を渡している" "4" "$USES"
+check "仕事5・仕事8・仕事11・仕事12・仕事13 の5箇所が DUTY_JQ_COMMENT_LIB を渡している" "5" "$USES"
+check "仕事13 の呼び出し側が純粋関数を通している" "3" \
+  "$(grep -cE '(ship_candidate_versions|is_ship_target|is_ship_ready) "' "$TARGET")"
+check "仕事7 の呼び出し側が最新版だけを選ぶ sort -V | tail -1 に戻っていない" "0" \
+  "$(grep -c 'matching-refs/heads/release/v".*sort -V | tail -1' "$TARGET")"
+check "仕事7 の呼び出し側が純粋関数を通している" "2" \
+  "$(grep -cE '(release_candidate_versions|is_release_target) "' "$TARGET")"
+
+echo "== 12. 事前判定: 検知値がすべて 0 なら claude を起動しない（#2580）=="
+has_work() { ( APPROVED=0 THREADS=0 PENDING_REVIEW=0 CONFLICTS=0 RINGI_REPLIES=0 STALLED=0 RELEASED=0 SUBMISSION_UNFROZEN=0 \
+  PROPOSED_REPLIES=0 ORPHANS=0 ORPHAN_COMMITS=0 BLOCKED_UPDATES=0 RINGI_STAMPS=0 SHIP_READY=0; eval "$1"; duty_has_work && echo yes || echo no ); }
+check "すべて 0 → 起動しない" "no" "$(has_work ':')"
+for v in APPROVED THREADS PENDING_REVIEW CONFLICTS RINGI_REPLIES STALLED RELEASED SUBMISSION_UNFROZEN PROPOSED_REPLIES ORPHANS ORPHAN_COMMITS BLOCKED_UPDATES RINGI_STAMPS SHIP_READY; do
+  check "$v=1 だけで起動する" "yes" "$(has_work "$v=1")"
+done
+check "未設定の値は 0 として扱う" "no" "$( ( unset APPROVED THREADS; duty_has_work && echo yes || echo no ) )"
+check "起動ログは孤児検知を飛ばした回を skipped と出す（0 件と区別・#3294）" "1" \
+  "$(grep -c 'orphan_commits=$(\[ "${ORPHAN_SCAN_OK:-0}" -eq 1 \]' "$TARGET")"
+check "呼び出し側が duty_has_work を通している" "1" "$(grep -c '^if ! duty_has_work; then' "$TARGET")"
+
+echo "== 13. 日次サマリ: ログから起動回数と課金経路を数える（#2580）=="
+SLOG=$(mktemp)
+cat >"$SLOG" <<'LOGEOF'
+[2026-10-19 10:00:00] [s1] 仕事なし（企画・分析は Scripts/ai-management-duty.sh の担当）
+[2026-10-19 10:03:00] [s1] 仕事なし・起動せず（企画・分析は Scripts/ai-management-duty.sh の担当）
+[2026-10-19 10:06:00] [s1] 当番起動 (slot=1/2, issue=なし)
+[2026-10-19 10:07:00] [s1] 課金: subscription（見回りのみ）
+[2026-10-19 10:09:00] [s1] 当番起動 (slot=1/2, issue=12)
+[2026-10-19 10:30:00] [s1] 課金: api
+[2026-10-19 10:31:00] [s2] 当番起動 (slot=2/2, issue=13)
+[2026-10-19 10:50:00] [s2] 課金: api→subscription（クレジット切れ）
+[2026-10-20 09:00:00] [s1] 当番起動 (slot=1/2, issue=なし)
+LOGEOF
+check "前日分だけ数える" "日次サマリ 2026-10-19: 当番起動 3 回 / 仕事なしで起動せず 2 回 / 課金経路 api 2・subscription 1" \
+  "$(duty_daily_summary_line "$SLOG" 2026-10-19)"
+check "ログが無い日は 0" "日次サマリ 2026-10-18: 当番起動 0 回 / 仕事なしで起動せず 0 回 / 課金経路 api 0・subscription 0" \
+  "$(duty_daily_summary_line "$SLOG" 2026-10-18)"
+rm -f "$SLOG"
+
+# #3413: gh api graphql の失敗を「0 件」に化けさせず、log に変数名つきの理由を出してその検知だけ見送る。
+# 仕事5（RINGI_REPLIES）と仕事12（RINGI_STAMPS）は本物のブロックをスタブの gh で実行して固定する
+echo "== 22. graphql の失敗を握り潰さない（#3413）=="
+RINGI_BLOCK=$(awk '/^# 仕事5: 決裁コメントの着信/ { f = 1 } /^# 仕事6: / { f = 0 } f' "$TARGET")
+STAMP_BLOCK=$(awk '/^# 仕事12: ハンコによる決裁の着信/ { f = 1 } /^# 仕事13: / { f = 0 } f' "$TARGET")
+check "仕事5 のブロックを切り出せた" "1" "$(printf '%s\n' "$RINGI_BLOCK" | grep -c '^RINGI_REPLIES=')"
+check "仕事12 のブロックを切り出せた" "1" "$(printf '%s\n' "$STAMP_BLOCK" | grep -c '^RINGI_STAMPS=')"
+# 引数: ブロック / 変数名 / graphql の応答（FAIL で gh を失敗させる）
+# 出力: "<変数の値>|<log の行数>|<変数名つきの log の行数>"
+run_gql_block() {
+  local block="$1" var="$2" resp="$3"
+  (
+    # log は $(...) の中（サブシェル）で呼ばれるので、変数ではなくファイルに集める
+    LOGF=$(mktemp "${TMPDIR:-/tmp}/duty-gql-log.XXXXXX")
+    log() { echo "$*" >>"$LOGF"; }
+    gh() { if [ "$resp" = FAIL ]; then echo "gh: HTTP 502" >&2; return 1; fi; printf '%s' "$resp"; }
+    DUTY_TRUSTED_ACTORS="$ACTORS"
+    eval "$block" >/dev/null 2>&1
+    printf '%s|%s|%s' "${!var}" "$(grep -c . "$LOGF")" "$(grep -c "^$var: " "$LOGF")"
+    rm -f "$LOGF"
+  )
+}
+RINGI_RESP=$(jq -nc --argjson n "$(node ringi:pending "hiroky1983=$RINGI_THREAD" "hiroky1983=$CHAIRMAN")" \
+  '{data: {repository: {issues: {nodes: [$n]}}}}')
+check "仕事5: gh 成功で会長の返信があれば 1 件（成功時の挙動は変えない）" "1|0|0" \
+  "$(run_gql_block "$RINGI_BLOCK" RINGI_REPLIES "$RINGI_RESP")"
+check "仕事5: gh 失敗は 0 件にしつつ RINGI_REPLIES つきの log を 1 行出す" "0|1|1" \
+  "$(run_gql_block "$RINGI_BLOCK" RINGI_REPLIES FAIL)"
+check "仕事12: gh 失敗は 0 件にしつつ RINGI_STAMPS つきの log を 1 行出す" "0|1|1" \
+  "$(run_gql_block "$STAMP_BLOCK" RINGI_STAMPS FAIL)"
+check "仕事12: gh は成功でも応答を jq で読めなければ 0 件にしつつ log を 1 行出す" "0|1|1" \
+  "$(run_gql_block "$STAMP_BLOCK" RINGI_STAMPS '{"data":{"repository":{"issues":{"nodes":null}}}}')"
+check "仕事12: gh 成功で対象なしなら log を出さず 0 件" "0|0|0" \
+  "$(run_gql_block "$STAMP_BLOCK" RINGI_STAMPS '{"data":{"repository":{"issues":{"nodes":[]}}}}')"
+# gh の失敗を握り潰す `2>/dev/null | jq … || echo 0` の形が、graphql を叩く検知に残っていないこと
+check "graphql の結果を直接 jq へ流して || echo 0 する形が残っていない" "0" \
+  "$(grep -v '^[[:space:]]*#' "$TARGET" | grep -c "^}' 2>/dev/null | jq ")"
 
 echo
 echo "結果: PASS=$PASS FAIL=$FAIL"

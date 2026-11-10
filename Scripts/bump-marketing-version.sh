@@ -38,6 +38,9 @@ APP_ID="${BUMP_APP_ID:-6781719499}"
 
 die() { echo "bump-marketing-version: $*" >&2; exit 1; }
 
+# 凍結（lock_branch）の確認。404（保護設定なし）は未凍結、それ以外の失敗は判定できない（#3227）
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/branch-lock.sh" || die "lib/branch-lock.sh を読めません"
+
 # X.Y.Z（数字 3 要素）の完全一致。check-marketing-version.sh と同じ物差し。
 is_xyz() {
   local v="$1" dots
@@ -197,12 +200,15 @@ done
 
 # 床 3: 凍結（lock_branch）済みの release ブランチ。自分以上の版のものだけ見ればよい
 #（自分より小さい版は床にしても結果が変わらない）。凍結済みかを確かめられなければ止める。
-for ref in $(git ls-remote --heads origin 'release/v*' | awk '{ print $2 }'); do
+# ls-remote の失敗（ネットワーク断・認証切れ）を「凍結済みブランチなし」と読み替えない（#3335）
+REMOTE_HEADS="$(git ls-remote --heads origin 'release/v*')" \
+  || die "origin の release ブランチ一覧を取得できないので止めます（git ls-remote が失敗）"
+for ref in $(printf '%s\n' "$REMOTE_HEADS" | awk '{ print $2 }'); do
   bv="${ref#refs/heads/release/v}"
   is_xyz "$bv" || continue
   [ "$(ver_cmp "$bv" "$V")" = -1 ] && continue
-  lock="$(gh api "repos/$REPO/branches/release%2Fv${bv}/protection" --jq '.lock_branch.enabled' 2>/dev/null)" \
-    || die "release/v${bv} の保護設定を取得できません。凍結済みか確かめられないので止めます"
+  lock="$(branch_lock_state "$REPO" "$bv")" \
+    || die "release/v${bv} の凍結済みか確かめられないので止めます"
   [ "$lock" = "true" ] && FLOOR_VERS="$FLOOR_VERS $bv"
 done
 
@@ -221,7 +227,9 @@ fi
 TITLE="chore(release): バージョンを ${V} (build ${NEW_B}) に更新"
 HEAD_BRANCH="chore/release-version-v${V}-b${NEW_B}"
 
-PR="$(gh pr list -R "$REPO" --state open --base "$BASE" --head "$HEAD_BRANCH" --json number --jq '.[0].number // empty' 2>/dev/null)"
+# 失敗を「既存 PR なし」と読み替えない（版数更新の PR を重ねて作ってしまうため・#3308）
+PR="$(gh pr list -R "$REPO" --state open --base "$BASE" --head "$HEAD_BRANCH" --json number --jq '.[0].number // empty' 2>/dev/null)" \
+  || die "既存の版数更新 PR を確認できませんでした（gh pr list が失敗）。重複して作らないよう止めます"
 if [ -n "$PR" ]; then
   echo "bump-marketing-version: 同じ版数更新の PR #$PR が既に開いています。それを使います"
 else

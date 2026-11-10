@@ -1,0 +1,124 @@
+name: CatPuzzle Stage Bank
+
+# おじさんちのねこさがしの同梱ステージ（CatPuzzleStageBank・#3258）の 12×12 を GitHub の macOS ランナーで作る。
+# 12×12 は 1 問に数十秒〜数分かかり、ローカル Mac では負荷が高いため。手動起動のみ。
+# 面の範囲をチャンクに分けてジョブ（matrix）に並べ、各ジョブは Scripts/catpuzzle-stage-bank/build.sh の
+# 最適化ビルドの生成器をコア数ぶんのプロセスに分けて走らせる。成果物（`面番号<TAB>部屋|解`）は
+# `gh run download <run-id>` で集め、番号順に並べて CatPuzzleStageBank.entries へ貼る。
+# ref・最初の面・最後の面は既定値を置かない（作業ごとに範囲が変わり、古い既定値で走るのを防ぐ・#3429）。
+# 生成器（ref のブランチ）は CatPuzzleStage の決まりを見るので、ref には最終の生成手順を入れておくこと。
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: '生成器を含むブランチ（Scripts/catpuzzle-stage-bank がある release ブランチ等。既定値は置かない＝毎回必ず指定する）'
+        required: true
+      first:
+        description: '最初の面'
+        required: true
+      last:
+        description: '最後の面'
+        required: true
+      chunk:
+        description: '1 ジョブが受け持つ面数'
+        required: true
+        default: '25'
+      numbers:
+        description: '作り直す面だけを指定するとき、空白区切りの面番号（例: "90 100 110"）。指定すると 最初の面・最後の面 は使わない'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - id: plan
+        env:
+          FIRST: ${{ inputs.first }}
+          LAST: ${{ inputs.last }}
+          CHUNK: ${{ inputs.chunk }}
+          NUMBERS: ${{ inputs.numbers }}
+        run: |
+          set -euo pipefail
+          [[ "$CHUNK" =~ ^[0-9]+$ ]] && [ "$CHUNK" -ge 1 ] || { echo "1 ジョブの面数は 1 以上の数字にしてください" >&2; exit 1; }
+          items=()
+          if [ -n "${NUMBERS// /}" ]; then
+            # 面番号の指定: 小さい順に CHUNK 個ずつジョブへ分ける（matrix.numbers にその面を空白区切りで渡す）。
+            read -ra given <<< "$NUMBERS"
+            for v in "${given[@]}"; do
+              [[ "$v" =~ ^[0-9]+$ ]] || { echo "面番号は数字で指定してください: $v" >&2; exit 1; }
+            done
+            nums=($(printf '%s\n' "${given[@]}" | sort -n -u))
+            for ((i = 0; i < ${#nums[@]}; i += CHUNK)); do
+              group=("${nums[@]:i:CHUNK}")
+              items+=("{\"first\":${group[0]},\"last\":${group[${#group[@]}-1]},\"numbers\":\"${group[*]}\"}")
+            done
+          else
+            for v in "$FIRST" "$LAST"; do
+              [[ "$v" =~ ^[0-9]+$ ]] || { echo "数字で指定してください: $v" >&2; exit 1; }
+            done
+            [ "$FIRST" -le "$LAST" ] || { echo "範囲が正しくありません" >&2; exit 1; }
+            for ((s = FIRST; s <= LAST; s += CHUNK)); do
+              e=$((s + CHUNK - 1)); [ "$e" -gt "$LAST" ] && e=$LAST
+              items+=("{\"first\":$s,\"last\":$e}")
+            done
+          fi
+          matrix="{\"include\":[$(IFS=,; echo "${items[*]}")]}"
+          echo "$matrix"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  generate:
+    needs: plan
+    runs-on: macos-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: 生成器をビルド
+        run: bash Scripts/catpuzzle-stage-bank/build.sh "$RUNNER_TEMP/gen"
+
+      - name: ${{ matrix.first }}〜${{ matrix.last }} 面を生成
+        env:
+          FIRST: ${{ matrix.first }}
+          LAST: ${{ matrix.last }}
+          NUMBERS: ${{ matrix.numbers }}
+        run: |
+          set -euo pipefail
+          n=$(sysctl -n hw.ncpu)
+          start=$(date +%s)
+          if [ -n "$NUMBERS" ]; then
+            # 面番号の指定: 1 面ずつ n 本まで並べて走らせる。
+            expected=$(wc -w <<< "$NUMBERS" | tr -d ' ')
+            tr -s ' ' '\n' <<< "$NUMBERS" | xargs -P "$n" -I{} bash -c '"$1" {} {} > "$2/one-{}.tsv"' _ "$RUNNER_TEMP/gen" "$RUNNER_TEMP"
+            cat "$RUNNER_TEMP"/one-*.tsv | sort -n > "$RUNNER_TEMP/bank-$FIRST-$LAST.tsv"
+          else
+            expected=$((LAST - FIRST + 1))
+            pids=()
+            for ((i = 0; i < n; i++)); do
+              "$RUNNER_TEMP/gen" "$FIRST" "$LAST" "$n" "$i" > "$RUNNER_TEMP/part-$i.tsv" &
+              pids+=($!)
+            done
+            for pid in "${pids[@]}"; do wait "$pid"; done
+            sort -n "$RUNNER_TEMP"/part-*.tsv > "$RUNNER_TEMP/bank-$FIRST-$LAST.tsv"
+          fi
+          count=$(wc -l < "$RUNNER_TEMP/bank-$FIRST-$LAST.tsv")
+          [ "$count" -eq "$expected" ] || { echo "行数が合いません: $count（期待 $expected）" >&2; exit 1; }
+          echo "プロセス $n 本・$(( $(date +%s) - start )) 秒・$count 面"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bank-${{ matrix.first }}-${{ matrix.last }}
+          path: ${{ runner.temp }}/bank-${{ matrix.first }}-${{ matrix.last }}.tsv
+          if-no-files-found: error

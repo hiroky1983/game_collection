@@ -1,0 +1,107 @@
+#!/bin/bash
+# main をベースにしたアプリコードの PR を落とす（#606）。
+#
+# 規程（docs/ai-devops.md「ブランチ戦略」）では main は「リリース済みバージョンの集合」で、
+# アプリコードの PR を向ける場所ではない。ここへ入れた変更は release/vX.Y.Z を経由しないため
+# 次版の出荷物に載らず、しかもどの検知にも掛からない（当番の仕事10「取り残しコミット」は
+# 「マージ済み PR の head ブランチにあって base にも main にも無いコミット」を探すので、
+# main に入ってしまったものは対象外になる）。
+#
+# 実害: チャリンコおじさんの修正6コミットが PR #593 / #596 で main 直マージされ、
+# release/v1.1.4 に載らないまま2日ぶん積み上がった（#606 で cherry-pick して回収）。
+# しかも release/v1.1.4 にしか無い走査テスト（GameChromeTests）で1件落ちる状態だったため、
+# main 側の CI が green でも「次版で通る」ことの担保になっていなかった。
+#
+# 使い方: Scripts/check-pr-base.sh <base ブランチ名> <head ブランチ名> [変更ファイル一覧のパス]
+#   変更ファイル一覧を省略すると標準入力から読む（1 行 1 パス）。
+# 終了コード: 0 = 問題なし or 検証対象外 / 1 = main 直の許可リスト外の変更 / 2 = 使い方の誤り
+set -uo pipefail
+
+BASE="${1:-}"
+HEAD_REF="${2:-}"
+FILES_PATH="${3:-}"
+
+if [ -z "$BASE" ] || [ -z "$HEAD_REF" ]; then
+  echo "使い方: Scripts/check-pr-base.sh <base ブランチ名> <head ブランチ名> [変更ファイル一覧のパス]" >&2
+  exit 2
+fi
+
+# base が main 以外（= release/vX.Y.Z 向けの通常の開発 PR）は本来の姿なので何も見ない。
+if [ "$BASE" != "main" ]; then
+  echo "check-pr-base: base が [$BASE] で main ではないため検証しません"
+  exit 0
+fi
+
+# 公開後の取り込み（release/vX.Y.Z → main）は規程が定める正規の経路で、
+# 当然アプリコードを含む。凍結済み release ブランチは push できないため中間ブランチを
+# 経由することがあり（#558 の chore/merge-release-v113-to-main）、その形も通す。
+#
+# **バージョン番号の形まで見る**。`release/*` の前方一致だけにすると、`release/` で始まる
+# 名前を付けるだけでこのチェックを迂回できてしまい、ラベル方式を退けた理由（付け方次第で
+# 歯止めが黙って無効になる）がそのまま残る。通すのは X.Y.Z の3要素だけ。
+is_version() {
+  local v="$1" dots
+  case "$v" in
+    ""|*[!0-9.]*|.*|*.|*..*) return 1 ;;
+  esac
+  dots="${v//[!.]/}"
+  [ "${#dots}" = 2 ]
+}
+
+TAKEOVER=""
+case "$HEAD_REF" in
+  release/v*)              is_version "${HEAD_REF#release/v}" && TAKEOVER="release ブランチ" ;;
+  chore/merge-release-v*)
+    # #558 の形（chore/merge-release-v113-to-main）。バージョンはドット無しで書かれる。
+    rest="${HEAD_REF#chore/merge-release-v}"
+    case "$rest" in
+      [0-9]*-to-main) TAKEOVER="凍結回避の中間ブランチ" ;;
+    esac
+    ;;
+esac
+
+if [ -n "$TAKEOVER" ]; then
+  echo "check-pr-base: head が [${HEAD_REF}]（${TAKEOVER}）で release の取り込み経路のため検証しません"
+  exit 0
+fi
+
+if [ -n "$FILES_PATH" ]; then
+  if [ ! -f "$FILES_PATH" ]; then
+    echo "check-pr-base: 変更ファイル一覧 [$FILES_PATH] を読めません" >&2
+    exit 2
+  fi
+  FILES="$(cat "$FILES_PATH")"
+else
+  FILES="$(cat)"
+fi
+
+# 許可リスト方式（#3052）。main 直でよいのは運用系・LP だけ（docs/ai-devops.md）で、
+# それ以外のパスは「ビルドに効く可能性があるもの」として release ブランチを経由させる。
+# 禁止リスト（App/ Packages/ project.yml だけ）だと Config/Package.resolved・fastlane/・Gemfile が
+# 素通りし、ルートに新しいディレクトリが増えても守られない。
+# 許可: docs/ Scripts/ .github/ web/ ・ルート直下の *.md ・.coderabbit.yaml
+VIOLATIONS=""
+while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  case "$f" in
+    docs/*|Scripts/*|.github/*|web/*|.coderabbit.yaml) ;;
+    */*) VIOLATIONS="${VIOLATIONS}${f}"$'\n' ;;
+    *.md) ;;
+    *) VIOLATIONS="${VIOLATIONS}${f}"$'\n' ;;
+  esac
+done <<< "$FILES"
+
+if [ -z "$VIOLATIONS" ]; then
+  echo "check-pr-base: main 直の PR ですが、許可リスト外（アプリ・ビルドに効く変更）は含みません"
+  exit 0
+fi
+
+echo "check-pr-base: main をベースにした、許可リスト外（アプリ・ビルドに効く）の変更を検出しました"
+echo
+printf '%s' "$VIOLATIONS" | sed 's/^/  - /'
+echo
+echo "main 直でよいのは docs/ Scripts/ .github/ web/ ・ルート直下の *.md ・.coderabbit.yaml だけです。"
+echo "main は「リリース済みバージョンの集合」です（docs/ai-devops.md）。"
+echo "この PR の base を、対象 Issue のマイルストーンと同名の release/vX.Y.Z に付け替えてください。"
+echo "対応する release ブランチが無ければ直近の release の HEAD から作成します（同文書の手順）。"
+exit 1

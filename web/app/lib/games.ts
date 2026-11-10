@@ -6,8 +6,14 @@ export type Game = {
   slug: string;
   name: string;
   emoji: string;
+  /// 絵文字の代わりに出す絵（`public/` からのパス）。ドット絵なので `GameMark` が整数倍で拡大する
+  icon?: { src: string; width: number; height: number };
   /// 一覧カードに出す1行紹介（アプリ内の GameModule.description に合わせる）
   tagline: string;
+  /// 英語ページ（/en）のゲーム名。アプリの英語表示と同じ表記にする（他社の商標名は使わない）
+  nameEn: string;
+  /// 英語ページ（/en）の1行紹介。アプリの英語表示（GameModule.description の英語）に合わせる
+  taglineEn: string;
   /// ゲーム別ページの <title> に使う語（検索されるであろう表記を含める）
   pageTitle: string;
   /// meta description。120字前後
@@ -29,31 +35,12 @@ export type Game = {
 /// （2026-08-28・会長指示。#299 で 12本 LP がアプリ公開前に本番公開された反省）。
 export const games: Game[] = [
   {
-    slug: "catpuzzle",
-    name: "おじさんちのねこさがし",
-    emoji: "🐈",
-    tagline: "家のどこかに隠れた飼い猫を、部屋ごとに1匹ずつ見つけよう",
-    pageTitle: "おじさんちのねこさがし - 家の間取りに隠れた猫を推理で見つける無料のパズル",
-    description:
-      "おじさんの家の間取りに隠れた飼い猫を、推理で見つけていく一人用のパズル。部屋・行・列のそれぞれに猫がちょうど1匹ずついて、猫どうしはななめも含めて隣り合いません。盤は6×6・7×7・8×8の3段階で、問題は毎回変わり答えは1通り。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
-    howTo: [
-      "部屋・行・列のそれぞれに、猫がちょうど1匹ずついます。猫どうしは、ななめも含めて隣り合いません",
-      "マスをタップすると ×（いない）を付け外しできます。× の付け外しはミスになりません",
-      "猫がいると分かったマスはダブルタップで見つけます。全部の猫を見つけたらクリアです",
-      "答えでないマスをダブルタップすると赤い × が付いてミスになり、ミスが3回になると終わりです",
-    ],
-    features: [
-      "盤は6×6・7×7・8×8の3段階。問題は毎回変わり、答えは必ず1通り",
-      "ヒントは次に分かる推理の1歩を光らせて教えてくれます。猫の位置が確定したマスには猫を置きます（1問3回まで）",
-      "猫はおじさんの飼い猫。ドールハウスのような家を見下ろして探します",
-      "盤の大きさごとにクリアタイムの自己ベストが残り、途中で閉じても続きから再開できます",
-    ],
-  },
-  {
     slug: "homerun",
     name: "柵越えおじさん",
     emoji: "⚾",
-    tagline: "1日3回、10球勝負。狙って離して柵の向こうへ",
+    tagline: "1日3回、10球勝負。押したまま狙って離して振り、柵の向こうへ",
+    nameEn: "Sakugoe Ojisan",
+    taglineEn: "3 rounds a day, 10 pitches each. Hold to aim, let go to swing, and send it over the fence",
     pageTitle: "柵越えおじさん - 1日3回遊べる無料の一人用バッティングゲーム",
     description:
       "おじさんが打席に立つ、1日3回・10球勝負の3Dバッティングゲーム。画面の下の帯を押したまま動かして狙いを定め、タイミングよく指を離して振り抜きます。柵を越えるホームランを狙って、自己ベストを更新しよう。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -61,7 +48,7 @@ export const games: Game[] = [
       "画面の下の帯を押したまま動かすと、カーソルが同じように動きます",
       "カーソルを球に合わせ、輪が的に重なった瞬間に指を離すとバットが振れます",
       "1回の挑戦は10球。柵の向こうまで飛ばせばホームランです",
-      "挑戦できるのは1日3回。使い切っても、広告の視聴かアンケートへの回答で回数を増やせます",
+      "挑戦できるのは1日3回。使い切っても、広告を見るとその場で1回遊べます。月を割ると、その日の回数が増えることもあります",
     ],
     features: [
       "操作は帯を押して動かし、離すだけ。片手で遊べます",
@@ -75,6 +62,8 @@ export const games: Game[] = [
     name: "いろリレー",
     emoji: "🎴",
     tagline: "色か数字をつないで手札を出し切ろう。CPU3人と対戦",
+    nameEn: "Color Relay",
+    taglineEn: "Match the color or number and empty your hand first. Play against 3 CPUs",
     pageTitle: "いろリレー - 色と数字をつないで手札を出し切る無料のカードゲーム",
     description:
       "場の札と同じ色か同じ数字・記号の札を出していき、先に手札をなくした人が勝ちのカードゲーム。CPU3人との4人対戦で、とばし・ぎゃく・+2・いろがえ・いろがえ+4の特殊札で流れが変わります。出せる札がなければ山から1枚引きます。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -95,6 +84,8 @@ export const games: Game[] = [
     name: "ソリティア",
     emoji: "🃏",
     tagline: "クロンダイク。52枚を組札に積み上げよう",
+    nameEn: "Solitaire",
+    taglineEn: "Classic Klondike. Build all 52 cards onto the foundations",
     pageTitle: "ソリティア（クロンダイク） - 無料でオフラインで遊べる定番のトランプ1人遊び",
     description:
       "トランプ52枚を ♠♥♦♣ ごとに A から K まで積み上げる、定番のソリティア（クロンダイク）。出題する配札はすべて事前に解いてクリアできることを確かめてあります。「戻す」は1局につき3回まで無料。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -116,20 +107,22 @@ export const games: Game[] = [
     slug: "poker",
     name: "ポーカー",
     emoji: "♠️",
-    tagline: "5カードドロー。チップを稼ごう！",
+    tagline: "5カードドロー。10回勝負で役の点を競おう！",
+    nameEn: "Poker",
+    taglineEn: "5-card draw. Score points with your hands over 10 rounds!",
     pageTitle: "ポーカー - 5カードドローを CPU と対戦できる無料アプリ",
     description:
-      "CPU と1対1で戦う5カードドローポーカー。役一覧とゲームの流れがアプリ内で確認できるので、ルールを知らなくても始められます。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
+      "CPU と1対1で戦う5カードドローポーカー。10回勝負で、勝った回に作った役の点を合計して自己ベストを目指します。役一覧と点数表がアプリ内で確認できるので、ルールを知らなくても始められます。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
     howTo: [
-      "アンティ（参加料）を払って5枚のカードが配られます",
-      "1回目のベットで「チェック」か「ベット（20枚）」を選びます",
-      "いらないカードを選んで交換し、2回目のベット（チェック／ベット／コール／フォールド）を経てショーダウン",
-      "強い役の方がポットのチップを獲得。役が分からないときは「役一覧を見る」で確認できます",
+      "5枚のカードが配られます。いらないカードを選んで1回だけ交換できます",
+      "「勝負する」で CPU と手札を見せ合い、役の強い方がその回の勝ちです",
+      "勝った回は自分の役の点が入ります（ワンペア2点・フルハウス18点・ロイヤルフラッシュ50点など）",
+      "10回勝負の合計点が CPU より多ければ勝ち。合計点が自己ベストになります",
     ],
     features: [
-      "アプリ内に役一覧とゲームの流れの解説があります",
-      "チップはゲーム内だけのもので、購入も現金化もできません（アプリ内課金なし）",
-      "チップが尽きたら、広告を見て回復するか最初からやり直せます",
+      "アプリ内に役一覧と役の点数表があります",
+      "画面の上に「何回目か」と「合計点」が出るので、10回勝負の流れがひと目で分かる",
+      "広告を見ると、10回のうち1度だけもう1回カードを交換できます",
     ],
   },
   {
@@ -137,6 +130,8 @@ export const games: Game[] = [
     name: "サイコロ役づくり",
     emoji: "🎲",
     tagline: "サイコロ5個を3回まで振って、12の役に点を入れていこう",
+    nameEn: "Dice Combos",
+    taglineEn: "Roll 5 dice up to 3 times and fill all 12 combos",
     pageTitle: "サイコロ役づくり - サイコロ5個で役を作る無料のダイスゲーム",
     description:
       "サイコロ5個を1ターンに3回まで振り、残したい目をキープしながら12の役に1回ずつ点を入れていく一人用のダイスゲーム。1〜6の目の小計が63点以上ならボーナス+35点。12の役をぜんぶ埋めたら終わりで、合計点の自己ベストを目指します。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -156,7 +151,9 @@ export const games: Game[] = [
     slug: "mahjong4",
     name: "麻雀（四人打ち）",
     emoji: "🎴",
-    tagline: "CPU3人と東風戦。立直・鳴きあり！",
+    tagline: "CPU3人と東風戦・半荘戦。立直・鳴きあり！",
+    nameEn: "Mahjong",
+    taglineEn: "East Round or Hanchan against 3 CPUs. Riichi and calls included!",
     pageTitle: "四人打ち麻雀 - CPU3人と対戦できる無料の一人用麻雀",
     description:
       "CPU3人を相手に東風戦を戦う四人打ち麻雀。立直・ポン・チー・カンに対応し、役と点数は自動で計算します。ルールと役の一覧をアプリ内で読めるので、覚えながら打てます。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -178,6 +175,8 @@ export const games: Game[] = [
     name: "オセロ",
     emoji: "⚪",
     tagline: "石を挟んでひっくり返せ！CPU に挑戦",
+    nameEn: "Osero",
+    taglineEn: "Sandwich stones to flip them! Take on the CPU",
     pageTitle: "オセロ - CPU と対戦できる無料のオセロ",
     description:
       "8×8のオセロを CPU と一人で対戦。黒・白を選べて、待った・投了に対応。石数はリアルタイムに表示されます。通信不要・登録不要で、iPhone アプリ「あそびば」に無料で収録。",
@@ -198,6 +197,8 @@ export const games: Game[] = [
     name: "ナンプレ",
     emoji: "🧩",
     tagline: "9×9のマスに1〜9を埋めよう",
+    nameEn: "Number Place",
+    taglineEn: "Fill the 9x9 grid with the numbers 1 to 9",
     pageTitle: "ナンプレ - かんたん・ふつう・むずかしいが選べる無料の数字パズル",
     description:
       "9×9のマスに1〜9を重複なく埋めるナンプレ（ナンバープレース）。かんたん・ふつう・むずかしいの3段階から選べ、出題は必ず答えが1通りに決まる盤面です。メモとヒントがあるので詰まっても進められます。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -220,6 +221,8 @@ export const games: Game[] = [
     name: "五目並べ",
     emoji: "⚫",
     tagline: "先に5つ並べた方が勝ち！CPU に挑戦",
+    nameEn: "Gomoku",
+    taglineEn: "First to get five in a row wins! Take on the CPU",
     pageTitle: "五目並べ - CPU と対戦できる無料の連珠・五目並べ",
     description:
       "15路盤の五目並べを CPU と一人で対戦。黒（先手）と白（後手）を選べて、待った・投了にも対応しています。通信不要・登録不要で、iPhone アプリ「あそびば」に無料で収録。",
@@ -240,6 +243,8 @@ export const games: Game[] = [
     name: "おじさんの荷物運びパズル",
     emoji: "📦",
     tagline: "荷物を4つそろえて腰をいたわろう",
+    nameEn: "Ojisan's Box Puzzle",
+    taglineEn: "Match 4 boxes and go easy on Ojisan's back",
     pageTitle: "おじさんの荷物運びパズル - 荷物をそろえて消す無料の一人用パズル",
     description:
       "おじさんが運ぶ荷物を2個1組で積んでいく、6列×12段の一人用パズル。同じ荷物が4つ以上つながると消え、続けて消えれば連鎖になります。荷物を置くたびに腰痛ゲージが溜まり、100で入院。溜まるほど荷物は速く落ち、体も思うように動かなくなります。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -261,6 +266,8 @@ export const games: Game[] = [
     name: "おじさんの盆栽",
     emoji: "🪴",
     tagline: "同じ盆栽をくっつけて、立派に育てよう",
+    nameEn: "Ojisan no Bonsai",
+    taglineEn: "Merge matching bonsai to grow them grander",
     pageTitle: "おじさんの盆栽 - 同じ盆栽をくっつけて育てる無料の落ちものパズル",
     description:
       "縁側のおじさんが持つ盆栽を庭へ落とし、同じ盆栽どうしが触れるとくっついて1つ上の盆栽になる一人用の落ちものパズル。桜から始まって金の松まで11段。大きい盆栽ほど高得点で、上の点線より上に盆栽がとどまるとゲームオーバーです。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -281,6 +288,8 @@ export const games: Game[] = [
     name: "2048",
     emoji: "🔢",
     tagline: "タイルを合体させて2048を目指そう",
+    nameEn: "2048",
+    taglineEn: "Merge tiles and reach 2048",
     pageTitle: "2048 - 無料でオフラインで遊べる数字パズル",
     description:
       "同じ数字のタイルを合体させて2048を目指す数字パズル。4×4の盤面をスワイプするだけのシンプル操作で、通信不要・登録不要。iPhone アプリ「あそびば」に収録、無料で遊べます。",
@@ -301,6 +310,8 @@ export const games: Game[] = [
     name: "将棋",
     emoji: "♟️",
     tagline: "CPU と本格的な将棋で対決しよう",
+    nameEn: "Shogi",
+    taglineEn: "Take on the CPU in a full game of shogi",
     pageTitle: "将棋 - CPU と対局できる無料の将棋アプリ",
     description:
       "本格的な思考ルーチンの CPU と一人で対局できる将棋。先手・後手を選べて、待った・投了にも対応。対局後は棋譜を並べ直して振り返れます。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録しています。",
@@ -321,6 +332,8 @@ export const games: Game[] = [
     name: "カードしりとり",
     emoji: "🔤",
     tagline: "絵札でしりとり。CPUと取り合おう",
+    nameEn: "Card Shiritori",
+    taglineEn: "A Japanese word-chain game played with picture cards. Grab more than the CPU!",
     pageTitle: "カードしりとり - CPU と絵札で遊べる無料のしりとりゲーム",
     description:
       "絵札の読みをつなげて、CPU と交互に札を取り合うカードしりとり。1枚の札が複数の読みを持つ「うらよみ」や、制限時間と「ん」で負けのスリルが楽しめます。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -341,6 +354,8 @@ export const games: Game[] = [
     name: "大富豪",
     emoji: "👑",
     tagline: "CPU3人と対戦。革命・8切りあり！",
+    nameEn: "Daifugo",
+    taglineEn: "Take on 3 CPUs. With Revolutions and 8-Stops!",
     pageTitle: "大富豪（大貧民） - CPU3人と対戦できる無料のトランプゲーム",
     description:
       "CPU3人を相手に手札を出し切る大富豪（大貧民）。革命・8切り・反則上がりに対応し、決着後は階級に応じてカードを交換して次のゲームへ。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -362,6 +377,8 @@ export const games: Game[] = [
     name: "マインスイーパー",
     emoji: "💣",
     tagline: "地雷を避けながら全マスを開けよう",
+    nameEn: "Minesweeper",
+    taglineEn: "Open every square without hitting a mine",
     pageTitle: "マインスイーパー - 初級・中級・上級が選べる無料の定番パズル",
     description:
       "地雷を避けて全マスを開ける定番パズル。初級 9×9（地雷10）・中級 12×12（地雷25）・上級 15×15（地雷40）から選べます。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -382,6 +399,8 @@ export const games: Game[] = [
     name: "スパイダーソリティア",
     emoji: "🕷️",
     tagline: "2組104枚を同じスートでK→Aに。1・2・4スートの3難度",
+    nameEn: "Spider Solitaire",
+    taglineEn: "Two decks: build each suit from K down to A. Play with 1, 2 or 4 suits",
     pageTitle: "スパイダーソリティア - 無料でオフラインで遊べる定番のトランプ1人遊び（1・2・4スート）",
     description:
       "2組104枚を10列に並べ、同じスートで K から A まで揃えて取り除いていくスパイダーソリティア。1スート・2スート・4スートの3難度を選べ、出題する配札はすべて事前に解いてクリアできることを確かめてあります。「戻す」は1局につき3回まで無料。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -403,30 +422,36 @@ export const games: Game[] = [
     slug: "blackjack",
     name: "ブラックジャック",
     emoji: "♣️",
-    tagline: "ディーラーに勝てるか。10回勝負で何勝できる？",
+    tagline: "ディーラーと10回勝負。勝ち点の合計で自己ベストを狙おう！",
+    nameEn: "Blackjack",
+    taglineEn: "10 rounds against the dealer. Score as many points as you can!",
     pageTitle: "ブラックジャック - ディーラーと対決できる無料のカードゲーム",
     description:
-      "21 を超えずにディーラーより強い手を作るブラックジャック。10回勝負で、勝った数が点になります。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
+      "21 を超えずにディーラーより強い手を作るブラックジャック。ディーラーと10回勝負して、勝ち点の合計で自己ベストを目指します。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
     howTo: [
-      "「カードを配る」を押すと勝負が始まります。1回の勝負は10回です",
-      "カードが2枚配られます。合計が21に近いほど強い手です",
+      "「配る」を押すとカードが2枚配られます。合計が21に近いほど強い手です",
       "「ヒット」でカードを引き、「スタンド」で勝負。21を超えるとバストで負けです",
-      "最初の2枚で21ならブラックジャック。ディーラーに勝てば1点、ブラックジャックで勝てば2点。10回の合計点が自己ベストになります",
+      "勝てば1点、最初の2枚で21（ブラックジャック）で勝てば2点。同じ点数の2枚は「スプリット」で2つの手に分けられます",
+      "10回勝負の合計点が自己ベストになります",
     ],
     features: [
       "自分の手の合計と、ディーラーの見えているカードの合計（+?）が常に表示されるので分かりやすい",
-      "お金や賞品のやり取りは一切ありません（アプリ内課金なし）",
-      "負けた1回は、広告を見て1回の勝負につき1回だけやり直せます",
+      "画面の上に「何回目か」「勝ち点」「連勝数」が出るので、10回勝負の流れがひと目で分かる",
+      "負けた回は、広告を見て1回だけやり直せます",
     ],
   },
   {
     slug: "runner",
     name: "チャリンコおじさん",
     emoji: "🚲",
-    tagline: "タップで跳んで18ステージを走りぬけよう",
-    pageTitle: "チャリンコおじさん - 無料で遊べるワンタップ横スクロールランナー",
+    // おじさんの正面顔（アプリの Core/OjisanPixel と同じ 16×15 ドットを 8 倍で書き出したもの、#700）
+    icon: { src: "/games/ojisan-face.png", width: 16, height: 15 },
+    tagline: "タップで跳んで60ステージを走りぬけよう",
+    nameEn: "Charinko Ojisan",
+    taglineEn: "Tap to jump and pedal through all 60 stages",
+    pageTitle: "チャリンコおじさん - 全60ステージの無料ワンタップ横スクロールランナー",
     description:
-      "自転車のおじさんが自動で右へ走っていくのを、タップひとつで操作する横スクロールアクション。長く押すほど高く跳べるので、穴と障害物を跳び越えて18ステージのゴールを目指します。ミスしても待ち時間なしですぐやり直せるので、失敗しながら覚えるタイプのゲームです。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
+      "自転車のおじさんが自動で右へ走っていくのを、タップひとつで操作する横スクロールアクション。長く押すほど高く跳べるので、穴と障害物を跳び越えて60ステージのゴールを目指します。ミスしても待ち時間なしですぐやり直せるので、失敗しながら覚えるタイプのゲームです。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
     howTo: [
       "画面をタップするとおじさんが走り出します。あとは自動で右へ進みます",
       "タップでジャンプ。長く押すほど高く跳べます",
@@ -435,7 +460,7 @@ export const games: Game[] = [
     ],
     features: [
       "操作はタップだけ。ボタンもスティックも無く、片手で遊べます",
-      "18ステージ。進むごとに速くなり、コースも長く手強くなります。後半は乗れる台座で高低差のあるコースに",
+      "60ステージ。進むごとに速くなり、コースも長く手強くなります。後半は乗れる台座で高低差のあるコースに",
       "ミスからのやり直しに広告も読み込みも挟みません。テンポを落とさずに何度でも挑戦できます",
       "コース半ばのチェックポイントまで進んでいれば、広告を見てそこから再開できます（1ステージに1回・使わなくてもクリアできます）",
       "進みを遅くする「ゆっくりモード」を設定と一時停止画面から切り替えられます。いつでも一時停止できます",
@@ -445,7 +470,9 @@ export const games: Game[] = [
     slug: "anzan",
     name: "ぱっと暗算",
     emoji: "➕",
-    tagline: "パッと出て消える数を、頭の中で足していこう",
+    tagline: "パッと出て消える数を足していこう。桁数・個数・速さを選べる",
+    nameEn: "Quick Mental Math",
+    taglineEn: "Add up numbers that flash and vanish. Choose the digits, count and speed",
     pageTitle: "ぱっと暗算 - 出ては消える数を足す無料の暗算ゲーム",
     description:
       "数が1つずつパッと出ては消えるので、頭の中でぜんぶ足して合計をテンキーで答える一人用の暗算ゲーム。桁数・個数・速さをそれぞれ選べて、1桁・5個のやさしい問題から始められます。正解が続くほど連続正解が伸び、回答の速さも記録に残ります。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -466,6 +493,8 @@ export const games: Game[] = [
     name: "麻雀ソリティア",
     emoji: "🀄",
     tagline: "同じ牌を2枚ずつ取って全部消そう",
+    nameEn: "Mahjong Solitaire",
+    taglineEn: "Match pairs of tiles to clear the board",
     pageTitle: "麻雀ソリティア - 麻雀牌を2枚ずつ消す無料の1人用パズル",
     description:
       "積み上げた麻雀牌144枚から同じ絵柄を2枚ずつ取って全部消す、亀型レイアウトが定番の1人用パズル。平面の盤で線をつないで消す「二角取り」とは別ルールです。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -487,6 +516,8 @@ export const games: Game[] = [
     name: "花札こいこい",
     emoji: "🌸",
     tagline: "CPUと役を競う。こいこいで倍を狙おう",
+    nameEn: "Hanafuda Koi-Koi",
+    taglineEn: "Race the CPU to form yaku. Call Koi-Koi to go for double!",
     pageTitle: "花札こいこい - 無料で遊べる本格ルールの花札アプリ",
     description:
       "48枚の花札でCPUと1対1。同じ月の札を合わせて取り、五光・猪鹿蝶・赤短などの役を作ります。役ができたらその場で「あがり」か、さらに伸ばす「こいこい」か。こいこいのあとに相手にあがられると相手の得点が倍になるので、引き際の読み合いがそのままゲームになります。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -507,7 +538,9 @@ export const games: Game[] = [
     slug: "go",
     name: "囲碁",
     emoji: "⚫",
-    tagline: "9路盤で CPU と対局。ルールも読める",
+    tagline: "9路・13路盤で CPU と対局。ルールも読める",
+    nameEn: "Go",
+    taglineEn: "Play the CPU on a 9x9 or 13x13 board. Rules included",
     pageTitle: "囲碁 - 9路盤で CPU と対局できる無料の囲碁アプリ",
     description:
       "9路盤で CPU と一人対局できる囲碁。中国ルール（面積計算）なので終局の数え方が単純で、初めてでも 1 局を最後まで打ち切れます。CPU の強さは3段階、置き石は2〜5子から選べます。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -530,6 +563,8 @@ export const games: Game[] = [
     name: "ブロック崩し",
     emoji: "🧱",
     tagline: "パドルではね返して全部くずそう",
+    nameEn: "Block Breaker",
+    taglineEn: "Bounce the ball off your paddle and break every block",
     pageTitle: "ブロック崩し - 12ステージの無料アクションパズル",
     description:
       "パドルで球をはね返してブロックを崩す定番アクション。12ステージを順にクリアしていく構成で、進むほど球が速く配置も手強くなります。球の速さを落とす「ゆっくりモード」つき。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -551,6 +586,8 @@ export const games: Game[] = [
     name: "神経衰弱",
     emoji: "🧠",
     tagline: "記憶力勝負！CPU と対戦しよう",
+    nameEn: "Memory Match",
+    taglineEn: "Test your memory against the CPU!",
     pageTitle: "神経衰弱 - CPU と対戦できる無料の記憶力ゲーム",
     description:
       "CPU と交互にカードをめくって、同じ数字のペアを多く取った方が勝ちの神経衰弱。8・12・18ペアと CPU の強さを選べます。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -571,6 +608,8 @@ export const games: Game[] = [
     name: "チェス",
     emoji: "♞",
     tagline: "CPU と本格的なチェスで対決しよう",
+    nameEn: "Chess",
+    taglineEn: "Take on the CPU in a real game of chess",
     pageTitle: "チェス - CPU と対局できる無料のチェスアプリ",
     description:
       "本格的な思考ルーチンの CPU と一人で対局できるチェス。キャスリング・アンパッサン・プロモーションまで標準ルールを完全実装しています。白・黒を選べて、待った・投了にも対応。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録しています。",
@@ -593,6 +632,8 @@ export const games: Game[] = [
     name: "フリーセル",
     emoji: "♦️",
     tagline: "全部見える52枚。詰まない配札を読み切ろう",
+    nameEn: "FreeCell",
+    taglineEn: "All 52 cards face up. Plan your way through a winnable deal",
     pageTitle: "フリーセル - 無料でオフラインで遊べる定番のトランプ1人遊び",
     description:
       "52枚すべてが最初から見えている、運の要素がほとんど無いソリティア。4つのフリーセルに札を退避しながら ♠♥♦♣ ごとに A から K まで積み上げます。出題する配札はすべて事前に解いてクリアできることを確かめてあります。「戻す」は1局につき3回まで無料。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -616,6 +657,8 @@ export const games: Game[] = [
     name: "15パズル",
     emoji: "🔢",
     tagline: "タイルをスライドして1から15まで並べよう",
+    nameEn: "15 Puzzle",
+    taglineEn: "Slide the tiles to put 1 to 15 in order",
     pageTitle: "15パズル - 1人で遊べる無料のスライドパズル",
     description:
       "空白のマスへタイルをスライドさせて、1から15までを順番に並べる定番のスライドパズル。シャッフルは必ず解ける配置だけなので、いつでも安心して挑戦できます。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -632,10 +675,35 @@ export const games: Game[] = [
     ],
   },
   {
+    slug: "catpuzzle",
+    name: "おじさんちのねこさがし",
+    emoji: "🐈",
+    tagline: "家のどこかに隠れた飼い猫を、部屋ごとに1匹ずつ見つけよう",
+    nameEn: "Ojisan's Hidden Cats",
+    taglineEn: "Find the cats hiding in the house, one in every room",
+    pageTitle: "おじさんちのねこさがし - 家の間取りに隠れた猫を推理で見つける無料のパズル",
+    description:
+      "おじさんの家の間取りに隠れた飼い猫を、推理で見つけていく一人用のパズル。部屋・行・列のそれぞれに猫がちょうど1匹ずついて、猫どうしはななめも含めて隣り合いません。盤は6×6・7×7・8×8の3段階で、問題は毎回変わり答えは1通り。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
+    howTo: [
+      "部屋・行・列のそれぞれに、猫がちょうど1匹ずついます。猫どうしは、ななめも含めて隣り合いません",
+      "マスをタップすると ×（いない）を付け外しできます。× の付け外しはミスになりません",
+      "猫がいると分かったマスはダブルタップで見つけます。全部の猫を見つけたらクリアです",
+      "答えでないマスをダブルタップすると赤い × が付いてミスになり、ミスが3回になると終わりです",
+    ],
+    features: [
+      "盤は6×6・7×7・8×8の3段階。問題は毎回変わり、答えは必ず1通り",
+      "ヒントは次に分かる推理の1歩を光らせて教えてくれます。猫の位置が確定したマスには猫を置きます（1問につき無料3回。使い切っても、広告を見ると補充できます）",
+      "猫はおじさんの飼い猫。ドールハウスのような家を見下ろして探します",
+      "盤の大きさごとにクリアタイムの自己ベストが残り、途中で閉じても続きから再開できます",
+    ],
+  },
+  {
     slug: "speed",
     name: "スピード",
     emoji: "⚡",
     tagline: "台札と1つ違いの札を、CPU より先に出し切ろう。速さは3段階",
+    nameEn: "Speed",
+    taglineEn: "Play cards one up or down on the piles and empty your hand before the CPU. 3 paces",
     pageTitle: "スピード - CPU と同時に札を出し合う無料のトランプゲーム",
     description:
       "真ん中の2つの台札に、数字が1つ違いの札を CPU より先に重ねていく、1対1のトランプゲーム。順番はなく、CPU も同時に出してきます。CPU の速さは「ゆっくり」「ふつう」「はやい」の3段階で、あなたの側に制限時間はありません。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -656,6 +724,8 @@ export const games: Game[] = [
     name: "ババ抜き",
     emoji: "🃏",
     tagline: "CPUの顔を読んで、ジョーカーをよけよう。CPU3人と対戦",
+    nameEn: "Old Maid",
+    taglineEn: "Read the CPUs' faces and dodge the Joker. Play against 3 CPUs",
     pageTitle: "ババ抜き - CPU3人と遊べる無料のトランプゲーム",
     description:
       "CPU 3人と遊ぶ4人のババ抜き。同じ数字のペアを捨て、となりの CPU の伏せた札を1枚ずつ引いていき、最後にジョーカーを持って残った人が負けです。札を選ぶと、ジョーカーを持つ CPU は顔に出ることがあります。CPU の強さは4段階。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -676,6 +746,8 @@ export const games: Game[] = [
     name: "ハーツ",
     emoji: "♥️",
     tagline: "ハートとスペードのQを取らないように札を出そう。CPU3人と対戦",
+    nameEn: "Hearts",
+    taglineEn: "Avoid taking hearts and the queen of spades. Play against 3 CPUs",
     pageTitle: "ハーツ - CPU3人と遊べる無料のトランプゲーム",
     description:
       "CPU 3人と遊ぶ4人のハーツ。出された札と同じスートを順に出し、いちばん大きい札を出した人が4枚を取ります。ハートは1枚1点、スペードの Q は13点で、だれかが50点に届いたときに合計の少ない人が勝ち。CPU の強さは4段階。通信不要・登録不要、iPhone アプリ「あそびば」に無料で収録。",
@@ -695,4 +767,25 @@ export const games: Game[] = [
 
 export function findGame(slug: string): Game | undefined {
   return games.find((g) => g.slug === slug);
+}
+
+/// 配信済みゲームの `description` の末尾にある「収録」の一文（言い回しの揺れを含む）。
+const releasedSentence = /通信不要・登録不要[、で]*iPhone アプリ「あそびば」に無料で収録(しています)?。$/;
+const comingSoonSentence = "通信不要・登録不要、無料の iPhone アプリ「あそびば」に次のアップデートで追加予定。";
+
+/// ゲーム別ページの本文と meta description に使う説明文。`comingSoon` のときだけ末尾の
+/// 「収録」の一文を配信予定の文に差し替える（#682。meta description は検索結果のスニペットに
+/// そのまま出るため、「配信予定」バッジの無いところで「収録」と言わない）。`description` 自体は
+/// 配信済みの文面のまま持つので、リリース時は `comingSoon` を外すだけで元の文に戻る。
+export function pageDescription(game: Game): string {
+  if (!game.comingSoon) return game.description;
+  // 末尾の言い回しが想定外だと差し替えが空振りして配信済みの文が残るので、ビルドごと止める
+  if (!releasedSentence.test(game.description)) {
+    throw new Error(`games.ts: 配信予定の ${game.slug} の description の末尾が想定外です。末尾を「…「あそびば」に無料で収録。」の形にしてください`);
+  }
+  const text = game.description.replace(releasedSentence, comingSoonSentence);
+  if (text.includes("収録")) {
+    throw new Error(`games.ts: 配信予定の ${game.slug} の description が「収録」と言っています。末尾を「…「あそびば」に無料で収録。」の形にしてください`);
+  }
+  return text;
 }

@@ -54,7 +54,7 @@ pick() { printf '%s\n' "$@" | python3 "$TARGET" --root "$ROOT" --package-json "$
 expect() { # 説明 期待値 変更ファイル...
   local label="$1" want="$2"; shift 2
   local got; got="$(pick "$@")"
-  if [ "$got" = "$want" ]; then ok "$label"; else ng "$label（期待: $want / 実際: $got）"; fi
+  if [ "$got" = "$want" ]; then ok "$label"; else ng "${label}（期待: $want / 実際: ${got}）"; fi
 }
 
 expect "ゲーム A のソースだけ: A のテスト + 全走査 (B を名指しで読むテストは選ばない)" \
@@ -86,10 +86,10 @@ expect "全部を要する変更が 1 件でも混ざれば全部" all "docs/x.m
 if command -v swift >/dev/null 2>&1; then
   REAL="$SCRIPT_DIR/../.."
   got="$(echo "Packages/GameKit/Sources/GameHanoi/HanoiModel.swift" | python3 "$TARGET" --root "$REAL" 2>/dev/null)"
-  case "$got" in *GameHanoiTests*) ok "実パッケージ: ハノイの変更でハノイのテストが選ばれる";; *) ng "実パッケージ: ハノイのテストが選ばれない（$got）";; esac
-  case "$got" in *GameFifteenTests*|*GameShogiTests*) ng "実パッケージ: 無関係なゲームのテストまで選ばれた（$got）";; *) ok "実パッケージ: 無関係なゲームのテストは選ばれない";; esac
+  case "$got" in *GameHanoiTests*) ok "実パッケージ: ハノイの変更でハノイのテストが選ばれる";; *) ng "実パッケージ: ハノイのテストが選ばれない（${got}）";; esac
+  case "$got" in *GameFifteenTests*|*GameShogiTests*) ng "実パッケージ: 無関係なゲームのテストまで選ばれた（${got}）";; *) ok "実パッケージ: 無関係なゲームのテストは選ばれない";; esac
   got="$(echo "Packages/GameKit/Sources/Core/GameButtonStyle.swift" | python3 "$TARGET" --root "$REAL" 2>/dev/null)"
-  case "$got" in *GameHanoiTests*GameShogiTests*) ok "実パッケージ: Core の変更で各ゲームのテストが選ばれる";; *) ng "実パッケージ: Core の変更でゲームのテストが選ばれない（$got）";; esac
+  case "$got" in *GameHanoiTests*GameShogiTests*) ok "実パッケージ: Core の変更で各ゲームのテストが選ばれる";; *) ng "実パッケージ: Core の変更でゲームのテストが選ばれない（${got}）";; esac
 else
   echo "  skip - 実パッケージの検証（swift が無い）"
 fi

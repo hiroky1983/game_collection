@@ -13,17 +13,19 @@ permissions:
   contents: read
 
 jobs:
-  # GameKit 全テスト（約 10 分）を回すかの判定（#2471）。版数更新 PR（project.yml の 2 行）のように
-  # アプリのコードが変わらない PR で待たされないため、Packages/・App/・Config/（Package.resolved）に
-  # 変更がある PR だけ回す。拡張子では判定しない（テストは PNG・xcstrings・JSON も読む）。
-  # test は必須チェックなので、ジョブ自体は走らせて全テストのステップだけを飛ばす（ジョブごと skip しない）。
-  # push（main・release）は条件なしで必ず全部回す。
+  # アプリに関係する変更があるかの判定（会長指示 2026-09-27「Swift が無ければ CI のテストを回さない」）。
+  # test / build は main の必須チェックなので、ワークフローの `paths` で起動ごと止めると結果が報告されず
+  # PR が永久にマージできなくなる。起動はさせ、ジョブを if でスキップする（スキップは合格として数えられる）。
+  # 「Swift が無ければ」ではなく逆向きに、変更が全部 docs/・Scripts/・web/・.github/（ci.yml を除く）・*.md に収まる PR だけを
+  # スキップする。project.yml・Package.resolved・xcassets・Info.plist・xcstrings など Swift 以外でも
+  # アプリを壊す変更を見逃さないため。push（main・release）は常に全部回す。
   changes:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       pull-requests: read
     outputs:
+      app: ${{ steps.detect.outputs.app }}
       gamekit: ${{ steps.detect.outputs.gamekit }}
     steps:
       - id: detect
@@ -33,20 +35,38 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
         run: |
           if [ "$EVENT" != "pull_request" ]; then
-            echo "gamekit=true" >> "$GITHUB_OUTPUT"; exit 0
+            echo "app=true" >> "$GITHUB_OUTPUT"; echo "gamekit=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
           # 一覧が取れなければ安全側（全部回す）に倒す
           if ! files=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/files" --paginate --jq '.[].filename'); then
-            echo "gamekit=true" >> "$GITHUB_OUTPUT"; exit 0
+            echo "app=true" >> "$GITHUB_OUTPUT"; echo "gamekit=true" >> "$GITHUB_OUTPUT"; exit 0
           fi
           printf '%s\n' "$files"
           # classify:begin（Scripts/tests/test-ci-detect-app-changes.sh がこの範囲を取り出して検証する）
+          # .github/ は運用系だが、ci.yml 自身は CI の壊れを見逃さないため必ず全部回す
+          others=$(printf '%s\n' "$files" | grep -v -E '^(docs/|Scripts/|web/)|\.md$|^\.github/' | grep -v '^$' || true)
+          if printf '%s\n' "$files" | grep -q -x -F '.github/workflows/ci.yml'; then
+            others=".github/workflows/ci.yml"
+          fi
+          # build ジョブとリリース（fastlane）が依存の版を固定するために呼ぶ Scripts は、壊れても気づけるよう回す（#2045）
+          if printf '%s\n' "$files" | grep -q -x -F 'Scripts/apply-package-resolved.sh'; then
+            others="Scripts/apply-package-resolved.sh"
+          fi
+          # GameKit 全テスト（約 10 分）は Packages/・App/・Config/（Package.resolved）に変更がある PR だけ回す（#2471）。
+          # 版数更新 PR（project.yml の 2 行）のようにアプリのコードが変わらない PR で待たされないため。
+          # 拡張子では判定しない（テストは PNG・xcstrings・JSON も読む）。push（main・release）は上で常に回す。
           gamekit=$(printf '%s\n' "$files" | grep -E '^(Packages/|App/|Config/)' || true)
-          # ci.yml 自身は CI の壊れを見逃さないため必ず回す
           if printf '%s\n' "$files" | grep -q -x -F '.github/workflows/ci.yml'; then
             gamekit=".github/workflows/ci.yml"
           fi
           # classify:end
+          if [ -n "$others" ]; then
+            echo "app=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "アプリに関係する変更が無いため test / build をスキップする"
+            echo "app=false" >> "$GITHUB_OUTPUT"
+          fi
+          # test は必須チェックなのでジョブごとは止めず、全テストのステップだけを飛ばして成功で終える
           if [ -n "$gamekit" ]; then
             echo "gamekit=true" >> "$GITHUB_OUTPUT"
           else
@@ -56,6 +76,7 @@ jobs:
 
   test:
     needs: changes
+    if: needs.changes.outputs.app == 'true'
     # パブリックリポジトリのため GitHub ホステッド macOS ランナーは無料
     runs-on: macos-latest
     timeout-minutes: 40
@@ -63,8 +84,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-          # PR は base との差分（HEAD^1..HEAD）から走らせるテストを選ぶ（#2953）ので 2 世代要る
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: テスト選別スクリプトの検証（#2953）
         run: bash Scripts/tests/test-select-gamekit-tests.sh
@@ -72,10 +92,54 @@ jobs:
       - name: 訳し漏れの検査（#2402）
         run: python3 Scripts/check-untranslated-ja.py
 
+      # main には release 取り込み待ちの未圧縮画像が残ることがある（#2913。release/v1.1.14 取り込みで直る予定）。
+      # リポジトリ全体を検査すると取り込みが済むまで main への push CI が落ち続けるため、
+      # この PR / push で実際に追加・変更された PNG だけを検査する。差分が取れないときは
+      # 見逃しを避けて全件検査にフォールバックする。
       - name: 画像の圧縮漏れの検査（#2913）
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          BEFORE_SHA: ${{ github.event.before }}
         run: |
           python3 -m pip install --quiet Pillow || python3 -m pip install --quiet --break-system-packages Pillow
-          python3 Scripts/compress-images.py --check
+
+          if [ "$EVENT" = "pull_request" ]; then
+            if ! git fetch --quiet origin "$BASE_REF:refs/remotes/origin/$BASE_REF"; then
+              echo "base ブランチ（$BASE_REF）の取得に失敗したため全件検査にフォールバックする"
+              exec python3 Scripts/compress-images.py --check
+            fi
+            if ! pngs="$(git diff --name-only --diff-filter=AMR "origin/$BASE_REF...HEAD" -- '*.png')"; then
+              echo "差分の取得に失敗したため全件検査にフォールバックする"
+              exec python3 Scripts/compress-images.py --check
+            fi
+          elif [ "$EVENT" = "push" ]; then
+            if [ -z "$BEFORE_SHA" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+              echo "新規ブランチへの最初の push のため画像の圧縮検査を飛ばす"
+              exit 0
+            fi
+            if ! git cat-file -e "$BEFORE_SHA" 2>/dev/null; then
+              echo "push 前の commit（$BEFORE_SHA）が取得できないため全件検査にフォールバックする"
+              exec python3 Scripts/compress-images.py --check
+            fi
+            if ! pngs="$(git diff --name-only --diff-filter=AMR "$BEFORE_SHA" "$GITHUB_SHA" -- '*.png')"; then
+              echo "差分の取得に失敗したため全件検査にフォールバックする"
+              exec python3 Scripts/compress-images.py --check
+            fi
+          else
+            echo "画像の圧縮検査の対象外イベント（$EVENT）のため飛ばす"
+            exit 0
+          fi
+
+          if [ -z "$pngs" ]; then
+            echo "変更された PNG が無いため画像の圧縮検査を飛ばす"
+            exit 0
+          fi
+
+          echo "検査対象:"
+          echo "$pngs"
+          # macOS の bash 3.2 には readarray が無い（exit 127 で落ちる）ので xargs で渡す
+          printf '%s\n' "$pngs" | tr '\n' '\0' | xargs -0 python3 Scripts/compress-images.py --check
 
       # 将棋の自己対戦テスト（SelfPlayTests）は決定的だがCIの中で最も重い1本（実測304秒）で、
       # 将棋AI強化は中止済み（2026-08-10決裁）のためソースが変わる見込みが低い。
@@ -112,6 +176,8 @@ jobs:
           fi
 
   build:
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
     runs-on: macos-latest
     timeout-minutes: 40
     steps:

@@ -1,6 +1,6 @@
 name: PR の risk ラベル検証
 
-# アプリコード（App/ Packages/ project.yml）を触る PR に risk:* ラベルが無ければ落とす（Issue #823）。
+# アプリコード（App/ Packages/ Config/ project.yml）を触る PR に risk:* ラベルが無ければ落とす（Issue #823）。
 #
 # 規程（docs/ai-devops.md「マージ規則」）は risk:* を「分類として必ず付ける」と定めているが、
 # 2026-09-13 に 6 本がラベル無しでマージされた（監査レポート #808 の欠陥 15）。

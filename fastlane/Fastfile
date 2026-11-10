@@ -39,11 +39,6 @@ def asc_api_key
 end
 
 platform :ios do
-  desc "GameKit の全テストを実行"
-  lane :test do
-    sh("swift", "test", "--package-path", "../Packages/GameKit")
-  end
-
   desc "TestFlight へアップロード（ビルド番号は project.yml の CURRENT_PROJECT_VERSION を使用）"
   lane :beta do
     # MARKETING_VERSION の更新は Scripts/bump-marketing-version.sh（ship-beta.sh が自動で呼ぶ）だが、直接

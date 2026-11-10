@@ -14,10 +14,12 @@
 ## 必須事項
 
 1. **参加者**: 今週、会長以外に関与した実在の人間がいたか（外部コントリビューターのコメント・App Storeレビュー等）を `gh api repos/hiroky1983/game_collection/issues/comments?since=<7日前>` 等で実際に確認して正直に書く。いなければ「会長以外の関与なし」と明記する
-2. **競合状況**: WebSearch/WebFetchで少なくとも1社、同ジャンル（定番ゲーム詰め合わせ・ボードゲームアプリ等）の実在の競合アプリを調べる。iTunes Lookup API (`https://itunes.apple.com/lookup?id=<AppID>&country=jp`) で評価件数・平均評価・公開日・アップデート頻度を実測し、自社との差（機能・リテンション施策・訴求）を具体的に書く。前回調査済みの内容（docs/aso/配下）があれば重複調査せず参照し、新しい観点を追加する
+2. **競合状況**: WebSearch/WebFetchで少なくとも1社、同ジャンル（定番ゲーム詰め合わせ・ボードゲームアプリ等）の実在の競合アプリを調べる。iTunes Lookup API (`https://itunes.apple.com/lookup?id=<AppID>&country=jp&t=$(date +%s)`、キャッシュバスタ無しだとエッジキャッシュの古い値を返す) で評価件数・平均評価・公開日・アップデート頻度を実測し、自社との差（機能・リテンション施策・訴求）を具体的に書く。前回調査済みの内容（docs/aso/配下）があれば重複調査せず参照し、新しい観点を追加する
 3. **成長戦略の検証**: docs/ai-company.md の90日計画の現在地に対し、今週の実態（施策が実行段階に入れているか、KPIが動いたか）を照らして正直に評価する。仮説が崩れていれば崩れていると書く
 4. **来週の論点**: 会長の判断が必要な具体的な分岐点のみを書く（一般的なタスクリストは書かない）。何も無ければ「今週判断が必要な論点なし」と書く
-5. KPI・稟議滞留一覧は簡潔な表で可（ここは棚卸しでよい領域）
+5. KPI・稟議滞留一覧は簡潔な表で可（ここは棚卸しでよい領域）。**KPI の数字は `docs/analytics/fetch-kpi.mjs` で自動取得する**（#781・会長の目視や Chrome 経由に頼らない）:
+   `export PATH="$HOME/.nodenv/shims:$PATH"; node docs/analytics/fetch-kpi.mjs all`（ASC の日次 DL・GA4（`build_channel = appstore`）・リワードの漏斗・AdMob を表で返す。個別は `asc-sales` `ga4` `ga4-reward` `admob` `asc-analytics`。説明は `docs/analytics/README.md`）。
+   認証が切れている等で失敗した節は、数字を推測せず「取得失敗: <エラーの要旨>」と KPI 表に書き、会長への連絡事項に回す。GA4 を読めるときは、リワード広告の**提示率・受諾率・先読み不足率**を `purpose` 別に1表載せる（`reward_offer` は v1.1.7 から。式は docs/spec-app.md「解析仕様」の `reward_offer` の項。#780）
 
 GitHub Issue を1件作成する:
 

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  自動QA当番（Scripts/ai-qa-duty.sh・Issue #2314）を毎日 03:00 に動かす launchd ジョブ。
+  入れ方・止め方は docs/ai-devops.md「自動QA当番」。
+
+  実行するのは当番専用クローン（~/.asobiba-duty/game_collection。ai-duty.sh が 3 分ごとに fetch している）の
+  origin/main の ai-qa-duty.sh / list-game-ids.sh（会長の作業ツリーはブランチが main とは限らないため使わない）。
+  ~/.asobiba-qa/bin へ取り出して実行する。取り出しに失敗した日は前回取り出した版で動く。
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.asobiba.ai-qa</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>-c</string>
+		<string>bin="$HOME/.asobiba-qa/bin"; mkdir -p "$bin" &amp;&amp; chmod 700 "$bin" || exit 1
+for f in ai-qa-duty.sh list-game-ids.sh; do
+  if git -C "$HOME/.asobiba-duty/game_collection" show "origin/main:Scripts/$f" &gt;"$bin/$f.new" 2&gt;/dev/null &amp;&amp; [ -s "$bin/$f.new" ] &amp;&amp; bash -n "$bin/$f.new"; then
+    mv "$bin/$f.new" "$bin/$f"
+  else
+    rm -f "$bin/$f.new"; echo "ai-qa: $f を origin/main から取り出せなかったため前回の版で実行"
+  fi
+done
+exec /bin/bash "$bin/ai-qa-duty.sh"</string>
+	</array>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+		<key>LANG</key>
+		<string>ja_JP.UTF-8</string>
+	</dict>
+	<key>RunAtLoad</key>
+	<false/>
+	<key>StandardErrorPath</key>
+	<string>/Users/yamadahiroki/Library/Logs/asobiba-ai-qa.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/yamadahiroki/Library/Logs/asobiba-ai-qa.log</string>
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Hour</key>
+		<integer>3</integer>
+		<key>Minute</key>
+		<integer>0</integer>
+	</dict>
+</dict>
+</plist>

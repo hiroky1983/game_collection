@@ -1,0 +1,58 @@
+name: LP の検査
+
+# web/（LP）の lint・型検査・ビルドを回す（Issue #2885）。
+#
+# なぜ要るか: LP は main へのマージが即本番公開（Vercel が main 追従）なのに、ci.yml は変更が web/ だけの PR で
+# アプリのテスト・ビルドをスキップし、lp-game-list.yml は games.ts と GameRegistry の一致しか見ない。
+# web/ 自体のコードが壊れても止める CI が無かった。
+#
+# ブランチ保護の必須チェックには加えない（paths 条件付きのジョブを必須にすると、
+# 該当しない PR がマージ不能になるため）。ジョブ ID を `test` にすると、必須チェックの
+# `test`（ci.yml）と名前で突き合わされて必須に相乗りするので、他の paths 付きと同じく `check` にする。
+on:
+  pull_request:
+    paths:
+      - 'web/**'
+      - '.github/workflows/web-check.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - '.github/workflows/web-check.yml'
+
+concurrency:
+  group: web-check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: 依存をインストール
+        run: npm ci
+
+      - name: lint
+        run: npm run lint
+
+      - name: 型検査
+        run: npx tsc --noEmit
+
+      - name: ビルド
+        run: npm run build

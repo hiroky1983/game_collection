@@ -1,0 +1,464 @@
+{
+  "chess" : {
+    "ip17" : {
+      "a1" : {
+        "board_side_pt" : 370,
+        "board_width_limited" : true,
+        "card_h_pt" : 44,
+        "slack_to_banner_pt" : 40
+      },
+      "a2" : {
+        "board_side_pt" : 370,
+        "board_width_limited" : true,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 24
+      },
+      "a3" : {
+        "board_side_pt" : 370,
+        "board_width_limited" : true,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 24
+      },
+      "current" : {
+        "board_side_pt" : 370,
+        "board_width_limited" : true,
+        "card_h_pt" : 44.5,
+        "slack_to_banner_pt" : 39.5
+      }
+    },
+    "se3" : {
+      "a1" : {
+        "board_side_pt" : 279,
+        "board_width_limited" : false,
+        "card_h_pt" : 44,
+        "slack_to_banner_pt" : 0
+      },
+      "a2" : {
+        "board_side_pt" : 263,
+        "board_width_limited" : false,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 0
+      },
+      "a3" : {
+        "board_side_pt" : 263,
+        "board_width_limited" : false,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 0
+      },
+      "current" : {
+        "board_side_pt" : 278.5,
+        "board_width_limited" : false,
+        "card_h_pt" : 44.5,
+        "slack_to_banner_pt" : 0
+      }
+    }
+  },
+  "concentration" : {
+    "ip17" : {
+      "a1" : {
+        "card_h_pt" : 44
+      },
+      "a2" : {
+        "card_h_pt" : 60
+      },
+      "a3" : {
+        "card_h_pt" : 60
+      },
+      "current" : {
+        "card_h_pt" : 44.5
+      }
+    },
+    "se3" : {
+      "a1" : {
+        "card_h_pt" : 44
+      },
+      "a2" : {
+        "card_h_pt" : 60
+      },
+      "a3" : {
+        "card_h_pt" : 60
+      },
+      "current" : {
+        "card_h_pt" : 44.5
+      }
+    }
+  },
+  "go" : {
+    "ip17" : {
+      "a1" : {
+        "board_side_pt" : 370,
+        "board_width_limited" : true,
+        "card_h_pt" : 44,
+        "slack_to_banner_pt" : 86
+      },
+      "a2" : {
+        "board_side_pt" : 370,
+        "board_width_limited" : true,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 70
+      },
+      "a3" : {
+        "board_side_pt" : 370,
+        "board_width_limited" : true,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 70
+      },
+      "current" : {
+        "board_side_pt" : 370,
+        "board_width_limited" : true,
+        "card_h_pt" : 44.5,
+        "slack_to_banner_pt" : 85.5
+      }
+    },
+    "se3" : {
+      "a1" : {
+        "board_side_pt" : 325,
+        "board_width_limited" : false,
+        "card_h_pt" : 44,
+        "slack_to_banner_pt" : 0
+      },
+      "a2" : {
+        "board_side_pt" : 309,
+        "board_width_limited" : false,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 0
+      },
+      "a3" : {
+        "board_side_pt" : 309,
+        "board_width_limited" : false,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 0
+      },
+      "current" : {
+        "board_side_pt" : 324.5,
+        "board_width_limited" : false,
+        "card_h_pt" : 44.5,
+        "slack_to_banner_pt" : 0
+      }
+    }
+  },
+  "gomoku" : {
+    "ip17" : {
+      "a1" : {
+        "board_side_pt" : 386,
+        "board_width_limited" : true,
+        "card_h_pt" : 44,
+        "slack_to_banner_pt" : 54
+      },
+      "a2" : {
+        "board_side_pt" : 386,
+        "board_width_limited" : true,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 38
+      },
+      "a3" : {
+        "board_side_pt" : 386,
+        "board_width_limited" : true,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 38
+      },
+      "current" : {
+        "board_side_pt" : 386,
+        "board_width_limited" : true,
+        "card_h_pt" : 44.5,
+        "slack_to_banner_pt" : 53.5
+      }
+    },
+    "se3" : {
+      "a1" : {
+        "board_side_pt" : 309,
+        "board_width_limited" : false,
+        "card_h_pt" : 44,
+        "slack_to_banner_pt" : 0
+      },
+      "a2" : {
+        "board_side_pt" : 293,
+        "board_width_limited" : false,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 0
+      },
+      "a3" : {
+        "board_side_pt" : 293,
+        "board_width_limited" : false,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 0
+      },
+      "current" : {
+        "board_side_pt" : 308.5,
+        "board_width_limited" : false,
+        "card_h_pt" : 44.5,
+        "slack_to_banner_pt" : 0
+      }
+    }
+  },
+  "minesweeper" : {
+    "ip17" : {
+      "a1" : {
+        "board_side_pt" : 370,
+        "board_width_limited" : true,
+        "card_h_pt" : 44,
+        "slack_to_banner_pt" : 98
+      },
+      "a2" : {
+        "board_side_pt" : 370,
+        "board_width_limited" : true,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 82
+      },
+      "a3" : {
+        "board_side_pt" : 370,
+        "board_width_limited" : true,
+        "card_h_pt" : 82,
+        "slack_to_banner_pt" : 60
+      },
+      "current" : {
+        "board_side_pt" : 370,
+        "board_width_limited" : true,
+        "card_h_pt" : 44.5,
+        "slack_to_banner_pt" : 97.5
+      }
+    },
+    "se3" : {
+      "a1" : {
+        "board_side_pt" : 337,
+        "board_width_limited" : false,
+        "card_h_pt" : 44,
+        "slack_to_banner_pt" : 0
+      },
+      "a2" : {
+        "board_side_pt" : 321,
+        "board_width_limited" : false,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 0
+      },
+      "a3" : {
+        "board_side_pt" : 299,
+        "board_width_limited" : false,
+        "card_h_pt" : 82,
+        "slack_to_banner_pt" : 0
+      },
+      "current" : {
+        "board_side_pt" : 336.5,
+        "board_width_limited" : false,
+        "card_h_pt" : 44.5,
+        "slack_to_banner_pt" : 0
+      }
+    }
+  },
+  "othello" : {
+    "ip17" : {
+      "a1" : {
+        "board_side_pt" : 402,
+        "board_width_limited" : true,
+        "card_h_pt" : 44,
+        "slack_to_banner_pt" : 58
+      },
+      "a2" : {
+        "board_side_pt" : 402,
+        "board_width_limited" : true,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 42
+      },
+      "a3" : {
+        "board_side_pt" : 402,
+        "board_width_limited" : true,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 42
+      },
+      "current" : {
+        "board_side_pt" : 402,
+        "board_width_limited" : true,
+        "card_h_pt" : 44.5,
+        "slack_to_banner_pt" : 57.5
+      }
+    },
+    "se3" : {
+      "a1" : {
+        "board_side_pt" : 329,
+        "board_width_limited" : false,
+        "card_h_pt" : 44,
+        "slack_to_banner_pt" : 0
+      },
+      "a2" : {
+        "board_side_pt" : 313,
+        "board_width_limited" : false,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 0
+      },
+      "a3" : {
+        "board_side_pt" : 313,
+        "board_width_limited" : false,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 0
+      },
+      "current" : {
+        "board_side_pt" : 328.5,
+        "board_width_limited" : false,
+        "card_h_pt" : 44.5,
+        "slack_to_banner_pt" : 0
+      }
+    }
+  },
+  "shiritori" : {
+    "ip17" : {
+      "a1" : {
+        "board_width_limited" : true,
+        "card_art_side_pt" : 44,
+        "card_h_pt" : 44,
+        "slack_to_banner_pt" : 20
+      },
+      "a2" : {
+        "board_width_limited" : true,
+        "card_art_side_pt" : 44,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 4
+      },
+      "a3" : {
+        "board_width_limited" : true,
+        "card_art_side_pt" : 44,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 4
+      },
+      "current" : {
+        "board_width_limited" : true,
+        "card_art_side_pt" : 44,
+        "card_h_pt" : 44.5,
+        "slack_to_banner_pt" : 19.5
+      }
+    },
+    "se3" : {
+      "a1" : {
+        "board_width_limited" : false,
+        "card_art_side_pt" : 21.800000000000001,
+        "card_h_pt" : 44,
+        "slack_to_banner_pt" : 0
+      },
+      "a2" : {
+        "board_width_limited" : false,
+        "card_art_side_pt" : 18.600000000000001,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 0
+      },
+      "a3" : {
+        "board_width_limited" : false,
+        "card_art_side_pt" : 18.600000000000001,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 0
+      },
+      "current" : {
+        "board_width_limited" : false,
+        "card_art_side_pt" : 21.699999999999999,
+        "card_h_pt" : 44.5,
+        "slack_to_banner_pt" : 0
+      }
+    }
+  },
+  "shogi" : {
+    "ip17" : {
+      "a1" : {
+        "board_side_pt" : 370,
+        "board_width_limited" : true,
+        "card_h_pt" : 44,
+        "slack_to_banner_pt" : 24
+      },
+      "a2" : {
+        "board_side_pt" : 370,
+        "board_width_limited" : true,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 8
+      },
+      "a3" : {
+        "board_side_pt" : 370,
+        "board_width_limited" : true,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 8
+      },
+      "current" : {
+        "board_side_pt" : 370,
+        "board_width_limited" : true,
+        "card_h_pt" : 44.5,
+        "slack_to_banner_pt" : 23.5
+      }
+    },
+    "se3" : {
+      "a1" : {
+        "board_side_pt" : 263,
+        "board_width_limited" : false,
+        "card_h_pt" : 44,
+        "slack_to_banner_pt" : 0
+      },
+      "a2" : {
+        "board_side_pt" : 247,
+        "board_width_limited" : false,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 0
+      },
+      "a3" : {
+        "board_side_pt" : 247,
+        "board_width_limited" : false,
+        "card_h_pt" : 60,
+        "slack_to_banner_pt" : 0
+      },
+      "current" : {
+        "board_side_pt" : 262.5,
+        "board_width_limited" : false,
+        "card_h_pt" : 44.5,
+        "slack_to_banner_pt" : 0
+      }
+    }
+  },
+  "sudoku" : {
+    "ip17" : {
+      "a1" : {
+        "board_side_pt" : 370,
+        "board_width_limited" : true,
+        "card_h_pt" : 52,
+        "slack_to_banner_pt" : 52
+      },
+      "a2" : {
+        "board_side_pt" : 370,
+        "board_width_limited" : true,
+        "card_h_pt" : 52,
+        "slack_to_banner_pt" : 52
+      },
+      "a3" : {
+        "board_side_pt" : 370,
+        "board_width_limited" : true,
+        "card_h_pt" : 74,
+        "slack_to_banner_pt" : 52
+      },
+      "current" : {
+        "board_side_pt" : 370,
+        "board_width_limited" : true,
+        "card_h_pt" : 52,
+        "slack_to_banner_pt" : 52
+      }
+    },
+    "se3" : {
+      "a1" : {
+        "board_side_pt" : 291,
+        "board_width_limited" : false,
+        "card_h_pt" : 52,
+        "slack_to_banner_pt" : 0
+      },
+      "a2" : {
+        "board_side_pt" : 291,
+        "board_width_limited" : false,
+        "card_h_pt" : 52,
+        "slack_to_banner_pt" : 0
+      },
+      "a3" : {
+        "board_side_pt" : 291,
+        "board_width_limited" : false,
+        "card_h_pt" : 74,
+        "slack_to_banner_pt" : 0
+      },
+      "current" : {
+        "board_side_pt" : 291,
+        "board_width_limited" : false,
+        "card_h_pt" : 52,
+        "slack_to_banner_pt" : 0
+      }
+    }
+  }
+}

@@ -1,0 +1,18 @@
+#!/bin/bash
+# 当番（ai-duty.sh）の claude セッションだけが PATH の先頭で使う `xcrun` の記録係（2026-09-30）。
+# `xcrun simctl boot <UDID>` と `xcrun simctl bootstatus <UDID> -b`（止まっていれば起動する）を見たら、
+# その UDID を $DUTY_SIM_RECORD に追記してから本物の xcrun へそのまま渡す。ai-duty.sh の後片付けは
+# **この記録があるシミュレータだけ**を落とす（会長が起動したシミュレータを落とさないため）。
+# 記録に失敗しても本来の動作は妨げない（本物の xcrun は必ず呼ぶ）。
+REAL_XCRUN="${DUTY_REAL_XCRUN:-/usr/bin/xcrun}"
+if [ "${1:-}" = "simctl" ] && [ -n "${DUTY_SIM_RECORD:-}" ]; then
+  case "${2:-}" in
+    boot)
+      [ -n "${3:-}" ] && echo "$3" >>"$DUTY_SIM_RECORD" 2>/dev/null ;;
+    bootstatus)
+      for a in "${@:4}"; do
+        [ "$a" = "-b" ] && [ -n "${3:-}" ] && { echo "$3" >>"$DUTY_SIM_RECORD" 2>/dev/null; break; }
+      done ;;
+  esac
+fi
+exec "$REAL_XCRUN" "$@"
