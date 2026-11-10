@@ -85,6 +85,10 @@ public enum Theme {
         /// 紫の**文字色**（#3425）。元の `purple` は白で 3.49:1 しか取れず、11pt の補足文が AA に届かなかった。
         /// ライトだけ同じ色相のまま濃くして（白 5.30:1・クリーム 4.96:1）、ダークは面（0x2C2522）の上で 4.32:1 と足りないので少し明るくして 4.84:1。
         public static let purpleText: Pair = (0x6E5AC8, 0x9585E4)
+        /// ランキングの「自分の行」（`Fill.yellow` を 25% 重ねた背景）に載せる紫の補足文の色（#3453）。
+        /// 黄を重ねた地は `purpleText` だとライトのクリーム側で 4.47:1・ダークで 1.5〜1.8:1 しか取れない。
+        /// ライトは少し濃く（4 地すべてで 5.19:1 以上）、ダークは黄の重なった暗い地に合わせて明るく（5.08:1 以上）した。
+        public static let purpleOnMeRowText: Pair = (0x6350BD, 0xCFC6F8)
 
         /// 標準ダイアログ（`.alert` / `.confirmationDialog`）のボタンの文字色（#1874）。
         ///
@@ -117,6 +121,7 @@ public enum Theme {
     public static let tealText = Color(Hex.tealText)
     public static let coralText = Color(Hex.coralText)
     public static let purpleText = Color(Hex.purpleText)
+    public static let purpleOnMeRowText = Color(Hex.purpleOnMeRowText)
 
     /// 差し色を**面色**（チップ・ボタンの塗り）として使うときの値。文字は必ず `Theme.onAccent` を載せる。
     /// 値の根拠と、文字色用の差し色と別に持つ理由は `Hex.Fill` のコメントを参照（#220）。

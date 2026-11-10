@@ -280,7 +280,7 @@ public struct RankingRow: View {
                 }
                 if let note = style.note(entry) {
                     Label(note, systemImage: "moon.stars.fill")
-                        .themeCaption(11).foregroundStyle(Theme.purpleText)
+                        .themeCaption(11).foregroundStyle(entry.isMe ? Theme.purpleOnMeRowText : Theme.purpleText)
                 }
             }
             Spacer(minLength: 8)
