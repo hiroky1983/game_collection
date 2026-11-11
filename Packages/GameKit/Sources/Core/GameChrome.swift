@@ -347,38 +347,40 @@ private struct GameChromeToolbar: ViewModifier {
             }
             .modifier(GameChromeNewGameConfirmation(newGame: newGame, isPresented: $confirmsNewGame)).toolbar {
                 gameChromeBarItems(title: title, condition: condition, dismiss: dismiss, showsBack: !hidesBackButton)
+                // `if / else` は古い Xcode の ToolbarContentBuilder で通らないので、`if` を 2 つに分ける。
                 if collapses {
                     ToolbarItem(placement: .primaryAction) { overflowMenu }
-                } else {
-                    // 並びはここで固定する: 役の早見表 → ？ → 新規 → その他。
-                    if let reference {
-                        ToolbarItem(placement: .primaryAction) {
-                            Button(action: reference.action) {
-                                Image(systemName: "list.bullet.rectangle")
-                            }
-                            .accessibilityLabel(reference.accessibilityLabel)
+                }
+                // 並びはここで固定する: 役の早見表 → ？ → 新規 → その他。
+                if !collapses, let reference {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button(action: reference.action) {
+                            Image(systemName: "list.bullet.rectangle")
                         }
+                        .accessibilityLabel(reference.accessibilityLabel)
                     }
-                    if let howToPlay, !hidesHowToPlay {
-                        ToolbarItem(placement: .primaryAction) {
-                            Button(action: howToPlay.present) {
-                                Image(systemName: "questionmark.circle")
-                            }
-                            .accessibilityLabel(tr("遊び方"))
+                }
+                if !collapses, let howToPlay, !hidesHowToPlay {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button(action: howToPlay.present) {
+                            Image(systemName: "questionmark.circle")
                         }
+                        .accessibilityLabel(tr("遊び方"))
                     }
-                    if let newGame {
-                        ToolbarItem(placement: .primaryAction) {
-                            Button { newGame.tapped { confirmsNewGame = true } } label: {
-                                Image(systemName: newGame.kind.systemImage)
-                            }
-                            .accessibilityLabel(newGame.kind.accessibilityLabel)
-                            .disabled(newGame.isDisabled)
+                }
+                if !collapses, let newGame {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button { newGame.tapped { confirmsNewGame = true } } label: {
+                            Image(systemName: newGame.kind.systemImage)
                         }
+                        .accessibilityLabel(newGame.kind.accessibilityLabel)
+                        .disabled(newGame.isDisabled)
                     }
-                    ForEach(actions.indices, id: \.self) { index in
-                        let item = actions[index]
-                        ToolbarItem(placement: .primaryAction) {
+                }
+                if !collapses, !actions.isEmpty {
+                    ToolbarItemGroup(placement: .primaryAction) {
+                        ForEach(actions.indices, id: \.self) { index in
+                            let item = actions[index]
                             Button(action: item.action) { Image(systemName: item.systemImage) }
                                 .accessibilityLabel(item.title)
                                 .disabled(item.isDisabled)
