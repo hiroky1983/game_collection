@@ -702,6 +702,10 @@ public final class GameAnalytics {
     private var gauges: [String: AnalyticsGaugeSummary] = [:]
     /// 進行中のプレイで「猫を教える」を使った回数（#3232）。終わりの `game_end` に `teach_used` として載せる。
     private var teachCounts: [String: Int] = [:]
+    /// 手つかずの盤で使ったヒントの回数の持ち越し（#3467）。再開できない盤で離れるとプレイの記録ごと捨てるが、
+    /// ヒントの消費は盤の保存データに残るので、開き直した回の `hints_used` へ引き継ぐ。
+    /// 離れるたびに上書きする（使っていなければ鍵ごと消す）ので、古い値が後の回に残らない。
+    private var heldHints: [String: Int] = [:]
     private var missPercents: [String: Int] = [:]
     /// 直前のミスがまだ挽回されていない（走り直していない）プレイ。`quit` の `exit` の元。
     private var unresolvedMisses: Set<String> = []
@@ -763,6 +767,7 @@ public final class GameAnalytics {
         gameID: String, level: AnalyticsLevel? = nil, mode: AnalyticsMode? = nil, credit: AnalyticsCredit? = nil
     ) {
         guard allowedGameIDs.contains(gameID) else { return }
+        heldHints[gameID] = nil
         endPlayAsQuitIfProgressed(gameID: gameID)
         beginPlay(gameID: gameID, level: level, mode: mode, credit: credit)
     }
@@ -834,6 +839,18 @@ public final class GameAnalytics {
         else { return }
         plays[gameID] = .inFlight(
             startedAt: startedAt, didProgress: didProgress, canResume: canResume, hintsUsed: hintsUsed + 1
+        )
+    }
+
+    /// 手つかずの盤を開き直したとき、前の回に使ったヒントの回数を今のプレイへ引き継ぐ（#3467）。
+    /// `gameScreenDidAppear` が `gameDidStart` の直後に呼ぶ。盤の保存データが残っている経路でしか呼ばれないので、
+    /// 新しい盤には持ち越さない。進行中のプレイが無ければ何もしない。
+    public func adoptHeldHints(gameID: String) {
+        guard let held = heldHints.removeValue(forKey: gameID), held > 0,
+              case let .inFlight(startedAt, didProgress, canResume, hintsUsed) = plays[gameID]
+        else { return }
+        plays[gameID] = .inFlight(
+            startedAt: startedAt, didProgress: didProgress, canResume: canResume, hintsUsed: hintsUsed + held
         )
     }
 
@@ -1087,6 +1104,7 @@ public final class GameAnalytics {
     ///   数えられてしまう（PR #162 の CodeRabbit 指摘）。これが**休憩**で、離脱ではない（#500）。
     ///   中断データが残らない = 盤面を捨てたときだけ `quit` を送る。
     public func leaveGame(gameID: String, isResumable: Bool) {
+        heldHints[gameID] = nil
         if case .finished = plays[gameID] {
             // クリアした面の画面を、次へも「もう一度」も押さずに離れた（#2848）。
             if finishedResults[gameID] == .win, let level = levels[gameID], case .stage = level {
@@ -1106,6 +1124,10 @@ public final class GameAnalytics {
             return
         }
         endPlayAsQuitIfProgressed(gameID: gameID)
+        // 手つかずのままヒントだけ使って離れた回数は、盤の保存データに残る。開き直した回へ持ち越す（#3467）。
+        if case let .inFlight(_, didProgress, _, hintsUsed) = plays[gameID], !didProgress, hintsUsed > 0 {
+            heldHints[gameID] = hintsUsed
+        }
         // 送っても送らなくても、再開できない盤面はもう続きが無い。次に開いたら数え直す。
         plays[gameID] = nil
         clearClock(gameID: gameID)
