@@ -156,6 +156,8 @@ public struct CatPuzzleView: View {
                 Button { showRanking = true } label: {
                     Label(tr("今日のランキング"), systemImage: "trophy.fill")
                 }
+                // 広告の視聴中に開くと、終了時の計時の再開がランキングを見ている間にも効いてしまうので塞ぐ。
+                .disabled(hintRescue.isWatching || teachRescue.isWatching || continueRescue.isWatching)
             }
         }
         .howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items).onboarding(CatPuzzleOnboarding.guide))
