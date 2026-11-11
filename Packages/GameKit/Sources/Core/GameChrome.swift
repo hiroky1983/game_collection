@@ -323,11 +323,16 @@ private struct GameChromeToolbar: ViewModifier {
     @State private var titleWidth: CGFloat = 0
     @Environment(\.dismiss) private var dismiss
     @Environment(\.howToPlayTrigger) private var howToPlay
+    /// お気に入りの☆（#3478）。ハブから開いたときだけ環境にあり、右端（その他の後ろ）に置く。
+    @Environment(\.favoriteGame) private var favorite
+    @State private var favoriteToast: FavoriteHeaderToast?
 
     private var showsHowToPlay: Bool { howToPlay != nil && !hidesHowToPlay }
 
+    /// ☆込みの数。狭い画面で「…」にまとめる判定（#3475）にも☆を数える。
     private var buttonCount: Int {
         (reference == nil ? 0 : 1) + (showsHowToPlay ? 1 : 0) + (newGame == nil ? 0 : 1) + actions.count
+            + (favorite == nil ? 0 : 1)
     }
 
     /// 測れるまで（幅が 0 のあいだ）は並べたままにする。
@@ -345,7 +350,8 @@ private struct GameChromeToolbar: ViewModifier {
                 GameChromeTitle(title: title).fixedSize().hidden().accessibilityHidden(true)
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { titleWidth = $0 }
             }
-            .modifier(GameChromeNewGameConfirmation(newGame: newGame, isPresented: $confirmsNewGame)).toolbar {
+            .modifier(GameChromeNewGameConfirmation(newGame: newGame, isPresented: $confirmsNewGame))
+            .modifier(FavoriteToastOverlay(toast: $favoriteToast)).toolbar {
                 gameChromeBarItems(title: title, condition: condition, dismiss: dismiss, showsBack: !hidesBackButton)
                 // `if / else` は古い Xcode の ToolbarContentBuilder で通らないので、`if` を 2 つに分ける。
                 if collapses {
@@ -387,6 +393,11 @@ private struct GameChromeToolbar: ViewModifier {
                         }
                     }
                 }
+                if !collapses, let favorite {
+                    ToolbarItem(placement: .primaryAction) {
+                        FavoriteToolbarButton(favorite: favorite) { favoriteToast = $0.toggle(source: .header) }
+                    }
+                }
             }
     }
 
@@ -413,10 +424,28 @@ private struct GameChromeToolbar: ViewModifier {
                 Button(action: item.action) { Label(item.title, systemImage: item.systemImage) }
                     .disabled(item.isDisabled)
             }
+            if let favorite {
+                Button { favoriteToast = favorite.toggle(source: .headerMenu) } label: {
+                    Label(favorite.actionTitle, systemImage: favorite.isOn ? "star.fill" : "star")
+                }
+            }
         } label: {
             Image(systemName: "ellipsis")
         }
         .accessibilityLabel(tr("メニュー"))
+    }
+}
+
+/// ヘッダー右端の☆（#3478）。`isOn` を自分の `body` で読み、付け外しがすぐ見た目に出る。
+private struct FavoriteToolbarButton: View {
+    let favorite: FavoriteGameContext
+    let onToggle: (FavoriteGameContext) -> Void
+
+    var body: some View {
+        Button { onToggle(favorite) } label: {
+            FavoriteStar(isOn: favorite.isOn, size: 20)
+        }
+        .accessibilityLabel(favorite.actionTitle)
     }
 }
 
