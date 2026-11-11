@@ -150,16 +150,15 @@ public struct CatPuzzleView: View {
         // 「次のステージへ」を押して次の面を作っている間はカードを下げ、盤の「問題を用意しています…」を見せる。
         .boardGameResultCardAboveBanner(isPresented: model.showsClearCard && !clearCardClosed && !model.isPreparingStage) { clearCard }
         .gameChrome(title: tr("おじさんちのねこさがし"), review: services.review,
-                    newGame: GameChromeNewGame(.solo, isDisabled: hintRescue.isWatching || teachRescue.isWatching || continueRescue.isWatching) { requestNewGame() }) {
-            // 開始シートと同じ「今日のランキング」を、ゲーム中にも開ける入口（#3474。ステージ・自由に遊ぶの両方で出す）。
-            ToolbarItem(placement: .primaryAction) {
-                Button { showRanking = true } label: {
-                    Label(tr("今日のランキング"), systemImage: "trophy.fill")
-                }
-                // 広告の視聴中に開くと、終了時の計時の再開がランキングを見ている間にも効いてしまうので塞ぐ。
-                .disabled(hintRescue.isWatching || teachRescue.isWatching || continueRescue.isWatching)
-            }
-        }
+                    newGame: GameChromeNewGame(.solo, isDisabled: hintRescue.isWatching || teachRescue.isWatching || continueRescue.isWatching) { requestNewGame() },
+                    actions: [
+                        // 開始シートと同じ「今日のランキング」を、ゲーム中にも開ける入口（#3474。ステージ・自由に遊ぶの両方で出す）。
+                        // 広告の視聴中に開くと、終了時の計時の再開がランキングを見ている間にも効いてしまうので塞ぐ。
+                        GameChromeAction(tr("今日のランキング"), systemImage: "trophy.fill",
+                                         isDisabled: hintRescue.isWatching || teachRescue.isWatching || continueRescue.isWatching) {
+                            showRanking = true
+                        },
+                    ])
         .howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items).onboarding(CatPuzzleOnboarding.guide))
         .onChange(of: Self.wantsKeyIntro(model, seen: keyIntroSeen, showNewGame: showNewGame), initial: true) { _, wants in
             if wants { showsKeyIntro = true }
