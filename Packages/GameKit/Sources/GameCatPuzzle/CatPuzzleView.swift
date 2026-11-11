@@ -48,6 +48,8 @@ public struct CatPuzzleView: View {
     @State private var keyOpenPlayed = 0
     /// 鍵の面の説明を出しているか。初めて鍵の面に来たとき 1 回だけ（`CatPuzzleKeyIntro`）。
     @State private var showsKeyIntro = false
+    /// ヘッダーの 🏆 から開く今日のランキング（#3474）。
+    @State private var showRanking = false
     @AppStorage(CatPuzzleKeyIntro.seenKey) private var keyIntroSeen = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -82,8 +84,9 @@ public struct CatPuzzleView: View {
     }
 
     /// 計時を止めておくか（開始シート・確認を出している間。遊び方・広告・背面は `gameTimerLifecycle` が止める）。
-    static func holdsClock(showNewGame: Bool, showConfirmNewGame: Bool, showConfirmClear: Bool, showsKeyIntro: Bool = false) -> Bool {
-        showNewGame || showConfirmNewGame || showConfirmClear || showsKeyIntro
+    static func holdsClock(showNewGame: Bool, showConfirmNewGame: Bool, showConfirmClear: Bool, showsKeyIntro: Bool = false,
+                           showRanking: Bool = false) -> Bool {
+        showNewGame || showConfirmNewGame || showConfirmClear || showsKeyIntro || showRanking
     }
 
     /// 鍵の面の説明を出すか（鍵の面で、まだ見ていなくて、開始シート・問題の用意中でないとき）。
@@ -147,7 +150,16 @@ public struct CatPuzzleView: View {
         // 「次のステージへ」を押して次の面を作っている間はカードを下げ、盤の「問題を用意しています…」を見せる。
         .boardGameResultCardAboveBanner(isPresented: model.showsClearCard && !clearCardClosed && !model.isPreparingStage) { clearCard }
         .gameChrome(title: tr("おじさんちのねこさがし"), review: services.review,
-                    newGame: GameChromeNewGame(.solo, isDisabled: hintRescue.isWatching || teachRescue.isWatching || continueRescue.isWatching) { requestNewGame() })
+                    newGame: GameChromeNewGame(.solo, isDisabled: hintRescue.isWatching || teachRescue.isWatching || continueRescue.isWatching) { requestNewGame() }) {
+            // 開始シートと同じ「今日のランキング」を、ゲーム中にも開ける入口（#3474。ステージ・自由に遊ぶの両方で出す）。
+            ToolbarItem(placement: .primaryAction) {
+                Button { showRanking = true } label: {
+                    Label(tr("今日のランキング"), systemImage: "trophy.fill")
+                }
+                // 広告の視聴中に開くと、終了時の計時の再開がランキングを見ている間にも効いてしまうので塞ぐ。
+                .disabled(hintRescue.isWatching || teachRescue.isWatching || continueRescue.isWatching)
+            }
+        }
         .howToPlay(HowToPlayGuide.catPuzzle.illustrated(CatPuzzleHowToFigures.items).onboarding(CatPuzzleOnboarding.guide))
         .onChange(of: Self.wantsKeyIntro(model, seen: keyIntroSeen, showNewGame: showNewGame), initial: true) { _, wants in
             if wants { showsKeyIntro = true }
@@ -169,6 +181,10 @@ public struct CatPuzzleView: View {
                 // 閉じて今の盤で遊ぶ。遅らせていた開始をここで数える。
                 model.startPlayIfPending()
             }
+        }
+        .sheet(isPresented: $showRanking) {
+            CatPuzzleRankingView(model: CatPuzzleRankingModel(reporter: services.gameCenter),
+                                 onOpenGameCenter: services.openGameCenter) { showRanking = false }
         }
         .dialogs { anchor in
             anchor.confirmationDialog(tr("新規ゲームを始めますか？"), isPresented: $showConfirmNewGame, titleVisibility: .visible) {
@@ -307,7 +323,8 @@ public struct CatPuzzleView: View {
         .gameTimerLifecycle(
             rescues: [hintRescue, teachRescue, continueRescue],
             isHeld: Self.holdsClock(showNewGame: showNewGame, showConfirmNewGame: showConfirmNewGame,
-                                    showConfirmClear: showConfirmClear, showsKeyIntro: showsKeyIntro),
+                                    showConfirmClear: showConfirmClear, showsKeyIntro: showsKeyIntro,
+                                    showRanking: showRanking),
             pause: { model.pauseTimer() },
             resume: { model.resumeTimerIfNeeded() }
         )
