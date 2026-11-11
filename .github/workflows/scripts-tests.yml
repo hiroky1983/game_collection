@@ -11,6 +11,10 @@ name: Scripts のテスト
 #
 # 解析イベントの種数は spec-app.md と Analytics.swift の食い違いを見張るため、両方も paths に入れる（#3428）。
 #
+# テストは ci.yml だけでなく pr-base-guard.yml・pr-risk-label.yml と、schedule: を持つ夜間 workflow 全部も実物として読む
+# （test-check-pr-base.sh / test-check-pr-risk-label.sh / test-check-nightly-failures.sh）。.github/ だけの PR でも回るよう
+# .github/workflows/*.yml をグロブで入れる（#3460。#3051 の続編）。
+#
 # 個別ワークフローで回っている3本（duty-input-filter / lp-game-list / pr-base-guard）もここで重ねて回す。
 # グロブで全本を拾えば、テストを足したときにワークフローの書き足しを忘れても漏れない。重複は数秒。
 #
@@ -27,7 +31,7 @@ on:
       - 'App/AppGameServices.swift'
       - 'Packages/GameKit/Sources/**/*Module.swift'
       - '.github/workflows/scripts-tests.yml'
-      - '.github/workflows/ci.yml'
+      - '.github/workflows/*.yml'
       - 'fastlane/Fastfile'
       - 'docs/ai-devops.md'
       - 'docs/aso/metadata-v*.md'
@@ -40,7 +44,7 @@ on:
       - 'App/AppGameServices.swift'
       - 'Packages/GameKit/Sources/**/*Module.swift'
       - '.github/workflows/scripts-tests.yml'
-      - '.github/workflows/ci.yml'
+      - '.github/workflows/*.yml'
       - 'fastlane/Fastfile'
       - 'docs/ai-devops.md'
       - 'docs/aso/metadata-v*.md'
