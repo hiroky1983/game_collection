@@ -4628,6 +4628,17 @@
         }
       }
     },
+    "メニュー" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menu"
+          }
+        }
+      }
+    },
     "遊び方" : {
       "extractionState" : "manual",
       "localizations" : {

@@ -82,6 +82,49 @@ public struct GameChromeNewGame {
     }
 }
 
+/// ヘッダー右のゲーム固有の操作（難易度・盤面選択など・#3475）。
+///
+/// 狭い画面では「…」のメニューにまとめるため、`ToolbarContent` ではなく **タイトル・アイコン・処理を値で**渡す。
+/// `title` は並びの中ではアイコンの読み上げ名、メニューでは項目名になる。
+public struct GameChromeAction {
+    let title: String
+    let systemImage: String
+    let isDisabled: Bool
+    let action: () -> Void
+
+    public init(_ title: String, systemImage: String, isDisabled: Bool = false, action: @escaping () -> Void) {
+        self.title = title
+        self.systemImage = systemImage
+        self.isDisabled = isDisabled
+        self.action = action
+    }
+}
+
+/// ヘッダー右のボタンを「…」にまとめるかの判定（#3475）。幅の決め打ちはせず、題字が下限まで縮んでも入るかで決める。
+public enum GameChromeHeaderMetrics {
+    /// 題字を縮める下限（`GameChromeTitle` の `minimumScaleFactor` と同じ値）。
+    public static let minTitleScale: CGFloat = 0.6
+    /// 戻るボタン 1 つぶんの幅。
+    public static let backButtonWidth: CGFloat = 44
+    /// ヘッダー右のボタン 1 つぶんの幅（ボタン間の隙間込み）。
+    public static let buttonWidth: CGFloat = 44
+    /// 題字の左右に残す余白（バーの左右の余白＋題字との隙間）。
+    public static let margin: CGFloat = 32
+
+    /// - Parameters:
+    ///   - titleWidth: 縮めていない題字の本来の幅。
+    ///   - screenWidth: 画面（ナビバー）の幅。
+    ///   - buttonCount: ヘッダー右のボタン数（「…」にまとめる前）。
+    ///   - hasBackButton: 戻るボタンがあるか。
+    /// - Returns: 題字が 0.6 倍まで縮んでも入らないとき true。ボタンが 1 つ以下なら「…」にしても幅は減らないので false。
+    public static func shouldCollapse(titleWidth: CGFloat, screenWidth: CGFloat, buttonCount: Int,
+                                      hasBackButton: Bool = true) -> Bool {
+        guard buttonCount >= 2 else { return false }
+        let available = screenWidth - (hasBackButton ? backButtonWidth : 0) - CGFloat(buttonCount) * buttonWidth - margin
+        return titleWidth * minTitleScale > available
+    }
+}
+
 /// 「新規」ボタンの共通の確認ダイアログ（#3148）。`GameChromeNewGame.hasProgressToLose` が true のときだけ使われる。
 struct GameChromeNewGameConfirmation: ViewModifier {
     let newGame: GameChromeNewGame?
@@ -166,6 +209,7 @@ public extension View {
     ///   - reference: 役の早見表。あるゲームだけ渡す。
     ///   - newGame: 新規ボタン。あるゲームだけ渡す。
     ///   - actions: 上の 2 つに収まらないゲーム固有の操作（難易度・盤面選択メニューなど）。最後尾に並ぶ。
+    ///     狭い画面では他のボタンと一緒に「…」のメニューにまとまる（#3475）ので、`ToolbarContent` ではなく値で渡す。
     ///   - hidesBackButton: 左上の戻るを隠す。誤タップで進行中の挑戦が終わってはいけない画面だけが渡す
     ///     （柵越えおじさんの打席・#1550。やめる操作はゲーム側の一時停止に置く）。
     ///   - hidesHowToPlay: ヘッダー右上の `?`（`.howToPlay`）を隠す。一時停止の画面など、ゲーム側の別の場所に
@@ -178,23 +222,6 @@ public extension View {
     /// ナビバーの背景は全ゲームで画面の背景色（`Theme.background`）に揃え、ツールバーのボタンは
     /// `Theme.coralText`（文字用の濃い赤・#2377）に固定する（#1412・会長決裁 2026-09-25。既定の白い帯が
     /// クリーム色の画面と食い違う、神経衰弱だけボタンが紫、というばらつきを引数ごと無くした）。
-    func gameChrome<Actions: ToolbarContent>(
-        title: String,
-        review: ReviewRequestService?,
-        condition: GameChromeCondition? = nil,
-        reference: GameChromeReference? = nil,
-        newGame: GameChromeNewGame? = nil,
-        hidesBackButton: Bool = false,
-        hidesHowToPlay: Bool = false,
-        @ToolbarContentBuilder actions: () -> Actions
-    ) -> some View {
-        modifier(GameChromeBase(review: review))
-            .modifier(GameChromeToolbar(title: title, condition: condition, reference: reference, newGame: newGame,
-                                        hidesBackButton: hidesBackButton, hidesHowToPlay: hidesHowToPlay,
-                                        actions: actions()))
-    }
-
-    /// ゲーム固有の操作が無いゲーム用。
     func gameChrome(
         title: String,
         review: ReviewRequestService?,
@@ -202,12 +229,13 @@ public extension View {
         reference: GameChromeReference? = nil,
         newGame: GameChromeNewGame? = nil,
         hidesBackButton: Bool = false,
-        hidesHowToPlay: Bool = false
+        hidesHowToPlay: Bool = false,
+        actions: [GameChromeAction] = []
     ) -> some View {
         modifier(GameChromeBase(review: review))
-            .modifier(GameChromeToolbar<ToolbarItem<Void, EmptyView>>(
-                title: title, condition: condition, reference: reference, newGame: newGame, hidesBackButton: hidesBackButton,
-                hidesHowToPlay: hidesHowToPlay, actions: nil))
+            .modifier(GameChromeToolbar(title: title, condition: condition, reference: reference, newGame: newGame,
+                                        hidesBackButton: hidesBackButton, hidesHowToPlay: hidesHowToPlay,
+                                        actions: actions))
     }
 }
 
@@ -282,51 +310,111 @@ struct GameChromeBase: ViewModifier {
     }
 }
 
-private struct GameChromeToolbar<Actions: ToolbarContent>: ViewModifier {
+private struct GameChromeToolbar: ViewModifier {
     let title: String
     let condition: GameChromeCondition?
     let reference: GameChromeReference?
     let newGame: GameChromeNewGame?
     let hidesBackButton: Bool
     let hidesHowToPlay: Bool
-    let actions: Actions?
+    let actions: [GameChromeAction]
     @State private var confirmsNewGame = false
+    @State private var screenWidth: CGFloat = 0
+    @State private var titleWidth: CGFloat = 0
     @Environment(\.dismiss) private var dismiss
     @Environment(\.howToPlayTrigger) private var howToPlay
 
+    private var showsHowToPlay: Bool { howToPlay != nil && !hidesHowToPlay }
+
+    private var buttonCount: Int {
+        (reference == nil ? 0 : 1) + (showsHowToPlay ? 1 : 0) + (newGame == nil ? 0 : 1) + actions.count
+    }
+
+    /// 測れるまで（幅が 0 のあいだ）は並べたままにする。
+    private var collapses: Bool {
+        screenWidth > 0 && titleWidth > 0
+            && GameChromeHeaderMetrics.shouldCollapse(titleWidth: titleWidth, screenWidth: screenWidth,
+                                                      buttonCount: buttonCount, hasBackButton: !hidesBackButton)
+    }
+
     func body(content: Content) -> some View {
-        content.modifier(GameChromeNewGameConfirmation(newGame: newGame, isPresented: $confirmsNewGame)).toolbar {
-            gameChromeBarItems(title: title, condition: condition, dismiss: dismiss, showsBack: !hidesBackButton)
-            // 並びはここで固定する: 役の早見表 → ？ → 新規 → その他。
-            if let reference {
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: reference.action) {
-                        Image(systemName: "list.bullet.rectangle")
+        content
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { screenWidth = $0 }
+            // 題字の本来の幅を、縮めない隠した Text で測る（大きい文字サイズでも追従する）。
+            .background(alignment: .topLeading) {
+                GameChromeTitle(title: title).fixedSize().hidden().accessibilityHidden(true)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { titleWidth = $0 }
+            }
+            .modifier(GameChromeNewGameConfirmation(newGame: newGame, isPresented: $confirmsNewGame)).toolbar {
+                gameChromeBarItems(title: title, condition: condition, dismiss: dismiss, showsBack: !hidesBackButton)
+                if collapses {
+                    ToolbarItem(placement: .primaryAction) { overflowMenu }
+                } else {
+                    // 並びはここで固定する: 役の早見表 → ？ → 新規 → その他。
+                    if let reference {
+                        ToolbarItem(placement: .primaryAction) {
+                            Button(action: reference.action) {
+                                Image(systemName: "list.bullet.rectangle")
+                            }
+                            .accessibilityLabel(reference.accessibilityLabel)
+                        }
                     }
-                    .accessibilityLabel(reference.accessibilityLabel)
+                    if let howToPlay, !hidesHowToPlay {
+                        ToolbarItem(placement: .primaryAction) {
+                            Button(action: howToPlay.present) {
+                                Image(systemName: "questionmark.circle")
+                            }
+                            .accessibilityLabel(tr("遊び方"))
+                        }
+                    }
+                    if let newGame {
+                        ToolbarItem(placement: .primaryAction) {
+                            Button { newGame.tapped { confirmsNewGame = true } } label: {
+                                Image(systemName: newGame.kind.systemImage)
+                            }
+                            .accessibilityLabel(newGame.kind.accessibilityLabel)
+                            .disabled(newGame.isDisabled)
+                        }
+                    }
+                    ForEach(actions.indices, id: \.self) { index in
+                        let item = actions[index]
+                        ToolbarItem(placement: .primaryAction) {
+                            Button(action: item.action) { Image(systemName: item.systemImage) }
+                                .accessibilityLabel(item.title)
+                                .disabled(item.isDisabled)
+                        }
+                    }
+                }
+            }
+    }
+
+    /// 狭い画面で、右のボタン全部を 1 つにまとめた「…」（#3475）。並びは並べたときと同じ固定順。
+    /// 盤の右下の「⋯」（`GameOverflowBar`）とは別物で、合流させない。
+    private var overflowMenu: some View {
+        Menu {
+            if let reference {
+                Button(action: reference.action) {
+                    Label(reference.accessibilityLabel, systemImage: "list.bullet.rectangle")
                 }
             }
             if let howToPlay, !hidesHowToPlay {
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: howToPlay.present) {
-                        Image(systemName: "questionmark.circle")
-                    }
-                    .accessibilityLabel(tr("遊び方"))
-                }
+                Button(action: howToPlay.present) { Label(tr("遊び方"), systemImage: "questionmark.circle") }
             }
             if let newGame {
-                ToolbarItem(placement: .primaryAction) {
-                    Button { newGame.tapped { confirmsNewGame = true } } label: {
-                        Image(systemName: newGame.kind.systemImage)
-                    }
-                    .accessibilityLabel(newGame.kind.accessibilityLabel)
-                    .disabled(newGame.isDisabled)
+                Button { newGame.tapped { confirmsNewGame = true } } label: {
+                    Label(newGame.kind.accessibilityLabel, systemImage: newGame.kind.systemImage)
                 }
+                .disabled(newGame.isDisabled)
             }
-            if let actions {
-                actions
+            ForEach(actions.indices, id: \.self) { index in
+                let item = actions[index]
+                Button(action: item.action) { Label(item.title, systemImage: item.systemImage) }
+                    .disabled(item.isDisabled)
             }
+        } label: {
+            Image(systemName: "ellipsis")
         }
+        .accessibilityLabel(tr("メニュー"))
     }
 }
 
