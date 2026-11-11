@@ -23,6 +23,8 @@ struct HubView: View {
     let registry: GameRegistry
     let services: GameServices
     let settings: GameSettings
+    /// お気に入りのゲーム（#3478）。ゲーム画面のヘッダーの☆と同じ置き場。
+    let favorites: FavoritesStore
     @State private var path: [HubRoute]
     @State private var showSettings: Bool
     /// アプリ内「きろく」画面（#669）。ツールバーのトロフィーから開く。
@@ -41,6 +43,24 @@ struct HubView: View {
     /// ハブを開いたまま 0:00 を越えたときに読み直す。
     @State private var homerunTally = HomerunHubCount.tally()
 
+    /// お気に入りの付け外しの直後に出す案内（#3478）。付けた・外した両方で 2 秒。
+    /// 「お気に入り」タブで外したとき（タイルが消える）だけ「元に戻す」付きで 5 秒。
+    @State private var favoriteNotice: FavoriteNotice?
+
+    /// お気に入りの案内 1 回ぶん。消えるまでの時間は `.task(id:)` で数えるため、回ごとの ID を持たせる（続けて押したら差し替え）。
+    private struct FavoriteNotice: Equatable {
+        let message: String
+        let undo: Undo?
+        let id = UUID()
+
+        struct Undo: Equatable {
+            let gameID: String
+            let title: String
+            let index: Int
+            let source: FavoriteSource
+        }
+    }
+
     /// 非表示 1 回ぶんの案内。消えるまでの時間は `.task(id:)` で数えるため、名前だけでなく回ごとの ID を持たせる
     /// （設定で戻して同じゲームを続けて隠すと、名前が同じで数え直しが起きない）。
     private struct HiddenNotice: Equatable {
@@ -55,8 +75,9 @@ struct HubView: View {
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
     @Environment(\.accessibilitySwitchControlEnabled) private var switchControlEnabled
 
-    /// 選んでいるカテゴリーのチップ（#1831）。保存しない（起動のたびに「すべて」）。
-    @State private var selectedCategory: HubCategory = .all
+    /// 選んでいるカテゴリーのチップ（#1831）。選び直しは保存しない。起動したときの初期値だけ、
+    /// 設定の「最初に開くタブ」（既定は「すべて」・#3478）で決まる。
+    @State private var selectedCategory: HubCategory
 
     /// 行と列の間隔。列数・行の高さの計算にも同じ値を使う。
     private static let gridSpacing: CGFloat = 12
@@ -99,17 +120,23 @@ struct HubView: View {
         chipCategories.contains(selectedCategory) ? selectedCategory : .all
     }
 
-    /// チップに出すカテゴリー（「すべて」＋表示中のゲームが 1 本以上入るもの）。1 種類しか無いなら出さない。
+    /// チップに出すカテゴリー（「すべて」「お気に入り」＋表示中のゲームが 1 本以上入るもの）。1 種類しか無いなら出さない。
+    /// 「お気に入り」は「すべて」の次（#3478）。分類が 1 種類しか無いときは、お気に入りも出さない（チップ全体を出さない）。
     private var chipCategories: [HubCategory] {
         let populated = registry.populatedCategories(among: pinnedVisibleModules.map(\.id))
-        return populated.count > 1 ? [.all] + populated : []
+        return populated.count > 1 ? [.all, .favorites] + populated : []
     }
 
     /// グリッドの 1 枚。
     private struct GridEntry {
         let module: GameModule
-        /// `game_open` の `position`（1 始まり・絞る前の並びでの位置）。
-        let position: Int
+        /// `game_open` の `position`（1 始まり・絞る前の並びでの位置）。「お気に入り」タブでは並びの基準が無いので nil。
+        let position: Int?
+    }
+
+    /// 「お気に入り」タブに並べるゲーム。**追加した順**で、設定で非表示にしたゲームも出す（並べ替え・非表示は「すべて」だけが対象・#3478）。
+    private var favoriteEntries: [GridEntry] {
+        favorites.ids.compactMap { registry.module(id: $0) }.map { GridEntry(module: $0, position: nil) }
     }
 
     /// 「ピックアップ」の区画に出すゲーム（#3358）。区画の順は `NewGames.pickupIDs` で固定。
@@ -133,6 +160,7 @@ struct HubView: View {
     /// カテゴリーで絞ったあとにグリッドへ並べるゲーム。位置は絞る前の並びでの 1 始まり
     /// （絞り込みの有無で同じゲームの位置が変わらない）。区画に出しているゲームは一覧に出さない（二重に出さない）。
     private var shownGridEntries: [GridEntry] {
+        if activeCategory == .favorites { return favoriteEntries }
         let entries = pinnedVisibleModules.enumerated().map { GridEntry(module: $0.element, position: $0.offset + 1) }
         guard activeCategory != .all else { return entries }
         return entries.filter { registry.category(of: $0.module.id) == activeCategory }
@@ -187,6 +215,7 @@ struct HubView: View {
         registry: GameRegistry,
         services: GameServices,
         settings: GameSettings,
+        favorites: FavoritesStore,
         initialGameID: String? = nil,
         showsSettingsInitially: Bool = false,
         showsRecordsInitially: Bool = false
@@ -194,6 +223,8 @@ struct HubView: View {
         self.registry = registry
         self.services = services
         self.settings = settings
+        self.favorites = favorites
+        _selectedCategory = State(initialValue: settings.hubStartTab.category)
         // 起動引数で直接開く経路（撮影・動作確認）。`onChange(of: path)` は初期値では走らないので
         // `game_open` は送られない（ユーザーの導線ではないため、それで正しい）。
         _path = State(initialValue: initialGameID.map {
@@ -203,7 +234,7 @@ struct HubView: View {
             )]
         } ?? [])
         #if DEBUG
-        // 撮影用: チップで絞った状態から始める（`-hubCategory <ojisan|board|cards|mahjongHanafuda|puzzleOther>`・#1831）。
+        // 撮影用: チップで絞った状態から始める（`-hubCategory <favorites|ojisan|board|cards|mahjongHanafuda|puzzleOther>`・#1831）。
         // シミュレータではタップを自動化できないため。
         let args = ProcessInfo.processInfo.arguments
         if let i = args.firstIndex(of: "-hubCategory"), i + 1 < args.count, let c = HubCategory(rawValue: args[i + 1]) {
@@ -278,10 +309,25 @@ struct HubView: View {
                             .padding(.top, 14)
                     }
                     // 全ゲームを非表示にした直後は空白にせず、設定へ戻る導線を出す（#2002）。
-                    if HubEmptyState.isShown(visibleGameIDs: settings.visibleModules(from: registry).map(\.id)) {
-                        HubEmptyStateView { showSettings = true }
-                            .padding(.horizontal, Theme.pad)
-                            .padding(.top, 12)
+                    // 「お気に入り」タブは非表示のゲームも出すので、ここには出さない。
+                    if activeCategory != .favorites,
+                       HubEmptyState.isShown(visibleGameIDs: settings.visibleModules(from: registry).map(\.id)) {
+                        HubEmptyStateView(message: HubEmptyState.message, buttonTitle: HubEmptyState.buttonTitle) {
+                            showSettings = true
+                        }
+                        .padding(.horizontal, Theme.pad)
+                        .padding(.top, 12)
+                    }
+                    // お気に入りが 0 件のときは空白にせず、☆の付け方と「すべて」へ戻る導線を出す（#3478）。
+                    if activeCategory == .favorites, favoriteEntries.isEmpty {
+                        HubEmptyStateView(
+                            message: tr("お気に入りはまだありません。\nゲームの☆を押すと、ここに集まります。"),
+                            buttonTitle: tr("すべてのゲームを見る")
+                        ) {
+                            withGameAnimation(.easeOut(duration: 0.2)) { selectedCategory = .all }
+                        }
+                        .padding(.horizontal, Theme.pad)
+                        .padding(.top, 12)
                     }
                     LazyVGrid(columns: columns, spacing: Self.gridSpacing) {
                         ForEach(gridEntriesBelowPickup, id: \.module.id) { entry in
@@ -298,9 +344,30 @@ struct HubView: View {
                         if let hiddenNotice {
                             HubHiddenNotice(title: hiddenNotice.title) { undoHide(hiddenNotice) } onDismiss: { self.hiddenNotice = nil }
                                 .transition(.opacity)
+                        } else if let favoriteNotice {
+                            ToastNotice(
+                                message: favoriteNotice.message,
+                                undo: favoriteNotice.undo.map { undo in
+                                    ToastNotice.Undo(
+                                        title: tr("元に戻す"),
+                                        accessibilityLabel: tr("「%@」のお気に入りからの解除を元に戻す", undo.title)
+                                    ) { undoFavoriteRemoval(undo) }
+                                },
+                                onDismiss: { self.favoriteNotice = nil }
+                            )
+                            .transition(.opacity)
                         }
                     }
                     .gameAnimation(.easeOut(duration: 0.2), value: hiddenNotice)
+                    .gameAnimation(.easeOut(duration: 0.2), value: favoriteNotice)
+                }
+                .task(id: favoriteNotice) {
+                    guard let notice = favoriteNotice else { return }
+                    // 「元に戻す」付きは支援技術中は自動で消さない（非表示の案内と同じ・#2330）。付かない 2 秒の案内は消す。
+                    if notice.undo != nil, voiceOverEnabled || switchControlEnabled { return }
+                    try? await Task.sleep(for: .seconds(notice.undo == nil ? 2 : 5))
+                    guard !Task.isCancelled else { return }
+                    favoriteNotice = nil
                 }
                 .task(id: hiddenNotice) {
                     guard hiddenNotice != nil, !voiceOverEnabled, !switchControlEnabled else { return }
@@ -330,6 +397,13 @@ struct HubView: View {
                             didTap: { services.gameDidTapShare(gameID: gameID) }
                         ))
                         .environment(\.playStreakProvider, { services.playLog?.playStreak() ?? 0 })
+                        // ヘッダーの☆（#3478）。ゲームのモジュールは ID も置き場も知らず、共通枠が環境から読む。
+                        .environment(\.favoriteGame, FavoriteGameContext(
+                            gameID: gameID, title: module.title, store: favorites,
+                            record: { state, source in
+                                services.favoriteDidToggle(gameID: gameID, state: state, source: source)
+                            }
+                        ))
                         .task {
                             // 手つかずの中断データを開き直した回の `game_start` を数える（#2161）。
                             services.gameScreenDidAppear(
@@ -532,6 +606,12 @@ struct HubView: View {
                    let module = registry.module(id: args[i + 1]) {
                     hide(module)
                 }
+                // 撮影・動作確認用: タイルの☆を押したのと同じ経路を通す（`-simulateHubFavorite <gameID>`・#3478）。
+                // シミュレータではタップを自動化できないため。
+                if let i = args.firstIndex(of: "-simulateHubFavorite"), i + 1 < args.count,
+                   let module = registry.module(id: args[i + 1]) {
+                    toggleFavorite(module, source: .hubTile)
+                }
                 // 動作確認用: 触覚・効果音を発火条件を通さずに 1 種ずつ鳴らす（`-simulateFeedback`）。
                 // 効果音が音声セッションをどう設定したかをシミュレータで確認するために使う
                 // （ゲーム内の発火点はすべてタップ起点で、非対話の確認では叩けないため）。
@@ -692,6 +772,7 @@ struct HubView: View {
         let hasResume = isResumable(module.id)
         // 記録が無い（一度も遊んでいない）ゲームに出す。1 回遊べば消える（#2849）。記録が読めないときは出さない。
         let isUnplayed = services.playLog.map { !$0.hasPlayed(gameID: module.id) } ?? false
+        let isFavorite = favorites.isFavorite(module.id)
         // 位置は並べ替え設定を反映した**見えている順**の 1 始まり（#659）。
         return NavigationLink(value: HubRoute(
             gameID: module.id, source: source, position: entry.position, resume: hasResume
@@ -705,6 +786,7 @@ struct HubView: View {
                 isMostPopular: NewGames.mostPopularIDs.contains(module.id),
                 updateTag: UpdatedGames.tag(for: module.id),
                 isUnplayed: isUnplayed,
+                isFavorite: isFavorite,
                 // 柵越えおじさんだけ、今日の残り回数（#2208。ボールの絵は #2273）。「イベント開催中」と両方出す（#2572）。
                 count: HubCountBadge.isShown(gameID: module.id) ? homerunTally : nil
             )
@@ -727,9 +809,20 @@ struct HubView: View {
                 id: module.id, orderedIDs: settings.orderedIDs, hiddenIDs: settings.hiddenIDs,
                 eventIDs: HubEventBadge.activeIDs()))
             Button {
+                toggleFavorite(module, source: .hubMenu)
+            } label: {
+                Label(isFavorite ? tr("お気に入りから外す") : tr("お気に入りに追加"), systemImage: isFavorite ? "star.slash" : "star")
+            }
+            Button {
                 hide(module)
             } label: {
                 Label(tr("非表示にする"), systemImage: "eye.slash")
+            }
+        }
+        // 右下の☆（#3478）。NavigationLink の外に重ね、押してもゲームは開かない。長押しのプレビューにも含めない。
+        .overlay(alignment: .bottomTrailing) {
+            HubFavoriteButton(title: module.title, isOn: isFavorite) {
+                toggleFavorite(module, source: .hubTile)
             }
         }
     }
@@ -760,9 +853,36 @@ struct HubView: View {
     }
 
     /// 長押しメニューの「非表示にする」（#662）。戻す場所が設定シートの奥にあるため、直後に案内を出す。
+    /// ☆の付け外し（タイルの☆・長押しメニュー共通・#3478）。置き場・解析・案内・VoiceOver をここ 1 か所で済ませる。
+    private func toggleFavorite(_ module: GameModule, source: FavoriteSource) {
+        let index = favorites.index(of: module.id)
+        let isOn = favorites.toggle(module.id)
+        services.favoriteDidToggle(gameID: module.id, state: isOn ? .on : .off, source: source)
+        let message = isOn
+            ? tr("「%@」をお気に入りに追加しました", module.title)
+            : tr("「%@」をお気に入りから外しました", module.title)
+        // 非表示の案内と重ねない（下の同じ場所に出るため。あとから出た方に差し替える）。
+        hiddenNotice = nil
+        // 「お気に入り」タブで外すとタイルが消えるので、そのときだけ元に戻せる。
+        let undo = (!isOn && activeCategory == .favorites)
+            ? FavoriteNotice.Undo(gameID: module.id, title: module.title, index: index ?? 0, source: source) : nil
+        favoriteNotice = FavoriteNotice(message: message, undo: undo)
+        AccessibilityNotification.Announcement(message).post()
+    }
+
+    private func undoFavoriteRemoval(_ undo: FavoriteNotice.Undo) {
+        favoriteNotice = nil
+        guard !favorites.isFavorite(undo.gameID) else { return }
+        favorites.restore(undo.gameID, at: undo.index)
+        // 外したときの `off` と対にして、付け直した `on` も数える（数えないとお気に入りの総数が実態より少なく読める）。
+        services.favoriteDidToggle(gameID: undo.gameID, state: .on, source: undo.source)
+        AccessibilityNotification.Announcement(tr("「%@」を元に戻しました", undo.title)).post()
+    }
+
     private func hide(_ module: GameModule) {
         guard !settings.hiddenIDs.contains(module.id) else { return }
         settings.toggleHidden(module.id)
+        favoriteNotice = nil
         hiddenNotice = HiddenNotice(moduleID: module.id, title: module.title)
         AccessibilityNotification.Announcement(HubHiddenNotice.message(title: module.title)).post()
     }
@@ -807,6 +927,8 @@ private struct GameCard: View {
     var updateTag: UpdateTag?
     /// 一度も遊んでいないゲームか（#2849）。NEW・イベント・続きからのどれも無いときだけ「未プレイ」を出す。
     let isUnplayed: Bool
+    /// お気に入りか（#3478）。☆そのものは重ねた別のボタン（`HubFavoriteButton`）で、ここでは読み上げだけに使う。
+    var isFavorite = false
     /// 今日の残り回数（柵越えおじさんだけ・#2208）。ボールを上限ぶん並べ、残りは白・使った分は灰色（#2273）。
     /// 「続きから」「NEW」「イベント開催中」と同じ部品（`badgeCapsule`）・同じ大きさで、文字の印と**両方**出す
     /// （#2572。横に並ばない幅では 2 段）。読み上げは「残り n 回」。
@@ -861,22 +983,37 @@ private struct GameCard: View {
 
     /// 左下の印。文字の印（`badge`）と残り回数（`countBadge`）の両方があるときは、横に並ぶ幅なら 1 段
     /// （文字が左・回数が右）、並ばない幅（iPhone の 2 列）なら 2 段（文字の上に回数）にする（#2572）。
+    /// 右下の☆（#3478）は重ねた別のボタンなので、ここでは同じ大きさの空きを取って札が重ならないようにする。
+    /// 札が☆の分の幅に入らない（SE の「イベント開催中」・iPad の柵越えの残り回数など）ときは、☆を札の下の段へ落とす。
     @ViewBuilder
     private var badges: some View {
-        if let count {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: layout.scaled(6)) {
-                    badgeWithProgress
+        let gap = layout.scaled(6)
+        let slot = Color.clear.frame(width: HubFavoriteMetrics.visual(layout), height: HubFavoriteMetrics.visual(layout))
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .bottom, spacing: gap) {
+                badgeWithProgress
+                Spacer(minLength: 0)
+                if let count { countBadge(count) }
+                slot
+            }
+            if let count {
+                HStack(alignment: .bottom, spacing: gap) {
+                    VStack(alignment: .leading, spacing: gap) {
+                        countBadge(count)
+                        badgeWithProgress
+                    }
                     Spacer(minLength: 0)
-                    countBadge(count)
-                }
-                VStack(alignment: .leading, spacing: layout.scaled(6)) {
-                    countBadge(count)
-                    badgeWithProgress
+                    slot
                 }
             }
-        } else {
-            badgeWithProgress
+            VStack(alignment: .leading, spacing: gap) {
+                if let count { countBadge(count) }
+                badgeWithProgress
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    slot
+                }
+            }
         }
     }
 
@@ -964,7 +1101,44 @@ private struct GameCard: View {
         if let updateTag { parts.append(updateTag.label) }
         if isUnplayed { parts.append(tr("未プレイ")) }
         if let count { parts.append(count.labelText()) }
+        if isFavorite { parts.append(tr("お気に入り")) }
         return parts.joined(separator: tr("、"))
+    }
+}
+
+/// タイル右下の☆の寸法（#3478）。見た目の星の円 28pt と、当たり判定 44pt（タイルの内側に収める）。
+/// 左下の札（`GameCard.badges`）が同じ寸法の空きを取るので、2 か所で値を食い違わせない。
+enum HubFavoriteMetrics {
+    static func visual(_ layout: AdaptiveLayout) -> CGFloat { layout.scaled(28) }
+    static func hit(_ layout: AdaptiveLayout) -> CGFloat { max(44, visual(layout)) }
+    /// 札の余白（`GameCard` の `badges.padding`）。☆の円もタイルの端からこれだけ離す。
+    static func inset(_ layout: AdaptiveLayout) -> CGFloat { layout.scaled(10) }
+}
+
+/// ハブのタイルの☆（#3478）。`NavigationLink` の外に重ね、押してもゲームは開かない。
+private struct HubFavoriteButton: View {
+    let title: String
+    let isOn: Bool
+    let action: () -> Void
+
+    @Environment(\.adaptiveLayout) private var layout
+
+    var body: some View {
+        let visual = HubFavoriteMetrics.visual(layout)
+        let hit = HubFavoriteMetrics.hit(layout)
+        // 当たり判定が円より外へ出る分だけ余白を減らし、円の位置は札と同じ（タイルの端から inset）に保つ。
+        let edge = max(0, HubFavoriteMetrics.inset(layout) - (hit - visual) / 2)
+        Button(action: action) {
+            FavoriteStar(isOn: isOn, size: visual * 0.62)
+                .frame(width: visual, height: visual)
+                .background(Circle().fill(Theme.surface.opacity(0.92)))
+                .frame(width: hit, height: hit)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.pop)
+        .padding(.trailing, edge)
+        .padding(.bottom, edge)
+        .accessibilityLabel(isOn ? tr("「%@」をお気に入りから外す", title) : tr("「%@」をお気に入りに追加", title))
     }
 }
 
@@ -1109,16 +1283,18 @@ private struct HubCategoryChips: View {
 
 /// 表示するゲームが 0 本のときにハブへ出す案内と、設定を開くボタン（#2002）。
 private struct HubEmptyStateView: View {
-    let openSettings: () -> Void
+    let message: String
+    let buttonTitle: String
+    let action: () -> Void
 
     var body: some View {
         VStack(spacing: 16) {
-            Text(HubEmptyState.message)
+            Text(message)
                 .themeCaption(15)
                 .foregroundStyle(Theme.ink)
                 .multilineTextAlignment(.center)
-            Button(action: openSettings) {
-                Text(HubEmptyState.buttonTitle).foregroundStyle(Theme.onAccent)
+            Button(action: action) {
+                Text(buttonTitle).foregroundStyle(Theme.onAccent)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
@@ -1146,28 +1322,11 @@ private struct HubHiddenNotice: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text(tr("「%@」を非表示にしました", title))
-                .themeCaption(13)
-                .foregroundStyle(Theme.ink)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .accessibilityHidden(true)
-            Button(action: onUndo) {
-                Text(tr("元に戻す"))
-                    .themeCaption(13)
-                    .fontWeight(.bold)
-                    .underline()
-                    .foregroundStyle(Theme.ink)
-                    .padding(.horizontal, 8)
-                    .frame(minHeight: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.pop)
-            .accessibilityLabel(tr("「%@」の非表示を元に戻す", title))
-        }
-        .padding(.horizontal, Theme.pad)
-        .popCard(corner: Theme.cornerSmall)
-        .padding(Theme.pad)
-        .accessibilityAction(.escape, onDismiss)
+        ToastNotice(
+            message: tr("「%@」を非表示にしました", title),
+            undo: ToastNotice.Undo(
+                title: tr("元に戻す"), accessibilityLabel: tr("「%@」の非表示を元に戻す", title), action: onUndo),
+            onDismiss: onDismiss
+        )
     }
 }

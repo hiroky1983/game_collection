@@ -298,6 +298,12 @@ public struct GameServices {
         analytics?.recordShareTap(gameID: gameID)
     }
 
+    /// お気に入りの☆を付け外ししたときに呼ぶ（#3478）。`favorite_toggle` を送るだけで、プレイの数え方には触らない。
+    @MainActor
+    public func favoriteDidToggle(gameID: String, state: FavoriteState, source: FavoriteSource) {
+        analytics?.recordFavoriteToggle(gameID: gameID, state: state, source: source)
+    }
+
     /// 「X でポストして特典をもらう」提案（#3359）を出した・押したときに呼ぶ。`share_tap` に `offer` を載せて送るだけ。
     @MainActor
     public func gameDidOfferXShare(gameID: String, step: ShareOfferStep) {

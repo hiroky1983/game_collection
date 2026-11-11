@@ -16,14 +16,14 @@ struct HubCardMenuWiringTests {
         return source[start.lowerBound..<end]
     }
 
-    @Test("グリッドのカードは .pop のあとに長押しメニューを持ち、先頭へ移動と非表示の2項目を呼ぶ")
+    @Test("グリッドのカードは .pop のあとに長押しメニューを持ち、先頭へ移動・お気に入り・非表示の3項目を呼ぶ")
     func gridCardHasContextMenu() throws {
         let source = try SourceScan.appSources()
         // カード → `.pop` → メニューの**結線**まで見る。メニューの項目名だけを contains で見ると、
         // 別の場所に同じ文言があっても緑になる。
         #expect(
             source.range(
-                of: #"GameCard\([^{}]*\)\s*\}\s*\.buttonStyle\(\.pop\)[\s\S]{0,400}?\.contextMenu \{\s*Button \{\s*moveToTop\(module\.id\)\s*\} label: \{\s*Label\(tr\("いちばん上に置く"\)[^\n]*\n\s*\}\s*\.disabled\(NewGames\.isAlreadyAtTop\(\s*id: module\.id, orderedIDs: settings\.orderedIDs, hiddenIDs: settings\.hiddenIDs,\s*eventIDs: HubEventBadge\.activeIDs\(\)\)\)\s*Button \{\s*hide\(module\)\s*\} label: \{\s*Label\(tr\("非表示にする"\)"#,
+                of: #"GameCard\([^{}]*\)\s*\}\s*\.buttonStyle\(\.pop\)[\s\S]{0,400}?\.contextMenu \{\s*Button \{\s*moveToTop\(module\.id\)\s*\} label: \{\s*Label\(tr\("いちばん上に置く"\)[^\n]*\n\s*\}\s*\.disabled\(NewGames\.isAlreadyAtTop\(\s*id: module\.id, orderedIDs: settings\.orderedIDs, hiddenIDs: settings\.hiddenIDs,\s*eventIDs: HubEventBadge\.activeIDs\(\)\)\)\s*Button \{\s*toggleFavorite\(module, source: \.hubMenu\)\s*\} label: \{\s*Label\([^\n]*\n\s*\}\s*Button \{\s*hide\(module\)\s*\} label: \{\s*Label\(tr\("非表示にする"\)"#,
                 options: .regularExpression
             ) != nil,
             "グリッドのカードに「いちばん上に置く」「非表示にする」のメニューが結線されていない"
@@ -85,7 +85,10 @@ struct HubCardMenuWiringTests {
         #expect(toggle.contains("hiddenIDs.insert(id)") && toggle.contains("hiddenIDs.remove(id)"), "toggleHidden が見つからない")
         #expect(!toggle.contains("orderedIDs"), "toggleHidden が並びを動かしている（戻した位置がずれる）")
         #expect(source.contains("HubHiddenNotice(title: hiddenNotice.title) { undoHide(hiddenNotice) }"), "案内に元に戻すが結線されていない")
-        #expect(source.contains(".frame(minHeight: 44)"), "元に戻すボタンが 44pt に満たない")
+        let toast = try String(
+            contentsOf: SourceScan.repositoryRoot.appendingPathComponent("Packages/GameKit/Sources/Core/ToastNotice.swift"),
+            encoding: .utf8)
+        #expect(toast.contains(".frame(minHeight: 44)"), "元に戻すボタンが 44pt に満たない")
         #expect(source.contains("Task.sleep(for: .seconds(5))"), "案内が押せる長さ（5 秒）で出ていない")
     }
 
@@ -96,6 +99,12 @@ struct HubCardMenuWiringTests {
         #expect(source.contains("@Environment(\\.accessibilitySwitchControlEnabled)"), "スイッチコントロールの状態を読んでいない")
         #expect(source.contains("guard hiddenNotice != nil, !voiceOverEnabled, !switchControlEnabled else { return }"),
                 "支援技術中も 5 秒で案内が消える")
-        #expect(source.contains(".accessibilityAction(.escape, onDismiss)"), "支援技術中に案内を閉じる手段が無い")
+        // 案内の札は Core の `ToastNotice` に切り出した（お気に入りの案内と共通・#3478）。
+        let toast = try String(
+            contentsOf: SourceScan.repositoryRoot.appendingPathComponent("Packages/GameKit/Sources/Core/ToastNotice.swift"),
+            encoding: .utf8)
+        #expect(toast.contains(".accessibilityAction(.escape, onDismiss)"), "支援技術中に案内を閉じる手段が無い")
+        #expect(source.contains("HubHiddenNotice(title: hiddenNotice.title) { undoHide(hiddenNotice) } onDismiss:"),
+                "非表示の案内に閉じる手段が結線されていない")
     }
 }

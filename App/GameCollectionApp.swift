@@ -99,6 +99,7 @@ struct GameCollectionApp: App {
             registry: AppEnvironment.registry,
             services: AppEnvironment.services,
             settings: AppEnvironment.settings,
+            favorites: AppEnvironment.favorites,
             initialGameID: startGameID,
             showsSettingsInitially: showSettingsOnLaunch,
             showsRecordsInitially: showRecordsOnLaunch

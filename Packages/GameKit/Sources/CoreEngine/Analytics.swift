@@ -337,7 +337,7 @@ public struct AnalyticsEngagement: Equatable, Sendable {
 }
 
 /// 送信する解析イベント。**`game_start` / `game_end` / `reward_ad` / `reward_request` / `game_open` /
-/// `reward_offer` / `share_tap` の7種に、後続で足した `clear_exit` / `notification_permission` / `review_prompt`（#3061）/ `reward_grant`（#3256）を加えた計 11 種のみ**（#158 の決裁範囲 + #500 の会長決裁 2026-09-08 + #659 の会長決裁 2026-09-12 +
+/// `reward_offer` / `share_tap` の7種に、後続で足した `clear_exit` / `notification_permission` / `review_prompt`（#3061）/ `reward_grant`（#3256）/ `favorite_toggle`（#3478）を加えた計 12 種のみ**（#158 の決裁範囲 + #500 の会長決裁 2026-09-08 + #659 の会長決裁 2026-09-12 +
 /// #780 の会長決裁 2026-09-16 + #1043 の会長決裁 2026-09-16）。`game_start` の `play_count` / `days_since_last_play` は
 /// #1195 の会長決裁（2026-09-21・案A）でイベントは増やさずパラメータだけ足した。
 ///
@@ -395,6 +395,9 @@ public enum AnalyticsEvent: Equatable, Sendable {
     /// ゲーム内の特典を渡した（ねこさがしのデイリーランキング上位・#3256）。渡した 1 回につき 1 回。
     /// パラメータは `game_id` / `rank`（前日の順位）/ `items`（`hint` / `teach` / `hint_teach`）のみ。
     case rewardGrant(gameID: String, rank: Int, items: RewardGrantItems, purpose: RewardGrantPurpose = .ranking)
+    /// お気に入りの☆を付け外しした（#3478）。1 回の操作につき 1 回。パラメータは `game_id` / `state`（`on` = 追加・`off` = 解除）/
+    /// `source`（どの☆か）のみ。どのゲームがお気に入りにされているかは、`state = on` から `off` を引いて読む。
+    case favoriteToggle(gameID: String, state: FavoriteState, source: FavoriteSource)
 
     /// Firebase のイベント名。
     public var name: String {
@@ -410,6 +413,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
         case .notificationPermission: return "notification_permission"
         case .reviewPrompt:  return "review_prompt"
         case .rewardGrant:   return "reward_grant"
+        case .favoriteToggle: return "favorite_toggle"
         }
     }
 
@@ -517,8 +521,32 @@ public enum AnalyticsEvent: Equatable, Sendable {
             case .share: parameters["purpose"] = .string(purpose.rawValue)
             }
             return parameters
+        case let .favoriteToggle(gameID, state, source):
+            return [
+                "game_id": .string(gameID),
+                "state": .string(state.rawValue),
+                "source": .string(source.rawValue),
+            ]
         }
     }
+}
+
+/// `favorite_toggle` の `state`（#3478）。付けた（on）か外した（off）か。
+public enum FavoriteState: String, Equatable, Sendable, CaseIterable {
+    case on
+    case off
+}
+
+/// `favorite_toggle` の `source`（#3478）。どの☆（またはメニュー項目）で付け外ししたか。
+public enum FavoriteSource: String, Equatable, Sendable, CaseIterable {
+    /// ハブのタイルの☆。
+    case hubTile = "hub_tile"
+    /// ハブのタイルの長押しメニュー。
+    case hubMenu = "hub_menu"
+    /// ゲーム画面のヘッダーの☆。
+    case header
+    /// 狭い画面でヘッダーの「…」にまとめたメニューの項目。
+    case headerMenu = "header_menu"
 }
 
 /// `reward_grant` の `items`（#3256）。渡したもの。
@@ -897,6 +925,12 @@ public final class GameAnalytics {
     public func recordRewardGrant(gameID: String, rank: Int, items: RewardGrantItems, purpose: RewardGrantPurpose = .ranking) {
         guard allowedGameIDs.contains(gameID) else { return }
         service.log(.rewardGrant(gameID: gameID, rank: rank, items: items, purpose: purpose))
+    }
+
+    /// お気に入りの☆を付け外ししたときに呼ぶ（#3478）。プレイの数え方には影響しない。
+    public func recordFavoriteToggle(gameID: String, state: FavoriteState, source: FavoriteSource) {
+        guard allowedGameIDs.contains(gameID) else { return }
+        service.log(.favoriteToggle(gameID: gameID, state: state, source: source))
     }
 
     /// リザルトの共有ボタンを押したときに呼ぶ（#1043）。プレイの数え方には影響しない。
