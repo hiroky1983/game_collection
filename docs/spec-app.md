@@ -1359,7 +1359,7 @@ CPU と役の強さで比べる流れは変えない。
 `release/v1.1.7` の柵越えおじさん（v1.1.9 でハブに公開済み）は、1 日の挑戦回数を使い切った後、広告を見ると救済プレイを 1 回行える（保存済みの挑戦回数は増やさない）
 （`purpose` は `challenge`・#1348・#1475。1 日 5 本まで。打席前と結果の 2 か所に同じボタンを置き、広告の呼び出しは
 `HomerunRecoveryButton` の 1 か所）。
-救済の種類（`RewardPurpose`）は次の11個に閉じる:
+救済の種類（`RewardPurpose`）は次の12個に閉じる:
 
 | purpose | 内容 |
 |---|---|
@@ -1391,7 +1391,7 @@ v1.1.4 までの公開版は3種）。
 | イベント名 | 発火タイミング | パラメータ |
 |---|---|---|
 | `game_start` | 1プレイの開始（冪等。中断からの復元では送らない。ただし**手つかずの中断データ**＝一手も指していない保存を開き直した回は、画面が出たあとにハブが `GameServices.gameScreenDidAppear` で数える。判定は `GameModule.hasUntouchedSnapshot`、復元した盤の `level` / `mode` は `GameModule.untouchedSnapshotPlayClass` が返し（ハブが `gameScreenDidAppear(playClass:)` に渡す。後の `game_end` にも同じ値が載る。`level` も `mode` も持たないゲームは既定の nil・#3225）、対象の一覧は各 `*Module.swift` の実装と走査テスト `UntouchedSnapshotScanTests` を正とする（ここに個別の列挙は持たない）。`hasUntouchedSnapshot` を持つ Module は（2048・15パズル・サイコロコンボを除き）`untouchedSnapshotPlayClass` も持つ決まりで（走査テストが見張る）、`hasResumableSnapshot` を持つ Module は `hasUntouchedSnapshot` も持つ決まりで、免除はブラックジャック・ポーカー・ハノイだけ（ルーレットは #2545 で削除）（走査テストが見張る）・#2161・#2301） | `game_id`、難易度を持つゲームのみ `level`、遊び方を選べるゲームのみ `mode`（#783・#820）、遊び込み具合として `play_count`（そのゲームの通算の終局回数。初めてなら 0）と、一度でも遊んだゲームのみ `days_since_last_play`（前回の決着からの経過日数・24 時間単位の切り捨て。#1195）、回数制のゲーム（柵越えおじさん）のみ消費した枠 `credit`（#1685） |
-| `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`（前面にいた秒数。バックグラウンド・ハブでの休憩は除き、上限 7200・#1373）、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲームのみ `cause`(pit\|rock\|bird\|animal\|sink・最後のミスの原因。#796・#1089)、ヒントを 1 回でも使ったプレイのみ `hints_used`（使った回数。無料・広告の合計・#1326）、開始に `credit` を付けたプレイのみ同じ `credit`（#1685）、開始に `level` を付けたプレイのみ同じ `level`（#1888）、ミスしたプレイのみ `miss_count`（ミス回数）・`miss_at`（最後のミスの進行率 %・5 刻み）、ミス直後に離脱した quit のみ `exit`(after_miss)（#2848）、ねこさがしのステージのクリアのみ `event_points`（その面で稼いだ pt。0〜3・#3204。デイリーランキングは期間に関係なく常設・#3299）、ねこさがしで「猫を教える」を 1 回でも使ったプレイのみ `teach_used`（無料・広告の合計・#3232） |
+| `game_end` | 1プレイの終わり（決着 win/loss/draw、または途中離脱 quit） | `game_id` / `result`(win\|loss\|draw\|quit) / `duration_sec`（前面にいた秒数。バックグラウンド・ハブでの休憩は除き、上限 7200・#1373）、開始に `mode` を付けたプレイのみ `mode`、そのプレイで 1 度でもミスしたゲーム（腰痛おじさんパズルの荷運びは負けた局）のみ `cause`(pit\|rock\|bird\|animal\|sink\|hospital\|buried・最後のミスの原因。#796・#1089・#3352)、ヒントを 1 回でも使ったプレイのみ `hints_used`（使った回数。無料・広告の合計・#1326）、開始に `credit` を付けたプレイのみ同じ `credit`（#1685）、開始に `level` を付けたプレイのみ同じ `level`（#1888）、ミスしたプレイのみ `miss_count`（ミス回数）・`miss_at`（最後のミスの進行率 %・5 刻み）、ミス直後に離脱した quit のみ `exit`(after_miss)（#2848）、ねこさがしのステージのクリアのみ `event_points`（その面で稼いだ pt。0〜3・#3204。デイリーランキングは期間に関係なく常設・#3299）、ねこさがしで「猫を教える」を 1 回でも使ったプレイのみ `teach_used`（無料・広告の合計・#3232） |
 | `clear_exit` | 面をクリアした直後の画面を、次の面にも「もう一度」にも進まず離れた（チャリンコおじさんのステージ制。`GameAnalytics.leaveGame` の1か所・#2848） | `game_id` / `level`(`stage-N`) |
 | `reward_ad` | リワード広告の**視聴完了**（`RewardedRescue` 経由） | `game_id` / `purpose`（上表の12値） |
 | `notification_permission` | 通知の許可ダイアログを**実際に出した** 1 回につき 1 回（すでに許可 / 拒否が決まっている状態の問い合わせでは送らない。各 `UserNotification*Scheduler.requestExplicitAuthorization` の1か所・#2008） | `result`(granted\|denied) / `trigger`(resume\|challenge\|reengagement。`reengagement` は #2938 以降は発火しない)。ゲーム ID は載せない。GA4 のカスタムディメンション登録が要る（会長操作） |
@@ -1420,7 +1420,7 @@ v1.1.4 までの公開版は3種）。
   概念が無いゲームは鍵ごと送らない。語彙は `pit`（穴）/ `rock`（岩・台座の正面）/ `bird`（鳥）/
   `animal`（犬・イノシシ）/ `sink`（沈む床で溺れた・#1089）/ `hospital`（入院）/ `buried`（積み上がり・#3352）の7値に閉じ、障害の種類を足しても
   enum を増やさない限り値は増えない（`sink` は「跳び越せなかった」穴とは直す先が違うので分けた）。
-  いまはチャリンコおじさんだけが送る。ステージ制ではミスは決着ではなく `game_end` はクリア（win）か
+  いまはチャリンコおじさん（`recordMissCause` 経由）と、腰痛おじさんパズルの荷運び（`hospital`／`buried`・`gameDidRecordEndDetail` 経由・下記）だけが送る。ステージ制ではミスは決着ではなく `game_end` はクリア（win）か
   途中離脱（quit）でしか出ないので、「何にやられて諦めたか」＝離脱直前の死因として読む。
   GA4 のカスタムディメンション登録が要る（会長操作）
 - `credit`（`AnalyticsCredit`・#1685・会長指示 2026-10-01）は**そのプレイが消費した回数枠**（`free` 無料 /
