@@ -153,6 +153,8 @@ public struct GameServices {
         guard hasUntouchedSnapshot else { return }
         // 復元した盤の `level` / `mode` を載せる（#3225）。載せないと後の `game_end` からも区分が落ちる。
         gameDidStart(gameID: gameID, level: playClass.level, mode: playClass.mode)
+        // 手つかずのまま使ったヒントの回数を引き継ぐ（#3467）。盤の保存データではヒントの残りが減ったままなので、計測も合わせる。
+        analytics?.adoptHeldHints(gameID: gameID)
     }
 
     /// 「新しいゲーム」「次のラウンド」で次のプレイを始めたときに各 Model から呼ぶ（#158）。

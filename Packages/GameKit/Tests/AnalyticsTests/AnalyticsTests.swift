@@ -1904,6 +1904,63 @@ struct UntouchedSnapshotReopenTests {
         #expect(spy.starts(of: "concentration") == startsBefore + 1, "二重にはならない")
     }
 
+    /// 最後の `game_end` の `hints_used`（無ければ nil = 鍵ごと送らない）。
+    private func lastEndHints(_ spy: SpyAnalyticsService) -> Int? {
+        let ends = spy.events.filter { if case .gameEnd = $0 { return true } else { return false } }
+        guard case let .int(value)? = ends.last?.parameters["hints_used"] else { return nil }
+        return value
+    }
+
+    @Test("15パズル: 動かさずヒントだけ使って戻り、開き直して離れると game_end の hints_used に前の回の分が載る（#3467）")
+    func fifteenHintsCarryOver() {
+        let snapshots = MemorySnapshotStore()
+        let module = FifteenModule()
+        let (services, spy) = makeHubServices(snapshots: snapshots, modules: [module])
+
+        let first = FifteenModel(services: services, seed: 1)
+        first.requestHint()
+        let remainingBefore = FifteenModel(services: nil, seed: 1).hintsRemaining
+        #expect(first.hintsRemaining == remainingBefore - 1, "前提: ヒントを 1 回使った")
+        services.gameDidLeave(gameID: module.id)
+        #expect(module.hasUntouchedSnapshot(in: snapshots), "前提: 0 手の保存が残っている")
+
+        _ = FifteenModel(services: services, seed: 1)
+        appear(module, services, snapshots)
+        services.gameDidProgress(gameID: module.id)
+        services.gameDidLeave(gameID: module.id)
+        #expect(lastEndHints(spy) == 1)
+    }
+
+    @Test("手つかずの盤で使ったヒントは、開き直した回の game_end に持ち越す。新しい盤・使っていない回には持ち越さない（#3467）")
+    func hintsCarryOverIsScopedToUntouchedReopen() {
+        // 将棋・チェス・囲碁・オセロ・15パズル・五目並べ。いずれも共通部品（GameAnalytics）の同じ経路を通る。
+        for id in ["shogi", "chess", "go", "othello", "fifteen", "gomoku"] {
+            let (analytics, spy) = makeAnalytics()
+            let services = GameServices(
+                snapshots: MemorySnapshotStore(), ads: NoopAdService(), analytics: analytics,
+                isResumable: { _, _ in false }
+            )
+            // 1 回目: 手を指さずヒントを 2 回使って離れる。
+            services.gameDidStart(gameID: id)
+            services.gameDidUseHint(gameID: id)
+            services.gameDidUseHint(gameID: id)
+            services.gameDidLeave(gameID: id)
+            // 2 回目: 手つかずの保存を開き直し、ヒントをもう 1 回使って指す → 離れる。
+            services.gameScreenDidAppear(gameID: id, hasUntouchedSnapshot: true)
+            services.gameDidUseHint(gameID: id)
+            services.gameDidProgress(gameID: id)
+            services.gameDidLeave(gameID: id)
+            #expect(lastEndHints(spy) == 3, "\(id): 前の回の 2 回と今回の 1 回")
+
+            // 3 回目: 保存が無い（新しい盤）。前の回のヒントは持ち越さない。
+            services.gameDidStart(gameID: id)
+            services.gameScreenDidAppear(gameID: id, hasUntouchedSnapshot: false)
+            services.gameDidProgress(gameID: id)
+            services.gameDidLeave(gameID: id)
+            #expect(lastEndHints(spy) == nil, "\(id): 新しい盤には持ち越さない")
+        }
+    }
+
     @Test("花札: 配っただけで戻って開き直し、投了すると game_start / game_end が付く（#2301）")
     func hanafuda() {
         let snapshots = MemorySnapshotStore()
