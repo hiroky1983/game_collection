@@ -102,4 +102,53 @@ struct MotionTests {
             """
         )
     }
+
+    /// `withAnimation` / `.animation(` 以外で勝手に動き続ける API（#3468）。
+    /// `Motion.resolve` を通らないので、使うファイルが Reduce Motion を見ていないと素通りする。
+    private static let continuousAnimationPattern =
+        #"\b(?:phaseAnimator|keyframeAnimator|AnimationTimelineSchedule)\b|\bTimelineView\s*\(\s*\.animation"#
+
+    /// 上の API を使うファイルは `reduceMotion` か `Motion.` に言及していなければならない。
+    /// 例外は該当行末の `// a11y-ok: 理由`（`ButtonAccessibilityScanTests` と同じ流儀）。
+    @Test("phaseAnimator・TimelineView(.animation) などを使うファイルは Reduce Motion を見ている")
+    func continuousAnimationFilesReferenceReduceMotion() throws {
+        let sources = SourceScan.packageRoot.appendingPathComponent("Sources")
+
+        let files = try FileManager.default
+            .subpathsOfDirectory(atPath: sources.path)
+            .filter { $0.hasSuffix(".swift") }
+            // Core はヘルパーの実装側なので対象外（noRawAnimationOutsideCore と同じ）。
+            .filter { !$0.hasPrefix("Core/") }
+
+        #expect(files.count > 20, "走査対象が見つからない（パスの導出が壊れている可能性）")
+
+        var offenders: [String] = []
+        for file in files {
+            let text = try String(contentsOf: sources.appendingPathComponent(file), encoding: .utf8)
+            let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+            let hits: [(Int, String)] = lines.enumerated().compactMap { index, line in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.hasPrefix("//"), !trimmed.contains("// a11y-ok:") else { return nil }
+                guard trimmed.range(of: Self.continuousAnimationPattern, options: .regularExpression) != nil
+                else { return nil }
+                return (index + 1, trimmed)
+            }
+            guard !hits.isEmpty else { continue }
+            let mentionsReduceMotion = text.contains("reduceMotion")
+                || text.contains("ReduceMotion")
+                || text.contains("Motion.")
+            if !mentionsReduceMotion {
+                offenders += hits.map { "\(file):\($0.0) \($0.1)" }
+            }
+        }
+
+        #expect(
+            offenders.isEmpty,
+            """
+            Reduce Motion を見ていないまま動き続ける演出があります。\
+            accessibilityReduceMotion か Motion. で分岐してください（意図的なら行末に // a11y-ok: 理由）:
+            \(offenders.joined(separator: "\n"))
+            """
+        )
+    }
 }
