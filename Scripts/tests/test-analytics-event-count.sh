@@ -61,7 +61,8 @@ purpose_rows() {
   awk '
     /^\| purpose \| 内容 \|/ {tbl=1; next}
     tbl && /^\|---/ {next}
-    tbl && /^\| `[a-z_]+` \|/ {s=$2; gsub(/`/,"",s); print s; next}
+    tbl && /^[[:space:]]*\| `[^`[:space:]]+` \|/ {s=$2; gsub(/`/,"",s); print s; next}
+    tbl && /^[[:space:]]*\|/ {print "<invalid-purpose-row>"; next}
     tbl {exit}' "$1" | sort
 }
 
@@ -70,10 +71,10 @@ purpose_ad_declared() { grep '^| `reward_ad` |' "$1" | grep -o '上表の[0-9]*�
 
 # game_end 行の cause(a\|b\|…・ → 値の集合 / 本文「語彙は … のN値」の `値` の集合
 cause_in_table() {
-  grep '^| `game_end` |' "$1" | grep -o 'cause`([a-z|\\]*' | head -1 | sed 's/cause`(//' | tr -d '\\' | tr '|' '\n' | sort
+  grep '^| `game_end` |' "$1" | grep -o 'cause`([^・)]*' | head -1 | sed 's/cause`(//' | tr -d '\\' | tr '|' '\n' | sort
 }
 cause_in_prose() {
-  tr '\n' ' ' < "$1" | sed -n 's/.*語彙は \(`pit`\)/\1/; s/値に閉じ.*//p' | grep -o '`[a-z]*`' | tr -d '`' | sort
+  tr '\n' ' ' < "$1" | sed -n 's/.*語彙は \(`pit`\)/\1/; s/値に閉じ.*//p' | grep -o '`[^`]*`' | tr -d '`' | sort
 }
 
 check_vocab() { # <説明> <swift> <spec> <期待: pass|fail>
