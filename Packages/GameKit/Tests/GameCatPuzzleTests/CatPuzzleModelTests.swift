@@ -539,6 +539,7 @@ struct CatPuzzleModelTests {
         #expect(CatPuzzleView.holdsClock(showNewGame: true, showConfirmNewGame: false, showConfirmClear: false))
         #expect(CatPuzzleView.holdsClock(showNewGame: false, showConfirmNewGame: true, showConfirmClear: false))
         #expect(CatPuzzleView.holdsClock(showNewGame: false, showConfirmNewGame: false, showConfirmClear: true))
+        #expect(CatPuzzleView.holdsClock(showNewGame: false, showConfirmNewGame: false, showConfirmClear: false, showRanking: true))
     }
 
     @Test("新しい問題が出た瞬間から計時し、記録の最短タイムもこの計時")
