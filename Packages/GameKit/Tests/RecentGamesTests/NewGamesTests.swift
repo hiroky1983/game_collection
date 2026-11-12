@@ -308,14 +308,14 @@ struct NewGamesMoveToTopTests {
 /// 更新タグ（#2790）。一覧に入ったゲームだけにタグが出る。
 @Suite("更新タグ")
 struct UpdatedGamesTests {
-    @Test("一覧に入ったゲームだけにタグが出る。v1.1.15 は runner・麻雀・ナンプレ・ねこさがしの 4 本")
+    @Test("一覧に入ったゲームだけにタグが出る。いまは麻雀・ナンプレ・ねこさがしの 3 本。チャリンコおじさんは外した（#3493）")
     func onlyListedGames() {
-        #expect(UpdatedGames.tag(for: "runner") == .newStage)
+        #expect(UpdatedGames.tag(for: "runner") == nil)
         #expect(UpdatedGames.tag(for: "mahjong4") == .hanchan)
         #expect(UpdatedGames.tag(for: "sudoku") == .expertLevel)
         #expect(UpdatedGames.tag(for: "catpuzzle") == .stagesAdded)
         #expect(UpdatedGames.tag(for: "2048") == nil)
-        #expect(UpdatedGames.currentVersion.count == 4)
+        #expect(UpdatedGames.currentVersion.count == 3)
     }
 
     @Test("ブロック崩し（blocks）は一覧に 1 行足すだけでタグが出る。いまは付けない")
