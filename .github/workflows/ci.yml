@@ -52,6 +52,11 @@ jobs:
           if printf '%s\n' "$files" | grep -q -x -F 'Scripts/apply-package-resolved.sh'; then
             others="Scripts/apply-package-resolved.sh"
           fi
+          # 訳し漏れ検査・画像圧縮検査は test ジョブ内にあるため、その検査器と除外リスト、および PNG の追加・変更は、
+          # docs / Scripts / web だけの PR でもジョブごと回す。止めると本物のリポジトリへの検査が PR 段階で動かない（#3492）
+          if printf '%s\n' "$files" | grep -q -E '^Scripts/(check-untranslated-ja\.py|i18n-check-exclusions\.txt|compress-images\.py)$|\.png$'; then
+            others="inspection-files"
+          fi
           # GameKit 全テスト（約 10 分）は Packages/・App/・Config/（Package.resolved）に変更がある PR だけ回す（#2471）。
           # 版数更新 PR（project.yml の 2 行）のようにアプリのコードが変わらない PR で待たされないため。
           # 拡張子では判定しない（テストは PNG・xcstrings・JSON も読む）。push（main・release）は上で常に回す。
