@@ -321,7 +321,9 @@ struct OthelloHintTests {
         let board = model.board
 
         let reading = Task { @MainActor in await model.requestHint() }
-        await Task.yield()
+        // 読みのタスクが走り出すまで譲る。1 回の yield では、他のテストが main actor に並んだ部分実行の CI で
+        // まだ旗が立っておらず、前提が崩れる（#3490 の PR で 3 回連続で再現）。
+        for _ in 0..<10_000 where !model.isHintThinking { await Task.yield() }
         try #require(model.isHintThinking, "前提: 読みの最中を捉えている")
         #expect(!model.canUndo, "ヒントの読み中に待ったできてしまう")
         model.undoLastExchange()
