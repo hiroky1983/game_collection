@@ -116,11 +116,15 @@ public enum GameChromeHeaderMetrics {
     ///   - screenWidth: 画面（ナビバー）の幅。
     ///   - buttonCount: ヘッダー右のボタン数（「…」にまとめる前）。
     ///   - hasBackButton: 戻るボタンがあるか。
+    ///   - buttonScale: 文字サイズ設定に応じたボタンの拡大率（標準で 1。特大ではボタンが約 1.4 倍の幅になり、
+    ///     固定幅で数えると題字が「…」に切れるのを見逃した・#3495）。
     /// - Returns: 題字が 0.6 倍まで縮んでも入らないとき true。ボタンが 1 つ以下なら「…」にしても幅は減らないので false。
     public static func shouldCollapse(titleWidth: CGFloat, screenWidth: CGFloat, buttonCount: Int,
-                                      hasBackButton: Bool = true) -> Bool {
+                                      hasBackButton: Bool = true, buttonScale: CGFloat = 1) -> Bool {
         guard buttonCount >= 2 else { return false }
-        let available = screenWidth - (hasBackButton ? backButtonWidth : 0) - CGFloat(buttonCount) * buttonWidth - margin
+        let scale = max(1, buttonScale)
+        let available = screenWidth - (hasBackButton ? backButtonWidth * scale : 0)
+            - CGFloat(buttonCount) * buttonWidth * scale - margin
         return titleWidth * minTitleScale > available
     }
 }
@@ -321,6 +325,8 @@ private struct GameChromeToolbar: ViewModifier {
     @State private var confirmsNewGame = false
     @State private var screenWidth: CGFloat = 0
     @State private var titleWidth: CGFloat = 0
+    /// 文字サイズに追従するボタン幅の拡大率（標準で 1）。
+    @ScaledMetric(relativeTo: .body) private var buttonScale: CGFloat = 1
     @Environment(\.dismiss) private var dismiss
     @Environment(\.howToPlayTrigger) private var howToPlay
     /// お気に入りの☆（#3478）。ハブから開いたときだけ環境にあり、右端（その他の後ろ）に置く。
@@ -339,7 +345,8 @@ private struct GameChromeToolbar: ViewModifier {
     private var collapses: Bool {
         screenWidth > 0 && titleWidth > 0
             && GameChromeHeaderMetrics.shouldCollapse(titleWidth: titleWidth, screenWidth: screenWidth,
-                                                      buttonCount: buttonCount, hasBackButton: !hidesBackButton)
+                                                      buttonCount: buttonCount, hasBackButton: !hidesBackButton,
+                                                      buttonScale: buttonScale)
     }
 
     func body(content: Content) -> some View {
