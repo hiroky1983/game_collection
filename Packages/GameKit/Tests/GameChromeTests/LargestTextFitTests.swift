@@ -7,9 +7,11 @@ import GameKitTestSupport
 /// macOS の `ImageRenderer` は `dynamicTypeSize` を反映しない（#1601）ので、ソースで固定する。
 @Suite("最大の文字サイズで切れない（#2858）")
 struct LargestTextFitTests {
-    @Test("結果カードは盤より背が高いときにスクロールへ切り替わる", arguments: ["BoardGameResultCard", "GameClearCard"])
+    @Test("結果カードは盤より背が高いときにスクロールへ切り替わる（#3487 で神経衰弱・レビュー依頼を追加）",
+          arguments: ["Core/BoardGameResultCard", "Core/GameClearCard", "Core/ReviewRequestPrompt",
+                      "GameConcentration/ConcentrationView"])
     func resultCardScrollsWhenTall(file: String) throws {
-        let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/Core/\(file).swift"))
+        let source = SourceScan.strippingComments(try SourceScan.packageSource("Sources/\(file).swift"))
         #expect(source.contains(".resultCardScrollsWhenTall()"), "\(file) が縦スクロールへの切り替えを通っていない")
     }
 
