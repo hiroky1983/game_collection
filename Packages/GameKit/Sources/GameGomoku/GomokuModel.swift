@@ -99,6 +99,11 @@ public final class GomokuModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     private var baseBoard = GomokuBoard()
 
     public var gameOver: Bool { winner != nil || isDraw }
+    /// 「新規対局」で失われる進行があるか（人間が 1 手でも打った未決着の局。CPU の初手だけでは数えない・#3490）。
+    /// 手順を持たない旧形式から復元した局は、復元前の石が `baseBoard` に残る。それは開始局面ではなく進行とみなす。
+    public var hasProgressToLose: Bool {
+        !gameOver && moveCount > 0 && (baseBoard.moveCount > 0 || moves.contains { $0.stone == humanSide })
+    }
     public var isAITurn: Bool { !gameOver && currentStone != humanSide }
 
     /// View の `.task(id:)` に渡す CPU 起動トリガー。

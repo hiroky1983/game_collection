@@ -133,3 +133,38 @@ struct ShogiResumableSnapshotTests {
         #expect(ShogiModule().hasResumableSnapshot(in: store))
     }
 }
+
+/// CPU 先手の局で、CPU の初手だけでは「新規」に確認を出さない（#3490）。
+@Suite("将棋 CPU 先手の局の新規対局確認（#3490）")
+@MainActor
+struct ShogiCPUOpeningProgressTests {
+    @Test("人間が後手のとき、CPU の初手だけでは失う進行は無く、自分が指すと進行になる")
+    func goteAfterCPUOpening() async throws {
+        let model = ShogiGameModel(services: GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService()))
+        model.newGame(humanSide: .white)
+        await model.performAIMoveIfNeeded()
+        try #require(!model.moves.isEmpty, "前提: CPU が初手を指した")
+        #expect(!model.hasProgressToLose)
+        model.apply(try #require(model.legalMovesCache.first))
+        #expect(model.hasProgressToLose)
+    }
+
+    @Test("駒落ちで CPU が上手（先に指す）のとき、CPU の初手だけでは失う進行は無い")
+    func handicapCPUUpperOpening() async throws {
+        let model = ShogiGameModel(services: GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService()))
+        model.newGame(handicap: .rook, dropper: .cpu)
+        await model.performAIMoveIfNeeded()
+        try #require(!model.moves.isEmpty, "前提: CPU が初手を指した")
+        #expect(!model.hasProgressToLose)
+    }
+
+    @Test("人間が先手のとき、新規直後は無く、1 手指すと進行になる（対照）")
+    func senteFirst() {
+        let model = ShogiGameModel(services: GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService()))
+        model.newGame()
+        #expect(!model.hasProgressToLose)
+        model.tapSquare(Sq.fromUSI("7g")!)
+        model.tapSquare(Sq.fromUSI("7f")!)
+        #expect(model.hasProgressToLose)
+    }
+}

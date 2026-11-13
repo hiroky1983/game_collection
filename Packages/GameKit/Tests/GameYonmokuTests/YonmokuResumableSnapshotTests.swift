@@ -135,3 +135,28 @@ struct YonmokuUndoToStartTests {
         #expect(spy.quits.isEmpty, "CPU の初手だけの盤は離脱に数えない")
     }
 }
+
+/// CPU 先手の局で、CPU の初手だけでは「新規」に確認を出さない（#3490）。
+@Suite("四目並べ CPU 先手の局の新規対局確認（#3490）")
+@MainActor
+struct YonmokuCPUOpeningProgressTests {
+    @Test("人間が白のとき、CPU の初手だけでは失う進行は無く、自分が打つと進行になる")
+    func whiteAfterCPUOpening() async throws {
+        let model = YonmokuModel(services: nil, cpuDelay: .zero, seed: 1)
+        model.newGame(humanSide: .white)
+        await model.performAIMoveIfNeeded()
+        try #require(!model.isAITurn && model.lastMove != nil, "前提: CPU が初手を打った")
+        #expect(!model.hasProgressToLose)
+        model.tap(column: 0)
+        #expect(model.hasProgressToLose)
+    }
+
+    @Test("人間が黒のとき、1 手打つまでは無く、打つと進行になる（対照）")
+    func blackFirst() {
+        let model = YonmokuModel(services: nil, cpuDelay: .zero, seed: 1)
+        model.newGame(humanSide: .black)
+        #expect(!model.hasProgressToLose)
+        model.tap(column: 3)
+        #expect(model.hasProgressToLose)
+    }
+}

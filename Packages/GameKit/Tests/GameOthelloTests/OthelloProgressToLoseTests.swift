@@ -44,3 +44,20 @@ struct OthelloProgressToLoseTests {
         #expect(!model.hasProgressToLose)
     }
 }
+
+/// CPU 先手の局で、CPU の初手だけでは「新規」に確認を出さない（#3490。#2508 系の確認ダイアログ版）。
+@MainActor
+@Suite("オセロ CPU 先手の局の新規対局確認（#3490）")
+struct OthelloCPUOpeningProgressTests {
+    @Test("人間が白のとき、CPU の初手だけでは失う進行は無く、自分が打つと進行になる")
+    func whiteAfterCPUOpening() async throws {
+        let model = OthelloModel(services: nil, flipSettleDelay: .zero)
+        model.newGame(humanSide: .white)
+        await model.performAIMoveIfNeeded()
+        try #require(!model.isAITurn, "前提: CPU が初手を打った")
+        #expect(!model.hasProgressToLose)
+        let point = try #require(model.board.validMoves(for: .white).first)
+        model.tap(row: point.0, col: point.1)
+        #expect(model.hasProgressToLose)
+    }
+}

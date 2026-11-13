@@ -871,6 +871,11 @@ public final class ShogiGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
         initialSFEN.split(separator: " ").dropFirst().first == "w" ? .white : .black
     }
 
+    /// 「新規対局」で失われる進行があるか（対局中で人間が 1 手でも指した局。CPU の初手だけでは数えない・#3490）。
+    public var hasProgressToLose: Bool {
+        phase == .playing && moves.indices.contains { mover(at: $0) == humanSide }
+    }
+
     private func mover(at index: Int) -> Side {
         index % 2 == 0 ? firstMover : firstMover.opponent
     }
