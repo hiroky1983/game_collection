@@ -37,4 +37,17 @@ struct GameChromeHeaderCollapseTests {
         #expect(Metrics.shouldCollapse(titleWidth: 280, screenWidth: 375, buttonCount: 3, hasBackButton: true))
         #expect(!Metrics.shouldCollapse(titleWidth: 280, screenWidth: 375, buttonCount: 3, hasBackButton: false))
     }
+
+    @Test("特大文字・SE（375pt）: 題字 200pt（\"Block Breaker\" を 1.5 倍）はボタン 3 つだと「…」にまとめる（#3495）")
+    func collapsesOnExtraLargeTextSE() {
+        #expect(!Metrics.shouldCollapse(titleWidth: 200, screenWidth: 375, buttonCount: 3))
+        #expect(Metrics.shouldCollapse(titleWidth: 200, screenWidth: 375, buttonCount: 3, buttonScale: 1.4))
+    }
+
+    @Test("標準サイズ（拡大率 1 以下）では判定が変わらない")
+    func standardScaleUnchanged() {
+        #expect(Metrics.shouldCollapse(titleWidth: 280, screenWidth: 375, buttonCount: 3, buttonScale: 1))
+        #expect(Metrics.shouldCollapse(titleWidth: 280, screenWidth: 375, buttonCount: 3, buttonScale: 0.5))
+        #expect(!Metrics.shouldCollapse(titleWidth: 300, screenWidth: 393, buttonCount: 3, buttonScale: 1))
+    }
 }
