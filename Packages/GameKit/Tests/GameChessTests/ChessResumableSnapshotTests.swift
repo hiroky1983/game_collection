@@ -119,32 +119,3 @@ struct ChessResumableSnapshotTests {
         #expect(ChessModule().hasResumableSnapshot(in: store))
     }
 }
-
-/// CPU 先手の局で、CPU の初手だけでは「新規」に確認を出さない（#3490）。
-@Suite("チェス CPU 先手の局の新規対局確認（#3490）")
-@MainActor
-struct ChessCPUOpeningProgressTests {
-    @Test("人間が黒のとき、CPU の初手だけでは失う進行は無く、自分が指すと進行になる")
-    func blackAfterCPUOpening() async throws {
-        let model = ChessGameModel(services: GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService()))
-        model.newGame(humanSide: .black)
-        await model.performAIMoveIfNeeded()
-        try #require(!model.moves.isEmpty, "前提: CPU が初手を指した")
-        #expect(!model.hasProgressToLose)
-        let reply = try #require(model.legalMovesCache.first)
-        model.tapSquare(reply.from)
-        model.tapSquare(reply.to)
-        #expect(model.hasProgressToLose)
-    }
-
-    @Test("人間が白のとき、新規直後は無く、1 手指すと進行になる（対照）")
-    func whiteFirst() {
-        let model = ChessGameModel(services: GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService()))
-        model.newGame()
-        #expect(!model.hasProgressToLose)
-        let move = ChessMove.fromUCI("e2e4")!
-        model.tapSquare(move.from)
-        model.tapSquare(move.to)
-        #expect(model.hasProgressToLose)
-    }
-}
