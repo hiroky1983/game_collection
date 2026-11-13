@@ -308,21 +308,28 @@ struct NewGamesMoveToTopTests {
 /// 更新タグ（#2790）。一覧に入ったゲームだけにタグが出る。
 @Suite("更新タグ")
 struct UpdatedGamesTests {
-    @Test("一覧に入ったゲームだけにタグが出る。いまは麻雀・ナンプレ・ねこさがしの 3 本。チャリンコおじさんは外した（#3493）")
+    @Test("いまは一覧が空で、麻雀・ナンプレ・ねこさがし・チャリンコおじさんのタグは出ない（#3493・#3500）")
+    func noTagsNow() {
+        #expect(UpdatedGames.currentVersion.isEmpty)
+        for id in ["mahjong4", "sudoku", "catpuzzle", "runner", "2048"] {
+            #expect(UpdatedGames.tag(for: id) == nil, "\(id) にタグが残っている")
+        }
+    }
+
+    @Test("表を渡せば、一覧に入ったゲームだけにタグが出る")
     func onlyListedGames() {
-        #expect(UpdatedGames.tag(for: "runner") == nil)
-        #expect(UpdatedGames.tag(for: "mahjong4") == .hanchan)
-        #expect(UpdatedGames.tag(for: "sudoku") == .expertLevel)
-        #expect(UpdatedGames.tag(for: "catpuzzle") == .stagesAdded)
-        #expect(UpdatedGames.tag(for: "2048") == nil)
-        #expect(UpdatedGames.currentVersion.count == 3)
+        let table: [String: UpdateTag] = ["mahjong4": .hanchan, "sudoku": .expertLevel, "catpuzzle": .stagesAdded]
+        #expect(UpdatedGames.tag(for: "mahjong4", in: table) == .hanchan)
+        #expect(UpdatedGames.tag(for: "sudoku", in: table) == .expertLevel)
+        #expect(UpdatedGames.tag(for: "catpuzzle", in: table) == .stagesAdded)
+        #expect(UpdatedGames.tag(for: "2048", in: table) == nil)
+        #expect(UpdatedGames.tag(for: "runner", in: [:]) == nil)
     }
 
     @Test("ブロック崩し（blocks）は一覧に 1 行足すだけでタグが出る。いまは付けない")
     func blocksReadyButOff() {
         #expect(UpdatedGames.tag(for: "blocks") == nil)
         #expect(UpdatedGames.tag(for: "blocks", in: ["blocks": .newStage]) == .newStage)
-        #expect(UpdatedGames.tag(for: "runner", in: [:]) == nil)
     }
 
     @Test("タグの文言は種類ごとに持ち、英訳が xcstrings にある")
