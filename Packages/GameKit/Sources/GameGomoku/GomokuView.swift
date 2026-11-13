@@ -103,7 +103,7 @@ public struct GomokuView: View {
 
     /// 新規対局の入口（ヘッダーの「新規」と条件のチップが共通で呼ぶ・#1690）。
     private func requestNewGame() {
-        if model.gameOver || model.moveCount == 0 {
+        if !model.hasProgressToLose {
             showNewGame = true
         } else {
             showConfirmNewGame = true

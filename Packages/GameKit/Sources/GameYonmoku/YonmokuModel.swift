@@ -78,8 +78,10 @@ public final class YonmokuModel: AITurnGuarded, BoardUndoModel {
         guard !gameOver, !isAITurn else { return [] }
         return board.playableColumns
     }
-    /// 「新規対局」で失われる進行があるか（1 手でも打った未決着の局）。
-    public var hasProgressToLose: Bool { !gameOver && !moves.isEmpty }
+    /// 「新規対局」で失われる進行があるか（人間が 1 手でも打った未決着の局。CPU の初手だけでは数えない・#3490）。
+    public var hasProgressToLose: Bool {
+        !gameOver && CPUOpening.humanHasMoved(totalMoves: moves.count, cpuMovesFirst: humanSide == .white)
+    }
 
     public init(services: GameServices? = nil, cpuDelay: Duration = .milliseconds(450), seed: UInt64? = nil) {
         self.services = services
