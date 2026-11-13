@@ -114,6 +114,8 @@ private struct NewGameFeedbackCard: View {
             .frame(maxWidth: 340)
             .popCard()
             .padding(.horizontal, 24)
+            // 最大の文字サイズでボタンが画面外に出ないよう、背高のときだけ縦スクロールにする（#3487）。
+            .resultCardScrollsWhenTall()
             .accessibilityAddTraits(.isModal)
         }
     }
