@@ -460,8 +460,12 @@ CodeRabbit を必須ステータスチェックにする案は採らない。レ
 - GameKit は macOS プラットフォームを含むため、シミュレータ不要で高速にテストできる。
 - **GameKit 全テスト（約 10 分）は PR ではアプリのコードが変わるときだけ回す**（会長決裁 2026-10-18・#2471）。
   `changes` ジョブが変更一覧を見て、`Packages/`・`App/`・`Config/`（Package.resolved）・`ci.yml` 自身のどれも
-  含まない PR（版数更新 PR・docs / Scripts / .github だけの PR）は、`test` ジョブは走らせたまま全テストのステップだけ
-  飛ばして成功で終える（必須チェックを未完了にしないため）。拡張子では判定しない。**push（main・release/**）は条件なしで
+  含まない PR（版数更新 PR）は、`test` ジョブは走らせたまま全テストのステップだけ飛ばして成功で終える。
+  **docs / Scripts / web / .github だけの PR（`app=false`）は `test` ジョブごとスキップされる**（必須チェックは skipped を成功扱い）。
+  ただし訳し漏れ検査・画像圧縮検査は `test` ジョブ内なので、`Scripts/check-untranslated-ja.py`・`Scripts/i18n-check-exclusions.txt`・
+  `Scripts/compress-images.py` と PNG（どこにあっても）の変更は、`Scripts/apply-package-resolved.sh` と同じく例外としてジョブごと回す（#3492。
+  この場合、`Packages/`・`App/`・`Config/` 配下の変更を含まなければ `gamekit=false` なので全テストのステップは飛ばし、含めば全テストも回る。
+  `Packages/` 等の配下の PNG は従来どおり `gamekit=true`）。全テストの要否は拡張子では判定しない。**push（main・release/**）は条件なしで
   必ず全テストを回す**。判定は `Scripts/tests/test-ci-detect-app-changes.sh` で固定。release 側の `ci.yml` は main と別物なので、
   直すときは両方に入れる（実装は release/v1.1.14 以降）。**社長の運用ルール**: TestFlight へ上げる前に、その release コミットの
   push の全テストが緑であることを確認する。
