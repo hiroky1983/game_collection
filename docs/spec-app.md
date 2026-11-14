@@ -1399,7 +1399,7 @@ v1.1.4 までの公開版は3種）。
 | `review_prompt` | 評価のお願いの段階（#3061）。カードを出した（`shown`）・「App Store で感想を書く」（`write_review`）・「あとで」（`later`）・OS の評価ダイアログを依頼した（`os_requested`。出たかどうかは OS しか知らない）の 1 回につき 1 回 | `kind`(regular\|new_game_card) / `step`(shown\|write_review\|later\|os_requested) / `trigger`(days_7\|days_30。遊んだ日数の節目のときだけ・#3078)。ゲーム ID は載せない。GA4 のカスタムディメンション登録が要る（会長操作） |
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
 | `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick\|quick_action\|hero\|resume_reminder\|reengagement\|challenge_return\|records\|deeplink\|pickup) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり）。`hero` はハブ先頭の特別枠（柵越えおじさん・#1761）だったが、v1.1.14（#2566）で通常のタイル（`hub`・位置あり）になり発火点は無い（GA4 の既存値のため語彙には残す）。`records` は「きろく」画面のゲーム行をタップして開いたとき（#1974。`position` は持たない）。`notification` は通知を種類別に分ける前の旧値で、#1950 以降は送らない。`pickup` はハブ最上部の「ピックアップ」の区画から開いたとき（#3358・`release/v1.1.16` から。`position` は持たない） |
-| `reward_offer` | リワード広告の**提示**が終わった（1 回の提示につき 1 回。下の定義） | `game_id` / `purpose`（上表の9値。`redraw` を含み、常設ボタンの `peek` は提示が無いので除く） / `result`(accepted\|declined\|not_ready) |
+| `reward_offer` | リワード広告の**提示**が終わった（1 回の提示につき 1 回。下の定義） | `game_id` / `purpose`（上表の12値のうち、常設ボタンで提示が無い `peek`・`reroll` を除く10値。`redraw` は含む） / `result`(accepted\|declined\|not_ready) |
 | `share_tap` | 自己ベストを更新したリザルトの**共有ボタンを押した**（`RecordLabel` の共有ボタン。共有シートで実際に送ったかは問わない） | `game_id` のみ。「X でポストして特典をもらう」提案（#3359）の表示・押下のときだけ `offer`(shown\|tap) を足す |
 
 - `game_id` の全量は**コード上の一覧を文書側で持たない**（`App/AppGameServices.swift` の
