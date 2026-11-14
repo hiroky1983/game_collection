@@ -1,6 +1,6 @@
 #!/bin/bash
-# Scripts/{chess,go,gomoku,othello,shogi}-cpu-bench と shogi-master-bench・catpuzzle-stage-bench の
-# build.sh が全部ビルドできることの検証（#2509・#3407）。
+# Scripts/{chess,go,gomoku,othello,shogi}-cpu-bench と shogi-master-bench・catpuzzle-stage-bench・
+# catpuzzle-stage-bank の build.sh が全部ビルドできることの検証（#2509・#3407・#3507）。
 #
 # bench は GameKit のエンジンのソースをコピーして単体バイナリにするため、GameKit 側のシグネチャや
 # 依存（CPUStrength が引く tr、BoardHintBudget など）が変わるとコンパイルが壊れる。ところがテストも CI も
@@ -21,7 +21,7 @@ ng() { FAIL=$((FAIL + 1)); echo "  NG   - $1"; }
 TMP="$(mktemp -d "${DUTY_SCRATCH_DIR:-${TMPDIR:-/tmp}}/cpu-bench-build-test.XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 
-for bench in chess-cpu-bench go-cpu-bench gomoku-cpu-bench othello-cpu-bench shogi-cpu-bench shogi-master-bench catpuzzle-stage-bench; do
+for bench in chess-cpu-bench go-cpu-bench gomoku-cpu-bench othello-cpu-bench shogi-cpu-bench shogi-master-bench catpuzzle-stage-bench catpuzzle-stage-bank; do
   game="$bench"
   build="$REPO/Scripts/$bench/build.sh"
   if [ ! -f "$build" ]; then
