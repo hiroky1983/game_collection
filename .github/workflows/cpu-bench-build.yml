@@ -27,6 +27,7 @@ on:
       - 'Packages/GameKit/Tests/GameShogiTests/CPUBenchLadder.swift'
       - 'Packages/GameKit/Sources/GameCatPuzzle/**'
       - 'Scripts/*-bench/**'
+      - 'Scripts/catpuzzle-stage-*/**'
       - 'Scripts/tests/test-cpu-bench-build.sh'
       - '.github/workflows/cpu-bench-build.yml'
 
@@ -46,5 +47,5 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: 7 本の bench をビルド
+      - name: 8 本の bench / 生成器をビルド
         run: bash Scripts/tests/test-cpu-bench-build.sh
