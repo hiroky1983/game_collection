@@ -67,6 +67,11 @@ purpose_rows() {
 }
 
 purpose_declared() { grep -o '次の[0-9]*個に閉じる' "$1" | head -1 | grep -o '[0-9]*'; }
+# reward_offer 行「上表のN値のうち、… `a`・`b` を除くM値」: N と M と除外名の数を返す（#3508）
+offer_row() { grep '^| `reward_offer` |' "$1" | head -1; }
+offer_all() { offer_row "$1" | grep -o '上表の[0-9]*値' | head -1 | grep -o '[0-9]*'; }
+offer_rest() { offer_row "$1" | grep -o '除く[0-9]*値' | head -1 | grep -o '[0-9]*'; }
+offer_excluded() { local t; t="$(offer_row "$1")"; t="${t#*上表の*値のうち}"; t="${t%%を除く*}"; printf '%s' "$t" | grep -o '`[^`]*`' | grep -c .; }
 purpose_ad_declared() { grep '^| `reward_ad` |' "$1" | grep -o '上表の[0-9]*値' | head -1 | grep -o '[0-9]*'; }
 
 # game_end 行の cause(a\|b\|…・ → 値の集合 / 本文「語彙は … のN値」の `値` の集合
@@ -84,9 +89,12 @@ check_vocab() { # <説明> <swift> <spec> <期待: pass|fail>
   rd="$(purpose_declared "$3")"; ra="$(purpose_ad_declared "$3")"
   [ "$rc" -gt 0 ] && [ "$rc" = "$rr" ] && [ "$rc" = "${rd:-x}" ] && [ "$rc" = "${ra:-x}" ] \
     && [ "$(enum_cases "$2" RewardPurpose)" = "$(purpose_rows "$3")" ] || result=fail
+  local oa or ox
+  oa="$(offer_all "$3")"; or="$(offer_rest "$3")"; ox="$(offer_excluded "$3")"
+  [ "$rc" = "${oa:-x}" ] && [ "$ox" -gt 0 ] && [ "${or:-x}" = "$((rc - ox))" ] || result=fail
   ec="$(enum_cases "$2" AnalyticsEndCause)"; ct="$(cause_in_table "$3")"; cp="$(cause_in_prose "$3")"
   [ -n "$ec" ] && [ "$ec" = "$ct" ] && [ "$ec" = "$cp" ] || result=fail
-  local d="purpose case=$rc/表=$rr/本文=${rd:-なし}/reward_ad=${ra:-なし}, cause enum=$(echo $ec | wc -w | tr -d ' ')/表=$(echo $ct | wc -w | tr -d ' ')/本文=$(echo $cp | wc -w | tr -d ' ')"
+  local d="purpose case=$rc/表=$rr/本文=${rd:-なし}/reward_ad=${ra:-なし}, reward_offer=${oa:-なし}→${or:-なし}(除外$ox), cause enum=$(echo $ec | wc -w | tr -d ' ')/表=$(echo $ct | wc -w | tr -d ' ')/本文=$(echo $cp | wc -w | tr -d ' ')"
   if [ "$result" = "$4" ]; then ok "$1 ($d)"; else ng "$1 ($d)"; fi
 }
 
@@ -106,6 +114,10 @@ check "case が増えて docs が追随していなければ落ちる" "$TMP/Ana
 
 sed 's/次の\([0-9]*\)個に閉じる/次の99個に閉じる/' "$SPEC" > "$TMP/spec-wrong-purpose-n.md"
 check_vocab "purpose の個数宣言が違えば落ちる" "$SWIFT" "$TMP/spec-wrong-purpose-n.md" fail
+sed '/^| `reward_offer` |/s/上表の12値/上表の9値/' "$SPEC" > "$TMP/spec-wrong-offer.md"
+check_vocab "reward_offer 行の総数が古ければ落ちる" "$SWIFT" "$TMP/spec-wrong-offer.md" fail
+sed '/^| `reward_offer` |/s/除く10値/除く9値/' "$SPEC" > "$TMP/spec-wrong-offer2.md"
+check_vocab "reward_offer 行の提示あり数が違えば落ちる" "$SWIFT" "$TMP/spec-wrong-offer2.md" fail
 grep -v '^| `reroll` |' "$SPEC" > "$TMP/spec-missing-purpose.md"
 check_vocab "purpose 表の行が欠ければ落ちる" "$SWIFT" "$TMP/spec-missing-purpose.md" fail
 awk '/^public enum RewardPurpose/{print; print "    case extraPurpose"; next} {print}' "$SWIFT" > "$TMP/Analytics-purpose.swift"
