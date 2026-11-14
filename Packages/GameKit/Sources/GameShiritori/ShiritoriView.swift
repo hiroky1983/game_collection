@@ -648,25 +648,9 @@ struct ShiritoriSetupSheet: View {
 
     /// 番の交代・制限時間・勝ち負けの説明を開閉する行。別画面へは移らず、この場で下に広げる（荷物運びパズルと同じ）。
     private var detailsToggle: some View {
-        Button {
+        SetupDetailsToggleRow(title: tr("制限時間・勝ち負けのくわしい説明"), systemImage: "timer", isOpen: showsDetails) {
             withGameAnimation(.easeInOut(duration: 0.2)) { showsDetails.toggle() }
-        } label: {
-            HStack {
-                Label(tr("制限時間・勝ち負けのくわしい説明"), systemImage: "timer")
-                    .themeBody(15)
-                    .lineLimit(1).minimumScaleFactor(0.8)
-                Spacer(minLength: 8)
-                DisclosureChevron("chevron.down")
-                    .rotationEffect(.degrees(showsDetails ? 180 : 0))
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .popCard(corner: Theme.cornerSmall)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.pop)
-        .foregroundStyle(Theme.ink)
-        .accessibilityValue(showsDetails ? tr("開いている") : tr("閉じている"))
     }
 
     private var difficultySection: some View {
