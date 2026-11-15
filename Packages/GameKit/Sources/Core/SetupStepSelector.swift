@@ -35,6 +35,8 @@ public struct SetupStepSelector<Value: Hashable>: View {
     @State private var showsList = false
     /// 値の面の高さ。文字サイズに比例させるだけで、選択肢の数や中身には依存させない。
     @ScaledMetric(relativeTo: .body) private var faceHeight: CGFloat = 92
+    /// 目盛り行の高さ。「n / m」（`themeBody(13)`）が文字サイズで拡大しても重ならないよう、同じく比例させる（#3509）。
+    @ScaledMetric(relativeTo: .body) private var scaleRowHeight: CGFloat = 20
 
     public init(options: [SetupStepOption<Value>], selection: Binding<Value>, showsScale: Bool = true) {
         self.options = options
@@ -149,7 +151,7 @@ public struct SetupStepSelector<Value: Hashable>: View {
                 .frame(minWidth: 64, alignment: .trailing) // 段の数で目盛りの長さが変わらないよう幅を確保
         }
         .padding(.horizontal, 52) // 矢印（44pt + 間隔 8pt）と左右を揃える
-        .frame(height: 20)
+        .frame(minHeight: scaleRowHeight)
         .opacity(showsScale && options.count > 1 ? 1 : 0)
     }
 }
