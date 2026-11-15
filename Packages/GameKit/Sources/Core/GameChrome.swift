@@ -247,16 +247,21 @@ public extension View {
 ///
 /// 戻るは OS 既定のものを隠して自前で置いている（`navigationBarBackButtonHidden`）。
 /// 直前の画面名が入ると表示名の幅を圧迫するため。
+///
+/// `collapsed`（右のボタンを「…」にまとめたか）を表示名の `id` にする（#3512）。iOS 26 のナビバーは、
+/// 中央の表示名の幅を最初の描画（ボタンが並んだ状態）で決めたまま、右のボタンが「…」に減っても
+/// 割り当て直さない。判定は正しく働いても題字が約 85pt の枠に閉じ込められ「Block Brea…」と切れる。
+/// `id` を変えると中央の項目が作り直され、幅が取り直される。
 @MainActor @ToolbarContentBuilder
 private func gameChromeBarItems(title: String, condition: GameChromeCondition?, dismiss: DismissAction,
-                                showsBack: Bool) -> some ToolbarContent {
+                                showsBack: Bool, collapsed: Bool = false) -> some ToolbarContent {
     if showsBack {
         ToolbarItem(placement: .cancellationAction) {
             Button { dismiss() } label: { Label(tr("戻る"), systemImage: "chevron.left") }
         }
     }
     ToolbarItem(placement: .principal) {
-        GameChromePrincipal(title: title, condition: condition)
+        GameChromePrincipal(title: title, condition: condition).id(collapsed)
     }
 }
 
@@ -359,7 +364,8 @@ private struct GameChromeToolbar: ViewModifier {
             }
             .modifier(GameChromeNewGameConfirmation(newGame: newGame, isPresented: $confirmsNewGame))
             .modifier(FavoriteToastOverlay(toast: $favoriteToast)).toolbar {
-                gameChromeBarItems(title: title, condition: condition, dismiss: dismiss, showsBack: !hidesBackButton)
+                gameChromeBarItems(title: title, condition: condition, dismiss: dismiss, showsBack: !hidesBackButton,
+                                   collapsed: collapses)
                 // `if / else` は古い Xcode の ToolbarContentBuilder で通らないので、`if` を 2 つに分ける。
                 if collapses {
                     ToolbarItem(placement: .primaryAction) { overflowMenu }
