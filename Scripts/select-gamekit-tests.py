@@ -13,7 +13,8 @@
      辺 = Package.swift の dependencies
           + テストターゲットのソースに別ターゲット名が語として現れるもの（`Sources/GameX/…` を読む走査テスト）
           + ソース全体を舐める走査テスト（Sources を丸ごと列挙するもの）は全ターゲットへ辺を張る
-  3. App/ Config/ project.yml Package.swift CI 設定など、全体に効く変更は all
+  3. project.yml は、それを読むテストターゲットだけ（#3511）
+  4. App/ Config/ Package.swift CI 設定など、全体に効く変更は all
 
 使い方:
   git diff --name-only HEAD^1 HEAD | python3 Scripts/select-gamekit-tests.py
@@ -32,7 +33,11 @@ PACKAGE_DIR = "Packages/GameKit"
 
 # これらの変更は全部のテストを回す。アプリ本体・依存の版・CI の定義・この選別自身。
 ALL_PREFIXES = ("App/", "Config/", ".github/workflows/ci.yml")
-ALL_FILES = {"project.yml", "Scripts/select-gamekit-tests.py"}
+ALL_FILES = {"Scripts/select-gamekit-tests.py"}
+
+# project.yml は、それを読むテスト（ソースに `project.yml` と書いてあるテストターゲット）だけを回す（#3511）。
+# 版数更新 PR（project.yml の 2 行）で全テストを待たせずに、Firebase 収集の既定オフ消失などの検査を PR 段階で効かせる。
+PROJECT_YML = "project.yml"
 
 # ソース全体を舐める走査テストの目印（Sources の根を取って、さらに下へ名指しで降りないもの）。
 # どのモジュールの変更でも影響を受ける。名指し（`Sources/GameX`）で読むものは、ターゲット名の語の一致で拾う。
@@ -107,9 +112,14 @@ def owner(rel_in_package, paths):
 def select(files, root, package):
     paths, is_test, uses, _ = build_graph(root, package)
     changed = set()
+    readers = set()
     for f in files:
         f = f.strip()
         if not f:
+            continue
+        if f == PROJECT_YML:
+            readers |= {n for n, t in paths.items()
+                        if is_test[n] and PROJECT_YML in swift_text(os.path.join(root, PACKAGE_DIR, t))}
             continue
         if f in ALL_FILES or f.startswith(ALL_PREFIXES):
             return "all", "全体に効く変更: " + f
@@ -118,7 +128,7 @@ def select(files, root, package):
             if name is None:
                 return "all", "ターゲットに属さない Packages の変更: " + f
             changed.add(name)
-    if not changed:
+    if not changed and not readers:
         return "none", "GameKit に関係する変更なし"
     # 変更したターゲットを（直接・間接に）使うターゲットを集める。テストは行き止まり（テストを使うテストは無い）
     # ので、たどるのは非テストだけ。テスト同士の言及（別のテストのディレクトリを読む等）は直接の辺として扱う。
@@ -131,6 +141,7 @@ def select(files, root, package):
                 affected.add(n)
                 grew = True
     affected |= {n for n, used in uses.items() if is_test[n] and used & affected}
+    affected |= readers
     tests = sorted(n for n in affected if is_test[n])
     if not tests:
         return "none", "変更したターゲット %s を使うテストが無い" % sorted(changed)

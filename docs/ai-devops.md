@@ -520,7 +520,8 @@ CodeRabbit を必須ステータスチェックにする案は採らない。レ
   - テストのソースに別ターゲット名が語として出てくるもの（`Sources/GameX/…` を名指しで読む走査テスト）
   - `SourceScan.packageRoot.appendingPathComponent("Sources")` を丸ごと走査するテスト（ThemeTests・AnalyticsTests 等）は全モジュールに依存するとみなす
   - テスト支援（`GameKitTestSupport`・`CoreTestSupport`）を使うテスト
-- **全部回す変更**: `App/`・`Config/`・`project.yml`・`Package.swift`（ターゲットに属さない `Packages/` の変更）・`ci.yml`・選別スクリプト自身。push（main・release）も全部回す。選別に失敗したときも全部回す。
+- **`project.yml` の変更**（#3511）: `ci.yml` の判定で `gamekit=true` にし、選別ステップが「ソースに `project.yml` と書いてあるテストターゲット」（現在は `AnalyticsTests`＝Firebase 収集の既定オフの検査）だけを回す。版数更新 PR で全テストを待たせず、`project.yml` を読む検査は PR 段階で効かせる。
+- **全部回す変更**: `App/`・`Config/`・`Package.swift`（ターゲットに属さない `Packages/` の変更）・`ci.yml`・選別スクリプト自身。push（main・release）も全部回す。選別に失敗したときも全部回す。
 - **選別の漏れを防ぐ**: 新しい走査テストが「ソースの根を取らず、モジュール名も書かずに他モジュールを読む」形だと選別が追えない。`SourceScan.moduleSources("GameX")` のようにモジュール名を文字列で書くか、`SourceScan.packageRoot.appendingPathComponent("Sources")` で根から走査すること。
 - 検証: `bash Scripts/tests/test-select-gamekit-tests.sh`（変更ファイルの例 → 走るターゲットの期待値）。`--filter` は 0 件マッチでも緑になるため、CI は 1 件も走らなかったら落とす。
 

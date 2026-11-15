@@ -27,7 +27,8 @@ trap 'rm -r -f "$TMP"' EXIT
 ROOT="$TMP/repo"
 PK="$ROOT/Packages/GameKit"
 mkdir -p "$PK/Tests/ScanAllTests" "$PK/Tests/NamedScanTests" "$PK/Tests/GameATests" "$PK/Tests/GameBTests" \
-         "$PK/Tests/CoreTests" "$PK/Tests/HelperUserTests" "$PK/Tests/GameKitTestSupport"
+         "$PK/Tests/CoreTests" "$PK/Tests/HelperUserTests" "$PK/Tests/GameKitTestSupport" "$PK/Tests/YmlReaderTests"
+printf 'let y = root.appendingPathComponent("project.yml")\n' >"$PK/Tests/YmlReaderTests/Y.swift"
 printf 'import GameA\n' >"$PK/Tests/GameATests/A.swift"
 printf 'import GameB\n' >"$PK/Tests/GameBTests/B.swift"
 printf 'import Core\n' >"$PK/Tests/CoreTests/C.swift"
@@ -46,6 +47,7 @@ json.dump({"targets": [
     t("HelperUserTests", "test", "GameKitTestSupport"),
     t("ScanAllTests", "test", "Core", "GameKitTestSupport"),
     t("NamedScanTests", "test", "Core", "GameKitTestSupport"),
+    t("YmlReaderTests", "test"),
 ]}, open(sys.argv[1], "w"))
 PY
 
@@ -73,7 +75,8 @@ expect "リソースだけの変更も所属ターゲットで選ぶ" \
   '^(GameATests|ScanAllTests)\.' "Packages/GameKit/Sources/GameA/Resources/Localization/x.xcstrings"
 expect "App/ の変更は全部" all "App/AppGameServices.swift"
 expect "Config/ の変更は全部" all "Config/Package.resolved"
-expect "project.yml の変更は全部" all "project.yml"
+expect "project.yml の変更は、それを読むテストだけ（#3511）" '^(YmlReaderTests)\.' "project.yml"
+expect "project.yml と GameA の混在は和" '^(GameATests|ScanAllTests|YmlReaderTests)\.' "project.yml" "Packages/GameKit/Sources/GameA/a.swift"
 expect "Package.swift の変更は全部" all "Packages/GameKit/Package.swift"
 expect "ターゲットに属さない Packages の変更は全部" all "Packages/GameKit/Sources/Unknown/x.swift"
 expect "ci.yml の変更は全部" all ".github/workflows/ci.yml"
