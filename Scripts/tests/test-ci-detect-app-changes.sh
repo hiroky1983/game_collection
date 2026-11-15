@@ -67,7 +67,7 @@ check_gamekit() {
 }
 
 echo "== 3. GameKit 全テストはアプリのコードが変わるときだけ =="
-check_gamekit "版数更新 PR（project.yml のみ）" skip "project.yml"
+check_gamekit "版数更新 PR（project.yml のみ）も回す（選別ステップが読むテストだけに絞る・#3511）" run "project.yml"
 check_gamekit "docs のみ"                skip "docs/ai-devops.md"
 check_gamekit "Scripts と .github"       skip "Scripts/ai-duty.sh" ".github/workflows/x.yml"
 check_gamekit "Swift（Packages）"        run "Packages/GameKit/Sources/Core/Theme.swift"

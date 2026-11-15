@@ -59,8 +59,10 @@ jobs:
           fi
           # GameKit 全テスト（約 10 分）は Packages/・App/・Config/（Package.resolved）に変更がある PR だけ回す（#2471）。
           # 版数更新 PR（project.yml の 2 行）のようにアプリのコードが変わらない PR で待たされないため。
+          # project.yml だけは、それを読むテスト（InternalTrafficSeparationTests）が PR 段階で効くよう gamekit=true にする。
+          # 回すのは選別ステップ（select-gamekit-tests.py）が読むテストのターゲットだけで、全テストは回らない（#3511）。
           # 拡張子では判定しない（テストは PNG・xcstrings・JSON も読む）。push（main・release）は上で常に回す。
-          gamekit=$(printf '%s\n' "$files" | grep -E '^(Packages/|App/|Config/)' || true)
+          gamekit=$(printf '%s\n' "$files" | grep -E '^(Packages/|App/|Config/|project\.yml$)' || true)
           if printf '%s\n' "$files" | grep -q -x -F '.github/workflows/ci.yml'; then
             gamekit=".github/workflows/ci.yml"
           fi
