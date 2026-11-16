@@ -10,7 +10,7 @@ import GamePoker
 import GameConcentration
 import GameBlackjack
 import GameDaifugo
-import GameMahjongSolitaire
+@testable import GameMahjongSolitaire
 import GameMahjong
 import GameSudoku
 import GameGo
@@ -181,7 +181,7 @@ struct AnalyticsEventShapeTests {
                 == ["resume", "challenge", "reengagement"])
     }
 
-    @Test("source は hub / recent / recommendation / notification / first_pick / quick_action / hero / resume_reminder / reengagement / challenge_return / records / deeplink / pickup の13値に閉じている（#659・#721・#1950・#1974・#2141・#3358）")
+    @Test("source は hub / recent / recommendation / notification / first_pick / quick_action / hero / resume_reminder / reengagement / challenge_return / records / deeplink / pickup と麻雀ソリティアのかたち3値の16値に閉じている（#659・#721・#1950・#1974・#2141・#3358）")
     func openSourceIsClosed() {
         #expect(GameOpenSource.allCases.map(\.rawValue) == [
             "hub", "recent", "recommendation", "notification", "first_pick", "quick_action", "hero",
@@ -335,6 +335,7 @@ struct AnalyticsEventShapeTests {
         #expect(AnalyticsMode.allCases.map(\.rawValue) == [
             "tonpuu", "single_hand", "hanchan", "stage", "endless", "backpain", "puzzle",
             "even", "rook_player", "rook_cpu", "bishop_player", "bishop_cpu", "single_round",
+            "turtle", "pyramid", "cross",
         ])
         // 送る文字列は rawValue そのもの（開始と終わりで同じ値）。
         for mode in AnalyticsMode.allCases {
@@ -347,6 +348,8 @@ struct AnalyticsEventShapeTests {
             + OjisanPuzzleMode.allCases.map(\.analyticsMode)
             // 単発戦はポーカーとブラックジャックで同じ値を使う（ゲームは `game_id` で分かれる）ので、片方だけ数える。
             + PokerSessionFormat.allCases.compactMap(\.analyticsMode)
+            // 麻雀ソリティアのかたち 3 つ（#3517）。
+            + MahjongSolitaireLayout.all.map(\.analyticsMode)
             // 平手は落とす側によらず同じ値なので、重複を畳んでから突き合わせる。
             + Array(Set(ShogiHandicap.allCases.flatMap { handicap in
                 ShogiHandicapDropper.allCases.map { ShogiMatchSetting(handicap: handicap, dropper: $0).analyticsMode }

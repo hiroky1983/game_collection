@@ -260,6 +260,12 @@ public enum AnalyticsMode: String, Equatable, Sendable, CaseIterable {
     /// ポーカー・ブラックジャックの単発戦（#2860）。1 回の勝負が 1 回きりなので `game_start` が機械的に増える。
     /// 10 回勝負は従来どおり `mode` を持たない。
     case singleRound = "single_round"
+    /// 麻雀ソリティアの盤面のかたち「亀甲」（#3517）。
+    case turtle
+    /// 麻雀ソリティアの盤面のかたち「ピラミッド」。
+    case pyramid
+    /// 麻雀ソリティアの盤面のかたち「十字」。
+    case cross
 }
 
 /// `game_start` / `game_end` の `credit`。1 回のプレイが**どの回数枠を消費したか**（#1685）。
