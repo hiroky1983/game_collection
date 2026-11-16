@@ -43,7 +43,7 @@ struct HomerunTutorialCards: View {
         let top = BannerSlot.height
         let large = typeSize.isAccessibilitySize
         let figureWidth = min(size.width - 64, 340)
-        let room = max(size.height - top - 300, 120)
+        let room = max(size.height - top - 320, 120)
         let figureHeight = min(figureWidth / HomerunTutorialFigure.aspect, large ? min(room, 120) : room)
         let shownWidth = figureHeight * HomerunTutorialFigure.aspect
         ZStack {
@@ -61,6 +61,10 @@ struct HomerunTutorialCards: View {
                     Button(tr("とばす")) { onFinish() }
                         .themeCaption(13).foregroundStyle(Theme.inkSubText)
                         .buttonStyle(.pop)
+                        // 押せる範囲は 44pt を確保する（文字の見た目は変えない・#3519）。
+                        .frame(minWidth: GameButtonMetrics.minTapTarget, minHeight: GameButtonMetrics.minTapTarget,
+                               alignment: .trailing)
+                        .contentShape(Rectangle())
                 }
                 if large {
                     // 文字が大きいときは、いまのページだけを縦にスクロールできる枠に入れる。
