@@ -196,7 +196,7 @@ public final class MahjongSolitaireModel {
             if defersInitialStart {
                 pendingInitialStart = true
             } else {
-                services?.gameDidStart(gameID: gameID)
+                services?.gameDidStart(gameID: gameID, mode: layout.analyticsMode)
             }
         }
     }
@@ -386,7 +386,7 @@ public final class MahjongSolitaireModel {
         services?.snapshots.clear(for: gameID)
         // 開始シートで配り直したときは、保留していた初回の数え込みを捨てる（ここで 1 回だけ数える）。
         pendingInitialStart = false
-        services?.gameDidRestart(gameID: gameID)
+        services?.gameDidRestart(gameID: gameID, mode: layout.analyticsMode)
     }
 
     /// 開始シートを出す初回の `game_start` は、シートを閉じた時点まで遅らせる（囲碁 #1372 と同じ作り）。
@@ -397,7 +397,7 @@ public final class MahjongSolitaireModel {
     public func startPlayIfPending() {
         guard pendingInitialStart else { return }
         pendingInitialStart = false
-        services?.gameDidStart(gameID: gameID)
+        services?.gameDidStart(gameID: gameID, mode: layout.analyticsMode)
     }
 
     /// 手詰まりで「最初から」を選んだとき。盤面を配り直す（結果は記録しない）。
