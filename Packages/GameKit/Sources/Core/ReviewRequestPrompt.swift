@@ -117,6 +117,8 @@ private struct NewGameFeedbackCard: View {
             // 最大の文字サイズでボタンが画面外に出ないよう、背高のときだけ縦スクロールにする（#3487）。
             .resultCardScrollsWhenTall()
             .accessibilityAddTraits(.isModal)
+            .accessibilityAction(.escape, onLater)
+            .announcesResultAppearance(tr("新しいゲームはどうでしたか？"))
         }
     }
 }
