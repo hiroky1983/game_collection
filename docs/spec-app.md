@@ -1411,7 +1411,8 @@ v1.1.4 までの公開版は3種）。
   チャリンコおじさんは `stage`（ステージ制。面番号は `level` の `stage-N`）/ `endless`（エンドレス。`level` を送らない）。
   おじさんの荷物運びパズルは `backpain`（荷運びモード。旧称「腰痛モード」）/ `puzzle`（パズルモード）（#1920）。
   将棋は手合い（#2179・v1.1.12）で `even`（平手）/ `rook_player`・`rook_cpu`（飛車落ち。落とす側が自分／CPU）/ `bishop_player`・`bishop_cpu`（角落ち）。
-  写像は各ゲームの `analyticsMode`（`MahjongGameLength` / `RunnerMode` / `ShogiMatchSetting`）に置く。一局戦は 1 対局が 1 局なので
+  麻雀ソリティアは盤面のかたち `turtle`（亀甲）/ `pyramid`（ピラミッド）/ `cross`（十字）（#3517。記録の区分 `variant` と同じ綴り）。
+  写像は各ゲームの `analyticsMode`（`MahjongGameLength` / `RunnerMode` / `ShogiMatchSetting` / `MahjongSolitaireLayout`）に置く。一局戦は 1 対局が 1 局なので
   `game_start` が機械的に増える。回数を比べるときは `mode` で分け、時間で比べるときは `duration_sec` を使う。
   `game_end` の `mode` は開始時に焼き込んだ値で、途中で遊び方を替えて始め直したときも捨てたプレイの側の値が載る（#783・#785・#820）
 - `cause`（`AnalyticsEndCause`・#796・`release/v1.1.5` から）は**そのプレイで最後にミスした原因**。
