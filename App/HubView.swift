@@ -515,6 +515,9 @@ struct HubView: View {
             .onChange(of: services.streakReminder?.hasPendingTap, initial: true) { _, pending in
                 guard pending == true else { return }
                 services.streakReminder?.consumeTap()
+                // 「きろく」を閉じる途中に届いたら、閉じた後に予約していた遷移・案内より通知を優先する（`onOpenURL` と同じ）。
+                opensGameAfterRecords = nil
+                opensGameCenterAfterRecords = false
                 showSettings = false
                 showRecords = false
                 guard let id = StreakReminderPolicy.landingGameID(
