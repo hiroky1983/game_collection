@@ -9,7 +9,7 @@
 # ⑤ AnalyticsEndCause の case 集合 = game_end 行の cause 列挙 = 本文「語彙は…のN値」の列挙。
 #
 # さらに（#3523）: ⑥ AnalyticsMode の値の集合 = 「mode」節の列挙、⑦ GameOpenSource の値の集合 = game_open 行の source 列挙。
-# ⑥ は docs が release ブランチ先行で書かれる版（main の enum にまだ無い値）を MODE_PENDING に列挙して両側から除いて比べる
+# ⑦ も同様に SOURCE_PENDING（#3534）。⑥ は docs が release ブランチ先行で書かれる版（main の enum にまだ無い値）を MODE_PENDING に列挙して両側から除いて比べる
 # （リリース後の同期で enum に入っても落ちない。入れ忘れ・書き忘れは MODE_PENDING 以外なら落ちる）。
 #
 # 使い方: bash Scripts/tests/test-analytics-event-count.sh
@@ -118,6 +118,9 @@ mode_in_prose() {
 }
 # 値の集合から MODE_PENDING を除く
 minus_pending() { local w; w="$(printf '%s\n' $MODE_PENDING)"; grep -vxF -e "$w" || true; }
+# release 先行で docs にだけ載っている source の値（main の enum に入るまで。#3534）。MODE_PENDING と同じ扱い
+SOURCE_PENDING="streak_reminder"
+minus_source_pending() { local w; w="$(printf '%s\n' $SOURCE_PENDING)"; grep -vxF -e "$w" || true; }
 source_in_table() {
   grep '^| `game_open` |' "$1" | grep -o 'source`([^)]*' | head -1 | sed 's/source`(//' | tr -d '\\' | tr '|' '\n' | sort
 }
@@ -126,7 +129,7 @@ check_vocab2() { # <説明> <swift> <spec> <期待: pass|fail>
   local result=pass me mp se st
   me="$(enum_values "$2" AnalyticsMode | minus_pending)"; mp="$(mode_in_prose "$3" | minus_pending)"
   [ -n "$me" ] && [ "$me" = "$mp" ] || result=fail
-  se="$(enum_values "$2" GameOpenSource)"; st="$(source_in_table "$3")"
+  se="$(enum_values "$2" GameOpenSource | minus_source_pending)"; st="$(source_in_table "$3" | minus_source_pending)"
   [ -n "$se" ] && [ "$se" = "$st" ] || result=fail
   local d="mode enum=$(echo $me | wc -w | tr -d ' ')/本文=$(echo $mp | wc -w | tr -d ' '), source enum=$(echo $se | wc -w | tr -d ' ')/表=$(echo $st | wc -w | tr -d ' ')"
   if [ "$result" = "$4" ]; then ok "$1 ($d)"; else ng "$1 ($d)"; fi
@@ -168,7 +171,7 @@ sed 's/`bishop_cpu`（角落ち）/（角落ち）/' "$SPEC" > "$TMP/spec-missin
 check_vocab2 "mode の列挙から値が欠ければ落ちる" "$SWIFT" "$TMP/spec-missing-mode.md" fail
 awk '/^public enum GameOpenSource/{print; print "    case extraSource"; next} {print}' "$SWIFT" > "$TMP/Analytics-source.swift"
 check_vocab2 "GameOpenSource が増えて docs が追随していなければ落ちる" "$TMP/Analytics-source.swift" "$SPEC" fail
-sed 's/\\|deeplink\\|pickup)/)/' "$SPEC" > "$TMP/spec-old-source.md"
+sed 's/\\|deeplink\\|pickup[^)]*)/)/' "$SPEC" > "$TMP/spec-old-source.md"
 check_vocab2 "game_open の source 列挙が古ければ落ちる" "$SWIFT" "$TMP/spec-old-source.md" fail
 
 echo
