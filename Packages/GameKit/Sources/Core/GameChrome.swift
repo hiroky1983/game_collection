@@ -104,27 +104,37 @@ public struct GameChromeAction {
 public enum GameChromeHeaderMetrics {
     /// 題字を縮める下限（`GameChromeTitle` の `minimumScaleFactor` と同じ値）。
     public static let minTitleScale: CGFloat = 0.6
-    /// 戻るボタン 1 つぶんの幅。
+    /// 戻るボタン 1 つぶんの幅（文字サイズに依らず 44pt のまま。実測）。
     public static let backButtonWidth: CGFloat = 44
-    /// ヘッダー右のボタン 1 つぶんの幅（ボタン間の隙間込み）。
-    public static let buttonWidth: CGFloat = 44
-    /// 題字の左右に残す余白（バーの左右の余白＋題字との隙間）。
-    public static let margin: CGFloat = 32
+    /// ヘッダー右のボタン 1 つぶんの幅のうち、文字サイズに追従しない部分（iOS 26 の丸いカプセルの余白・隙間）。
+    public static let buttonFixedWidth: CGFloat = 28
+    /// 同じく、文字サイズに追従する部分（標準で 28pt。拡大率を掛ける）。
+    public static let buttonScaledWidth: CGFloat = 28
+    /// 題字の左右に残す余白（バーの左右の縁 16pt ずつ＋題字とボタンの隙間 28pt）。
+    public static let margin: CGFloat = 60
+
+    /// ヘッダー右のボタン `count` 個を並べたカプセルの幅。
+    ///
+    /// iOS 26 のナビバーでは、ボタンは 44pt ではなく標準で約 56pt ぶんの幅を取る（SE・3 つで 168pt。
+    /// 実測は標準 56pt・特大〔xxl〕62.7pt）。44pt で数えると並びきらないのに「入る」と判定し、
+    /// 題字が約 85pt の枠に押し込められて「…」に切れた（#3530・#3512 の再発）。
+    public static func buttonsWidth(count: Int, scale: CGFloat) -> CGFloat {
+        CGFloat(count) * (buttonFixedWidth + buttonScaledWidth * max(1, scale))
+    }
 
     /// - Parameters:
     ///   - titleWidth: 縮めていない題字の本来の幅。
     ///   - screenWidth: 画面（ナビバー）の幅。
     ///   - buttonCount: ヘッダー右のボタン数（「…」にまとめる前）。
     ///   - hasBackButton: 戻るボタンがあるか。
-    ///   - buttonScale: 文字サイズ設定に応じたボタンの拡大率（標準で 1。特大ではボタンが約 1.4 倍の幅になり、
-    ///     固定幅で数えると題字が「…」に切れるのを見逃した・#3495）。
+    ///   - buttonScale: 文字サイズ設定に応じたボタンの拡大率（標準で 1。固定幅で数えると題字が「…」に
+    ///     切れるのを見逃した・#3495）。
     /// - Returns: 題字が 0.6 倍まで縮んでも入らないとき true。ボタンが 1 つ以下なら「…」にしても幅は減らないので false。
     public static func shouldCollapse(titleWidth: CGFloat, screenWidth: CGFloat, buttonCount: Int,
                                       hasBackButton: Bool = true, buttonScale: CGFloat = 1) -> Bool {
         guard buttonCount >= 2 else { return false }
-        let scale = max(1, buttonScale)
-        let available = screenWidth - (hasBackButton ? backButtonWidth * scale : 0)
-            - CGFloat(buttonCount) * buttonWidth * scale - margin
+        let available = screenWidth - (hasBackButton ? backButtonWidth : 0)
+            - buttonsWidth(count: buttonCount, scale: buttonScale) - margin
         return titleWidth * minTitleScale > available
     }
 }
@@ -330,8 +340,10 @@ private struct GameChromeToolbar: ViewModifier {
     @State private var confirmsNewGame = false
     @State private var screenWidth: CGFloat = 0
     @State private var titleWidth: CGFloat = 0
-    /// 文字サイズに追従するボタン幅の拡大率（標準で 1）。
-    @ScaledMetric(relativeTo: .body) private var buttonScale: CGFloat = 1
+    /// 文字サイズに追従するボタン幅の拡大率（標準で 100・百分率）。基準値を 1 にすると `ScaledMetric` が整数に
+    /// 丸め、xxl（1.235 倍）でも 1 のままになる（#3530）。使うときは 100 で割る。
+    @ScaledMetric(relativeTo: .body) private var buttonScalePercent: CGFloat = 100
+    private var buttonScale: CGFloat { buttonScalePercent / 100 }
     @Environment(\.dismiss) private var dismiss
     @Environment(\.howToPlayTrigger) private var howToPlay
     /// お気に入りの☆（#3478）。ハブから開いたときだけ環境にあり、右端（その他の後ろ）に置く。
