@@ -28,7 +28,8 @@ done
 # 先頭の1件だけを取る（取れなければ空）
 first() { sed -nE "$1" "$2" | head -n 1; }
 
-APP="$(first 's/^[[:space:]]*iOS:[[:space:]]*"?([0-9]+(\.[0-9]+)*)"?[[:space:]]*$/\1/p' "$PROJECT")"
+# 引用符（" / '）の有無と行末コメント（# …）は同じ値を表す YAML なので許す
+APP="$(first "s/^[[:space:]]*iOS:[[:space:]]*[\"']?([0-9]+(\.[0-9]+)*)[\"']?[[:space:]]*(#.*)?\$/\1/p" "$PROJECT")"
 SITE_V="$(first 's/^export const MIN_IOS_VERSION[[:space:]]*=[[:space:]]*"([0-9.]+)".*$/\1/p' "$SITE")"
 JA_V="$(first 's/.*iOS ([0-9]+(\.[0-9]+)*)以上.*/\1/p' "$TERMS_JA")"
 EN_V="$(first 's/.*iOS ([0-9]+(\.[0-9]+)*) or later.*/\1/p' "$TERMS_EN")"

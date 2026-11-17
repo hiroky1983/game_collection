@@ -47,6 +47,13 @@ T="$(make_tree 17.0 17.0 17.0 17.0)"
 rm "$T/web/app/lib/site.ts"
 expect "ファイルが無ければ落ちる" 1 "$T"
 
+# 同じ値を表す YAML 表記（単一引用符・引用符なし・行末コメント）も読めること
+for line in "    iOS: '17.0'" "    iOS: 17.0" '    iOS: "17.0" # minimum OS'; do
+  T="$(make_tree 17.0 17.0 17.0 17.0)"
+  printf 'options:\n  deploymentTarget:\n%s\n' "$line" > "$T/project.yml"
+  expect "project.yml の表記 [$line] を読める" 0 "$T"
+done
+
 # 実リポジトリは今一致している
 expect "実リポジトリが一致している" 0 "$REAL_ROOT"
 
