@@ -510,10 +510,24 @@ struct HubView: View {
                     resume: isResumable(id)
                 ))
             }
-            // 連続日数の夕方の通知（#3417）がタップされたら、重なっているシートを閉じてハブを見せる。
-            .onChange(of: services.streakReminder?.tapCount) { _, _ in
+            // 連続日数の夕方の通知（#3417）がタップされたら、重なっているシートを閉じ、最後に遊んだゲームを直接開く（#3534）。
+            // 設定で非表示のゲームは選ばず、記録が無ければハブのまま。
+            .onChange(of: services.streakReminder?.hasPendingTap, initial: true) { _, pending in
+                guard pending == true else { return }
+                services.streakReminder?.consumeTap()
+                // 「きろく」を閉じる途中に届いたら、閉じた後に予約していた遷移・案内より通知を優先する（`onOpenURL` と同じ）。
+                opensGameAfterRecords = nil
+                opensGameCenterAfterRecords = false
                 showSettings = false
                 showRecords = false
+                guard let id = StreakReminderPolicy.landingGameID(
+                    visibleGameIDs: settings.visibleModules(from: registry).map(\.id),
+                    lastPlayedAt: services.playLog?.lastPlayedAtByGame ?? [:]
+                ) else { return }
+                openFromOutside(HubRoute(
+                    gameID: id, source: .streakReminder, position: nil,
+                    resume: isResumable(id)
+                ))
             }
             // ホーム画面アイコン長押し（#1642）の項目がタップされたら、そのゲームを直接開く。
             // 終了していた状態からの起動は値がハブより先に入るため、初期値でも走らせる。

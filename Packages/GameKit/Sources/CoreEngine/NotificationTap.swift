@@ -11,7 +11,7 @@ public enum NotificationTapTarget: Equatable, Sendable {
     case reengagement(gameID: String)
     /// 挑戦回数が戻ったお知らせ（#1576）。
     case challengeReturn(gameID: String)
-    /// 連続日数が途切れそうな夕方の通知（#3417）。着地先はハブ（ゲームを指定しない）。
+    /// 連続日数が途切れそうな夕方の通知（#3417）。行き先のゲームは通知に持たせず、タップ時に最終プレイから決める（#3534・`StreakReminderPolicy.landingGameID`）。
     case streakReminder
 
     public static let resumeReminderPrefix = "resume-reminder."
