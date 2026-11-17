@@ -20,6 +20,11 @@ on:
       - 'Scripts/check-lp-game-text.py'
       - 'Packages/GameKit/Sources/*/*Module.swift'
       - 'Packages/GameKit/Sources/*/Resources/Localization/Localizable.xcstrings'
+      - 'project.yml'
+      - 'web/app/lib/site.ts'
+      - 'web/app/(ja)/terms/page.tsx'
+      - 'web/app/en/terms/page.tsx'
+      - 'Scripts/check-lp-min-ios.sh'
       - '.github/workflows/lp-game-list.yml'
   push:
     branches: [main]
@@ -30,6 +35,11 @@ on:
       - 'Scripts/check-lp-game-text.py'
       - 'Packages/GameKit/Sources/*/*Module.swift'
       - 'Packages/GameKit/Sources/*/Resources/Localization/Localizable.xcstrings'
+      - 'project.yml'
+      - 'web/app/lib/site.ts'
+      - 'web/app/(ja)/terms/page.tsx'
+      - 'web/app/en/terms/page.tsx'
+      - 'Scripts/check-lp-min-ios.sh'
       - '.github/workflows/lp-game-list.yml'
 
 concurrency:
@@ -63,3 +73,11 @@ jobs:
 
       - name: check-lp-game-text.py 自身の検証
         run: bash Scripts/tests/test-check-lp-game-text.sh
+
+      # 最低 iOS の表記（MIN_IOS_VERSION と利用規約の直書き）が project.yml の deploymentTarget と
+      # ずれていないか（#3533）。最低 OS を上げても LP・規約が古いまま残るのを止める。
+      - name: LP の最低 iOS 表記が project.yml と一致するか
+        run: bash Scripts/check-lp-min-ios.sh
+
+      - name: check-lp-min-ios.sh 自身の検証
+        run: bash Scripts/tests/test-check-lp-min-ios.sh
