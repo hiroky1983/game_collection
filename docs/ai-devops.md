@@ -306,6 +306,8 @@ Issue番号」を明記し、倉庫段階であることが一目で分かるよ
     あわせて同ワークフローは、LP の `tagline` / `taglineEn` がアプリの `GameModule.description`（ja）と
     `Localizable.xcstrings` の en 値に一致するかも `Scripts/check-lp-game-text.py` で見る（#2941。アプリ側が正。
     意図した差は同スクリプトの `ALLOW` に理由付きで足す。Module の無い comingSoon は対象外）。
+    さらに最低 iOS の表記（`web/app/lib/site.ts` の `MIN_IOS_VERSION` と利用規約 ja/en の直書き）が `project.yml` の
+    `deploymentTarget.iOS` と一致するかを `Scripts/check-lp-min-ios.sh` で見る（#3533。`project.yml` が正）。
   - アプリコードと `web/` を同時に触る Issue は、`web/` の変更を上の基準で振り分けて PR を分離する。
 
 ### マージ規則（マージは全リスク階層で AI が行う。会長の責務から除外）
