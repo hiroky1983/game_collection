@@ -43,10 +43,10 @@ done
 
 for pair in "site.ts MIN_IOS_VERSION=$SITE_V" "terms(ja)=$JA_V" "terms(en)=$EN_V"; do
   if [ "${pair#*=}" != "$APP" ]; then
-    echo "NG: ${pair%=*} の iOS ${pair#*=} が project.yml の deploymentTarget（iOS $APP）と違います"
+    echo "NG: ${pair%=*} の iOS ${pair#*=} が project.yml の deploymentTarget（iOS ${APP}）と違います"
     STATUS=1
   fi
 done
 
-[ "$STATUS" -eq 0 ] && echo "OK: 最低 iOS 表記はすべて $APP で一致"
+[ "$STATUS" -eq 0 ] && echo "OK: 最低 iOS 表記はすべて ${APP} で一致"
 exit "$STATUS"

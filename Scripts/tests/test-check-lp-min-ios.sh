@@ -30,7 +30,7 @@ make_tree() {
 expect() { # 名前 期待終了コード ツリー
   bash "$TARGET" "$3" >/dev/null 2>&1
   local rc=$?
-  [ "$rc" -eq "$2" ] && ok "$1" || ng "$1（終了コード $rc、期待 $2）"
+  [ "$rc" -eq "$2" ] && ok "$1" || ng "${1}（終了コード ${rc}、期待 ${2}）"
 }
 
 expect "全部一致なら通る" 0 "$(make_tree 17.0 17.0 17.0 17.0)"
