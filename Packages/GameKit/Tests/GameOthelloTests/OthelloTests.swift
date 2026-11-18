@@ -332,6 +332,26 @@ struct OthelloPassDeadlockTests {
         #expect(spy.impacts == [.light])
     }
 
+    /// CPU のパスは指が触れていないので触覚を鳴らさない（#3543）。同じ盤で人間（黒）・CPU（白）にすると白がパスになる。
+    @Test func cpuPassGivesNoImpact() throws {
+        let store = MemorySnapshotStore()
+        try store.save(
+            othelloSnapshot(cells: othelloCells(othelloWhiteMustPassDiagram),
+                            currentStone: .white, humanSide: .black, mustPass: true),
+            for: "othello")
+        let spy = SpyFeedbackService()
+        let model = OthelloModel(
+            services: GameServices(snapshots: store, ads: NoopAdService(), feedback: spy),
+            flipSettleDelay: .zero)
+        try #require(model.mustPass && model.isAITurn)
+        spy.reset()
+
+        model.confirmPass()
+        #expect(model.mustPass == false)
+        #expect(model.currentStone == .black) // パス自体は成立している
+        #expect(spy.impacts.isEmpty)
+    }
+
     /// パスが成立するたびに `passEventID` が 1 つ増える（#2797。View の「パス」の札の契機）。
     @Test func confirmPassBumpsPassEventID() throws {
         let store = MemorySnapshotStore()
