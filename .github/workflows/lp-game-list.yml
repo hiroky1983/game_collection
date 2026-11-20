@@ -25,6 +25,8 @@ on:
       - 'web/app/(ja)/terms/page.tsx'
       - 'web/app/en/terms/page.tsx'
       - 'Scripts/check-lp-min-ios.sh'
+      - 'App/SettingsView.swift'
+      - 'Scripts/check-lp-site-url.sh'
       - '.github/workflows/lp-game-list.yml'
   push:
     branches: [main]
@@ -40,6 +42,8 @@ on:
       - 'web/app/(ja)/terms/page.tsx'
       - 'web/app/en/terms/page.tsx'
       - 'Scripts/check-lp-min-ios.sh'
+      - 'App/SettingsView.swift'
+      - 'Scripts/check-lp-site-url.sh'
       - '.github/workflows/lp-game-list.yml'
 
 concurrency:
@@ -81,3 +85,11 @@ jobs:
 
       - name: check-lp-min-ios.sh 自身の検証
         run: bash Scripts/tests/test-check-lp-min-ios.sh
+
+      # アプリの規約基点 URL（legalBaseURL）と App Store ID が LP の SITE_URL・APP_STORE_ID と
+      # ずれていないか（#3547）。ドメインを替えて設定画面の規約リンクが切れるのを止める。
+      - name: アプリの規約 URL・App Store ID が LP と一致するか
+        run: bash Scripts/check-lp-site-url.sh
+
+      - name: check-lp-site-url.sh 自身の検証
+        run: bash Scripts/tests/test-check-lp-site-url.sh
