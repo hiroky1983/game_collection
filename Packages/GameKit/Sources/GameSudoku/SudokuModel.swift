@@ -410,10 +410,13 @@ public final class SudokuModel {
                         .map { ($0, notes[$0]) }
                 )
                 : [:]
-            lastUndoStep = UndoStep(
-                index: index, previousBoard: board[index], previousNotes: notes[index],
-                changedPeerNotes: peerNotesBefore, wasHinted: hintedCells.contains(index)
-            )
+            // 盤もヒントの印も変わらない入れ直しは履歴を作り直さない（直前の本物の入力を戻せなくするため・#3548）。
+            if board[index] != digit || hintedCells.contains(index) {
+                lastUndoStep = UndoStep(
+                    index: index, previousBoard: board[index], previousNotes: notes[index],
+                    changedPeerNotes: peerNotesBefore, wasHinted: hintedCells.contains(index)
+                )
+            }
             board[index] = digit
             notes[index] = 0
             // 自力で書いたマスはヒント由来の印（紫）から外す。戻す側は `wasHinted` で復元する。

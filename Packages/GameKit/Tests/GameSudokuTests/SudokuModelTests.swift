@@ -586,6 +586,23 @@ struct SudokuUndoTests {
         #expect(!model.canUndo, "深さ1: 直前の1手しか持たない")
     }
 
+    @Test("同じ数字の入れ直しは戻す履歴を上書きせず、戻すと元の入力が戻る（#3548）")
+    func reenteringSameDigitKeepsUndoStep() async {
+        let (model, _) = makeModel()
+        await model.newGame(difficulty: .easy)
+        let blank = (0..<81).first { model.board[$0] == 0 }!
+        let digit = wrongDigit(for: blank, in: model)
+        model.select(index: blank)
+        model.enter(digit: digit)
+        let remaining = model.undosRemaining
+
+        model.enter(digit: digit)  // 盤は変わらない入れ直し
+        #expect(model.board[blank] == digit)
+        model.undo()
+        #expect(model.board[blank] == 0, "最初の入力が戻る")
+        #expect(model.undosRemaining == remaining - 1, "戻す回数の消費は 1 回")
+    }
+
     @Test("「誤答 → 戻す」を繰り返してもミス上限をすり抜けられない（#375）")
     func undoLoopCannotBypassMistakeLimit() async {
         let (model, _) = makeModel()
