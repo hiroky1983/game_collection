@@ -125,3 +125,60 @@ struct CatPuzzleAnalyticsTests {
         #expect(!spy2.events.contains { $0.name == "clear_exit" })
     }
 }
+
+/// 広告コンティニュー後の続きの局にも `game_end` が付く（#3446。2048 の #1953 と同じ取りこぼし）。
+@Suite("ねこさがし コンティニュー後の game_end（#3446）")
+@MainActor
+struct CatPuzzleContinueAnalyticsTests {
+    private func makeServices(_ spy: SpyAnalyticsService) -> GameServices {
+        GameServices(
+            snapshots: MemorySnapshotStore(), ads: NoopAdService(),
+            analytics: GameAnalytics(service: spy, allowedGameIDs: [CatPuzzleModel.gameID])
+        )
+    }
+
+    private func makeModel(_ spy: SpyAnalyticsService, _ name: String) async -> CatPuzzleModel {
+        let suite = "asobiba.catpuzzle.continue.tests.\(name)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let model = CatPuzzleModel(services: makeServices(spy), stageDefaults: defaults)
+        model.startStage(1)
+        await model.stagePreparation?.value
+        return model
+    }
+
+    private func missToLimit(_ model: CatPuzzleModel) {
+        for _ in 0..<CatPuzzleModel.maxMistakes {
+            let wrong = (0..<model.puzzle.side * model.puzzle.side).first {
+                !model.puzzle.solutionCells.contains($0) && !model.isFixed(cell: $0) && model.marks[$0] != .cat
+                    && model.marks[$0] != .cross
+            }!
+            model.findCat(cell: wrong)
+        }
+    }
+
+    @Test("コンティニュー後にクリアすると game_end(win) が出て、game_start は 1 回増えるだけ")
+    func winAfterContinueEmitsEnd() async {
+        let spy = SpyAnalyticsService()
+        let model = await makeModel(spy, "win")
+        missToLimit(model)
+        #expect(model.isOfferingContinue, "前提: 提案が出ている")
+        #expect(spy.outcomes == [.loss])
+        let startsBefore = spy.starts.count
+        #expect(model.continueAfterAd())
+        #expect(spy.starts.count == startsBefore + 1, "コンティニュー 1 回で game_start が 1 回増えるだけ")
+        for cell in model.puzzle.solutionCells where model.marks[cell] != .cat { model.findCat(cell: cell) }
+        #expect(spy.outcomes == [.loss, .win])
+    }
+
+    @Test("コンティニュー後に離れると game_end(quit) が 1 回出る")
+    func abandonAfterContinueEmitsQuit() async {
+        let spy = SpyAnalyticsService()
+        let model = await makeModel(spy, "quit")
+        missToLimit(model)
+        #expect(model.continueAfterAd())
+        // 再開できない盤として離れる（`quit` は「進行済みで再開できない」ときだけ送られる）。
+        model.services?.analytics?.leaveGame(gameID: CatPuzzleModel.gameID, isResumable: false)
+        #expect(spy.quits.map(\.gameID) == [CatPuzzleModel.gameID])
+    }
+}

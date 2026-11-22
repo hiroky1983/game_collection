@@ -71,6 +71,9 @@ public final class OldMaidModel: AITurnGuarded {
         let serial: Int
     }
 
+    /// CPU が引いたことの控え。View が VoiceOver へ読み上げる（#3424）。あなたの操作では書かない。保存しない。
+    public private(set) var cpuEvent: CPUEventAnnouncement?
+
     private let services: GameServices?
     let gameID = OldMaidModel.gameID
     private let cpuDelay: Duration
@@ -288,6 +291,8 @@ public final class OldMaidModel: AITurnGuarded {
         game = base.game
         redrawBase = nil
         isUntouchedDeal = base.wasUntouchedDeal
+        // 配り直しの手つかずに戻したなら、引いたときに立てた「捨てたら途中離脱」の印も戻す（#3422）。
+        if base.wasUntouchedDeal { services?.gameDidUndoToStart(gameID: gameID) }
         selectedID = nil
         peekedIDs = []
         revealsJoker = true
@@ -356,6 +361,11 @@ public final class OldMaidModel: AITurnGuarded {
         isUntouchedDeal = false   // 保存はする（CPU の初手も復元できるように）。続き扱いにはならない（#3000）
         if next.lastTransfer?.from == Self.humanIndex {
             services?.feedback.impact(.light)
+        }
+        if let transfer = next.lastTransfer {
+            cpuEvent = .next(after: cpuEvent, text: OldMaidAccessibility.cpuDrawAnnouncement(
+                transfer, drawerAction: next.lastActions[transfer.to]
+            ))
         }
         settleIfHumanOut()
         persist()

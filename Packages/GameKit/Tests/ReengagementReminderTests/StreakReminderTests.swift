@@ -3,6 +3,7 @@ import Testing
 @testable import CoreEngine
 import Core
 import CoreTestSupport
+import GameKitTestSupport
 
 @MainActor
 private final class SpyStreakScheduler: StreakReminderScheduler {
@@ -75,7 +76,58 @@ struct StreakReminderTests {
     }
 
     @MainActor
-    private func make(_ spy: SpyStreakScheduler, enabled: Bool = true, suppressed: Bool = false, hour: Int = 10) -> StreakReminderService {
+    @Test("タップ先: 最終プレイが最も新しいゲームを選ぶ（#3534）")
+    func landingPicksNewest() {
+        let dates = ["a": Self.date(5, hour: 9), "b": Self.date(8, hour: 9), "c": Self.date(6, hour: 9)]
+        #expect(StreakReminderPolicy.landingGameID(visibleGameIDs: ["a", "b", "c"], lastPlayedAt: dates) == "b")
+    }
+
+    @Test("タップ先: 記録が無ければ nil（ハブのまま）")
+    func landingNilWithoutRecords() {
+        #expect(StreakReminderPolicy.landingGameID(visibleGameIDs: ["a", "b"], lastPlayedAt: [:]) == nil)
+        #expect(StreakReminderPolicy.landingGameID(visibleGameIDs: [], lastPlayedAt: ["a": Self.date(5, hour: 9)]) == nil)
+    }
+
+    @Test("タップ先: 最新が非表示なら、見えるゲームの中で最新を選ぶ。見えるものに記録が無ければ nil")
+    func landingSkipsHidden() {
+        let dates = ["hidden": Self.date(9, hour: 9), "a": Self.date(5, hour: 9), "b": Self.date(7, hour: 9)]
+        #expect(StreakReminderPolicy.landingGameID(visibleGameIDs: ["a", "b"], lastPlayedAt: dates) == "b")
+        #expect(StreakReminderPolicy.landingGameID(visibleGameIDs: ["x"], lastPlayedAt: dates) == nil)
+    }
+
+    @Test("タップ先: 同時刻はハブの並びで先のゲーム")
+    func landingTieUsesHubOrder() {
+        let t = Self.date(8, hour: 9)
+        #expect(StreakReminderPolicy.landingGameID(visibleGameIDs: ["b", "a"], lastPlayedAt: ["a": t, "b": t]) == "b")
+        #expect(StreakReminderPolicy.landingGameID(visibleGameIDs: ["a", "b"], lastPlayedAt: ["a": t, "b": t]) == "a")
+    }
+
+    @MainActor
+    @Test("タップは保留として残り、ハブが受け取ると下りる")
+    func tapPendingUntilConsumed() {
+        let service = make(SpyStreakScheduler())
+        #expect(!service.hasPendingTap)
+        service.notificationTapped()
+        #expect(service.hasPendingTap && service.tapCount == 1)
+        service.consumeTap()
+        #expect(!service.hasPendingTap)
+    }
+
+    @Test("ハブは連続日数の通知のタップで、最後に遊んだゲームを streak_reminder の導線で開く（結線）")
+    func tapIsWiredToHub() throws {
+        let source = try SourceScan.appSources()
+        guard let handler = source.range(of: ".onChange(of: services.streakReminder?.hasPendingTap, initial: true)") else {
+            Issue.record("ハブが連続日数の通知のタップを受け取っていない")
+            return
+        }
+        let body = String(source[handler.upperBound...].prefix(900))
+        #expect(body.contains("StreakReminderPolicy.landingGameID("))
+        #expect(body.contains("showSettings = false") && body.contains("showRecords = false"), "シートを閉じていない")
+        #expect(body.range(of: #"visibleModules\(from: registry\)"#, options: .regularExpression) != nil, "非表示を除いていない")
+        #expect(body.range(of: #"openFromOutside\(HubRoute\(\s*gameID: id, source: \.streakReminder,"#, options: .regularExpression) != nil)
+    }
+
+    @MainActor private func make(_ spy: SpyStreakScheduler, enabled: Bool = true, suppressed: Bool = false, hour: Int = 10) -> StreakReminderService {
         StreakReminderService(
             scheduler: spy, isEnabled: { enabled }, isSuppressed: suppressed,
             now: { Self.date(9, hour: hour) }, calendar: Self.calendar

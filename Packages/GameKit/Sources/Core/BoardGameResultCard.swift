@@ -200,7 +200,7 @@ extension View {
     /// 結果カードが重ね先の盤より背が高いとき（最大の文字サイズ・SE）、上下が切り落とされないよう縦にスクロールさせる（#2858）。
     /// 収まるときは `ViewThatFits` が素のカードを選ぶので、標準の文字サイズでは見た目も挙動も変わらない。
     @ViewBuilder
-    func resultCardScrollsWhenTall() -> some View {
+    public func resultCardScrollsWhenTall() -> some View {
         ViewThatFits(in: .vertical) {
             self
             ScrollView { self }.scrollBounceBehavior(.basedOnSize)

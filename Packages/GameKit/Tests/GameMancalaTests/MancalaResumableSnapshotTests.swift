@@ -52,17 +52,41 @@ struct MancalaResumableSnapshotTests {
         #expect(module.hasResumableSnapshot(in: store))
     }
 
-    @Test("後手で一手打ってから「待った」で戻しても、使用済みの印が残るので続きとして残す")
-    func undoKeepsItResumable() async {
+    @Test("後手で一手打ってから「待った」で CPU の初手だけの盤へ戻したら、続きではなく手つかず。離脱にも数えない（#3422）")
+    func undoToCPUOpeningIsUntouched() async {
+        let spy = SpyAnalyticsService()
+        let store = MemorySnapshotStore()
+        let services = makeServices(store: store, spy: spy)
+        services.gameDidStart(gameID: "mancala")
+        let model = MancalaModel(services: services, cpuDelay: .zero, seed: 1)
+        model.newGame(humanFirst: false)
+        await playCPUTurn(model)
+        model.tap(pit: model.legalPits[0])
+        await playCPUTurn(model)
+        #expect(model.hasProgressToLose, "前提: 打った後は進行あり")
+        #expect(model.canUndo)
+        model.undoLastExchange()
+        #expect(model.board != MancalaBoard(), "前提: CPU の初手が入った盤で、初期配置ではない")
+        #expect(!module.hasResumableSnapshot(in: store))
+        #expect(module.hasUntouchedSnapshot(in: store))
+        #expect(!model.hasProgressToLose)
+        services.gameDidLeave(gameID: "mancala")
+        #expect(spy.quits.isEmpty, "人間は 0 手に戻ったので離脱に数えない")
+    }
+
+    @Test("後手で 2 手打って 1 回「待った」で戻しても、まだ続き（#3422）")
+    func undoOneOfTwoStaysResumable() async {
         let store = MemorySnapshotStore()
         let model = MancalaModel(services: makeServices(store: store), cpuDelay: .zero, seed: 1)
         model.newGame(humanFirst: false)
         await playCPUTurn(model)
         model.tap(pit: model.legalPits[0])
         await playCPUTurn(model)
-        #expect(model.canUndo)
+        model.tap(pit: model.legalPits[0])
+        await playCPUTurn(model)
         model.undoLastExchange()
         #expect(module.hasResumableSnapshot(in: store))
+        #expect(model.hasProgressToLose)
     }
 
     @Test("CPU の初手だけで離れても途中離脱に数えない")

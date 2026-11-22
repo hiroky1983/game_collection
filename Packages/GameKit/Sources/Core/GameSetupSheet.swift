@@ -291,7 +291,7 @@ public struct GameSetupChooser: View {
 
     private var subtitleText: some View {
         Text(subtitle)
-            .font(.system(size: metrics.subtitleSize, weight: .semibold, design: .rounded)) // fixed-size: セットアップ部品の寸法定数（metrics.subtitleSize）で揃える。枠が固定寸法のため追従させない
+            .scaledFont(metrics.subtitleSize, weight: .semibold, design: .rounded, maxScale: 1.3) // 文字サイズ設定に追従（上限 ×1.3・#3522）。収まらないときは ShrinkToFit が縮める
             .foregroundStyle(selected ? onAccent : Theme.inkSubText)
             .modifier(ShrinkToFit(minimumScale: metrics.subtitleMinimumScale))
     }

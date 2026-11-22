@@ -56,6 +56,25 @@ struct SettingsView: View {
                     Text(tr("はじめは端末の言語に合わせています。切り替えるとすぐに反映され、アプリの再起動はいりません。"))
                 }
 
+                // MARK: ハブ（#3478）。並べ替え・表示 / 非表示（下の「あそび」）とは別の設定。
+                Section {
+                    Picker(selection: Binding(
+                        get: { settings.hubStartTab },
+                        set: { settings.hubStartTab = $0 }
+                    )) {
+                        ForEach(HubStartTab.allCases, id: \.self) { tab in
+                            Text(tab.title).tag(tab)
+                        }
+                    } label: {
+                        Label(tr("最初に開くタブ"), systemImage: "star")
+                            .foregroundStyle(Theme.ink)
+                    }
+                } header: {
+                    Text(tr("ハブ"))
+                } footer: {
+                    Text(tr("ハブを開いたときに最初に出すタブです。「お気に入り」は、ゲームの☆で付けたものだけを追加した順に出します。"))
+                }
+
                 // MARK: あそび
                 Section {
                     ForEach(settings.orderedIDs, id: \.self) { id in

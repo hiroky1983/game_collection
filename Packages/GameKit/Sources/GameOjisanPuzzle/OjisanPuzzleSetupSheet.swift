@@ -51,25 +51,9 @@ struct OjisanPuzzleSetupSheet: View {
 
     /// 操作・れんさの説明を開閉する行。別画面へは移らず、この場で下に広げる。
     private var detailsToggle: some View {
-        Button {
+        SetupDetailsToggleRow(title: tr("操作・れんさのくわしい説明"), systemImage: "hand.draw.fill", isOpen: showsDetails) {
             withGameAnimation(.easeInOut(duration: 0.2)) { showsDetails.toggle() }
-        } label: {
-            HStack {
-                Label(tr("操作・れんさのくわしい説明"), systemImage: "hand.draw.fill")
-                    .themeBody(15)
-                    .lineLimit(1).minimumScaleFactor(0.8)
-                Spacer(minLength: 8)
-                DisclosureChevron("chevron.down")
-                    .rotationEffect(.degrees(showsDetails ? 180 : 0))
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .popCard(corner: Theme.cornerSmall)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.pop)
-        .foregroundStyle(Theme.ink)
-        .accessibilityValue(showsDetails ? tr("開いている") : tr("閉じている"))
     }
 }
 

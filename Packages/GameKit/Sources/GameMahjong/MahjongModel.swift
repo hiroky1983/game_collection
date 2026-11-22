@@ -409,6 +409,8 @@ public final class MahjongModel: AITurnGuarded {
         (index - dealer + Self.playerCount) % Self.playerCount
     }
 
+    /// CPU が牌を切ったことの控え。View が間引いて VoiceOver へ読み上げる（#3424）。あなたの操作では書かない。保存しない。
+    public internal(set) var cpuEvent: CPUEventAnnouncement?
     /// CPU 起動キー。
     public var turnKey: AITurnKey { AITurnKey(gameSerial: gameSerial, ply: turnCount) }
 

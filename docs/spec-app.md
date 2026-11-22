@@ -1380,7 +1380,7 @@ CPU と役の強さで比べる流れは変えない。
 
 ## 解析仕様（Analytics・#158 / #500 / #659 / #780 / #1043 / #1348）
 
-`CoreEngine/Analytics.swift` に**送信するイベントを下の表の11種だけに閉じた** `AnalyticsEvent` enum がある
+`CoreEngine/Analytics.swift` に**送信するイベントを下の表の12種だけに閉じた** `AnalyticsEvent` enum がある
 （`reward_request` / `game_open` の2種は #659 で `release/v1.1.5` に、`share_tap` は #1043 で `release/v1.1.6` に、`reward_offer` は #780 で `release/v1.1.7` に。`notification_permission` は #2008 で `release/v1.1.11` に、`clear_exit` は #2848 で `release/v1.1.14` に、`review_prompt` は #3061 で `release/v1.1.15` に。`reward_grant` は #3256 で追加。`survey_answer` は #1348 で足したが、アンケートの削除（#1956）で廃止。
 main のコード（v1.1.9・v1.1.10 の公開版）には `surveyAnswer` のケース・`recordSurveyAnswer` / `gameDidAnswerSurvey`・`HomerunModel.submitSurvey` が互換のため残っているが、
 入口が `HomerunSurvey.isOffered = false` で画面に出ないので実際には送信されない。#1956 を含む `release/v1.1.11` 以降ではケースごと削除済み。
@@ -1397,6 +1397,7 @@ v1.1.4 までの公開版は3種）。
 | `notification_permission` | 通知の許可ダイアログを**実際に出した** 1 回につき 1 回（すでに許可 / 拒否が決まっている状態の問い合わせでは送らない。各 `UserNotification*Scheduler.requestExplicitAuthorization` の1か所・#2008） | `result`(granted\|denied) / `trigger`(resume\|challenge\|reengagement。`reengagement` は #2938 以降は発火しない)。ゲーム ID は載せない。GA4 のカスタムディメンション登録が要る（会長操作） |
 | `reward_grant` | ゲーム内の特典を渡した 1 回につき 1 回（ねこさがしのデイリーランキング前日 1〜3 位・#3256。`GameServices.gameDidGrantReward` の 1 か所。X でポストした特典 #3359 は `gameDidGrantShareReward`） | `game_id` / `items`(hint\|teach\|hint_teach\|challenge) / 順位の特典は `rank`（前日の順位 1〜3）、X でポストした特典（#3359）は `rank` の代わりに `purpose=share` |
 | `review_prompt` | 評価のお願いの段階（#3061）。カードを出した（`shown`）・「App Store で感想を書く」（`write_review`）・「あとで」（`later`）・OS の評価ダイアログを依頼した（`os_requested`。出たかどうかは OS しか知らない）の 1 回につき 1 回 | `kind`(regular\|new_game_card) / `step`(shown\|write_review\|later\|os_requested) / `trigger`(days_7\|days_30。遊んだ日数の節目のときだけ・#3078)。ゲーム ID は載せない。GA4 のカスタムディメンション登録が要る（会長操作） |
+| `favorite_toggle` | お気に入りの☆を付け外しした 1 回につき 1 回（#3478。ハブのタイルの☆・長押しメニュー・ゲーム画面ヘッダーの☆・狭い画面の「…」の項目。下の「favorite_toggle」の定義を参照） | `game_id` / `state`(on\|off) / `source`(hub_tile\|hub_menu\|header\|header_menu) |
 | `reward_request` | リワード広告の**要求**（タップ。視聴の成否を待たずに送る） | `game_id` / `purpose` |
 | `game_open` | ハブからゲーム画面を開いた（`HubView` の `onChange(of: path)` で path が空 → 非空になった1か所） | `game_id` / `source`(hub\|recent\|recommendation\|notification\|first_pick\|quick_action\|hero\|resume_reminder\|reengagement\|challenge_return\|records\|deeplink\|pickup\|streak_reminder) / `resume`(0\|1)、`hub`・`recent` のみ `position`（1 始まり）。`hero` はハブ先頭の特別枠（柵越えおじさん・#1761）だったが、v1.1.14（#2566）で通常のタイル（`hub`・位置あり）になり発火点は無い（GA4 の既存値のため語彙には残す）。`records` は「きろく」画面のゲーム行をタップして開いたとき（#1974。`position` は持たない）。`notification` は通知を種類別に分ける前の旧値で、#1950 以降は送らない。`pickup` はハブ最上部の「ピックアップ」の区画から開いたとき（#3358・`release/v1.1.16` から。`position` は持たない）。`streak_reminder` は連続日数の夕方の通知（#3417）のタップで、最終プレイが最も新しい（非表示でない）ゲームを直接開いた回（#3534。記録が無ければハブのまま） |
 | `reward_offer` | リワード広告の**提示**が終わった（1 回の提示につき 1 回。下の定義） | `game_id` / `purpose`（上表の12値のうち、常設ボタンで提示が無い `peek`・`reroll` を除く10値。`redraw` は含む） / `result`(accepted\|declined\|not_ready) |
@@ -1486,12 +1487,11 @@ v1.1.4 までの公開版は3種）。
   ハブのタイルの☆（右下・`HubFavoriteButton`）とゲーム画面ヘッダーの☆（共通枠 `gameChrome` が環境 `favoriteGame` から読んで右端に出す）が同じ置き場を使う。
   「お気に入り」チップは「すべて」の次で、追加順に並べ、設定で非表示にしたゲームも出す（並べ替え・非表示は「すべて」だけが対象）。
   設定の「ハブ > 最初に開くタブ」（`hubStartTab_v1`）で起動時のタブを選べる（既定は「すべて」）。案内の札は Core の `ToastNotice`（ハブの非表示の案内と共通）。
-- **`favorite_toggle`（#3478・`release/v1.1.17` から。11 種に加わる 12 種目）**: お気に入りの☆を付け外しした 1 回につき 1 回
+- **`favorite_toggle`（#3478・v1.1.17 で追加。12 種目）**: お気に入りの☆を付け外しした 1 回につき 1 回
   （ハブのタイルの☆・長押しメニュー・ゲーム画面ヘッダーの☆・狭い画面の「…」の項目。「お気に入り」タブで外した直後の
   「元に戻す」で付け直したときも `on` を送る）。パラメータは `game_id` / `state`(on\|off) / `source`(hub_tile\|hub_menu\|header\|header_menu)。
   どのゲームがお気に入りにされているかは `state = on` − `off` で読む。GA4 のカスタムディメンション登録が要る（会長操作）。
-  **上の表（`test-analytics-event-count.sh` が main の enum と突き合わせる）には、`release/v1.1.17` が main に入る回で行を足す**
-  （先に足すと main の enum と食い違って CI が落ちる）。
+  上の表（`test-analytics-event-count.sh` が main の enum と突き合わせる）には、`release/v1.1.17` を main へ取り込む回（v1.1.17 公開後）に行を足した。
 - パラメータの値（`result` / `level` / `purpose` / `source` / `mode` / `cause`）は `CaseIterable` な enum で定義し、
   `AnalyticsTests` に全量のテストを置く。文字列の引数で値を足せる口を作らない（#820。`mode` だけ `String?` だったため、
   文書に無い値が 23 分後に流れ込んだ）

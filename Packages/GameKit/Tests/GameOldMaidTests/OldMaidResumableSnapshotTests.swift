@@ -60,4 +60,26 @@ struct OldMaidResumableSnapshotTests {
         services.gameDidLeave(gameID: OldMaidModel.gameID)
         #expect(spy.quits.isEmpty, "CPU が引いただけでは離脱に数えない（数えると離脱が休憩側に偏る）")
     }
+
+    @Test("1 ゲーム目の最初の引きでジョーカーを引き、広告で引き直して何も引かず離れたら離脱に数えない（#3422）")
+    func redrawBackToUntouchedDealIsNotQuit() throws {
+        for seed in UInt64(1)...80 {
+            let spy = SpyAnalyticsService()
+            let store = MemorySnapshotStore()
+            let services = makeServices(store: store, spy: spy)
+            services.gameDidStart(gameID: OldMaidModel.gameID)
+            let model = OldMaidModel(services: services, cpuDelay: .zero, seed: seed)
+            model.startGame()
+            guard model.phase == .playing, model.isPlayerTurn, let target = model.humanTarget,
+                  let joker = model.hands[target].first(where: { $0.isJoker }) else { continue }
+            model.toggleSelection(joker.id)
+            model.drawSelected()
+            let turn = try #require(model.redrawTurn)
+            #expect(model.grantRedraw(forTurn: turn, gameNumber: model.gameNumber))
+            services.gameDidLeave(gameID: OldMaidModel.gameID)
+            #expect(spy.quits.isEmpty, "手つかずの配りに戻したので離脱に数えない（seed \(seed)）")
+            return
+        }
+        Issue.record("ジョーカーを最初に引ける配りが見つからない")
+    }
 }

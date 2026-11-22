@@ -241,6 +241,8 @@ public struct MahjongView: View {
         .task(id: model.turnKey) {
             await model.runCPUTurnsIfNeeded()
         }
+        // CPU の打牌は続けて来るので、読み上げは 2 秒に 1 回、最新の 1 件に間引く（#3424）。
+        .cpuEventAnnouncement(model.cpuEvent, throttle: .seconds(2))
         .onDisappear { cpuTask?.cancel() }
         .onChange(of: model.playerHand) {
             // 手牌が変わったら選択（誤タップ防止の1タップ目）は必ず解除する。

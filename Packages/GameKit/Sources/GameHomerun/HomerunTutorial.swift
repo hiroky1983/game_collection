@@ -43,7 +43,7 @@ struct HomerunTutorialCards: View {
         let top = BannerSlot.height
         let large = typeSize.isAccessibilitySize
         let figureWidth = min(size.width - 64, 340)
-        let room = max(size.height - top - 300, 120)
+        let room = max(size.height - top - 320, 120)
         let figureHeight = min(figureWidth / HomerunTutorialFigure.aspect, large ? min(room, 120) : room)
         let shownWidth = figureHeight * HomerunTutorialFigure.aspect
         ZStack {
@@ -61,6 +61,10 @@ struct HomerunTutorialCards: View {
                     Button(tr("とばす")) { onFinish() }
                         .themeCaption(13).foregroundStyle(Theme.inkSubText)
                         .buttonStyle(.pop)
+                        // 押せる範囲は 44pt を確保する（文字の見た目は変えない・#3519）。
+                        .frame(minWidth: GameButtonMetrics.minTapTarget, minHeight: GameButtonMetrics.minTapTarget,
+                               alignment: .trailing)
+                        .contentShape(Rectangle())
                 }
                 if large {
                     // 文字が大きいときは、いまのページだけを縦にスクロールできる枠に入れる。
@@ -129,7 +133,7 @@ struct HomerunTutorialCards: View {
             .accessibilityHidden(true)
             HStack(spacing: 8) {
                 if isTeaser {
-                    Image(systemName: "moon.stars.fill").foregroundStyle(Theme.purple).accessibilityHidden(true)
+                    Image(systemName: "moon.stars.fill").foregroundStyle(Theme.purple).accessibilityHidden(true) // accent-text-ok: 装飾アイコン（非テキスト 3:1 を満たす）
                 } else {
                     Text("\(i + 1)")
                         .scaledFont(13, weight: .black, design: .rounded)
@@ -138,7 +142,7 @@ struct HomerunTutorialCards: View {
                         .background(Circle().fill(Theme.Fill.coral))
                         .accessibilityHidden(true)
                 }
-                Text(text.title).themeBody(16, weight: .black).foregroundStyle(isTeaser ? Theme.purple : Theme.ink)
+                Text(text.title).themeBody(16, weight: .black).foregroundStyle(isTeaser ? Theme.purple : Theme.ink) // accent-text-ok: 16pt 黒字の大きい見出し（3:1 を満たす）
                     .accessibilityAddTraits(.isHeader)
                 Spacer()
             }

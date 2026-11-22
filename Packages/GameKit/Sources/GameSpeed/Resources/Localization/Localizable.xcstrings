@@ -1190,6 +1190,17 @@
           }
         }
       }
+    },
+    "CPUが%1$@を%2$@に出しました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The CPU played %1$@ on the %2$@"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

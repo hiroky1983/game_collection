@@ -539,6 +539,7 @@ struct CatPuzzleModelTests {
         #expect(CatPuzzleView.holdsClock(showNewGame: true, showConfirmNewGame: false, showConfirmClear: false))
         #expect(CatPuzzleView.holdsClock(showNewGame: false, showConfirmNewGame: true, showConfirmClear: false))
         #expect(CatPuzzleView.holdsClock(showNewGame: false, showConfirmNewGame: false, showConfirmClear: true))
+        #expect(CatPuzzleView.holdsClock(showNewGame: false, showConfirmNewGame: false, showConfirmClear: false, showRanking: true))
     }
 
     @Test("新しい問題が出た瞬間から計時し、記録の最短タイムもこの計時")
@@ -817,7 +818,8 @@ struct CatPuzzleModelTests {
         #expect(model.continueAfterAd())
         placeCat(model, at: wrongs[3])
         #expect(model.mistakes == 3 && model.isFailed && !model.isOfferingContinue, "2 回目の提案はしない")
-        #expect(spy.ends(of: CatPuzzleModel.gameID) == 1 && spy.outcomes == [.loss])
+        // コンティニューで数え直した続きの局の負けも `game_end` になる（#3446）。
+        #expect(spy.ends(of: CatPuzzleModel.gameID) == 2 && spy.outcomes == [.loss, .loss])
         model.newGame()
         #expect(!model.continueUsed && !model.isFailed)
     }

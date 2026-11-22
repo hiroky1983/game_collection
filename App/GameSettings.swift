@@ -97,6 +97,12 @@ final class GameSettings {
         didSet { UserDefaults.standard.set(pickupHidden, forKey: Self.pickupHiddenKey) }
     }
 
+    /// ハブを開いたときに最初に出すタブ（#3478）。既定は「すべて」。並べ替え・非表示の設定とは独立。
+    var hubStartTab: HubStartTab {
+        didSet { UserDefaults.standard.set(hubStartTab.rawValue, forKey: Self.hubStartTabKey) }
+    }
+
+    private static let hubStartTabKey = "hubStartTab_v1"
     private static let pickupHiddenKey = "hubPickupHidden_v1"
     private static let orderKey    = "gameOrder_v1"
     private static let hiddenKey   = "hiddenGames_v1"
@@ -124,6 +130,7 @@ final class GameSettings {
 
         // 未設定（初回起動・キー無し）はオン。既定値の規則は FeedbackPreference が持つ。
         self.pickupHidden = UserDefaults.standard.bool(forKey: Self.pickupHiddenKey)
+        self.hubStartTab = UserDefaults.standard.string(forKey: Self.hubStartTabKey).flatMap(HubStartTab.init) ?? .all
         self.hapticsEnabled = Self.haptics.isEnabled
         self.soundEnabled = Self.sound.isEnabled
         self.soundVolume = Self.soundVolumePreference.volume

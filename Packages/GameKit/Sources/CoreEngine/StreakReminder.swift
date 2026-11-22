@@ -44,6 +44,18 @@ public enum StreakReminderPolicy {
         else { return nil }
         return Plan(fireDate: fire, streak: streak)
     }
+
+    /// 通知をタップしたときに開くゲーム（#3534）。**最終プレイが最も新しい**、設定で非表示にしていないゲーム。
+    /// 同時刻はハブの並びで先の方（`sorted` の不安定さに任せず、並びの位置で決着を付ける）。
+    /// 記録が無い・見えるゲームに記録が無いときは nil（ハブのまま）。
+    public static func landingGameID(visibleGameIDs: [String], lastPlayedAt: [String: Date]) -> String? {
+        var best: (id: String, date: Date)?
+        for id in visibleGameIDs {
+            guard let date = lastPlayedAt[id] else { continue }
+            if best == nil || date > best!.date { best = (id, date) }
+        }
+        return best?.id
+    }
 }
 
 /// 連続日数が途切れそうな夕方の通知（#3417）。
@@ -54,8 +66,11 @@ public enum StreakReminderPolicy {
 @MainActor
 @Observable
 public final class StreakReminderService {
-    /// 通知がタップされた回数。ハブが変化を見て設定・記録のシートを閉じる（ハブそのものが着地先）。
+    /// 通知がタップされた回数。
     public private(set) var tapCount = 0
+    /// ハブがまだ受け取っていないタップ。ハブが読んでシートを閉じ、行き先のゲームを開いたら `consumeTap()` で下ろす。
+    /// 終了していた状態からの起動はハブより先にここへ入るため、ハブは初期値でも読む（他の通知の `requestedGameID` と同じ）。
+    public private(set) var hasPendingTap = false
 
     @ObservationIgnored private let scheduler: StreakReminderScheduler
     @ObservationIgnored private let isEnabledSetting: @MainActor () -> Bool
@@ -86,6 +101,12 @@ public final class StreakReminderService {
     /// 通知がタップされた。
     public func notificationTapped() {
         tapCount += 1
+        hasPendingTap = true
+    }
+
+    /// ハブがタップを受け取った。
+    public func consumeTap() {
+        hasPendingTap = false
     }
 
     /// 遊んだ日の記録から予約を組み直す。バックグラウンドへ入るたびに呼ぶ。

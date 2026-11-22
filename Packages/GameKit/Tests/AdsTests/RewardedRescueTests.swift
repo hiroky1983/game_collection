@@ -175,6 +175,29 @@ struct RewardedRescueTests {
         #expect(rescue.isWatching == false, "連打ガードが解かれていない")
     }
 
+    @Test("広告が見られなかった（読み込み失敗）のがハブへ戻ったあとなら、アラートも後始末も出さない（#3472）")
+    func skipsNotEarnedAlertAndHookAfterLeavingTheScreen() async {
+        let (services, ads) = makeServices(earnsReward: false)
+        let rescue = RewardedRescue()
+        ads.duringAd = { services.gameDidLeave(gameID: "solitaire") }
+        var restored = false
+        var grantedCount = 0
+        rescue.request(
+            services, gameID: "solitaire", purpose: .undo, guardedBy: .checkedByGrant,
+            whenNotEarned: { restored = true }
+        ) {
+            grantedCount += 1
+            return true
+        }
+        await settle()
+
+        #expect(ads.shownCount == 1)
+        #expect(rescue.showsNotEarned == false, "もう無い画面に向けて「見なかった」アラートを立てている")
+        #expect(restored == false, "捨てられた Model に対して巻き戻しが走っている")
+        #expect(grantedCount == 0)
+        #expect(rescue.isWatching == false, "連打ガードが解かれていない")
+    }
+
     @Test("画面に留まっていれば従来どおり適用する（世代の照合が常時塞いでいない）")
     func grantsWhileStayingOnTheScreen() async {
         let (services, _) = makeServices(earnsReward: true)

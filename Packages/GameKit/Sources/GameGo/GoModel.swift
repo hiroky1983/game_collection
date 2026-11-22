@@ -122,6 +122,11 @@ public final class GoModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public var boardSize: GoBoardSize { GoBoardSize(rawValue: ruleset.size) ?? .nine }
     public var moveCount: Int { moves.count }
     public var gameOver: Bool { phase == .finished }
+    /// 「新規対局」で失われる進行があるか（人間が 1 手でも打った未決着の局。CPU の初手だけでは数えない・#3490）。
+    public var hasProgressToLose: Bool {
+        !gameOver && CPUOpening.humanHasMoved(
+            totalMoves: moves.count, cpuMovesFirst: humanSide == .white || ruleset.handicap >= 2)
+    }
     /// CPU が着手すべき状態か。終局の確認中は動かさない（人間が結果を判断する段階のため）。
     public var isAITurn: Bool { phase == .playing && state.sideToMove != humanSide }
     /// 人間が取った石の数。

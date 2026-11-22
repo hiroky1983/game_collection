@@ -1144,6 +1144,149 @@
           }
         }
       }
+    },
+    "お気に入り" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Favorites"
+          }
+        }
+      }
+    },
+    "お気に入りに追加" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to Favorites"
+          }
+        }
+      }
+    },
+    "お気に入りから外す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove from Favorites"
+          }
+        }
+      }
+    },
+    "「%@」をお気に入りに追加しました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Added “%@” to Favorites"
+          }
+        }
+      }
+    },
+    "「%@」をお気に入りから外しました" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Removed “%@” from Favorites"
+          }
+        }
+      }
+    },
+    "「%@」をお気に入りに追加" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add “%@” to Favorites"
+          }
+        }
+      }
+    },
+    "「%@」をお気に入りから外す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove “%@” from Favorites"
+          }
+        }
+      }
+    },
+    "「%@」のお気に入りからの解除を元に戻す" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo removing “%@” from Favorites"
+          }
+        }
+      }
+    },
+    "お気に入りはまだありません。\nゲームの☆を押すと、ここに集まります。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No favorites yet.\nTap ☆ on a game to collect it here."
+          }
+        }
+      }
+    },
+    "すべてのゲームを見る" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See all games"
+          }
+        }
+      }
+    },
+    "最初に開くタブ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab to open first"
+          }
+        }
+      }
+    },
+    "ハブ" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hub"
+          }
+        }
+      }
+    },
+    "ハブを開いたときに最初に出すタブです。「お気に入り」は、ゲームの☆で付けたものだけを追加した順に出します。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The tab shown first when you open the hub. “Favorites” lists only the games you starred with ☆, in the order you added them."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

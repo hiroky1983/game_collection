@@ -543,7 +543,7 @@ public struct ShogiView: View {
 
     /// 新規対局の入口（ヘッダーの「新規」と条件のチップが共通で呼ぶ・#1690）。
     private func requestNewGame() {
-        if model.phase == .playing && !model.moves.isEmpty {
+        if model.hasProgressToLose {
             showConfirmNewGame = true
         } else {
             showNewGame = true

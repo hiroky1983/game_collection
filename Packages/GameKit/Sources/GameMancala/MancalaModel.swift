@@ -16,6 +16,8 @@ struct MancalaSnapshot: Codable {
     /// 直前に動いた側の手（穴の添字と、最後の種が入った置き場）。無ければ印なし。
     let lastPitSlot: Int?
     let lastLandingSlot: Int?
+    /// 人間が打った手の数（「待った」で戻した分は引く・#3422）。無ければ旧版の中断データ。
+    let humanMoves: Int?
 }
 
 /// 最後に選んだ開始条件（#3224）。中断データとは別に残り、終局しても消えない。
@@ -70,6 +72,8 @@ public final class MancalaModel: AITurnGuarded, BoardUndoModel {
     private var startedAt: Date
     /// 「待った」の戻り先（人間が 1 手打つ直前の盤）。続けて打った手ぶん積まれる。
     private var undoHistory: [MancalaBoard] = []
+    /// 人間が打った手の数（「待った」で戻した分は引く）。CPU 先手の局で CPU の初手だけの盤を「手つかず」と見分ける（#3422）。
+    private var humanMoves = 0
     /// 思考タスクの待ち合わせ点（テスト専用）。
     @ObservationIgnored var thinkingGate: (@MainActor () async -> Void)?
     #if DEBUG
@@ -92,8 +96,8 @@ public final class MancalaModel: AITurnGuarded, BoardUndoModel {
         !gameOver && !isAITurn && !isThinking && !undoHistory.isEmpty
     }
     /// 「新規対局」で失われる進行があるか（1 手でも打った未決着の局）。
-    public var hasProgressToLose: Bool { !gameOver && turnID > 0 && !isAtStart }
-    /// 初期配置のまま（「待った」で開始局面まで戻した局を含む）。
+    public var hasProgressToLose: Bool { !gameOver && turnID > 0 && humanMoves > 0 }
+    /// 初期配置のまま（「待った」で開始局面まで戻した局を含む）。保存の要否だけに使う。
     private var isAtStart: Bool { board == MancalaBoard() }
     public var humanStore: Int { board.store(humanSide) }
     public var cpuStore: Int { board.store(humanSide.opponent) }
@@ -120,6 +124,9 @@ public final class MancalaModel: AITurnGuarded, BoardUndoModel {
             if let u = snap.undoSlots, MancalaRules.isConsistent(MancalaBoard(slots: u)) {
                 undoHistory = [MancalaBoard(slots: u)]
             }
+            // 旧版の中断データには手数が無い。人間先手・戻り先あり・待った使用済みのどれかなら 1 手以上とみなす。
+            humanMoves = snap.humanMoves
+                ?? ((snap.humanFirst || snap.undoSlots != nil || snap.undoUsed == true) ? 1 : 0)
             if let p = snap.lastPitSlot, let l = snap.lastLandingSlot,
                (0..<MancalaBoard.slotCount).contains(p), (0..<MancalaBoard.slotCount).contains(l) {
                 lastMove = (p, l)
@@ -164,7 +171,8 @@ public final class MancalaModel: AITurnGuarded, BoardUndoModel {
         lastCPUMoveKey = nil
         undoUsed = true
         turnID += 1
-        if isAtStart { services?.gameDidUndoToStart(gameID: gameID) }
+        humanMoves = max(0, humanMoves - 1)
+        if humanMoves == 0 { services?.gameDidUndoToStart(gameID: gameID) }
         persist()
     }
 
@@ -212,6 +220,7 @@ public final class MancalaModel: AITurnGuarded, BoardUndoModel {
         lastCPUMoveKey = nil
         undoUsed = false
         undoHistory = []
+        humanMoves = 0
         recordResult = nil
         startedAt = Date()
         turnID = 0
@@ -232,7 +241,10 @@ public final class MancalaModel: AITurnGuarded, BoardUndoModel {
         let result = MancalaRules.apply(pit: pit, side: mover, to: board)
         // 盤が動いた = 捨てたら途中離脱として数える盤面（#500）。冪等。
         // 人間が後手のとき CPU の初手だけでは数えない（#2934）。
-        if mover == humanSide { services?.gameDidProgress(gameID: gameID) }
+        if mover == humanSide {
+            services?.gameDidProgress(gameID: gameID)
+            humanMoves += 1
+        }
         board = result.board
         lastMove = (MancalaBoard.slotIndex(mover, pit: pit), result.lastSlot)
         lastEvent = MancalaEvent(side: mover, extraTurn: result.extraTurn, captured: result.captured)
@@ -279,7 +291,8 @@ public final class MancalaModel: AITurnGuarded, BoardUndoModel {
             slots: board.slots, currentSide: currentSide.rawValue, humanFirst: humanFirst,
             aiLevel: aiLevel, turnID: turnID, startedAt: startedAt,
             undoUsed: undoUsed ? true : nil, undoSlots: undoHistory.last?.slots,
-            lastPitSlot: lastMove?.pitSlot, lastLandingSlot: lastMove?.landingSlot
+            lastPitSlot: lastMove?.pitSlot, lastLandingSlot: lastMove?.landingSlot,
+            humanMoves: humanMoves
         )
         services?.snapshots.saveReportingFailure(snap, for: gameID)
     }
@@ -300,6 +313,7 @@ public final class MancalaModel: AITurnGuarded, BoardUndoModel {
         lastEvent = nil
         lastCPUMoveKey = nil
         undoHistory = []
+        humanMoves = 0
         recordResult = nil
         gameSerial += 1
         isThinking = false

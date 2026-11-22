@@ -82,25 +82,9 @@ struct MahjongStartSheet: View {
 
     /// ツモ・立直・鳴きの説明を開閉する行。別画面へは移らず、この場で下に広げる（荷物運びパズルと同じ）。
     private var detailsToggle: some View {
-        Button {
+        SetupDetailsToggleRow(title: tr("ツモ・立直・鳴きのくわしい説明"), systemImage: "hand.tap.fill", isOpen: showsDetails) {
             withGameAnimation(.easeInOut(duration: 0.2)) { showsDetails.toggle() }
-        } label: {
-            HStack {
-                Label(tr("ツモ・立直・鳴きのくわしい説明"), systemImage: "hand.tap.fill")
-                    .themeBody(15)
-                    .lineLimit(1).minimumScaleFactor(0.8)
-                Spacer(minLength: 8)
-                DisclosureChevron("chevron.down")
-                    .rotationEffect(.degrees(showsDetails ? 180 : 0))
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .popCard(corner: Theme.cornerSmall)
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.pop)
-        .foregroundStyle(Theme.ink)
-        .accessibilityValue(showsDetails ? tr("開いている") : tr("閉じている"))
     }
 }
 

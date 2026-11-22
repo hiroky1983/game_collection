@@ -127,6 +127,11 @@ public final class Game2048Model {
         score = initialScore
         gameOver = Game2048Logic.isGameOver(initialBoard)
         rebuildTiles(arrival: .placed)
+        // 幕の直下の記録行は保存済みの記録から作り直す（#3488）。**記録し直さない**（`gameDidFinish` を
+        // 呼ばない）ので二重計上にはならず、「自己ベスト更新」の印は出さない（更新の瞬間は過ぎているため）。
+        if showWinPrompt, let record = services?.playLog?.record(gameID: gameID) {
+            recordResult = RecordResult(record: record, update: RecordUpdate())
+        }
         persist()
         // 再描画で init が何度走っても増えない（`gameDidStart` は冪等）。
         if isFreshStart { services?.gameDidStart(gameID: gameID) }

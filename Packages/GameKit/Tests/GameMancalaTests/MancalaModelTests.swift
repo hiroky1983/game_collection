@@ -199,7 +199,7 @@ struct MancalaModelTests {
         let (services, store) = makeServices()
         let snap = MancalaSnapshot(slots: [9, 9, 9, 9, 9, 9, 0, 4, 4, 4, 4, 4, 4, 0], currentSide: 0,
                                    humanFirst: true, aiLevel: 1, turnID: 3, startedAt: Date(),
-                                   undoUsed: nil, undoSlots: nil, lastPitSlot: nil, lastLandingSlot: nil)
+                                   undoUsed: nil, undoSlots: nil, lastPitSlot: nil, lastLandingSlot: nil, humanMoves: nil)
         try store.save(snap, for: "mancala")
         let model = MancalaModel(services: services, cpuDelay: .zero, seed: 1)
         #expect(model.board == MancalaBoard() && model.turnID == 0)
