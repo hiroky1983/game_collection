@@ -92,6 +92,8 @@ public struct ColorRelayView: View {
             guard !isCPUPaused else { return }
             await model.runCPUTurnsIfNeeded()
         }
+        // CPU が動くたびに 1 回読み上げる（#3424）。
+        .cpuEventAnnouncement(model.cpuEvent)
         .task {
             // 開幕のモーダルは置かず、盤を見せたまま配り始める（#192）。
             // 中断から戻ったときは init が `.playing` まで復元しているので配り直さない。
@@ -548,8 +550,32 @@ public struct ColorRelayView: View {
         .announcesResultAppearance(resultHeadline)
     }
 
+    /// 結果の 1 行ぶん。描画の closure の中で `model`（MainActor）を読まないよう、body の先頭で値に写しておく（#3536）。
+    private struct ResultRow: Identifiable {
+        let place: Int
+        let player: Int
+        let name: String
+        /// 1 位は「あがり」、それ以外は残り枚数。席番号が `hands` の範囲外なら nil（#3084）。
+        let remaining: String?
+        var id: Int { player }
+    }
+
+    private var resultRows: [ResultRow] {
+        model.ranking.enumerated().map { place, player in
+            let remaining: String? = if place == 0 {
+                tr("あがり")
+            } else if model.hands.indices.contains(player) {
+                tr("残り%lld枚", model.hands[player].count)
+            } else {
+                nil
+            }
+            return ResultRow(place: place, player: player, name: model.playerName(player), remaining: remaining)
+        }
+    }
+
     private var resultContent: some View {
-        VStack(spacing: 14) {
+        let rows = resultRows
+        return VStack(spacing: 14) {
             HStack(spacing: 10) {
                 Image(systemName: model.playerPlace == 0 ? "crown.fill" : "flag.checkered")
                     .scaledFont(26)
@@ -563,7 +589,9 @@ public struct ColorRelayView: View {
                 Spacer(minLength: 0)
             }
             VStack(spacing: 8) {
-                ForEach(Array(model.ranking.enumerated()), id: \.element) { place, player in
+                ForEach(rows) { row in
+                    let place = row.place
+                    let player = row.player
                     HStack(spacing: 10) {
                         Text(tr("%lld位", place + 1))
                             .scaledFont(15, weight: .black, design: .rounded)
@@ -578,17 +606,15 @@ public struct ColorRelayView: View {
                         if player != ColorRelayModel.humanIndex {
                             OpponentSeatIcon(index: player, diameter: layout.scaled(28))
                         }
-                        Text(model.playerName(player))
+                        Text(row.name)
                             .scaledFont(17, weight: .bold, design: .rounded)
                             .foregroundStyle(player == ColorRelayModel.humanIndex ? Theme.coralText : Theme.ink)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
                         Spacer(minLength: 4)
                         // 人数を減らして始め直す間は、古い順位の席番号が `hands` の範囲外になりうる（#3084）。
-                        if place == 0 {
-                            resultRemainingText(tr("あがり"))
-                        } else if model.hands.indices.contains(player) {
-                            resultRemainingText(tr("残り%lld枚", model.hands[player].count))
+                        if let remaining = row.remaining {
+                            resultRemainingText(remaining)
                         }
                     }
                 }

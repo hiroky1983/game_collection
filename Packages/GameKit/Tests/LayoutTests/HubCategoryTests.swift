@@ -209,7 +209,7 @@ struct HubCategoryTests {
         let end = try #require(source.range(of: "\n    }\n", range: start.upperBound..<source.endIndex))
         let badges = String(source[start.lowerBound..<end.upperBound])
         #expect(badges.contains("ViewThatFits(in: .horizontal)"))
-        #expect(SourceScan.matchCount(of: "countBadge\\(count\\)", in: badges) == 2, "1 段・2 段の両方に回数の印")
+        #expect(SourceScan.matchCount(of: "countBadge\\(count\\)", in: badges) == 3, "1 段・2 段・☆を下の段へ落とす形の全部に回数の印")
         #expect(SourceScan.matchCount(of: "\n\\s+badgeWithProgress\n", in: badges) == 3, "1 段・2 段・回数なしの全部に文字の印")
         // 読み上げは「残り n 回」（`HomerunHubCount.labelText`）。
         #expect(source.contains("if let count { parts.append(count.labelText()) }"), "読み上げに無い")

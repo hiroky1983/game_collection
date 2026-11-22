@@ -125,3 +125,31 @@ struct GomokuResumableSnapshotTests {
         #expect(GomokuModule().hasResumableSnapshot(in: store))
     }
 }
+
+/// CPU 先手の局で、CPU の初手だけでは「新規」に確認を出さない（#3490）。
+@Suite("五目並べ CPU 先手の局の新規対局確認（#3490）")
+@MainActor
+struct GomokuCPUOpeningProgressTests {
+    @Test("人間が白のとき、CPU の初手だけでは失う進行は無く、自分が打つと進行になる")
+    func whiteAfterCPUOpening() async throws {
+        let model = GomokuModel(services: GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService()))
+        model.newGame(humanSide: .white, aiLevel: -1) // 入門（最弱）にして、CPU の初手の読みを軽くする。
+        await model.performAIMoveIfNeeded()
+        try #require(model.moveCount >= 1, "前提: CPU が初手を打った")
+        #expect(!model.hasProgressToLose)
+        let point = try #require(
+            (0..<gomokuBoardSize).lazy.flatMap { r in (0..<gomokuBoardSize).map { (r, $0) } }
+                .first { model.board.cells[$0.0 * gomokuBoardSize + $0.1] == nil })
+        model.tap(row: point.0, col: point.1)
+        #expect(model.hasProgressToLose)
+    }
+
+    @Test("人間が黒のとき、新規直後は無く、1 手打つと進行になる（対照）")
+    func blackFirst() {
+        let model = GomokuModel(services: GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService()))
+        model.newGame()
+        #expect(!model.hasProgressToLose)
+        model.tap(row: 7, col: 7)
+        #expect(model.hasProgressToLose)
+    }
+}

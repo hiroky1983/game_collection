@@ -178,15 +178,19 @@ private struct FullScreenGameChromeModifier<Status: View>: ViewModifier {
     let reference: GameChromeReference?
     let newGame: GameChromeNewGame?
     let status: Status
+    /// お気に入りの☆を押した直後に、ヘッダーのすぐ下へ出す案内（#3478）。
+    @State private var favoriteToast: FavoriteHeaderToast?
 
     func body(content: Content) -> some View {
         VStack(spacing: 0) {
             FullScreenGameHeader(title: title, surface: surface, condition: condition,
-                                 reference: reference, newGame: newGame, status: status)
+                                 reference: reference, newGame: newGame, status: status,
+                                 favoriteToast: $favoriteToast)
             content
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .modifier(FavoriteToastOverlay(toast: $favoriteToast, topInset: Metrics.headerTotalHeight))
         .background(surfaceBackground)
         .environment(\.cardTableInk, surface.tableInk)
         .environment(\.isOnTableFelt, surface == .felt)
@@ -252,9 +256,11 @@ private struct FullScreenGameHeader<Status: View>: View {
     let reference: GameChromeReference?
     let newGame: GameChromeNewGame?
     let status: Status
+    @Binding var favoriteToast: FavoriteHeaderToast?
     @State private var confirmsNewGame = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.howToPlayTrigger) private var howToPlay
+    @Environment(\.favoriteGame) private var favorite
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
@@ -301,6 +307,9 @@ private struct FullScreenGameHeader<Status: View>: View {
                                            surface: surface) { newGame.tapped { confirmsNewGame = true } }
                         .disabled(newGame.isDisabled)
                 }
+                if let favorite {
+                    FullScreenFavoriteButton(favorite: favorite, surface: surface) { favoriteToast = $0.toggle(source: .header) }
+                }
             }
             .anchorPreference(key: HeaderFramesKey.self, value: .bounds) { [.buttons: $0] }
         }
@@ -342,6 +351,30 @@ private struct HeaderFramesKey: PreferenceKey {
     static var defaultValue: [Part: Anchor<CGRect>] { [:] }
     static func reduce(value: inout [Part: Anchor<CGRect>], nextValue: () -> [Part: Anchor<CGRect>]) {
         value.merge(nextValue()) { $1 }
+    }
+}
+
+/// ヘッダー右端の☆の丸ボタン（#3478）。見た目は他の丸ボタンと同じ面で、星だけ共通の 2 枚重ね。
+private struct FullScreenFavoriteButton: View {
+    typealias Metrics = FullScreenGameLayoutMetrics
+
+    let favorite: FavoriteGameContext
+    let surface: FullScreenGameSurface
+    let onToggle: (FavoriteGameContext) -> Void
+
+    var body: some View {
+        Button { onToggle(favorite) } label: {
+            FavoriteStar(isOn: favorite.isOn, size: 18)
+                .frame(width: Metrics.headerHeight, height: Metrics.headerHeight)
+                .background(
+                    Circle()
+                        .fill(surface.buttonFill)
+                        .shadow(color: .black.opacity(0.18), radius: 4, y: 2)
+                )
+                .contentShape(Circle())
+        }
+        .buttonStyle(.pop)
+        .accessibilityLabel(favorite.actionTitle)
     }
 }
 

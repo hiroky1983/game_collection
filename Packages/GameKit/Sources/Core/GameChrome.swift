@@ -82,6 +82,63 @@ public struct GameChromeNewGame {
     }
 }
 
+/// ヘッダー右のゲーム固有の操作（難易度・盤面選択など・#3475）。
+///
+/// 狭い画面では「…」のメニューにまとめるため、`ToolbarContent` ではなく **タイトル・アイコン・処理を値で**渡す。
+/// `title` は並びの中ではアイコンの読み上げ名、メニューでは項目名になる。
+public struct GameChromeAction {
+    let title: String
+    let systemImage: String
+    let isDisabled: Bool
+    let action: () -> Void
+
+    public init(_ title: String, systemImage: String, isDisabled: Bool = false, action: @escaping () -> Void) {
+        self.title = title
+        self.systemImage = systemImage
+        self.isDisabled = isDisabled
+        self.action = action
+    }
+}
+
+/// ヘッダー右のボタンを「…」にまとめるかの判定（#3475）。幅の決め打ちはせず、題字が下限まで縮んでも入るかで決める。
+public enum GameChromeHeaderMetrics {
+    /// 題字を縮める下限（`GameChromeTitle` の `minimumScaleFactor` と同じ値）。
+    public static let minTitleScale: CGFloat = 0.6
+    /// 戻るボタン 1 つぶんの幅（文字サイズに依らず 44pt のまま。実測）。
+    public static let backButtonWidth: CGFloat = 44
+    /// ヘッダー右のボタン 1 つぶんの幅のうち、文字サイズに追従しない部分（iOS 26 の丸いカプセルの余白・隙間）。
+    public static let buttonFixedWidth: CGFloat = 28
+    /// 同じく、文字サイズに追従する部分（標準で 28pt。拡大率を掛ける）。
+    public static let buttonScaledWidth: CGFloat = 28
+    /// 題字の左右に残す余白（バーの左右の縁 16pt ずつ＋題字とボタンの隙間 28pt）。
+    public static let margin: CGFloat = 60
+
+    /// ヘッダー右のボタン `count` 個を並べたカプセルの幅。
+    ///
+    /// iOS 26 のナビバーでは、ボタンは 44pt ではなく標準で約 56pt ぶんの幅を取る（SE・3 つで 168pt。
+    /// 実測は標準 56pt・特大〔xxl〕62.7pt）。44pt で数えると並びきらないのに「入る」と判定し、
+    /// 題字が約 85pt の枠に押し込められて「…」に切れた（#3530・#3512 の再発）。
+    public static func buttonsWidth(count: Int, scale: CGFloat) -> CGFloat {
+        CGFloat(count) * (buttonFixedWidth + buttonScaledWidth * max(1, scale))
+    }
+
+    /// - Parameters:
+    ///   - titleWidth: 縮めていない題字の本来の幅。
+    ///   - screenWidth: 画面（ナビバー）の幅。
+    ///   - buttonCount: ヘッダー右のボタン数（「…」にまとめる前）。
+    ///   - hasBackButton: 戻るボタンがあるか。
+    ///   - buttonScale: 文字サイズ設定に応じたボタンの拡大率（標準で 1。固定幅で数えると題字が「…」に
+    ///     切れるのを見逃した・#3495）。
+    /// - Returns: 題字が 0.6 倍まで縮んでも入らないとき true。ボタンが 1 つ以下なら「…」にしても幅は減らないので false。
+    public static func shouldCollapse(titleWidth: CGFloat, screenWidth: CGFloat, buttonCount: Int,
+                                      hasBackButton: Bool = true, buttonScale: CGFloat = 1) -> Bool {
+        guard buttonCount >= 2 else { return false }
+        let available = screenWidth - (hasBackButton ? backButtonWidth : 0)
+            - buttonsWidth(count: buttonCount, scale: buttonScale) - margin
+        return titleWidth * minTitleScale > available
+    }
+}
+
 /// 「新規」ボタンの共通の確認ダイアログ（#3148）。`GameChromeNewGame.hasProgressToLose` が true のときだけ使われる。
 struct GameChromeNewGameConfirmation: ViewModifier {
     let newGame: GameChromeNewGame?
@@ -166,6 +223,7 @@ public extension View {
     ///   - reference: 役の早見表。あるゲームだけ渡す。
     ///   - newGame: 新規ボタン。あるゲームだけ渡す。
     ///   - actions: 上の 2 つに収まらないゲーム固有の操作（難易度・盤面選択メニューなど）。最後尾に並ぶ。
+    ///     狭い画面では他のボタンと一緒に「…」のメニューにまとまる（#3475）ので、`ToolbarContent` ではなく値で渡す。
     ///   - hidesBackButton: 左上の戻るを隠す。誤タップで進行中の挑戦が終わってはいけない画面だけが渡す
     ///     （柵越えおじさんの打席・#1550。やめる操作はゲーム側の一時停止に置く）。
     ///   - hidesHowToPlay: ヘッダー右上の `?`（`.howToPlay`）を隠す。一時停止の画面など、ゲーム側の別の場所に
@@ -178,23 +236,6 @@ public extension View {
     /// ナビバーの背景は全ゲームで画面の背景色（`Theme.background`）に揃え、ツールバーのボタンは
     /// `Theme.coralText`（文字用の濃い赤・#2377）に固定する（#1412・会長決裁 2026-09-25。既定の白い帯が
     /// クリーム色の画面と食い違う、神経衰弱だけボタンが紫、というばらつきを引数ごと無くした）。
-    func gameChrome<Actions: ToolbarContent>(
-        title: String,
-        review: ReviewRequestService?,
-        condition: GameChromeCondition? = nil,
-        reference: GameChromeReference? = nil,
-        newGame: GameChromeNewGame? = nil,
-        hidesBackButton: Bool = false,
-        hidesHowToPlay: Bool = false,
-        @ToolbarContentBuilder actions: () -> Actions
-    ) -> some View {
-        modifier(GameChromeBase(review: review))
-            .modifier(GameChromeToolbar(title: title, condition: condition, reference: reference, newGame: newGame,
-                                        hidesBackButton: hidesBackButton, hidesHowToPlay: hidesHowToPlay,
-                                        actions: actions()))
-    }
-
-    /// ゲーム固有の操作が無いゲーム用。
     func gameChrome(
         title: String,
         review: ReviewRequestService?,
@@ -202,12 +243,13 @@ public extension View {
         reference: GameChromeReference? = nil,
         newGame: GameChromeNewGame? = nil,
         hidesBackButton: Bool = false,
-        hidesHowToPlay: Bool = false
+        hidesHowToPlay: Bool = false,
+        actions: [GameChromeAction] = []
     ) -> some View {
         modifier(GameChromeBase(review: review))
-            .modifier(GameChromeToolbar<ToolbarItem<Void, EmptyView>>(
-                title: title, condition: condition, reference: reference, newGame: newGame, hidesBackButton: hidesBackButton,
-                hidesHowToPlay: hidesHowToPlay, actions: nil))
+            .modifier(GameChromeToolbar(title: title, condition: condition, reference: reference, newGame: newGame,
+                                        hidesBackButton: hidesBackButton, hidesHowToPlay: hidesHowToPlay,
+                                        actions: actions))
     }
 }
 
@@ -215,16 +257,21 @@ public extension View {
 ///
 /// 戻るは OS 既定のものを隠して自前で置いている（`navigationBarBackButtonHidden`）。
 /// 直前の画面名が入ると表示名の幅を圧迫するため。
+///
+/// `collapsed`（右のボタンを「…」にまとめたか）を表示名の `id` にする（#3512）。iOS 26 のナビバーは、
+/// 中央の表示名の幅を最初の描画（ボタンが並んだ状態）で決めたまま、右のボタンが「…」に減っても
+/// 割り当て直さない。判定は正しく働いても題字が約 85pt の枠に閉じ込められ「Block Brea…」と切れる。
+/// `id` を変えると中央の項目が作り直され、幅が取り直される。
 @MainActor @ToolbarContentBuilder
 private func gameChromeBarItems(title: String, condition: GameChromeCondition?, dismiss: DismissAction,
-                                showsBack: Bool) -> some ToolbarContent {
+                                showsBack: Bool, collapsed: Bool = false) -> some ToolbarContent {
     if showsBack {
         ToolbarItem(placement: .cancellationAction) {
             Button { dismiss() } label: { Label(tr("戻る"), systemImage: "chevron.left") }
         }
     }
     ToolbarItem(placement: .principal) {
-        GameChromePrincipal(title: title, condition: condition)
+        GameChromePrincipal(title: title, condition: condition).id(collapsed)
     }
 }
 
@@ -282,51 +329,148 @@ struct GameChromeBase: ViewModifier {
     }
 }
 
-private struct GameChromeToolbar<Actions: ToolbarContent>: ViewModifier {
+private struct GameChromeToolbar: ViewModifier {
     let title: String
     let condition: GameChromeCondition?
     let reference: GameChromeReference?
     let newGame: GameChromeNewGame?
     let hidesBackButton: Bool
     let hidesHowToPlay: Bool
-    let actions: Actions?
+    let actions: [GameChromeAction]
     @State private var confirmsNewGame = false
+    @State private var screenWidth: CGFloat = 0
+    @State private var titleWidth: CGFloat = 0
+    /// 文字サイズに追従するボタン幅の拡大率（標準で 100・百分率）。基準値を 1 にすると `ScaledMetric` が整数に
+    /// 丸め、xxl（1.235 倍）でも 1 のままになる（#3530）。使うときは 100 で割る。
+    @ScaledMetric(relativeTo: .body) private var buttonScalePercent: CGFloat = 100
+    private var buttonScale: CGFloat { buttonScalePercent / 100 }
     @Environment(\.dismiss) private var dismiss
     @Environment(\.howToPlayTrigger) private var howToPlay
+    /// お気に入りの☆（#3478）。ハブから開いたときだけ環境にあり、右端（その他の後ろ）に置く。
+    @Environment(\.favoriteGame) private var favorite
+    @State private var favoriteToast: FavoriteHeaderToast?
+
+    private var showsHowToPlay: Bool { howToPlay != nil && !hidesHowToPlay }
+
+    /// ☆込みの数。狭い画面で「…」にまとめる判定（#3475）にも☆を数える。
+    private var buttonCount: Int {
+        (reference == nil ? 0 : 1) + (showsHowToPlay ? 1 : 0) + (newGame == nil ? 0 : 1) + actions.count
+            + (favorite == nil ? 0 : 1)
+    }
+
+    /// 測れるまで（幅が 0 のあいだ）は並べたままにする。
+    private var collapses: Bool {
+        screenWidth > 0 && titleWidth > 0
+            && GameChromeHeaderMetrics.shouldCollapse(titleWidth: titleWidth, screenWidth: screenWidth,
+                                                      buttonCount: buttonCount, hasBackButton: !hidesBackButton,
+                                                      buttonScale: buttonScale)
+    }
 
     func body(content: Content) -> some View {
-        content.modifier(GameChromeNewGameConfirmation(newGame: newGame, isPresented: $confirmsNewGame)).toolbar {
-            gameChromeBarItems(title: title, condition: condition, dismiss: dismiss, showsBack: !hidesBackButton)
-            // 並びはここで固定する: 役の早見表 → ？ → 新規 → その他。
-            if let reference {
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: reference.action) {
-                        Image(systemName: "list.bullet.rectangle")
+        content
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { screenWidth = $0 }
+            // 題字の本来の幅を、縮めない隠した Text で測る（大きい文字サイズでも追従する）。
+            .background(alignment: .topLeading) {
+                GameChromeTitle(title: title).fixedSize().hidden().accessibilityHidden(true)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { titleWidth = $0 }
+            }
+            .modifier(GameChromeNewGameConfirmation(newGame: newGame, isPresented: $confirmsNewGame))
+            .modifier(FavoriteToastOverlay(toast: $favoriteToast)).toolbar {
+                gameChromeBarItems(title: title, condition: condition, dismiss: dismiss, showsBack: !hidesBackButton,
+                                   collapsed: collapses)
+                // `if / else` は古い Xcode の ToolbarContentBuilder で通らないので、`if` を 2 つに分ける。
+                if collapses {
+                    ToolbarItem(placement: .primaryAction) { overflowMenu }
+                }
+                // 並びはここで固定する: 役の早見表 → ？ → 新規 → その他。
+                if !collapses, let reference {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button(action: reference.action) {
+                            Image(systemName: "list.bullet.rectangle")
+                        }
+                        .accessibilityLabel(reference.accessibilityLabel)
                     }
-                    .accessibilityLabel(reference.accessibilityLabel)
+                }
+                if !collapses, let howToPlay, !hidesHowToPlay {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button(action: howToPlay.present) {
+                            Image(systemName: "questionmark.circle")
+                        }
+                        .accessibilityLabel(tr("遊び方"))
+                    }
+                }
+                if !collapses, let newGame {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button { newGame.tapped { confirmsNewGame = true } } label: {
+                            Image(systemName: newGame.kind.systemImage)
+                        }
+                        .accessibilityLabel(newGame.kind.accessibilityLabel)
+                        .disabled(newGame.isDisabled)
+                    }
+                }
+                if !collapses, !actions.isEmpty {
+                    ToolbarItemGroup(placement: .primaryAction) {
+                        ForEach(actions.indices, id: \.self) { index in
+                            let item = actions[index]
+                            Button(action: item.action) { Image(systemName: item.systemImage) }
+                                .accessibilityLabel(item.title)
+                                .disabled(item.isDisabled)
+                        }
+                    }
+                }
+                if !collapses, let favorite {
+                    ToolbarItem(placement: .primaryAction) {
+                        FavoriteToolbarButton(favorite: favorite) { favoriteToast = $0.toggle(source: .header) }
+                    }
+                }
+            }
+    }
+
+    /// 狭い画面で、右のボタン全部を 1 つにまとめた「…」（#3475）。並びは並べたときと同じ固定順。
+    /// 盤の右下の「⋯」（`GameOverflowBar`）とは別物で、合流させない。
+    private var overflowMenu: some View {
+        Menu {
+            if let reference {
+                Button(action: reference.action) {
+                    Label(reference.accessibilityLabel, systemImage: "list.bullet.rectangle")
                 }
             }
             if let howToPlay, !hidesHowToPlay {
-                ToolbarItem(placement: .primaryAction) {
-                    Button(action: howToPlay.present) {
-                        Image(systemName: "questionmark.circle")
-                    }
-                    .accessibilityLabel(tr("遊び方"))
-                }
+                Button(action: howToPlay.present) { Label(tr("遊び方"), systemImage: "questionmark.circle") }
             }
             if let newGame {
-                ToolbarItem(placement: .primaryAction) {
-                    Button { newGame.tapped { confirmsNewGame = true } } label: {
-                        Image(systemName: newGame.kind.systemImage)
-                    }
-                    .accessibilityLabel(newGame.kind.accessibilityLabel)
-                    .disabled(newGame.isDisabled)
+                Button { newGame.tapped { confirmsNewGame = true } } label: {
+                    Label(newGame.kind.accessibilityLabel, systemImage: newGame.kind.systemImage)
+                }
+                .disabled(newGame.isDisabled)
+            }
+            ForEach(actions.indices, id: \.self) { index in
+                let item = actions[index]
+                Button(action: item.action) { Label(item.title, systemImage: item.systemImage) }
+                    .disabled(item.isDisabled)
+            }
+            if let favorite {
+                Button { favoriteToast = favorite.toggle(source: .headerMenu) } label: {
+                    Label(favorite.actionTitle, systemImage: favorite.isOn ? "star.fill" : "star")
                 }
             }
-            if let actions {
-                actions
-            }
+        } label: {
+            Image(systemName: "ellipsis")
         }
+        .accessibilityLabel(tr("メニュー"))
+    }
+}
+
+/// ヘッダー右端の☆（#3478）。`isOn` を自分の `body` で読み、付け外しがすぐ見た目に出る。
+private struct FavoriteToolbarButton: View {
+    let favorite: FavoriteGameContext
+    let onToggle: (FavoriteGameContext) -> Void
+
+    var body: some View {
+        Button { onToggle(favorite) } label: {
+            FavoriteStar(isOn: favorite.isOn, size: 20)
+        }
+        .accessibilityLabel(favorite.actionTitle)
     }
 }
 

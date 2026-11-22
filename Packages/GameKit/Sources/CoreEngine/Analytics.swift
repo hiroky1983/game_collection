@@ -260,6 +260,12 @@ public enum AnalyticsMode: String, Equatable, Sendable, CaseIterable {
     /// ポーカー・ブラックジャックの単発戦（#2860）。1 回の勝負が 1 回きりなので `game_start` が機械的に増える。
     /// 10 回勝負は従来どおり `mode` を持たない。
     case singleRound = "single_round"
+    /// 麻雀ソリティアの盤面のかたち「亀甲」（#3517）。
+    case turtle
+    /// 麻雀ソリティアの盤面のかたち「ピラミッド」。
+    case pyramid
+    /// 麻雀ソリティアの盤面のかたち「十字」。
+    case cross
 }
 
 /// `game_start` / `game_end` の `credit`。1 回のプレイが**どの回数枠を消費したか**（#1685）。
@@ -307,6 +313,8 @@ public enum GameOpenSource: String, Equatable, Sendable, CaseIterable {
     case deeplink
     /// ハブ最上部の「ピックアップ」の区画（#3358）。版ごとに推す 2 本。並びとして読まないので位置は送らない。
     case pickup
+    /// 連続日数の夕方の通知（#3417）のタップ。最後に遊んだゲームを直接開く（#3534）。
+    case streakReminder = "streak_reminder"
 
     /// 並びの中の位置を持つ導線か。持たない導線（1枚しか出ないカード・通知）では
     /// `position` の鍵ごと送らない。
@@ -314,7 +322,7 @@ public enum GameOpenSource: String, Equatable, Sendable, CaseIterable {
         switch self {
         case .hub, .recent:                              return true
         case .recommendation, .notification, .firstPick, .quickAction, .hero,
-             .resumeReminder, .reengagement, .challengeReturn, .records, .deeplink, .pickup: return false
+             .resumeReminder, .reengagement, .challengeReturn, .records, .deeplink, .pickup, .streakReminder: return false
         }
     }
 }
@@ -337,7 +345,7 @@ public struct AnalyticsEngagement: Equatable, Sendable {
 }
 
 /// 送信する解析イベント。**`game_start` / `game_end` / `reward_ad` / `reward_request` / `game_open` /
-/// `reward_offer` / `share_tap` の7種に、後続で足した `clear_exit` / `notification_permission` / `review_prompt`（#3061）/ `reward_grant`（#3256）を加えた計 11 種のみ**（#158 の決裁範囲 + #500 の会長決裁 2026-09-08 + #659 の会長決裁 2026-09-12 +
+/// `reward_offer` / `share_tap` の7種に、後続で足した `clear_exit` / `notification_permission` / `review_prompt`（#3061）/ `reward_grant`（#3256）/ `favorite_toggle`（#3478）を加えた計 12 種のみ**（#158 の決裁範囲 + #500 の会長決裁 2026-09-08 + #659 の会長決裁 2026-09-12 +
 /// #780 の会長決裁 2026-09-16 + #1043 の会長決裁 2026-09-16）。`game_start` の `play_count` / `days_since_last_play` は
 /// #1195 の会長決裁（2026-09-21・案A）でイベントは増やさずパラメータだけ足した。
 ///
@@ -395,6 +403,9 @@ public enum AnalyticsEvent: Equatable, Sendable {
     /// ゲーム内の特典を渡した（ねこさがしのデイリーランキング上位・#3256）。渡した 1 回につき 1 回。
     /// パラメータは `game_id` / `rank`（前日の順位）/ `items`（`hint` / `teach` / `hint_teach`）のみ。
     case rewardGrant(gameID: String, rank: Int, items: RewardGrantItems, purpose: RewardGrantPurpose = .ranking)
+    /// お気に入りの☆を付け外しした（#3478）。1 回の操作につき 1 回。パラメータは `game_id` / `state`（`on` = 追加・`off` = 解除）/
+    /// `source`（どの☆か）のみ。どのゲームがお気に入りにされているかは、`state = on` から `off` を引いて読む。
+    case favoriteToggle(gameID: String, state: FavoriteState, source: FavoriteSource)
 
     /// Firebase のイベント名。
     public var name: String {
@@ -410,6 +421,7 @@ public enum AnalyticsEvent: Equatable, Sendable {
         case .notificationPermission: return "notification_permission"
         case .reviewPrompt:  return "review_prompt"
         case .rewardGrant:   return "reward_grant"
+        case .favoriteToggle: return "favorite_toggle"
         }
     }
 
@@ -517,8 +529,32 @@ public enum AnalyticsEvent: Equatable, Sendable {
             case .share: parameters["purpose"] = .string(purpose.rawValue)
             }
             return parameters
+        case let .favoriteToggle(gameID, state, source):
+            return [
+                "game_id": .string(gameID),
+                "state": .string(state.rawValue),
+                "source": .string(source.rawValue),
+            ]
         }
     }
+}
+
+/// `favorite_toggle` の `state`（#3478）。付けた（on）か外した（off）か。
+public enum FavoriteState: String, Equatable, Sendable, CaseIterable {
+    case on
+    case off
+}
+
+/// `favorite_toggle` の `source`（#3478）。どの☆（またはメニュー項目）で付け外ししたか。
+public enum FavoriteSource: String, Equatable, Sendable, CaseIterable {
+    /// ハブのタイルの☆。
+    case hubTile = "hub_tile"
+    /// ハブのタイルの長押しメニュー。
+    case hubMenu = "hub_menu"
+    /// ゲーム画面のヘッダーの☆。
+    case header
+    /// 狭い画面でヘッダーの「…」にまとめたメニューの項目。
+    case headerMenu = "header_menu"
 }
 
 /// `reward_grant` の `items`（#3256）。渡したもの。
@@ -674,6 +710,10 @@ public final class GameAnalytics {
     private var gauges: [String: AnalyticsGaugeSummary] = [:]
     /// 進行中のプレイで「猫を教える」を使った回数（#3232）。終わりの `game_end` に `teach_used` として載せる。
     private var teachCounts: [String: Int] = [:]
+    /// 手つかずの盤で使ったヒントの回数の持ち越し（#3467）。再開できない盤で離れるとプレイの記録ごと捨てるが、
+    /// ヒントの消費は盤の保存データに残るので、開き直した回の `hints_used` へ引き継ぐ。
+    /// 離れるたびに上書きする（使っていなければ鍵ごと消す）ので、古い値が後の回に残らない。
+    private var heldHints: [String: Int] = [:]
     private var missPercents: [String: Int] = [:]
     /// 直前のミスがまだ挽回されていない（走り直していない）プレイ。`quit` の `exit` の元。
     private var unresolvedMisses: Set<String> = []
@@ -735,6 +775,7 @@ public final class GameAnalytics {
         gameID: String, level: AnalyticsLevel? = nil, mode: AnalyticsMode? = nil, credit: AnalyticsCredit? = nil
     ) {
         guard allowedGameIDs.contains(gameID) else { return }
+        heldHints[gameID] = nil
         endPlayAsQuitIfProgressed(gameID: gameID)
         beginPlay(gameID: gameID, level: level, mode: mode, credit: credit)
     }
@@ -806,6 +847,18 @@ public final class GameAnalytics {
         else { return }
         plays[gameID] = .inFlight(
             startedAt: startedAt, didProgress: didProgress, canResume: canResume, hintsUsed: hintsUsed + 1
+        )
+    }
+
+    /// 手つかずの盤を開き直したとき、前の回に使ったヒントの回数を今のプレイへ引き継ぐ（#3467）。
+    /// `gameScreenDidAppear` が `gameDidStart` の直後に呼ぶ。盤の保存データが残っている経路でしか呼ばれないので、
+    /// 新しい盤には持ち越さない。進行中のプレイが無ければ何もしない。
+    public func adoptHeldHints(gameID: String) {
+        guard let held = heldHints.removeValue(forKey: gameID), held > 0,
+              case let .inFlight(startedAt, didProgress, canResume, hintsUsed) = plays[gameID]
+        else { return }
+        plays[gameID] = .inFlight(
+            startedAt: startedAt, didProgress: didProgress, canResume: canResume, hintsUsed: hintsUsed + held
         )
     }
 
@@ -897,6 +950,12 @@ public final class GameAnalytics {
     public func recordRewardGrant(gameID: String, rank: Int, items: RewardGrantItems, purpose: RewardGrantPurpose = .ranking) {
         guard allowedGameIDs.contains(gameID) else { return }
         service.log(.rewardGrant(gameID: gameID, rank: rank, items: items, purpose: purpose))
+    }
+
+    /// お気に入りの☆を付け外ししたときに呼ぶ（#3478）。プレイの数え方には影響しない。
+    public func recordFavoriteToggle(gameID: String, state: FavoriteState, source: FavoriteSource) {
+        guard allowedGameIDs.contains(gameID) else { return }
+        service.log(.favoriteToggle(gameID: gameID, state: state, source: source))
     }
 
     /// リザルトの共有ボタンを押したときに呼ぶ（#1043）。プレイの数え方には影響しない。
@@ -1053,6 +1112,7 @@ public final class GameAnalytics {
     ///   数えられてしまう（PR #162 の CodeRabbit 指摘）。これが**休憩**で、離脱ではない（#500）。
     ///   中断データが残らない = 盤面を捨てたときだけ `quit` を送る。
     public func leaveGame(gameID: String, isResumable: Bool) {
+        heldHints[gameID] = nil
         if case .finished = plays[gameID] {
             // クリアした面の画面を、次へも「もう一度」も押さずに離れた（#2848）。
             if finishedResults[gameID] == .win, let level = levels[gameID], case .stage = level {
@@ -1072,6 +1132,10 @@ public final class GameAnalytics {
             return
         }
         endPlayAsQuitIfProgressed(gameID: gameID)
+        // 手つかずのままヒントだけ使って離れた回数は、盤の保存データに残る。開き直した回へ持ち越す（#3467）。
+        if case let .inFlight(_, didProgress, _, hintsUsed) = plays[gameID], !didProgress, hintsUsed > 0 {
+            heldHints[gameID] = hintsUsed
+        }
         // 送っても送らなくても、再開できない盤面はもう続きが無い。次に開いたら数え直す。
         plays[gameID] = nil
         clearClock(gameID: gameID)

@@ -26,6 +26,15 @@ public struct MahjongSolitaireLayout: Identifiable, Sendable {
         default:        return recordLabel
         }
     }
+    /// 解析イベント（`game_start` / `game_end`）の `mode`（#3517）。記録の区分 `id` と同じ綴りで、
+    /// 知らない `id` は亀甲に倒す（`named` と同じ）。
+    var analyticsMode: AnalyticsMode {
+        switch id {
+        case "pyramid": return .pyramid
+        case "cross":   return .cross
+        default:        return .turtle
+        }
+    }
     /// 牌 1 枚ぶんの置き場所。添字がそのまま盤上の位置 ID になる。
     public let positions: [MahjongPosition]
     /// 盤面の広さ（半マス単位）。描画のスケール計算に使う。**位置から導出する**ので取り違えない。

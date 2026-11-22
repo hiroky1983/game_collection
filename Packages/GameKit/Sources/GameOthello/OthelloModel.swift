@@ -93,10 +93,12 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public var isAITurn: Bool { !gameOver && currentStone != humanSide }
     /// 「新規対局」で失われる進行があるか（#1011）。
     ///
-    /// 初期配置（4 個）から石が増えていて、まだ決着していないとき。決着後は捨てるものが無く、
-    /// 開始直後（CPU 先手でまだ打っていない盤を含む）も確認を挟むだけ無駄なので false。
+    /// 人間が 1 手でも打っていて、まだ決着していないとき。決着後は捨てるものが無く、
+    /// 開始直後（CPU 先手で CPU の初手だけが入った盤を含む）も確認を挟むだけ無駄なので false（#3490）。
     /// 石の数で見るのは、`placementCount` が中断データから復元すると 0 に戻るため。
-    public var hasProgressToLose: Bool { !gameOver && blackCount + whiteCount > 4 }
+    public var hasProgressToLose: Bool {
+        !gameOver && CPUOpening.humanHasMoved(totalMoves: blackCount + whiteCount - 4, cpuMovesFirst: humanSide == .white)
+    }
     /// 決着の種類（評価リクエスト #53 の判定用。リザルト表示時に参照する）。
     public var reviewOutcome: GameOutcome {
         if isDraw { return .draw }
@@ -218,7 +220,8 @@ public final class OthelloModel: AITurnGuarded, BoardUndoModel, BoardHintModel {
     public func confirmPass() {
         guard mustPass, !gameOver else { return }
         // 石が動かない操作なので、触覚が押せた手応え（囲碁・大富豪のパスと同じ・#2540）。
-        services?.feedback.impact(.light)
+        // 指が触れていない CPU のパスでは鳴らさない（#3543。`place()` と同じく人間手番だけ）。
+        if currentStone == humanSide { services?.feedback.impact(.light) }
         // パスは石を動かさないので「待った」の巻き戻し地点にはしない（#414）。
         // ここで積むと、CPU のパス直後に「待った」を押したとき**パスの直前の局面**へ戻り、
         // CPU が再びパスして同じ局面に戻る往復になる（履歴も減らないので永久に自分の手を戻せない）。

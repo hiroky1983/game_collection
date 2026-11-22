@@ -1315,6 +1315,17 @@
           }
         }
       }
+    },
+    "%1$@、%2$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: %2$@"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

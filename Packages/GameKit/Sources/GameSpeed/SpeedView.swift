@@ -174,6 +174,8 @@ public struct SpeedView: View {
         // CPU の待ちは Model が決め、ここは待つだけ。場が動くたびに `cpuRun` が進んで前のループが止まり、
         // 画面を離れれば `.task` ごと止まる。
         .task(id: model.cpuRun) { await runCPU() }
+        // CPU の出し合いは速いので、読み上げは 2 秒に 1 回、最新の 1 件に間引く（#3424）。
+        .cpuEventAnnouncement(model.cpuEvent, throttle: .seconds(2))
         // 出せる札の案内（5 秒）。あなたの操作・場が動く・CPU を止める / 解くたびに番号が進み、数え直す。
         .task(id: model.navigationEpoch) { await runPlayableNavigation() }
         // 「台札のほうへ払って出します」の一言は少し出して消す。

@@ -10,7 +10,7 @@ import GamePoker
 import GameConcentration
 import GameBlackjack
 import GameDaifugo
-import GameMahjongSolitaire
+@testable import GameMahjongSolitaire
 import GameMahjong
 import GameSudoku
 import GameGo
@@ -153,7 +153,7 @@ struct AnalyticsEventShapeTests {
 
         // 1枚しか出ない導線は位置を持たない。渡されても送らない（実在しない位置を作らない）。
         for source in [GameOpenSource.recommendation, .notification, .firstPick, .quickAction,
-                       .resumeReminder, .reengagement, .challengeReturn, .records, .deeplink, .pickup] {
+                       .resumeReminder, .reengagement, .challengeReturn, .records, .deeplink, .pickup, .streakReminder] {
             let event = AnalyticsEvent.gameOpen(gameID: "shogi", source: source, position: 1, resume: false)
             #expect(Set(event.parameters.keys) == ["game_id", "source", "resume"], "\(source)")
         }
@@ -181,11 +181,11 @@ struct AnalyticsEventShapeTests {
                 == ["resume", "challenge", "reengagement"])
     }
 
-    @Test("source は hub / recent / recommendation / notification / first_pick / quick_action / hero / resume_reminder / reengagement / challenge_return / records / deeplink / pickup の13値に閉じている（#659・#721・#1950・#1974・#2141・#3358）")
+    @Test("source は hub / recent / recommendation / notification / first_pick / quick_action / hero / resume_reminder / reengagement / challenge_return / records / deeplink / pickup / streak_reminder と麻雀ソリティアのかたち3値の16値に閉じている（#659・#721・#1950・#1974・#2141・#3358・#3534）")
     func openSourceIsClosed() {
         #expect(GameOpenSource.allCases.map(\.rawValue) == [
             "hub", "recent", "recommendation", "notification", "first_pick", "quick_action", "hero",
-            "resume_reminder", "reengagement", "challenge_return", "records", "deeplink", "pickup",
+            "resume_reminder", "reengagement", "challenge_return", "records", "deeplink", "pickup", "streak_reminder",
         ])
         #expect(GameOpenSource.allCases.filter(\.hasPosition) == [.hub, .recent])
     }
@@ -335,6 +335,7 @@ struct AnalyticsEventShapeTests {
         #expect(AnalyticsMode.allCases.map(\.rawValue) == [
             "tonpuu", "single_hand", "hanchan", "stage", "endless", "backpain", "puzzle",
             "even", "rook_player", "rook_cpu", "bishop_player", "bishop_cpu", "single_round",
+            "turtle", "pyramid", "cross",
         ])
         // 送る文字列は rawValue そのもの（開始と終わりで同じ値）。
         for mode in AnalyticsMode.allCases {
@@ -347,6 +348,8 @@ struct AnalyticsEventShapeTests {
             + OjisanPuzzleMode.allCases.map(\.analyticsMode)
             // 単発戦はポーカーとブラックジャックで同じ値を使う（ゲームは `game_id` で分かれる）ので、片方だけ数える。
             + PokerSessionFormat.allCases.compactMap(\.analyticsMode)
+            // 麻雀ソリティアのかたち 3 つ（#3517）。
+            + MahjongSolitaireLayout.all.map(\.analyticsMode)
             // 平手は落とす側によらず同じ値なので、重複を畳んでから突き合わせる。
             + Array(Set(ShogiHandicap.allCases.flatMap { handicap in
                 ShogiHandicapDropper.allCases.map { ShogiMatchSetting(handicap: handicap, dropper: $0).analyticsMode }
@@ -1902,6 +1905,63 @@ struct UntouchedSnapshotReopenTests {
         appear(module, services, snapshots)
         appear(module, services, snapshots)
         #expect(spy.starts(of: "concentration") == startsBefore + 1, "二重にはならない")
+    }
+
+    /// 最後の `game_end` の `hints_used`（無ければ nil = 鍵ごと送らない）。
+    private func lastEndHints(_ spy: SpyAnalyticsService) -> Int? {
+        let ends = spy.events.filter { if case .gameEnd = $0 { return true } else { return false } }
+        guard case let .int(value)? = ends.last?.parameters["hints_used"] else { return nil }
+        return value
+    }
+
+    @Test("15パズル: 動かさずヒントだけ使って戻り、開き直して離れると game_end の hints_used に前の回の分が載る（#3467）")
+    func fifteenHintsCarryOver() {
+        let snapshots = MemorySnapshotStore()
+        let module = FifteenModule()
+        let (services, spy) = makeHubServices(snapshots: snapshots, modules: [module])
+
+        let first = FifteenModel(services: services, seed: 1)
+        first.requestHint()
+        let remainingBefore = FifteenModel(services: nil, seed: 1).hintsRemaining
+        #expect(first.hintsRemaining == remainingBefore - 1, "前提: ヒントを 1 回使った")
+        services.gameDidLeave(gameID: module.id)
+        #expect(module.hasUntouchedSnapshot(in: snapshots), "前提: 0 手の保存が残っている")
+
+        _ = FifteenModel(services: services, seed: 1)
+        appear(module, services, snapshots)
+        services.gameDidProgress(gameID: module.id)
+        services.gameDidLeave(gameID: module.id)
+        #expect(lastEndHints(spy) == 1)
+    }
+
+    @Test("手つかずの盤で使ったヒントは、開き直した回の game_end に持ち越す。新しい盤・使っていない回には持ち越さない（#3467）")
+    func hintsCarryOverIsScopedToUntouchedReopen() {
+        // 将棋・チェス・囲碁・オセロ・15パズル・五目並べ。いずれも共通部品（GameAnalytics）の同じ経路を通る。
+        for id in ["shogi", "chess", "go", "othello", "fifteen", "gomoku"] {
+            let (analytics, spy) = makeAnalytics()
+            let services = GameServices(
+                snapshots: MemorySnapshotStore(), ads: NoopAdService(), analytics: analytics,
+                isResumable: { _, _ in false }
+            )
+            // 1 回目: 手を指さずヒントを 2 回使って離れる。
+            services.gameDidStart(gameID: id)
+            services.gameDidUseHint(gameID: id)
+            services.gameDidUseHint(gameID: id)
+            services.gameDidLeave(gameID: id)
+            // 2 回目: 手つかずの保存を開き直し、ヒントをもう 1 回使って指す → 離れる。
+            services.gameScreenDidAppear(gameID: id, hasUntouchedSnapshot: true)
+            services.gameDidUseHint(gameID: id)
+            services.gameDidProgress(gameID: id)
+            services.gameDidLeave(gameID: id)
+            #expect(lastEndHints(spy) == 3, "\(id): 前の回の 2 回と今回の 1 回")
+
+            // 3 回目: 保存が無い（新しい盤）。前の回のヒントは持ち越さない。
+            services.gameDidStart(gameID: id)
+            services.gameScreenDidAppear(gameID: id, hasUntouchedSnapshot: false)
+            services.gameDidProgress(gameID: id)
+            services.gameDidLeave(gameID: id)
+            #expect(lastEndHints(spy) == nil, "\(id): 新しい盤には持ち越さない")
+        }
     }
 
     @Test("花札: 配っただけで戻って開き直し、投了すると game_start / game_end が付く（#2301）")

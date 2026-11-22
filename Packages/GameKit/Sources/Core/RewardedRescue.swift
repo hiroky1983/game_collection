@@ -103,7 +103,9 @@ public final class RewardedRescue {
                     assert(guardedBy.isChecked, "\(gameID) は照合していない宣言なのに grant が false を返した")
                     showsUnavailable = true
                 }
-            } else {
+            } else if services.screenGeneration.current == generation {
+                // 未視聴・読み込み失敗。成功側と同じく、ハブへ戻られていたら出す先の画面が無いので
+                // アラートも `whenNotEarned`（捨てられた Model の巻き戻し）も実行しない（#3472）。
                 showsNotEarned = true
                 whenNotEarned?()
             }

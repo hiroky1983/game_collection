@@ -112,10 +112,13 @@ struct BackgammonResumableSnapshotTests {
         #expect(spy.quits.isEmpty, "手つかずの局は離脱に数えない")
     }
 
-    @Test("「待った」で戻しても開始局面でなければ従来どおり保存し、続きとして残す（#3133）")
-    func undoToMidGameKeepsSnapshot() async {
+    @Test("CPU 先手の局で、待ったで CPU の初手だけの盤へ戻したら続きではなく手つかず。離脱にも数えない（#3422）")
+    func undoToCPUOpeningIsUntouched() async {
+        let spy = SpyAnalyticsService()
         let store = MemorySnapshotStore()
-        let model = await cpuOpenedModel(makeServices(store: store))
+        let services = makeServices(store: store, spy: spy)
+        services.gameDidStart(gameID: "backgammon")
+        let model = await cpuOpenedModel(services)
         playHuman(model)
         playHuman(model)
         var guardCount = 0
@@ -123,10 +126,31 @@ struct BackgammonResumableSnapshotTests {
             guardCount += 1
             await model.performAIMoveIfNeeded()
         }
+        #expect(module.hasResumableSnapshot(in: store), "前提: 人間が動かした後は続き")
         #expect(model.canUndo, "前提: 待ったを押せる")
         model.undoLastExchange()
         #expect(model.board != BackgammonBoard(), "前提: CPU の初手が入った盤へ戻った（開始局面ではない）")
-        #expect(store.exists(for: "backgammon"))
+        #expect(store.exists(for: "backgammon"), "CPU の初手の盤は保存する（#2934）")
+        #expect(!module.hasResumableSnapshot(in: store))
+        #expect(module.hasUntouchedSnapshot(in: store))
+        services.gameDidLeave(gameID: "backgammon")
+        #expect(spy.quits.isEmpty, "人間は 0 手に戻ったので離脱に数えない")
+    }
+
+    @Test("CPU 先手で 2 手番動かして 1 回待ったで戻しても、まだ続き（#3422）")
+    func undoOneOfTwoTurnsStaysResumable() async {
+        let store = MemorySnapshotStore()
+        let model = await cpuOpenedModel(makeServices(store: store))
+        for _ in 0..<2 {
+            playHuman(model)
+            playHuman(model)
+            var guardCount = 0
+            while model.isAITurn, guardCount < 40 {
+                guardCount += 1
+                await model.performAIMoveIfNeeded()
+            }
+        }
+        model.undoLastExchange()
         #expect(module.hasResumableSnapshot(in: store))
     }
 }

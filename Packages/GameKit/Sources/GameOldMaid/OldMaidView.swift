@@ -101,6 +101,8 @@ public struct OldMaidView: View {
             guard !isCPUPaused else { return }
             await model.runCPUTurnsIfNeeded()
         }
+        // CPU が引くたびに 1 回読み上げる（#3424）。
+        .cpuEventAnnouncement(model.cpuEvent)
         .task {
             // 開幕のモーダルは置かず、卓を見せたまま配り始める（#192）。強さは右上の「新規対局」で選び直す。
             // 中断から戻ったときは init が `.playing` まで復元しているので配り直さない。
@@ -615,7 +617,7 @@ public struct OldMaidView: View {
             HStack(spacing: 8) {
                 Image(systemName: won ? "crown.fill" : "theatermasks.fill")
                     .scaledFont(20)
-                    .foregroundStyle(won ? Theme.yellowText : Theme.purple)
+                    .foregroundStyle(won ? Theme.yellowText : Theme.purple) // accent-text-ok: アイコン（非テキスト 3:1 を満たす）
                     .accessibilityHidden(true)
                 Text(headline)
                     .scaledFont(17, weight: .black, design: .rounded)

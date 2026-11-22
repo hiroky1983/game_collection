@@ -57,16 +57,12 @@ public struct AnzanView: View {
             BannerSlot(ads: services.ads)
         }
         .padding()
-        .gameChrome(title: tr("ぱっと暗算"), review: services.review) {
-            ToolbarItem(placement: .primaryAction) {
-                Button { showSetup = true } label: {
-                    Label(tr("難易度"), systemImage: "slider.horizontal.3")
-                }
-                // 数が出ているあいだにシートを被せると見逃すので、出し終わるまで待たせる。
-                // 広告の視聴中も塞ぐ（難易度を変えると問題が入れ替わり、見終えた広告の見直しが乗らない）。
-                .disabled(model.phase == .flashing || replayRescue.isWatching)
-            }
-        }
+        .gameChrome(title: tr("ぱっと暗算"), review: services.review, actions: [
+            // 数が出ているあいだにシートを被せると見逃すので、出し終わるまで待たせる。
+            // 広告の視聴中も塞ぐ（難易度を変えると問題が入れ替わり、見終えた広告の見直しが乗らない）。
+            GameChromeAction(tr("難易度"), systemImage: "slider.horizontal.3",
+                             isDisabled: model.phase == .flashing || replayRescue.isWatching) { showSetup = true }
+        ])
         .howToPlay(HowToPlayGuide.anzan.illustrated(AnzanHowToFigures.items).onboarding(AnzanOnboarding.guide), onPresent: {
             // 数が出ているあいだに読むと出題が進んで誤答になるので、止めて頭から出し直す。
             showHowToPlay = true

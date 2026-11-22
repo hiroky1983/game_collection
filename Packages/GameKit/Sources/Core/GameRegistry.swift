@@ -9,9 +9,9 @@ public struct GameRegistry {
         self.categories = categories
     }
 
-    /// `gameID` が入るカテゴリー。`.all` は返さない（絞り込みの「すべて」はカテゴリーではなく無指定）。
+    /// `gameID` が入るカテゴリー。`.all` と `.favorites` は返さない（どちらも分類ではなく、すべて / 利用者の選びで決まるタブ）。
     public func category(of gameID: String) -> HubCategory {
-        guard let category = categories[gameID], category != .all else { return .puzzleOther }
+        guard let category = categories[gameID], category != .all, category != .favorites else { return .puzzleOther }
         return category
     }
 

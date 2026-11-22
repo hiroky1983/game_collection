@@ -31,6 +31,25 @@ public enum OldMaidAccessibility {
         isLastDrawn ? tr("%@、いま引いた札", cardName(card)) : cardName(card)
     }
 
+    /// CPU が引いたときの読み上げ文（#3424）。
+    /// あなたの札を引かれたときだけ札の名前まで読む（CPU 同士の伏せ札は、見えている人にも見えないので枚数だけ）。
+    /// ペアができたときは捨てたペアの数字を添える。
+    public static func cpuDrawAnnouncement(_ transfer: OldMaidTransfer, drawerAction: OldMaidAction) -> String {
+        let drawer = playerName(transfer.to)
+        var text = transfer.from == OldMaidGame.humanIndex
+            ? tr("%1$@があなたの%2$@を引きました", drawer, cardName(transfer.card))
+            : tr("%1$@が%2$@から1枚引きました", drawer, playerName(transfer.from))
+        if transfer.paired {
+            text += tr("。") + actionText(drawerAction)
+        }
+        return text
+    }
+
+    /// 席の呼び名（0 = あなた、1〜3 = CPU1〜3）。
+    public static func playerName(_ index: Int) -> String {
+        index == OldMaidGame.humanIndex ? tr("あなた") : "CPU\(index)"
+    }
+
     /// 直近の動きの短い文（画面のバッジと読み上げで共用）。動きが無ければ空文字。
     public static func actionText(_ action: OldMaidAction) -> String {
         switch action {

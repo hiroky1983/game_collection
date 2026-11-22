@@ -368,6 +368,8 @@ public struct ConcentrationView: View {
                 resultCard
                 RecommendationSlot(services: services, isFinished: true, ladder: ladder)
             }
+            // SE・最大の文字サイズでカード＋枠が画面より背高になったときだけ縦スクロールにする（#3487）。
+            .resultCardScrollsWhenTall()
             .padding(.horizontal, 32)
         }
     }

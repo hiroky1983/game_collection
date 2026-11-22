@@ -130,12 +130,32 @@ struct ThemeContrastTests {
             ("yellowText", Theme.Hex.yellowText),
             ("tealText", Theme.Hex.tealText),
             ("coralText", Theme.Hex.coralText),
+            ("purpleText", Theme.Hex.purpleText),
         ]
         for (_, pair) in pairs {
             #expect(WCAG.contrast(pair.light, Theme.Hex.background.light) >= Self.aa)
             #expect(WCAG.contrast(pair.light, Theme.Hex.surface.light) >= Self.aa)
             #expect(WCAG.contrast(pair.dark, Theme.Hex.background.dark) >= Self.aa)
             #expect(WCAG.contrast(pair.dark, Theme.Hex.surface.dark) >= Self.aa)
+        }
+    }
+
+    /// ランキングの自分の行（`Fill.yellow` 25% 重ね）の補足文は、ライト・ダークとも 4 つの地の上で AA（#3453）。
+    @Test func purpleNoteOnMeRowMeetsAA() {
+        func blended(_ base: UInt32) -> UInt32 {
+            var out: UInt32 = 0
+            for shift: UInt32 in [16, 8, 0] {
+                let f = Double((Theme.Hex.Fill.yellow >> shift) & 0xFF), b = Double((base >> shift) & 0xFF)
+                out |= UInt32((f * 0.25 + b * 0.75).rounded()) << shift
+            }
+            return out
+        }
+        let pair = Theme.Hex.purpleOnMeRowText
+        for base in [Theme.Hex.background.light, Theme.Hex.surface.light] {
+            #expect(WCAG.contrast(pair.light, blended(base)) >= Self.aa)
+        }
+        for base in [Theme.Hex.background.dark, Theme.Hex.surface.dark] {
+            #expect(WCAG.contrast(pair.dark, blended(base)) >= Self.aa)
         }
     }
 

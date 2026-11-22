@@ -50,3 +50,44 @@ struct Game2048LiveBestTests {
         #expect(model.highestTile == 512)
     }
 }
+
+/// #3488: 「2048 達成！」の幕を出したまま復元しても、幕の直下の記録行が消えない。
+@Suite("2048 達成幕の復元と記録行（#3488）")
+@MainActor
+struct Game2048WinPromptRecordRestoreTests {
+    @Test("幕を出したまま復元すると記録行が出て、記録は二重に加算されない")
+    func restoredWinPromptKeepsRecordRow() {
+        let name = "asobiba.2048winrestore.tests"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        let log = PlayLog(defaults: defaults)
+        let store = MemorySnapshotStore()
+        let services = GameServices(snapshots: store, ads: NoopAdService(), playLog: log)
+
+        let model = Game2048Model(services: services,
+                                  board: [[1024, 1024, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], score: 100)
+        model.move(.left)
+        #expect(model.showWinPrompt)
+        #expect(model.recordResult != nil)
+        let saved = log.record(gameID: "2048")
+
+        let restored = Game2048Model(services: services)
+        #expect(restored.showWinPrompt)
+        #expect(restored.recordResult?.record == saved)
+        #expect(log.record(gameID: "2048") == saved, "復元で gameDidFinish を再実行しない")
+    }
+
+    @Test("幕を出していない復元では記録行を出さない")
+    func restoredWithoutPromptHasNoRecordRow() {
+        let name = "asobiba.2048winrestore.tests.none"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        let log = PlayLog(defaults: defaults)
+        _ = log.recordResult(gameID: "2048", outcome: .loss, score: GameScore(metric: .points, points: 500))
+        let store = MemorySnapshotStore()
+        try? store.save(Game2048Snapshot(board: [[2, 4, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], score: 6),
+                   for: "2048")
+        let services = GameServices(snapshots: store, ads: NoopAdService(), playLog: log)
+        #expect(Game2048Model(services: services).recordResult == nil)
+    }
+}

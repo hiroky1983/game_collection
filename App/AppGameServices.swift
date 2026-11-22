@@ -384,4 +384,7 @@ enum AppEnvironment {
     ])
 
     static let settings = GameSettings(registeredIDs: registry.modules.map(\.id))
+
+    /// お気に入りのゲーム（#3478）。ハブの☆とゲーム画面のヘッダーの☆が共有する。
+    static let favorites = FavoritesStore(registeredIDs: registry.modules.map(\.id))
 }

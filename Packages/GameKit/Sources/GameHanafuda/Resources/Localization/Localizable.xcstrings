@@ -679,9 +679,21 @@
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "You %1$lld pts · CPU %2$lld pts"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You %1$lld pt · CPU %2$lld pt(s)"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "You %1$lld pts · CPU %2$lld pts"
+                }
+              }
+            }
           }
         }
       }
@@ -2572,9 +2584,21 @@
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The CPU captured %2$lld card with %1$@"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The CPU captured %2$lld card with %1$@"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "The CPU captured %2$lld cards with %1$@"
+                }
+              }
+            }
           }
         }
       }
@@ -2594,9 +2618,21 @@
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Drew %1$@ and captured %2$lld card"
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Drew %1$@ and captured %2$lld card"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Drew %1$@ and captured %2$lld cards"
+                }
+              }
+            }
           }
         }
       }

@@ -3,7 +3,7 @@ import Foundation
 import Core
 import GameKitTestSupport
 
-/// 差し色（yellow / teal / coral）を前景（文字・アイコン・記号）に直接使うのを止める（#2282・#2377）。
+/// 差し色（yellow / teal / coral / purple / pink）を前景（文字・アイコン・記号）に直接使うのを止める（#2282・#2377）。
 ///
 /// 元の差し色は明るい地（クリーム・白）の上で 1.5〜2.6:1 しか取れず、ベット額・ポット額のような数字が
 /// ライトモードで読めなかった。文字・アイコン・記号には `Theme.yellowText` / `tealText` / `coralText` を使う。
@@ -16,7 +16,7 @@ import GameKitTestSupport
 /// 検査できないので、前景に使う色を返す関数は最初から `...Text` を返すこと。
 struct AccentTextScanTests {
 
-    private static let accent = #"\bTheme\.(yellow|teal|coral)\b"#
+    private static let accent = #"\bTheme\.(yellow|teal|coral|purple|pink)\b"#
     private static let patterns = [
         #"foregroundStyle\(.*"# + accent,
         #"\.tint\(\s*"# + accent,
@@ -58,8 +58,8 @@ struct AccentTextScanTests {
             }
         }
         #expect(offenders.isEmpty, """
-            前景（foregroundStyle・.tint・文字ラベルの color:）に Theme.yellow / teal / coral を使うと明るい地で読めない。
-            Theme.yellowText / tealText / coralText を使う（#2282・#2377）。面・枠・影は対象外。
+            前景（foregroundStyle・.tint・文字ラベルの color:）に Theme.yellow / teal / coral / purple / pink を使うと明るい地で読めない。
+            Theme.yellowText / tealText / coralText / purpleText を使う（#2282・#2377・#3425）。面・枠・影は対象外。
             暗い面の上や .tint が面になる箇所などで意図的に使うなら行末に `// accent-text-ok: 理由` を付ける。
             \(offenders.joined(separator: "\n"))
             """)
@@ -84,6 +84,9 @@ struct AccentTextScanTests {
         #expect(!Self.isOffending("    .foregroundStyle(Theme.yellowText)"))
         #expect(!Self.isOffending("    .foregroundStyle(Theme.teal) // accent-text-ok: 暗い面"))
         #expect(!Self.isOffending("    .foregroundStyle(Theme.Fill.yellow)"))
+        #expect(Self.isOffending("    .foregroundStyle(Theme.purple)"))
+        #expect(Self.isOffending("    .foregroundStyle(Theme.pink)"))
+        #expect(!Self.isOffending("    .foregroundStyle(Theme.purpleText)"))
     }
 }
 

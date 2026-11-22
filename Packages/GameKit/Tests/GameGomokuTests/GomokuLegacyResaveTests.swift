@@ -98,3 +98,59 @@ struct GomokuLegacyResaveTests {
         #expect(!reloaded.canUndo)
     }
 }
+
+/// 旧形式の中断データが白番だったときの手番の扱い（#3441）。
+@MainActor
+@Suite("五目並べ 旧形式の白番再開（#3441）")
+struct GomokuLegacyWhiteTurnTests {
+    private func snapshot(humanSide: GomokuStone) -> GomokuSnapshot {
+        var board = GomokuBoard()
+        board[7, 7] = .black; board[7, 8] = .white; board[8, 7] = .black
+        return GomokuSnapshot(
+            cells: board.cells.map { $0?.rawValue },
+            currentStone: GomokuStone.white.rawValue,
+            humanSide: humanSide.rawValue,
+            aiLevel: 1,
+            startedAt: Date(),
+            moveHistory: nil,
+            undoUsed: nil,
+            resigned: nil,
+            winner: nil,
+            forbiddenMoves: nil,
+            hintsUsed: nil
+        )
+    }
+
+    @Test("人間黒・CPU白で白番から再開しても、1 往復のあと待ったが使える")
+    func undoAvailableWhenCPUMovesFirstAsWhite() async throws {
+        let store = MemorySnapshotStore()
+        try store.save(snapshot(humanSide: .black), for: "gomoku")
+        let model = GomokuModel(services: GameServices(snapshots: store, ads: NoopAdService()))
+        try #require(model.isAITurn, "前提: 白（CPU）の番から再開")
+
+        await model.performAIMoveIfNeeded()
+        model.tap(row: 0, col: 0)
+        await model.performAIMoveIfNeeded()
+        try #require(model.moveCount == 6, "前提: 復元前の 3 石 + CPU・人間・CPU の 3 手が入っている")
+
+        #expect(model.canUndo, "手順が [白, 黒, 白] でも直前の往復は戻せる")
+        model.undoLastExchange()
+        #expect(model.board[0, 0] == nil)
+        #expect(model.currentStone == .black)
+    }
+
+    @Test("白番で再開してヒントだけ使って作り直しても、手番は白のまま")
+    func hintBeforeFirstMoveKeepsWhiteTurn() async throws {
+        let store = MemorySnapshotStore()
+        try store.save(snapshot(humanSide: .white), for: "gomoku")
+        let first = GomokuModel(services: GameServices(snapshots: store, ads: NoopAdService()))
+        try #require(!first.isAITurn && first.currentStone == .white, "前提: 人間（白）の番から再開")
+
+        await first.requestHint()
+        try #require(first.hintPoint != nil, "前提: ヒントが出ている")
+
+        let second = GomokuModel(services: GameServices(snapshots: store, ads: NoopAdService()))
+        #expect(second.currentStone == .white)
+        #expect(!second.isAITurn)
+    }
+}

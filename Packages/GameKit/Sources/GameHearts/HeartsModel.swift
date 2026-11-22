@@ -92,6 +92,8 @@ public final class HeartsModel: AITurnGuarded {
     public private(set) var ranking: [Int] = []
     /// 手番の通し番号。番が動くたびに進む。
     public private(set) var turnSerial = 0
+    /// CPU が札を出したことの控え。View が VoiceOver へ読み上げる（#3424）。人間の操作では書かない。保存しない。
+    public private(set) var cpuEvent: CPUEventAnnouncement?
     /// 直近の決着で確定した自己ベスト（#115）。リザルトに 1 行出す。
     public private(set) var recordResult: RecordResult?
     /// 渡す場面のヒントの残り（#3003）。回数・広告での補充・順位表の扱いは Core の `BoardHintBudget`
@@ -487,6 +489,7 @@ public final class HeartsModel: AITurnGuarded {
         var card = HeartsCPU(strength: strength).choosePlay(view, using: &rng) ?? fallback
         if !legal.contains(card) { card = fallback }
         play(card, by: player)
+        cpuEvent = .next(after: cpuEvent, text: HeartsAccessibility.cpuPlayAnnouncement(player: player, card: card))
     }
 
     // MARK: - テスト用

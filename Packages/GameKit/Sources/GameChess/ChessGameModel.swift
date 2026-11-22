@@ -621,6 +621,11 @@ public final class ChessGameModel: AITurnGuarded, BoardUndoModel, BoardHintModel
 
     // MARK: - 待った（自分の直前手＋CPU 応手の 2 手を戻す）
 
+    /// 「新規対局」で失われる進行があるか（対局中で人間が 1 手でも指した局。CPU の初手だけでは数えない・#3490）。
+    public var hasProgressToLose: Bool {
+        phase == .playing && moves.indices.contains { mover(at: $0) == humanSide }
+    }
+
     private func mover(at index: Int) -> ChessColor {
         // 開始局面の手番から数える（駒落ち等で黒番から始まる FEN でも正しくなる）。
         let start = ChessPosition.fromFEN(initialFEN)?.sideToMove ?? .white
