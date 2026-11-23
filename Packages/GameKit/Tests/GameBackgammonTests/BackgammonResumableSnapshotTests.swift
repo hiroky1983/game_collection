@@ -153,4 +153,47 @@ struct BackgammonResumableSnapshotTests {
         model.undoLastExchange()
         #expect(module.hasResumableSnapshot(in: store))
     }
+
+    @Test("最初の手番で動かして「やり直し」で戻したら手つかず。保存も離脱計上も残らない（#3557）")
+    func restartTurnOnFirstTurnIsUntouched() {
+        let spy = SpyAnalyticsService()
+        let store = MemorySnapshotStore()
+        let services = makeServices(store: store, spy: spy)
+        services.gameDidStart(gameID: "backgammon")
+        let model = BackgammonModel(services: services, cpuDelay: .zero, seed: 1)
+        model.configureForTesting(board: BackgammonBoard(), side: .white, roll: (3, 1))
+        playHuman(model)
+        #expect(store.exists(for: "backgammon"), "前提: 動かすと保存される")
+        #expect(model.canRestartTurn, "前提: やり直しを押せる")
+        model.restartTurn()
+        #expect(model.board == BackgammonBoard(), "前提: 開始局面へ戻った")
+        #expect(!store.exists(for: "backgammon"))
+        #expect(!module.hasResumableSnapshot(in: store))
+        services.gameDidLeave(gameID: "backgammon")
+        #expect(spy.quits.isEmpty, "手つかずの局は離脱に数えない")
+    }
+
+    @Test("2 手番目の「やり直し」では離脱の印も続きも残る（#3557）")
+    func restartTurnOnSecondTurnStaysResumable() async {
+        let spy = SpyAnalyticsService()
+        let store = MemorySnapshotStore()
+        let services = makeServices(store: store, spy: spy)
+        services.gameDidStart(gameID: "backgammon")
+        let model = BackgammonModel(services: services, cpuDelay: .zero, seed: 1)
+        model.configureForTesting(board: BackgammonBoard(), side: .white, roll: (3, 1))
+        playHuman(model)
+        playHuman(model)
+        var guardCount = 0
+        while model.isAITurn, guardCount < 40 {
+            guardCount += 1
+            await model.performAIMoveIfNeeded()
+        }
+        playHuman(model)
+        #expect(model.canRestartTurn, "前提: 2 手番目でやり直しを押せる")
+        model.restartTurn()
+        #expect(module.hasResumableSnapshot(in: store))
+        // 再開できない盤として離れると、進行済みの印が残っているので離脱に数える（対照）。
+        services.analytics?.leaveGame(gameID: "backgammon", isResumable: false)
+        #expect(spy.quits.map(\.gameID) == ["backgammon"], "進行済みの局は離脱に数える")
+    }
 }
