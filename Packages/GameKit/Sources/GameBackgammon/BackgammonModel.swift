@@ -243,9 +243,27 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel, BoardHintMode
         if undoHistory.last?.board == start {
             undoHistory.removeLast()
             humanTurns = max(0, humanTurns - 1)
+            // 手番の最初の 1 手を戻して手つかずの盤になったら、「待った」と同じく離脱の印も下ろす（#3557）。
+            if resetIfUntouchedAfterUndo() {
+                turnID += 1
+                return
+            }
         }
         turnID += 1
         persist()
+    }
+
+    /// 人間が 1 手も動かしていない局面（初期配置、または CPU 先手の初手だけの盤）まで戻ったら手つかずの局に戻す。
+    /// 残すと開始直後と同じ盤が「続きから」になり、離れたときに途中離脱に数えられる（#3422・#3557）。
+    /// 中断データまで消して persist 不要になったときだけ true を返す。
+    private func resetIfUntouchedAfterUndo() -> Bool {
+        guard humanTurns == 0 || board == BackgammonBoard() else { return false }
+        humanHasMoved = false
+        services?.gameDidUndoToStart(gameID: gameID)
+        guard board == BackgammonBoard() else { return false }
+        hasProgressed = false
+        services?.snapshots.clear(for: gameID)
+        return true
     }
 
     public func confirmPass() {
@@ -272,17 +290,7 @@ public final class BackgammonModel: AITurnGuarded, BoardUndoModel, BoardHintMode
         undoUsed = true
         turnID += 1
         humanTurns = max(0, humanTurns - 1)
-        // 人間が 1 手も動かしていない局面（初期配置、または CPU 先手の初手だけの盤）まで戻したら手つかずの局に戻す。
-        // 残すと開始直後と同じ盤が「続きから」になり、離れたときに途中離脱に数えられる（#3422）。
-        if humanTurns == 0 || board == BackgammonBoard() {
-            humanHasMoved = false
-            services?.gameDidUndoToStart(gameID: gameID)
-            if board == BackgammonBoard() {
-                hasProgressed = false
-                services?.snapshots.clear(for: gameID)
-                return
-            }
-        }
+        if resetIfUntouchedAfterUndo() { return }
         persist()
     }
 
