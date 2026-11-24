@@ -9,6 +9,10 @@ import Foundation
 struct RewardedAdPreloaderTests {
     private struct LoadFailure: Error {}
 
+    /// 再試行の待ちを「止めるまで終わらない」ものにする長さ。夜間の全数のように負荷が高いと実時間が
+    /// 数百秒進むことがあり、60 秒では本当に経過して再試行が走ってしまった（#3558）。
+    private static let neverElapses: Duration = .seconds(86_400)
+
     /// 読み込みを回数ぶん失敗させてから成功させる口と、待った間隔の記録。
     private final class Harness {
         var loads = 0
@@ -84,7 +88,7 @@ struct RewardedAdPreloaderTests {
         let h = Harness(failures: 10)
         let p = RewardedAdPreloader<String>(
             retryDelays: [.seconds(5), .seconds(15)], loadTimeout: nil,
-            sleep: { _ in try await Task.sleep(for: .seconds(60)) },
+            sleep: { _ in try await Task.sleep(for: Self.neverElapses) },
             load: { h.loads += 1; throw LoadFailure() }
         )
         p.start()
@@ -112,7 +116,7 @@ struct RewardedAdPreloaderTests {
         let h = Harness(failures: 100)
         let p = RewardedAdPreloader<String>(
             retryDelays: [.seconds(5)], loadTimeout: nil,
-            sleep: { _ in try await Task.sleep(for: .seconds(60)) },
+            sleep: { _ in try await Task.sleep(for: Self.neverElapses) },
             load: { h.loads += 1; throw LoadFailure() }
         )
         p.start()
@@ -146,7 +150,7 @@ struct RewardedAdPreloaderTests {
         let h = Harness(failures: 1)
         let p = RewardedAdPreloader<String>(
             retryDelays: [.seconds(5)], loadTimeout: nil,
-            sleep: { _ in try await Task.sleep(for: .seconds(60)) },
+            sleep: { _ in try await Task.sleep(for: Self.neverElapses) },
             load: {
                 h.loads += 1
                 if h.loads <= h.failures { throw LoadFailure() }
