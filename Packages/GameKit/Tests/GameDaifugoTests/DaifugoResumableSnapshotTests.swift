@@ -117,3 +117,47 @@ struct DaifugoResumableSnapshotTests {
         #expect(store.exists(for: "daifugo-carryover"), "1 手も保存されていないので持ち越しは残る")
     }
 }
+
+/// 「新規」の捨てる確認（`hasProgressToLose`）も「続きから」と同じ基準（人間が動いたか）で出す（#3565）。
+@Suite("大富豪の「新規」確認の出し分け（#3565）")
+@MainActor
+struct DaifugoProgressToLoseTests {
+    private func model() -> DaifugoModel {
+        let services = GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService())
+        let model = DaifugoModel(services: services, cpuDelay: .zero, seed: 42)
+        model.configureForTesting(
+            hands: [[card(2), card(13)], [card(4), card(5)], [card(6), card(7)], [card(8), card(11)]],
+            currentPlayer: 1
+        )
+        return model
+    }
+
+    @Test("CPU が親で出しただけなら false。人間が出すと true")
+    func cpuOnlyThenHuman() async {
+        let model = model()
+        #expect(!model.hasProgressToLose, "配った直後")
+        await model.runCPUTurnsIfNeeded()
+        #expect(model.isPlayerTurn)
+        #expect(!model.hasProgressToLose, "CPU が出しただけ")
+        guard let play = DaifugoRules.greedyPlay(
+            hand: model.playerHand, field: model.field, isRevolution: model.isRevolution
+        ) else { Issue.record("前提: 人間が出せる手がある"); return }
+        for card in play { model.toggleSelection(card) }
+        model.playSelected()
+        #expect(model.hasProgressToLose, "人間が出した後")
+    }
+
+    @Test("人間がパスしても true")
+    func humanPass() async {
+        let model = model()
+        await model.runCPUTurnsIfNeeded()
+        model.pass()
+        #expect(model.hasProgressToLose)
+    }
+
+    @Test("playing 以外（開始前）は false")
+    func notPlaying() {
+        let model = DaifugoModel(services: GameServices(snapshots: MemorySnapshotStore(), ads: NoopAdService()), cpuDelay: .zero, seed: 1)
+        #expect(!model.hasProgressToLose)
+    }
+}
