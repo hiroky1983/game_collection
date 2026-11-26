@@ -300,8 +300,13 @@ public final class DaifugoModel: AITurnGuarded {
         DaifugoRules.strength(rank: card.rank, isRevolution: isRevolution) * 10 + (card.suit?.rawValue ?? 0)
     }
 
-    /// 「新規対局」で失われる進行があるか（1 手でも進んだ未決着のゲーム。ColorRelayModel と同じ）。
-    public var hasProgressToLose: Bool { phase == .playing && !isUntouchedDeal }
+    /// 「新規対局」で失われる進行があるか（人間が 1 手でも動いた未決着のゲーム）。
+    ///
+    /// 親が CPU の局で CPU が出しただけの状態は、「続きから」と同じく進行とみなさない（#3565。判定は
+    /// `DaifugoSnapshot.humanHasActed` に寄せる）。
+    public var hasProgressToLose: Bool {
+        phase == .playing && !isUntouchedDeal && DaifugoSnapshot.humanHasActed(lastActions: lastActions)
+    }
 
     /// 人間がもう上がっているか。
     public var isPlayerFinished: Bool { hands[Self.humanIndex].isEmpty && phase != .idle }
