@@ -164,6 +164,9 @@ public final class DaifugoModel: AITurnGuarded {
     public private(set) var recordResult: RecordResult?
     /// 各プレイヤーの直近の動き（「パス」「8切り！」など）。画面のバッジ表示用。
     public private(set) var lastActions: [String] = Array(repeating: "", count: playerCount)
+    /// 旧中断データ等で `lastActions` を復元できなかった局（人間が動いたか分からない。#3565）。
+    /// 空の初期値を「何もしていない」と誤認せず、従来どおり「動いた」側に倒すための印。新しい局で解除する。
+    private var isActionHistoryUnknown = false
     /// 直近の「革命の切り替わり・8切り」（#2713）。画面が場を弾ませる合図で、保存はしない。
     public private(set) var fieldImpact: FieldImpact?
     /// 直近のルール上の出来事の一言説明（#2721）。数秒で閉じる / 次のゲームで消える。保存はしない。
@@ -258,6 +261,8 @@ public final class DaifugoModel: AITurnGuarded {
             // 壊れた配列をそのまま入れると `lastActions[index]` の参照で落ちるため。
             if let actions = snap.lastActions, actions.count == Self.playerCount {
                 lastActions = actions
+            } else {
+                isActionHistoryUnknown = true
             }
             aiLevel       = CPUStrength.strength(for: snap.aiLevel ?? CPUStrength.standard.rawValue).rawValue
             phase         = .playing
@@ -305,7 +310,8 @@ public final class DaifugoModel: AITurnGuarded {
     /// 親が CPU の局で CPU が出しただけの状態は、「続きから」と同じく進行とみなさない（#3565。判定は
     /// `DaifugoSnapshot.humanHasActed` に寄せる）。
     public var hasProgressToLose: Bool {
-        phase == .playing && !isUntouchedDeal && DaifugoSnapshot.humanHasActed(lastActions: lastActions)
+        phase == .playing && !isUntouchedDeal
+            && DaifugoSnapshot.humanHasActed(lastActions: isActionHistoryUnknown ? nil : lastActions)
     }
 
     /// 人間がもう上がっているか。
@@ -512,6 +518,7 @@ public final class DaifugoModel: AITurnGuarded {
         ruleNotice = nil
         selected = []
         lastActions = Array(repeating: "", count: Self.playerCount)
+        isActionHistoryUnknown = false
         gameNumber += 1
         currentPlayer = openingPlayer()
         recordResult = nil
@@ -906,6 +913,7 @@ public final class DaifugoModel: AITurnGuarded {
         ranking = []
         selected = []
         lastActions = Array(repeating: "", count: Self.playerCount)
+        isActionHistoryUnknown = false
         isSkippingToResult = false
         cpuTurnsAfterPlayerFinished = 0
         turnCount += 1
@@ -942,7 +950,7 @@ public final class DaifugoModel: AITurnGuarded {
             fouls: Array(fouls).sorted(),
             gameNumber: gameNumber,
             lastRanking: lastRanking,
-            lastActions: lastActions,
+            lastActions: isActionHistoryUnknown ? nil : lastActions,
             ruleSet: ruleSet,
             bindSuits: Array(bindSuits).sorted { $0.rawValue < $1.rawValue },
             aiLevel: aiLevel

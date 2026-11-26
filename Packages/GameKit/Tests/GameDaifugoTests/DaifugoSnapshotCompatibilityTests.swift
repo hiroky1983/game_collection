@@ -34,6 +34,18 @@ struct DaifugoSnapshotCompatibilityTests {
         t":3,"id":43,"rank":5}]}
         """#
 
+    @Test("lastActions の無い旧中断データは、復元後も「新規」で確認を出す（#3565）")
+    func missingLastActionsStillConfirmsNew() throws {
+        let json = Self.v116JSON.replacingOccurrences(of: #""lastActions":["3","7","3 3","5 5"],"#, with: "")
+        try #require(!json.contains("lastActions"))
+        let store = MemorySnapshotStore()
+        store.inject(Data(json.utf8), for: "daifugo")
+        let model = DaifugoModel(
+            services: GameServices(snapshots: store, ads: NoopAdService()), cpuDelay: .zero, seed: 42
+        )
+        #expect(model.hasProgressToLose)
+    }
+
     @Test("v1.1.6 の中断データを読み、手札・場・手番が戻る")
     func restoresV116Snapshot() throws {
         let snap = try JSONDecoder().decode(DaifugoSnapshot.self, from: Data(Self.v116JSON.utf8))
